@@ -1,0 +1,41 @@
+# --- .NET -----------------------------------------------------------------
+[Bb]in/
+[Oo]bj/
+[Oo]ut/
+artifacts/
+*.user
+*.suo
+*.userprefs
+*.rsuser
+*.swp
+.vs/
+.vscode/
+.idea/
+*.nupkg
+*.snupkg
+
+# --- test / coverage ------------------------------------------------------
+TestResults/
+*.trx
+*.coverage
+coverage*.json
+coverage*.xml
+coverage*.info
+BenchmarkDotNet.Artifacts/
+
+# --- runtime data ---------------------------------------------------------
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# --- tooling --------------------------------------------------------------
+.cache/
+.vscode/*
+!.vscode/extensions.json
+node_modules/
+.eslintcache
+
+# --- OS -------------------------------------------------------------------
+.DS_Store
+Thumbs.db

@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Nordmann.LUI</RootNamespace>
+    <AssemblyName>Nordmann.LUI</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+  </PropertyGroup>
+
+  <!-- NuGet package metadata (ADR-0001: exactly one package) -->
+  <PropertyGroup>
+    <PackageId>Nordmann.LUI</PackageId>
+    <Title>LUI — autocomplete suggestions on SQLite</Title>
+    <Description>Autocomplete suggestions for .NET, straight out of your own SQLite database. FTS5 trigram search, priority-first candidates, word-start ranking, typo tolerance. A library — no server, no ORM, no runtime of its own.</Description>
+    <PackageTags>autocomplete;typeahead;suggestions;sqlite;fts5;search;dropdown</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <EmbedUntrackedSources>true</EmbedUntrackedSources>
+    <IncludeSymbols>true</IncludeSymbols>
+    <SymbolPackageFormat>snupkg</SymbolPackageFormat>
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)../../artifacts/nuget</PackageOutputPath>
+  </PropertyGroup>
+
+  <!-- Test projects may see internals; nothing else may. -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="Nordmann.LUI.Tests" />
+    <InternalsVisibleTo Include="Nordmann.LUI.Architecture.Tests" />
+    <InternalsVisibleTo Include="Nordmann.LUI.Benchmarks" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.Data.Sqlite" />
+    <PackageReference Include="symspell" />
+    <PackageReference Include="F23.StringSimilarity" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.SourceLink.GitHub" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="../../README.md" Pack="true" PackagePath="/" Visible="false" />
+  </ItemGroup>
+
+</Project>
