@@ -11,12 +11,12 @@ namespace Nordmann.LUI.Tests;
 public sealed class MultiWordExpressionTests
 {
     [Theory]
-    [InlineData("apfel kuch", "(s_norm : (\"apfel\" AND \"kuch\")) OR (s_compact : \"apfelkuch\")")]
-    [InlineData("kuchen apfel", "(s_norm : (\"kuchen\" AND \"apfel\")) OR (s_compact : \"kuchenapfel\")")]
-    [InlineData("  Apfel   Kuchen  ", "(s_norm : (\"apfel\" AND \"kuchen\")) OR (s_compact : \"apfelkuchen\")")]
-    [InlineData("Äpfel Müller", "(s_norm : (\"aepfel\" AND \"mueller\")) OR (s_compact : \"aepfelmueller\")")]
-    [InlineData("apfel-zimt kuchen", "(s_norm : (\"apfel\" AND \"zimt\" AND \"kuchen\")) OR (s_compact : \"apfelzimtkuchen\")")]
-    public void The_words_are_anded_and_the_compact_form_stands_beside_them(string typed, string expected)
+    [InlineData("apfel kuch", "s_compact : (\"apfel\" AND \"kuch\")")]
+    [InlineData("kuchen apfel", "s_compact : (\"kuchen\" AND \"apfel\")")]
+    [InlineData("  Apfel   Kuchen  ", "s_compact : (\"apfel\" AND \"kuchen\")")]
+    [InlineData("Äpfel Müller", "s_compact : (\"aepfel\" AND \"mueller\")")]
+    [InlineData("apfel-zimt kuchen", "s_compact : (\"apfel\" AND \"zimt\" AND \"kuchen\")")]
+    public void The_words_are_anded_in_the_compact_column(string typed, string expected)
     {
         Expression(typed).ShouldBe(expected);
     }
@@ -24,7 +24,7 @@ public sealed class MultiWordExpressionTests
     [Theory]
     [InlineData("apfelkuch", "s_compact : \"apfelkuch\"")]
     [InlineData("Apfelkuchen", "s_compact : \"apfelkuchen\"")]
-    public void One_word_is_searched_in_the_compact_column_which_holds_everything_the_other_holds(string typed, string expected)
+    public void One_word_is_one_phrase_in_the_compact_column(string typed, string expected)
     {
         Expression(typed).ShouldBe(expected);
     }
@@ -32,7 +32,7 @@ public sealed class MultiWordExpressionTests
     [Theory]
     [InlineData("ab cd", "s_compact : \"abcd\"")]
     [InlineData("a b c", "s_compact : \"abc\"")]
-    public void Words_of_fewer_than_three_characters_stay_out_of_the_expression_but_the_compact_form_has_them(
+    public void Words_of_fewer_than_three_characters_stay_out_of_the_words_but_the_compact_form_has_them(
         string typed,
         string expected)
     {
@@ -40,9 +40,9 @@ public sealed class MultiWordExpressionTests
     }
 
     [Fact]
-    public void A_short_word_beside_a_long_one_is_left_out_of_the_words_and_kept_in_the_compact_form()
+    public void A_short_word_beside_a_long_one_is_left_out_of_the_expression()
     {
-        Expression("apfel ku").ShouldBe("(s_norm : (\"apfel\")) OR (s_compact : \"apfelku\")");
+        Expression("apfel ku").ShouldBe("s_compact : \"apfel\"");
     }
 
     [Theory]
@@ -81,9 +81,9 @@ public sealed class MultiWordExpressionTests
     }
 
     [Theory]
-    [InlineData("apfel\"kuchen", "(s_norm : (\"apfel\" AND \"kuchen\")) OR (s_compact : \"apfelkuchen\")")]
-    [InlineData("apfel* OR kuchen", "(s_norm : (\"apfel\" AND \"kuchen\")) OR (s_compact : \"apfelorkuchen\")")]
-    [InlineData("NEAR(apfel kuchen)", "(s_norm : (\"near\" AND \"apfel\" AND \"kuchen\")) OR (s_compact : \"nearapfelkuchen\")")]
+    [InlineData("apfel\"kuchen", "s_compact : (\"apfel\" AND \"kuchen\")")]
+    [InlineData("apfel* OR kuchen", "s_compact : (\"apfel\" AND \"kuchen\")")]
+    [InlineData("NEAR(apfel kuchen)", "s_compact : (\"near\" AND \"apfel\" AND \"kuchen\")")]
     public void Nothing_of_the_input_is_copied_into_the_expression_raw(string typed, string expected)
     {
         Expression(typed).ShouldBe(expected);

@@ -11,7 +11,7 @@ namespace Nordmann.LUI.Tests;
 public sealed class MultiWordIndexTests
 {
     [Fact]
-    public void Ensure_creates_the_compact_column_and_a_search_index_over_both_columns()
+    public void Ensure_creates_the_compact_column_and_a_search_index_over_it_alone()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
@@ -19,7 +19,8 @@ public sealed class MultiWordIndexTests
         catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
 
         Columns(database, "lui_recipes").Contains("s_compact", StringComparer.Ordinal).ShouldBeTrue();
-        Columns(database, "lui_recipes_fts").ShouldBe(["s_norm", "s_compact"]);
+        Columns(database, "lui_recipes").Contains("s_norm", StringComparer.Ordinal).ShouldBeTrue("s_norm stays a column of the table");
+        Columns(database, "lui_recipes_fts").ShouldBe(["s_compact"], "ADR-0011: the search index holds the compact column only");
         database.Scalar<string>("SELECT kind FROM lui_meta WHERE index_name = 'recipes'").ShouldBe("MultiWord");
     }
 
@@ -271,53 +272,149 @@ public sealed class MultiWordIndexTests
     }
 
     [Fact]
-    public void One_word_in_the_compact_column_finds_exactly_what_the_two_arms_of_the_specification_find()
+    public void The_compact_column_finds_everything_the_two_columns_of_the_specification_found_and_little_more()
     {
-        // §8.2 asks for (s_norm : "w") OR (s_compact : "w"); the compact column alone is the same set
+        // §8.2 as written: (s_norm : (w1 AND w2)) OR (s_compact : "w1w2"). The search index holds s_compact only
+        // (ADR-0011); its answer must contain that set, and the rest must be titles whose words run across a
+        // boundary of the title — checked here without FTS5, on the folded texts.
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var index = catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
 
-        var words = File.ReadLines(Path.Combine(Testing.Repository.RootPath, "tests", "Nordmann.LUI.TestData", "wordlist", "german-words.sample.txt"))
-            .Where(w => w.Length >= 3).ToList();
         var random = new Random(4);
-        var titles = Enumerable.Range(0, 1_500)
-            .Select(_ => string.Join(random.Next(3) == 0 ? "-" : " ", Enumerable.Range(0, random.Next(1, 4)).Select(_ => words[random.Next(words.Count)])))
-            .ToList();
+        var titles = RandomTitles(random, 1_500);
+        Load(catalog, index, titles);
 
-        using (var connection = catalog.OpenConnection())
-        {
-            using var transaction = connection.BeginTransaction();
-            for (var i = 0; i < titles.Count; i++)
-            {
-                index.Upsert(i + 1, titles[i], i, transaction: transaction);
-            }
-
-            transaction.Commit();
-        }
+        var rowIds = RowIds(database, titles.Count);
+        var searchForms = titles.Select(t => Normalizer.ToSearchForm(t)).ToArray();
+        var compactForms = titles.Select(t => Normalizer.ToCompactForm(t)).ToArray();
 
         using var raw = database.Connect();
         var checkedQueries = 0;
-        for (var i = 0; i < 400; i++)
+        var extra = 0;
+        for (var i = 0; i < 600; i++)
         {
-            var title = titles[random.Next(titles.Count)].Replace(' ', '-');
-            var length = Math.Min(title.Length, random.Next(3, 9));
-            var piece = title.Substring(random.Next(title.Length - length + 1), length).Replace("-", string.Empty, StringComparison.Ordinal);
-            var query = Querying.PreparedQuery.Create(piece, NormalizationOptions.Default, IndexKind.MultiWord);
-            if (query.IsPrefixPath || query.Words.Count != 1 || !string.Equals(query.Words[0], query.Compact, StringComparison.Ordinal))
+            var query = RandomQuery(titles, random);
+            var prepared = Querying.PreparedQuery.Create(query, NormalizationOptions.Default, IndexKind.MultiWord);
+            var longWords = prepared.Words.Where(w => w.Length >= 3).ToArray();
+            if (prepared.IsPrefixPath || longWords.Length == 0)
             {
                 continue;
             }
 
-            var quoted = Querying.PreparedQuery.Quote(query.Compact);
-            var specification = Match(raw, $"(s_norm : {quoted}) OR (s_compact : {quoted})");
-            var ours = Match(raw, query.Expression);
+            var ours = Match(raw, prepared.Expression);
 
-            ours.ShouldBe(specification, $"for '{piece}'");
+            // the specification's set, computed on the folded texts
+            var specification = Enumerable.Range(0, titles.Count)
+                .Where(t => longWords.All(w => searchForms[t].Contains(w, StringComparison.Ordinal))
+                         || compactForms[t].Contains(prepared.Compact, StringComparison.Ordinal))
+                .Select(t => rowIds[t])
+                .Order()
+                .ToArray();
+
+            // the compact column: every title whose compact text holds every word
+            var expected = Enumerable.Range(0, titles.Count)
+                .Where(t => longWords.All(w => compactForms[t].Contains(w, StringComparison.Ordinal)))
+                .Select(t => rowIds[t])
+                .Order()
+                .ToArray();
+
+            ours.ShouldBe(expected, $"for '{query}'");
+            specification.ShouldBeSubsetOf(ours, $"for '{query}'");
+            extra += ours.Length - specification.Length;
             checkedQueries++;
         }
 
-        checkedQueries.ShouldBeGreaterThan(150);
+        checkedQueries.ShouldBeGreaterThan(300);
+        extra.ShouldBeGreaterThanOrEqualTo(0);
+    }
+
+    [Fact]
+    public void A_word_that_runs_across_a_boundary_of_the_title_is_found_but_no_word_start()
+    {
+        // the one thing the compact column adds to the two columns of the first version of §8.2 (ADR-0011)
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var index = catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        index.Upsert(1, "Apfel Kuchen Torte", 10);
+        index.Upsert(2, "Elke Ortmann", 5);
+
+        var hits = index.Query("elk ort").Execute().Hits;
+
+        hits.Select(h => h.Key).ShouldBe([1L, 2L], ignoreOrder: true);
+        hits.Single(h => h.Key == 1).AtWordStart.ShouldBeFalse();
+        hits.Single(h => h.Key == 2).AtWordStart.ShouldBeFalse("the compact form elkort is not at a word start of elkeortmann either");
+    }
+
+    [Fact]
+    public void A_change_of_the_separators_alone_does_not_touch_the_search_index()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var index = catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        index.Upsert(1, "Apfel Kuchen", 10);
+        var before = database.Scalar<string>("SELECT count(*) || ':' || coalesce(sum(length(block)), 0) || ':' || coalesce(sum(id), 0) FROM lui_recipes_fts_data");
+
+        index.Upsert(1, "Apfel-Kuchen", 10);
+
+        database.Scalar<string>("SELECT count(*) || ':' || coalesce(sum(length(block)), 0) || ':' || coalesce(sum(id), 0) FROM lui_recipes_fts_data").ShouldBe(before);
+        index.Query("apfel kuchen").Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfel-Kuchen");
+    }
+
+    private static List<string> RandomTitles(Random random, int count)
+    {
+        var words = File.ReadLines(Path.Combine(Testing.Repository.RootPath, "tests", "Nordmann.LUI.TestData", "wordlist", "german-words.sample.txt"))
+            .Where(w => w.Length >= 3).ToList();
+
+        return [.. Enumerable.Range(0, count)
+            .Select(_ => string.Join(random.Next(3) == 0 ? "-" : " ", Enumerable.Range(0, random.Next(1, 4)).Select(_ => words[random.Next(words.Count)])))];
+    }
+
+    private static void Load(LuiCatalog catalog, ILuiIndex<long, Chip> index, List<string> titles)
+    {
+        using var connection = catalog.OpenConnection();
+        using var transaction = connection.BeginTransaction();
+        for (var i = 0; i < titles.Count; i++)
+        {
+            index.Upsert(i + 1, titles[i], i, transaction: transaction);
+        }
+
+        transaction.Commit();
+    }
+
+    private static string RandomQuery(List<string> titles, Random random)
+    {
+        var title = titles[random.Next(titles.Count)].Replace('-', ' ');
+        var parts = title.Split(' ');
+        if (random.Next(2) == 0)
+        {
+            var length = Math.Min(title.Length, random.Next(3, 9));
+            return title.Substring(random.Next(title.Length - length + 1), length).Trim();
+        }
+
+        var pieces = parts.Take(2).Select(w => w[..Math.Min(w.Length, random.Next(3, 6))]).ToArray();
+        if (random.Next(2) == 0)
+        {
+            Array.Reverse(pieces);
+        }
+
+        return string.Join(' ', pieces);
+    }
+
+    /// <summary>The rowid of the title that was added as number <c>i + 1</c>, by position.</summary>
+    private static long[] RowIds(TestDatabase database, int count)
+    {
+        var rowIds = new long[count];
+        using var connection = database.Connect();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT CAST(key AS INTEGER), s_rowid FROM lui_recipes;";
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            rowIds[reader.GetInt64(0) - 1] = reader.GetInt64(1);
+        }
+
+        return rowIds;
     }
 
     private static long[] Match(SqliteConnection connection, string expression)

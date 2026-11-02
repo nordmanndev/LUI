@@ -24,7 +24,7 @@ public sealed class QueryPlanTests
     }
 
     [Theory]
-    [InlineData("(s_norm : (\"apfel\" AND \"kuch\")) OR (s_compact : \"apfelkuch\")")]
+    [InlineData("s_compact : (\"apfel\" AND \"kuch\")")]
     [InlineData("s_compact : \"apfelkuch\"")]
     [InlineData("s_compact : \"abcd\"")]
     public void The_candidate_query_of_a_multi_word_index_has_the_same_plan(string expression)

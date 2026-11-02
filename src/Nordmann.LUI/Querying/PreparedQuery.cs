@@ -96,34 +96,35 @@ internal sealed class PreparedQuery
     private string SingleWordExpression() => $"s_norm : {Quote(Search)}";
 
     /// <summary>
-    /// The expression for a multi-word index: the words of three or more characters ANDed in
-    /// <c>s_norm</c>, or the whole input as one compact phrase in <c>s_compact</c> (§8.2). Shorter
-    /// words stay out of the expression — they count in the ranking.
+    /// The expression for a multi-word index: the words of three or more characters, each a phrase, ANDed
+    /// in <c>s_compact</c> — the only column of the search index (ADR-0011). Shorter words stay out of the
+    /// expression, they count in the ranking (§8.2). With no word of three characters the whole input is
+    /// one compact phrase.
+    /// <para>
+    /// §8.2 asked for <c>(s_norm : (w1 AND w2)) OR (s_compact : "w1w2")</c>. A title that holds a word in
+    /// <c>s_norm</c> holds it in <c>s_compact</c> too (the separators are taken out between the letters,
+    /// never inside a word), and a title that holds <c>w1w2</c> holds both words — so the one phrase
+    /// per word finds all of it. The only titles it adds are those whose words run across a boundary of
+    /// the title, which the ranking puts behind every word start.
+    /// </para>
     /// </summary>
     private string MultiWordExpression()
     {
-        var compact = $"s_compact : {Quote(Compact)}";
-
         var words = Words.Where(word => CodePoints(word) >= MinimumTrigramLength).ToArray();
         if (words.Length == 0)
         {
-            return compact;
+            return $"s_compact : {Quote(Compact)}";
         }
 
-        // One word without a separator: every title that holds it in s_norm holds it in s_compact too (the
-        // separators are only taken out between the letters), and s_compact holds more — „apfelkuch" in
-        // „Apfel Kuchen". The compact column alone gives the same hits as §8.2's two arms, and FTS5 walks
-        // one posting list instead of two (ADR-0011).
-        if (Words.Count == 1 && string.Equals(Words[0], Compact, StringComparison.Ordinal))
+        if (words.Length == 1)
         {
-            return compact;
+            return $"s_compact : {Quote(words[0])}";
         }
 
-        var anded = new StringBuilder("s_norm : (");
+        var anded = new StringBuilder("s_compact : (");
         anded.AppendJoin(" AND ", words.Select(Quote));
         anded.Append(')');
-
-        return $"({anded}) OR ({compact})";
+        return anded.ToString();
     }
 
     private static List<string> SplitWords(string searchForm)

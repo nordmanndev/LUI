@@ -37,8 +37,10 @@ internal static class OwnedSchema
         var fts = Fts(name);
         var multi = definition.Kind == IndexKind.MultiWord;
 
-        // the columns the search index holds: s_compact only for a multi-word index (§7.2)
-        var columns = multi ? "s_norm, s_compact" : "s_norm";
+        // The column the search index holds: s_norm for a single-word index; for a multi-word index
+        // s_compact alone (ADR-0011) — it holds everything a multi-word query asks, and s_norm, which
+        // stays a column of the table, would only store every title a second time.
+        var columns = multi ? "s_compact" : "s_norm";
 
         return
         [
@@ -85,8 +87,9 @@ internal static class OwnedSchema
 
     private static string[] Triggers(string content, string fts, string columns, bool multi)
     {
-        var added = multi ? "new.s_norm, new.s_compact" : "new.s_norm";
-        var removed = multi ? "old.s_norm, old.s_compact" : "old.s_norm";
+        var indexed = multi ? "s_compact" : "s_norm";
+        var added = $"new.{indexed}";
+        var removed = $"old.{indexed}";
 
         return
         [
@@ -103,10 +106,11 @@ internal static class OwnedSchema
 
             // Only a change of the rowid or of the indexed text reaches the search index: an identical
             // upsert and a change of the payload alone leave it alone (review P1) — every touch is a
-            // delete and an insert, and a new small segment. s_compact is derived from s_norm.
+            // delete and an insert, and a new small segment. For a multi-word index only a change of the
+            // compact text counts: „Apfel Kuchen" to „Apfel-Kuchen" is none.
             $"""
             CREATE TRIGGER {content}_au AFTER UPDATE OF text, weight, priority ON {content}
-            WHEN old.s_rowid IS NOT new.s_rowid OR old.s_norm IS NOT new.s_norm
+            WHEN old.s_rowid IS NOT new.s_rowid OR old.{indexed} IS NOT new.{indexed}
             BEGIN
                 INSERT INTO {fts}({fts}, rowid, {columns}) VALUES ('delete', old.s_rowid, {removed});
                 INSERT INTO {fts}(rowid, {columns}) VALUES (new.s_rowid, {added});
