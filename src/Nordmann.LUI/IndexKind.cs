@@ -10,6 +10,6 @@ public enum IndexKind
     /// <summary>Tags, single words, compounds, hashtags: the input is searched as a whole.</summary>
     SingleWord,
 
-    /// <summary>Names and titles: the input is split into words (not available yet).</summary>
+    /// <summary>Names and titles: the input is split into words, ANDed, and also searched compactly.</summary>
     MultiWord,
 }

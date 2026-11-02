@@ -31,6 +31,7 @@ an archaeology.
 | O7 | Blend word-start and weight softly instead of in stages | Deferred | Real click data. The staged ranking (§9.2) is what the measurements in Anhang A actually support; a soft blend decided without data would be a guess dressed as a feature. |
 | O8 | Should an empty input suggest the `System`-priority entries ("what do you suggest?")? | Deferred | A product decision, not a technical one — it belongs to whoever owns the search field. The mechanism (a query without a term) exists. |
 | O9 | Are four priority classes enough? | Deferred | A consumer that needs a fifth. More classes cost bits of the weight field in the `rowid`, so the change is not free — and four covers system, high, elevated, normal. |
+| O10 | Should the beginnings of several *short* words find a title in a `MultiWord` index (`an mü` → „Anna Müller")? (added with [ADR-0011](./0011-the-multi-word-index.md)) | Deferred | A consumer with names that people type as two- and three-letter beginnings. Today a word under three characters only counts in the ranking and `an mü` is searched compactly (`anmu`); finding word beginnings needs a table of them per entry, the same design as O1. |
 
 ## Consequences
 

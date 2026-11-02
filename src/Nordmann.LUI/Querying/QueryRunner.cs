@@ -20,6 +20,7 @@ internal sealed class QueryRunner<TKey, TPayload>
 
     private readonly LuiCatalog _catalog;
     private readonly string _content;
+    private readonly IndexKind _kind;
     private readonly NormalizationOptions _normalization;
     private readonly IPayloadSerializer<TPayload>? _payload;
     private readonly ITextSimilarity _defaultSimilarity;
@@ -37,6 +38,7 @@ internal sealed class QueryRunner<TKey, TPayload>
     {
         _catalog = catalog;
         _content = OwnedSchema.Content(indexName);
+        _kind = definition.Kind;
         _normalization = new NormalizationOptions { GermanTransliteration = definition.GermanTransliteration };
         _payload = payload;
         _defaultSimilarity = defaultSimilarity;
@@ -69,7 +71,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         var started = Stopwatch.GetTimestamp();
         using var scope = _catalog.Begin();
 
-        var query = PreparedQuery.Create(input, _normalization);
+        var query = PreparedQuery.Create(input, _normalization, _kind);
         if (query.IsEmpty)
         {
             return new LuiResult<TKey, TPayload>(input, [], 0, false, null, Timings(options, started, started, started, started));
@@ -157,7 +159,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         else
         {
             command.CommandText = _candidatesSql;
-            command.Parameters.AddWithValue("$expr", query.SingleWordExpression());
+            command.Parameters.AddWithValue("$expr", query.Expression);
         }
 
         command.Parameters.AddWithValue("$n", limit);

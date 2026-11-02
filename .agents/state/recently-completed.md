@@ -5,8 +5,21 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
-## 2026-11-02 — PR-003: the single-word index (issue #5)
+## 2026-11-02 — PR-004: the multi-word index (issue #7)
 
+- `MultiWord`: `s_compact` and a search index over it alone (owner's decision: §7.4 and §8.2 corrected, −36 % file,
+  −40 % build, −30 % latency), words of fewer than three characters only in the ranking, the prefix path decided on
+  letters.
+- `Similarity.NgramDice` is our own and allocates nothing (3.6 MB → 263 KB per query at p95), tested equal to
+  `F23.SorensenDice(2)`.
+- ADR-0011. Missed targets are written down (1 M query, file size).
+- Gated experiments: `FtsLayoutExperiment`, `MultiWordLayoutExperiment` (`LUI_PERF=1`); `QueryPerformance` takes
+  `LUI_PERF_KIND=multi`.
+
+## 2026-11-02 — PR-003 + review (issue #5, PR #6, merged)
+
+- The single-word index, ADR-0006 … ADR-0010; the review of the pull request was worked in (snapshot read, `#`
+  rule, code points, value-type payload, no-op updates, …).
 - `Nordmann.LUI` now answers queries: `LuiCatalog.Open`, `Index<TKey,TPayload>(…)
   .SingleWord().Owned().Ensure()`, `Upsert`/`UpdateWeight`/`UpdatePriority`/
   `Remove`, `Query(…)` with ranking, priority, `DistinctText`, payload for the
