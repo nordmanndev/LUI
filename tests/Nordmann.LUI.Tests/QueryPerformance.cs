@@ -23,6 +23,16 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         using var catalog = database.Open(options => options.CacheSize(512).MemoryMap(2048));
         var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
 
+        if (string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_OPTIMIZE"), "1", StringComparison.Ordinal))
+        {
+            using var optimize = catalog.OpenConnection();
+            using var command = optimize.CreateCommand();
+            command.CommandText = "INSERT INTO lui_tags_fts(lui_tags_fts) VALUES ('optimize');";
+            var merged = Stopwatch.StartNew();
+            command.ExecuteNonQuery();
+            Report($"optimize: {merged.Elapsed.TotalSeconds:F1} s");
+        }
+
         var build = Stopwatch.StartNew();
         var texts = Build(catalog, index, Words(), entries);
         build.Stop();
@@ -139,13 +149,29 @@ public sealed class QueryPerformance(ITestOutputHelper output)
                 : Capitalize(words[random.Next(words.Count)]) + words[random.Next(words.Count)].ToLowerInvariant();
             texts.Add(text);
 
-            // a long tail: most entries are unpopular, a few are very popular
-            var weight = (int)Math.Min(536_870_911, 1 + (long)(random.NextDouble() * random.NextDouble() * random.NextDouble() * 1_000_000));
+            var weight = Weight(random);
             index.Upsert(i, text, weight, transaction: transaction);
         }
 
         transaction.Commit();
         return texts;
+    }
+
+    /// <summary>
+    /// <c>LUI_PERF_WEIGHTS=sparse</c>: half of the entries have weight 0, as in the stock of Anhang A1 —
+    /// most tags are used never or once. Default: a long tail of distinct weights, which is the
+    /// harder case for the rowid (ADR-0010).
+    /// </summary>
+    private static int Weight(Random random)
+    {
+        var sparse = string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_WEIGHTS"), "sparse", StringComparison.Ordinal);
+        if (sparse && random.NextDouble() < 0.5)
+        {
+            return 0;
+        }
+
+        // a long tail: most entries are unpopular, a few are very popular
+        return (int)Math.Min(536_870_911, 1 + (long)(random.NextDouble() * random.NextDouble() * random.NextDouble() * 1_000_000));
     }
 
     private static string Capitalize(string word) => char.ToUpperInvariant(word[0]) + word[1..];
