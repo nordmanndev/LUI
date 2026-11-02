@@ -71,12 +71,40 @@ the same texts in four FTS5 indexes (warm, best of 7 runs, `LIMIT 501`,
   is 3× slower to read and 8× slower to build than the same index loaded in
   rowid order. The specification's build figures (Anhang A6) are not the
   figures of a row-by-row build either.
-- **Not reconciled end to end.** The library's own run on a merged index
-  (1 M, 2,000 single-shot queries) gave p50 2.65 ms / p95 12.1 ms — no better
-  than before. The table above is warm and repeats one query; the budget is
-  cold and single-shot. Whether bulk loading and merging closes the gap
-  there, or only the warm part of it, needs an A/B on the *same* query
-  sequence before it is claimed.
+- **SQLite settings do not move it.** Cold, single-shot, 2,000 inputs, 1 M
+  entries, bulk-built and merged (`FtsLayoutExperiment`): memory map 2 GB or
+  off, page cache 64 MB or 512 MB, rollback journal or WAL, database page
+  size 4 KB / 16 KB / 64 KB, FTS5 `pgsz` 1000 / 4000 / 16000 / 64000 — all
+  within 5 % of each other (p50 0.37–0.40 ms, p95 3.8–4.0 ms for the
+  candidate statement), except 64 KB pages, which are slower (p50 0.51 ms).
+  The defaults stay.
+
+## What the structure decides (bulk-built and merged, cold, single-shot)
+
+Candidate statement over the same inputs and texts; "join" is the lookup of
+the text in the content table, which the query needs for the ranking:
+
+| Entries | statement | p50 | p95 | file |
+|---:|---|---:|---:|---:|
+| 1 M | FTS5 only | 0.39 ms | 4.05 ms | 148 MB |
+| 1 M | + join, unique index on `s_rowid` (as built) | 1.09 ms | 4.43 ms | 196 MB |
+| 1 M | + join, **covering** unique index `(s_rowid, text)` | **0.80 ms** | 4.39 ms | 212 MB |
+| 3 M | FTS5 only | 0.85 ms | 13.9 ms | 562 MB |
+| 3 M | + join, unique index on `s_rowid` (as built) | 1.75 ms | 13.6 ms | 723 MB |
+| 3 M | + join, **covering** unique index `(s_rowid, text)` | **1.32 ms** | 13.5 ms | 785 MB |
+
+Against the row-by-row index of this pull request at 3 M (p50 3.57 ms, p95
+26.5 ms, build 334 s), loading in rowid order and merging gives **p50 1.3–1.8 ms
+(target ≤ 2 ✓), p95 13.5 ms (target ≤ 5 ✗), build about 100 s for the search
+index and the content table together (target ≤ 3 min ✓)**. At 1 M the budget
+holds. What remains at 3 M is the tail of the trigram-dense corpus (the
+`gescher` family), which is FTS5's own cost; the covering index takes 0.4 ms
+off every query for 60 MB per 3 M entries.
+
+The library's own run on a merged database (1 M, p50 2.65 ms) is still about a
+millisecond slower at the median than the harness (prepare per query, pooled
+connection, ranking, the hits statement); it has to be measured again once the
+bulk path exists.
 
 ## Options
 
@@ -105,8 +133,10 @@ the same texts in four FTS5 indexes (warm, best of 7 runs, `LIMIT 501`,
    (PR-007) should fill the content table, then build the search index in rowid
    order and `optimize` it (about 10 s and 2 s per million entries here), and
    `automerge` can be tightened for the steady state. The follow-up
-   measurement says this is worth 3× on the warm query and 8× on the build;
-   it is not proven on the cold p95.
+   measurement says this is worth 3× on the warm query and 8× on the build,
+   and the cold figures above confirm it for the median and the build.
+6. **A covering unique index `(s_rowid, text)`** on the content table: −0.3 to
+   −0.4 ms on every query for about 5 % more file. Cheap, measured, not yet built.
 
 ## Decision
 

@@ -121,7 +121,10 @@ over. The allocation target holds at the median at every size.
 plan, the indexes and the ordering are the specification's. The same texts
 loaded in rowid order are 3× faster to query (warm) and 8× faster to build than
 the row-by-row index measured above; whether that carries over to the cold p95
-is not yet shown.
+is shown in ADR-0010: **bulk-built and merged, the 3 M index answers at p50
+1.3–1.8 ms and p95 13.5 ms, and builds in about 100 s** (the targets: ≤ 2 ms,
+≤ 5 ms, ≤ 3 min). SQLite settings (memory map, cache, page size, FTS5 `pgsz`,
+journal mode) change nothing.
 
 ### The write
 
