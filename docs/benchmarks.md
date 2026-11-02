@@ -93,7 +93,13 @@ LUI_PERF=1 LUI_PERF_ENTRIES=3000000 \
 | 3,000,000 | 3.57 ms | 26.5 ms | 120 ms | 79 KB / 290 KB |
 | *target (§16), 3,000,000* | *≤ 2 ms* | *≤ 5 ms* | | *≤ 250 KB* |
 
-By length of the input (p50 / p95, ms):
+**After the join was moved to the primary key** (`doc_id = f.rowid & 4294967295`
+instead of a seek on `s_rowid`, [ADR-0006](./adr/0006-the-single-word-index.md)),
+same index, same queries: 200,000 entries p50 **0.82 ms**, p95 **1.8 ms**;
+1,000,000 entries p50 **1.39 ms**, p95 **6.1 ms**. The 3,000,000 row above was
+measured before and has not been repeated.
+
+By length of the input (p50 / p95, ms), before that change:
 
 | Chars | 200 k | 1 M | 3 M |
 |---:|---:|---:|---:|

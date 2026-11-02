@@ -30,13 +30,14 @@ weight and `doc_id` of a candidate are decoded from the rowid in C#
 (`RowId`). The round trip and the order are unit tests, and a test compares
 the C# encoder with the SQL expression row by row.
 
-**Four places where the implementation is stricter than the specification:**
+**Five places where the implementation differs from the specification:**
 
 | | Specification | Here | Why |
 |---|---|---|---|
 | `doc_id` | `INTEGER PRIMARY KEY` | `… CHECK (doc_id BETWEEN 0 AND 4294967295)` | `doc_id` is the lowest 32 bits of the rowid. The 4,294,967,296th entry would silently overwrite the weight bits; with the check it fails loudly. |
 | the key | `TEXT` | `TEXT`, for `long` and for `string` alike | One column, one comparison; a `long` is written in the invariant culture and read back with `long.Parse`. |
 | index names | `^[a-z][a-z0-9_]{0,40}$` | the same, and **not** `meta`, **not** containing `_fts` | `lui_meta` is the catalog, and `lui_<name>_fts` plus its shadow tables must not be able to collide with the content table of another index. |
+| the join from the search index to the content table | `c.s_rowid = f.rowid` | `c.doc_id = (f.rowid & 4294967295)` | The text of a candidate is fetched by the primary key, in the table itself: one seek, where the join on `s_rowid` seeks in an index first and then in the table. A **covering** index `(s_rowid, text)` would save the same hop, but SQLite does not treat an index that contains a generated column as covering (measured: `USING INDEX`, never `USING COVERING INDEX`). |
 | `Upsert` of an unchanged text | — | still fires the update trigger | `ON CONFLICT … DO UPDATE SET text = excluded.text` names `text`, so the `UPDATE OF text, weight, priority` trigger runs. A payload-only change therefore costs one search-index delete and insert. Accepted: updates are rare (98 % reads, §1). |
 
 **The write API is the one of §12.4**, synchronous, with the application's

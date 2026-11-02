@@ -19,7 +19,7 @@ public sealed class QueryPlanTests
         var plan = Plan(database, QueryRunner<long, Chip>.CandidateSql("lui_tags_fts", "lui_tags"), "$expr", "s_norm : \"gan\"");
 
         plan.ShouldContain(line => line.Contains("VIRTUAL TABLE INDEX 64", StringComparison.Ordinal), customMessage: Describe(plan));
-        plan.ShouldContain(line => line.Contains("USING INDEX lui_tags_rowid", StringComparison.Ordinal), customMessage: Describe(plan));
+        plan.ShouldContain(line => line.Contains("USING INTEGER PRIMARY KEY", StringComparison.Ordinal), customMessage: Describe(plan));
         plan.ShouldNotContain(line => line.Contains("TEMP B-TREE", StringComparison.Ordinal), Describe(plan));
     }
 

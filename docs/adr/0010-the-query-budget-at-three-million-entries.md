@@ -139,8 +139,15 @@ bulk path exists.
    `automerge` can be tightened for the steady state. The follow-up
    measurement says this is worth 3× on the warm query and 8× on the build,
    and the cold figures above confirm it for the median and the build.
-6. **A covering unique index `(s_rowid, text)`** on the content table: −0.3 to
-   −0.4 ms on every query for about 5 % more file. Cheap, measured, not yet built.
+6. **Spare the index hop of the join.** A covering unique index
+   `(s_rowid, text)` saves 0.3–0.4 ms per query in the experiment — on a table
+   without generated columns. On the real table SQLite does not use it as a
+   covering index (an index that contains a generated column never is; checked
+   with `EXPLAIN QUERY PLAN`). **Built instead:** the candidate statement joins
+   on `doc_id = (f.rowid & 4294967295)`, a seek by primary key in the table
+   itself — the same saved hop, no extra storage. Measured on the row-by-row
+   index: 1 M entries p50 2.02 → **1.39 ms**, p95 7.4 → **6.1 ms**; 200 k
+   entries p50 0.86 → 0.82 ms, p95 2.2 → 1.8 ms.
 
 ## Decision
 

@@ -51,9 +51,13 @@ internal sealed class QueryRunner<TKey, TPayload>
     internal static string PrefixSql(string content, int length) =>
         $"SELECT s_rowid, text FROM {content} WHERE s_p{length} = $q ORDER BY s_rowid LIMIT $n;";
 
-    /// <summary>The statement that reads the candidates of an input of three or more characters.</summary>
+    /// <summary>
+    /// The statement that reads the candidates of an input of three or more characters.
+    /// The text is fetched by <c>doc_id</c>, the low 32 bits of the rowid: one seek in the table
+    /// itself, where a join on <c>s_rowid</c> would first seek in an index (ADR-0006).
+    /// </summary>
     internal static string CandidateSql(string fts, string content) =>
-        $"SELECT f.rowid, c.text FROM {fts} f JOIN {content} c ON c.s_rowid = f.rowid "
+        $"SELECT f.rowid, c.text FROM {fts} f JOIN {content} c ON c.doc_id = (f.rowid & {RowId.MaxDocId}) "
         + $"WHERE {fts} MATCH $expr ORDER BY f.rowid LIMIT $n;";
 
     internal LuiResult<TKey, TPayload> Execute(string input, LuiQueryOptions options, CancellationToken cancellationToken)
