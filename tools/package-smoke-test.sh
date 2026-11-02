@@ -76,6 +76,17 @@ if (name != "Nordmann.LUI")
     return 1;
 }
 
+// The package has to carry the public API, not just an empty shell.
+var normalizer = assembly.GetType("Nordmann.LUI.Normalization.Normalizer");
+
+if (normalizer is null)
+{
+    Console.Error.WriteLine("the package does not contain Nordmann.LUI.Normalization.Normalizer");
+    return 1;
+}
+
+Console.WriteLine($"found {normalizer.FullName}");
+
 return 0;
 CS
 

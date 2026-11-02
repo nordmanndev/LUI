@@ -38,7 +38,15 @@ jobs:
       - name: Restore
         run: dotnet restore Lui.sln
 
+      # The release gate runs the full parity: every word of the German word
+      # list against the live tokenizer. The pull request gate runs the
+      # sample; this one does not take chances.
+      - name: Fetch the word list
+        run: bash tools/fetch-wordlist.sh
+
       - name: Build and test
+        env:
+          LUI_REQUIRE_FULL_WORDLIST: '1'
         run: |
           dotnet build Lui.sln --configuration Release --no-restore
           dotnet test Lui.sln --configuration Release --no-build

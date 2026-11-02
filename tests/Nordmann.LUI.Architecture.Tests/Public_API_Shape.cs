@@ -2,6 +2,8 @@ using System.Reflection;
 using NetArchTest.Rules;
 using Shouldly;
 
+using Nordmann.LUI.Testing;
+
 namespace Nordmann.LUI.Architecture.Tests;
 
 /// <summary>
