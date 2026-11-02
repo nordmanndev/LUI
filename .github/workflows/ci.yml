@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build · Test · Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore Lui.sln
+
+      - name: Build
+        run: dotnet build Lui.sln --configuration Release --no-restore
+
+      # The unit, architecture and integration tests. The architecture tests
+      # read the repository from disk — they are the mechanical half of the
+      # standards' rules (ADR-0002).
+      - name: Test
+        run: >
+          dotnet test Lui.sln
+          --configuration Release
+          --no-build
+          --logger "trx;LogFileName=tests.trx"
+          --results-directory artifacts/test-results
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results
+          path: artifacts/test-results
+          retention-days: 14
+
+      - name: Format
+        run: dotnet format Lui.sln --verify-no-changes --no-restore
+
+  package:
+    name: Package · Smoke test
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Packs the package, installs it into a throwaway application from a
+      # local feed and runs it. The README's code is part of this test from
+      # PR-010 on.
+      - name: Package smoke test
+        run: bash tools/package-smoke-test.sh
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nupkg
+          path: artifacts/nuget/*.nupkg
+          retention-days: 14

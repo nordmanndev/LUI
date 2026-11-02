@@ -1,0 +1,44 @@
+<Project>
+
+  <!--
+    Baseline: nordmanndev/standards @ c63d696 — architecture/layering.md
+    §"Directory.Build.props (repo root)". Kept verbatim; the project-level
+    additions below are the delta recorded in ADR-0002.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <Deterministic>true</Deterministic>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(GITHUB_ACTIONS)' == 'true'">
+    <ContinuousIntegrationBuild>true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!--
+    Project delta (ADR-0002): LUI is a library, not an application.
+    These values apply to every project in the repo; the package-specific
+    ones live in src/Nordmann.LUI/Nordmann.LUI.csproj.
+  -->
+  <PropertyGroup>
+    <Product>LUI</Product>
+    <Company>Nordmann</Company>
+    <Authors>Nordmann</Authors>
+    <Copyright>Copyright (c) 2026 Nordmann</Copyright>
+    <RepositoryUrl>https://github.com/nordmanndev/LUI</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/nordmanndev/LUI</PackageProjectUrl>
+    <VersionPrefix>0.1.0</VersionPrefix>
+  </PropertyGroup>
+
+</Project>

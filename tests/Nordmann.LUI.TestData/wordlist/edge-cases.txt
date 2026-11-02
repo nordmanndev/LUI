@@ -1,0 +1,62 @@
+# Edge cases for the normalisation parity test (LUI-Spezifikation §6, §19).
+#
+# The stride sample next to this file (german-words.sample.txt) covers the
+# German alphabet. This file covers what a stride cannot reach for: the
+# characters where the German transliteration, the accent removal and the
+# tokeniser's own folding disagree.
+#
+# Format:  <input> TAB <expected s_norm> TAB <expected s_compact>
+#
+# A line with only <input> is *executed but not asserted*. Those are the
+# characters whose behaviour PR-002 measures first: the expectations depend on
+# how FTS5's trigram tokeniser folds a case, and the C# normaliser has to
+# match that measurement rather than the other way round. Once measured, the
+# expectation moves into this file and the case becomes asserted.
+#
+# The expectations below are the ones the specification states directly (§6.1).
+
+Gedeckter Apfelkuchen mit Äpfeln	gedeckter apfelkuchen mit aepfeln	gedeckterapfelkuchenmitaepfeln
+Straße	strasse	strasse
+Café Crème	cafe creme	cafecreme
+Apfel-Zimt-Kuchen	apfel-zimt-kuchen	apfelzimtkuchen
+Weiß	weiss	weiss
+Maße	masse	masse
+grüßen	gruessen	gruessen
+Äpfel	aepfel	aepfel
+Öl	oel	oel
+Über	ueber	ueber
+Mädchen	maedchen	maedchen
+Bär	bear	bear
+Österreich	oesterreich	oesterreich
+Käse	kaese	kaese
+Süß	suess	suess
+Straße	strasse	strasse
+Café	cafe	cafe
+Crème	creme	creme
+café	cafe	cafe
+crème	creme	creme
+a	a	a
+ß	ss	ss
+3D-Druck	3d-druck	3ddruck
+COVID-19	covid-19	covid19
+E-Mail	e-mail	email
+
+# --- measured in PR-002, asserted from then on ---------------------------
+ẞ
+Łódź
+İstanbul
+ıstanbul
+Ærø
+Œuvre
+ñ
+Ñ
+ç
+é
+é
+σ
+ς
+ǳ
+ﬀ
+ĳ
+#Hashtag
+S 22

@@ -1,0 +1,68 @@
+name: Publish
+
+# The tag is the owner's decision: the version in the tag must match the
+# version in Directory.Build.props, and the push needs the NUGET_API_KEY
+# secret. Nothing here runs without a tag.
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    name: Pack · Push to nuget.org
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Read the version
+        id: version
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          props="$(grep -oP '(?<=<VersionPrefix>)[^<]+' Directory.Build.props)"
+          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
+          echo "props=${props}" >> "$GITHUB_OUTPUT"
+          if [ "${tag}" != "${props}" ]; then
+            echo "The tag (${tag}) and Directory.Build.props (${props}) disagree." >&2
+            exit 1
+          fi
+
+      - name: Restore
+        run: dotnet restore Lui.sln
+
+      - name: Build and test
+        run: |
+          dotnet build Lui.sln --configuration Release --no-restore
+          dotnet test Lui.sln --configuration Release --no-build
+
+      - name: Pack
+        run: >
+          dotnet pack src/Nordmann.LUI/Nordmann.LUI.csproj
+          --configuration Release
+          --no-build
+          --output artifacts/nuget
+
+      - name: Smoke test the package
+        run: bash tools/package-smoke-test.sh "${{ steps.version.outputs.tag }}"
+
+      - name: Push to nuget.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          dotnet nuget push artifacts/nuget/*.nupkg \
+            --api-key "${NUGET_API_KEY}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate
+          dotnet nuget push artifacts/nuget/*.snupkg \
+            --api-key "${NUGET_API_KEY}" \
+            --source https://api.nuget.org/v3/index.json \
+            --skip-duplicate

@@ -1,0 +1,52 @@
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+[*.{json,yml,yaml,js,mjs,css,html,md}]
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.cs]
+# --- language conventions -------------------------------------------------
+csharp_style_namespace_declarations = file_scoped:warning
+csharp_style_var_for_built_in_types = false:suggestion
+csharp_style_var_when_type_is_apparent = true:suggestion
+csharp_style_expression_bodied_methods = when_on_single_line:suggestion
+csharp_style_expression_bodied_properties = true:suggestion
+csharp_style_prefer_primary_constructors = false:suggestion
+
+# --- readability -----------------------------------------------------------
+dotnet_style_readability_rule = error:suggestion
+
+# --- naming ----------------------------------------------------------------
+dotnet_naming_rule.private_fields_underscore.severity = suggestion
+dotnet_naming_rule.private_fields_underscore.symbols = private_fields
+dotnet_naming_rule.private_fields_underscore.style = underscore_prefix
+
+dotnet_naming_symbols.private_fields.applicable_kinds = field
+dotnet_naming_symbols.private_fields.applicable_accessibilities = private
+dotnet_naming_symbols.private_fields.required_modifiers =
+
+dotnet_naming_style.underscore_prefix.capitalization = camel_case
+dotnet_naming_style.underscore_prefix.required_prefix = _
+
+# --- analyzers -------------------------------------------------------------
+dotnet_diagnostic.CA1848.severity = none # LoggerMessage source generator is used instead
+dotnet_diagnostic.CA2007.severity = none # ConfigureAwait in a library is noise
+
+[*.{csproj,props,targets}]
+indent_size = 2
+
+# Test projects follow the standards' naming convention for test methods
+# (`Domain_does_not_depend_on_Infrastructure`) — underscore separated reads as
+# a sentence and is the convention in nordmanndev/standards.
+[tests/**/*.cs]
+dotnet_diagnostic.CA1707.severity = none
