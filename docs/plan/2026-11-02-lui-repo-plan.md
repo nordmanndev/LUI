@@ -298,6 +298,18 @@ decision the plan left open:
 The plan's §6 grew items 4 and 5 accordingly. The twelve pull requests are
 otherwise unchanged.
 
+## 6b. PR-003 — what actually happened
+
+PR-003 carried the part of spec step 1 that PR-001 left out (`LuiCatalog.Open`,
+`lui_meta`) and the decision `docs/normalization.md` §7 had deferred to it. It
+also changed three things the plan did not foresee:
+
+| What | Why |
+|---|---|
+| The write path keeps **prepared statements** on a writer connection ([ADR-0009](../adr/0009-writes-use-prepared-statements.md)) | A fresh command per `Upsert` cost 184 µs; a prepared one 59 µs. The §16 build target is out of reach at 184 µs. |
+| `LuiCatalog.Open` **probes the folding** of the loaded SQLite ([ADR-0007](../adr/0007-the-catalog-checks-the-sqlite-it-runs-on.md)) | The fold table is measured data; a different SQLite makes an index invisible, silently. |
+| **The query budget of §16 is not met at 3 M entries** ([ADR-0010](../adr/0010-the-query-budget-at-three-million-entries.md), *Proposed*) | Measured: p50 3.6 ms, p95 26 ms on a trigram-dense synthetic corpus; the time is FTS5's. The plan's "done when" for step 3 named the budget; the pull request reports the numbers instead of the promise, and asks the owner. |
+
 
 ---
 
