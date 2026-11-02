@@ -77,7 +77,11 @@ the same texts in four FTS5 indexes (warm, best of 7 runs, `LIMIT 501`,
   size 4 KB / 16 KB / 64 KB, FTS5 `pgsz` 1000 / 4000 / 16000 / 64000 — all
   within 5 % of each other (p50 0.37–0.40 ms, p95 3.8–4.0 ms for the
   candidate statement), except 64 KB pages, which are slower (p50 0.51 ms).
-  The defaults stay.
+  The defaults stay. **Read-only connections do not help either**: with
+  `Mode=ReadOnly` or `PRAGMA query_only=ON` the same 2,000 queries at 1 M
+  entries gave p50 1.04 / 1.01 ms and p95 4.27 / 4.55 ms, against 1.03 ms and
+  4.29 ms for an ordinary connection — the difference is the noise of the run.
+  (`immutable=1` is not an option for a database that is being written.)
 
 ## What the structure decides (bulk-built and merged, cold, single-shot)
 
