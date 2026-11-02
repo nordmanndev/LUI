@@ -7,14 +7,13 @@ describes it. Link the issue; do not repeat the whole plan here.
 
 **Issue:** [#7](https://github.com/nordmanndev/LUI/issues/7) — MultiWord index
 **Branch:** `feat/multi-word-index`
-**State:** PR-004 is implemented and measured; waiting for the pull request and the owner's decisions.
+**State:** PR-004 is implemented and measured; the pull request is open.
 
 ## Where the work stands
 
-- `MultiWord` + `Owned`: `s_compact`, the search index over `s_norm` and `s_compact`, the multi-word
-  expression, N-gram Dice (own, allocation-free). ADR-0011.
-- Open decisions of the owner: ADR-0010 (the §16 query budget at 3 M entries) and the proposal at the end of
-  ADR-0011 (index `s_compact` only: −36 % file, −40 % build, −30 % latency).
+- `MultiWord` + `Owned`: `s_compact`, the search index over `s_compact` alone, the multi-word expression, N-gram
+  Dice (own, allocation-free). ADR-0011; the specification (§7.4, §8.2) was corrected with it.
+- Open decision of the owner: ADR-0010 (the §16 query budget at 3 M entries).
 
 ## The next step
 

@@ -7,12 +7,12 @@ the scratchpad here at the end of a session.
 
 ## 2026-11-02 — PR-004: the multi-word index (issue #7)
 
-- `MultiWord`: `s_compact` and a two-column search index, the expression of §8.2 (one word: `s_compact`
-  alone, same hits), words of fewer than three characters only in the ranking, the prefix path decided on letters.
+- `MultiWord`: `s_compact` and a search index over it alone (owner's decision: §7.4 and §8.2 corrected, −36 % file,
+  −40 % build, −30 % latency), words of fewer than three characters only in the ranking, the prefix path decided on
+  letters.
 - `Similarity.NgramDice` is our own and allocates nothing (3.6 MB → 263 KB per query at p95), tested equal to
   `F23.SorensenDice(2)`.
-- ADR-0011. Missed targets are written down (1 M query, file size); the proposal "index `s_compact` only" waits for the
-  owner.
+- ADR-0011. Missed targets are written down (1 M query, file size).
 - Gated experiments: `FtsLayoutExperiment`, `MultiWordLayoutExperiment` (`LUI_PERF=1`); `QueryPerformance` takes
   `LUI_PERF_KIND=multi`.
 

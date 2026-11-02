@@ -119,8 +119,8 @@ Der Aufrufer muss bei der Abfrage nicht wissen, wie gesucht wird.
 |---|---|---|
 | Für | Tags, einzelne Wörter, Komposita, Hashtags | Namen, Rezepttitel, Buchtitel |
 | Beispiele | `Apfelkuchen`, `#Bahnhof`, `vegan` | `Anna Müller`, `Gedeckter Apfelkuchen`, `Der Herr der Ringe` |
-| Suchspalten | `s_norm` | `s_norm` + `s_compact` (ohne Leerzeichen/Bindestriche) |
-| Eingabe | als Ganzes | in Wörter zerlegt, **UND**-verknüpft; zusätzlich kompakt |
+| Suchspalten | `s_norm` | `s_norm` + `s_compact` (ohne Leerzeichen/Bindestriche) in der Tabelle; im Suchindex nur `s_compact` (ADR-0011) |
+| Eingabe | als Ganzes | in Wörter zerlegt, **UND**-verknüpft (im kompakten Text) |
 | Wortreihenfolge | — | egal (`kuchen apfel` = `apfel kuchen`) |
 | Leerzeichen | — | egal (`apfelkuch` findet „Apfel Kuchen") |
 | Standard-Ähnlichkeit (§ 11) | Jaro-Winkler | N-gram Dice |
@@ -266,26 +266,37 @@ nach ausdrücklicher Erlaubnis (`.LinkedTo(…, allowSchemaChange: true)`).
 
 ### 7.4 Suchindex (beide Quellen)
 
+Der Suchindex enthält **eine** Spalte: bei `SingleWord` `s_norm`, bei `MultiWord` `s_compact`
+(ADR-0011). Das Beispiel zeigt `MultiWord`; bei `SingleWord` steht überall `s_norm` statt `s_compact`.
+
 ```sql
 CREATE VIRTUAL TABLE lui_recipes_fts USING fts5(
-    s_norm, s_compact,
+    s_compact,
     content = 'lui_recipes', content_rowid = 's_rowid',
     tokenize = 'trigram remove_diacritics 1');
 
 CREATE TRIGGER lui_recipes_ai AFTER INSERT ON lui_recipes BEGIN
-  INSERT INTO lui_recipes_fts(rowid, s_norm, s_compact)
-  VALUES (new.s_rowid, new.s_norm, new.s_compact); END;
+  INSERT INTO lui_recipes_fts(rowid, s_compact)
+  VALUES (new.s_rowid, new.s_compact); END;
 
 CREATE TRIGGER lui_recipes_ad AFTER DELETE ON lui_recipes BEGIN
-  INSERT INTO lui_recipes_fts(lui_recipes_fts, rowid, s_norm, s_compact)
-  VALUES ('delete', old.s_rowid, old.s_norm, old.s_compact); END;
+  INSERT INTO lui_recipes_fts(lui_recipes_fts, rowid, s_compact)
+  VALUES ('delete', old.s_rowid, old.s_compact); END;
 
-CREATE TRIGGER lui_recipes_au AFTER UPDATE OF text, weight, priority ON lui_recipes BEGIN
-  INSERT INTO lui_recipes_fts(lui_recipes_fts, rowid, s_norm, s_compact)
-  VALUES ('delete', old.s_rowid, old.s_norm, old.s_compact);
-  INSERT INTO lui_recipes_fts(rowid, s_norm, s_compact)
-  VALUES (new.s_rowid, new.s_norm, new.s_compact); END;
+CREATE TRIGGER lui_recipes_au AFTER UPDATE OF text, weight, priority ON lui_recipes
+WHEN old.s_rowid IS NOT new.s_rowid OR old.s_compact IS NOT new.s_compact BEGIN
+  INSERT INTO lui_recipes_fts(lui_recipes_fts, rowid, s_compact)
+  VALUES ('delete', old.s_rowid, old.s_compact);
+  INSERT INTO lui_recipes_fts(rowid, s_compact)
+  VALUES (new.s_rowid, new.s_compact); END;
 ```
+
+Die `WHEN`-Bedingung hält den Suchindex unberührt, wenn eine Änderung den indexierten Text nicht ändert (ein
+identisches `Upsert`, eine Änderung der Payload, ein Austausch von Leerzeichen und Bindestrichen).
+
+**Änderung gegenüber Entwurf 2 (ADR-0011):** Der Suchindex enthielt bei `MultiWord` `s_norm` **und** `s_compact`.
+`s_compact` enthält alles, was eine Abfrage braucht; `s_norm` bleibt Spalte der Tabelle (Präfix-Spalten, Ranking). Gemessen
+an 500.000 Titeln: −36 % Datei, −40 % Aufbau, −30 % Abfragezeit.
 
 ### 7.5 Datenbank-Einstellungen
 
@@ -335,10 +346,15 @@ deren **Text** so beginnt (nicht jedes Wort; § 21, O1).
 | Art | FTS5-Ausdruck für `apfel kuch` bzw. `apfelkuch` |
 |---|---|
 | `SingleWord` | `s_norm : "apfelkuch"` |
-| `MultiWord` | `(s_norm : ("apfel" AND "kuch")) OR (s_compact : "apfelkuch")` |
+| `MultiWord` | `s_compact : ("apfel" AND "kuch")` |
 
 - Wörter mit weniger als 3 Zeichen gehen nicht in den Ausdruck ein, aber in das
-  Ranking.
+  Ranking. Bleibt kein Wort von mindestens 3 Zeichen, steht die ganze Eingabe kompakt im Ausdruck
+  (`s_compact : "abcd"` für `ab cd`).
+- Ein Wort ist eine Phrase (`s_compact : "apfelkuch"`). Der Ausdruck der ersten Fassung,
+  `(s_norm : ("apfel" AND "kuch")) OR (s_compact : "apfelkuch")`, findet nichts, was der heutige nicht findet;
+  der heutige findet zusätzlich Titel, deren Wörter über eine Wortgrenze des Titels laufen (`elk ort` in
+  „Apfel Kuchen Torte"). Das Ranking setzt sie hinter jeden Wortanfang (ADR-0011).
 - Jeder Begriff wird als FTS5-Zeichenkette in `"…"` gesetzt, Anführungszeichen
   verdoppelt; die Eingabe wird nie roh in den Ausdruck kopiert.
 
