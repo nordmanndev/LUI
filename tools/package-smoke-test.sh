@@ -103,7 +103,16 @@ try
         var system = tags.Query("gan").Execute().Hits.FirstOrDefault().Text;
         Console.WriteLine($"apfelkuch -> {first}; gan -> {system}");
 
-        if (first != "Apfelkuchen" || system != "vegan")
+        // and a multi-word index: the order of the words and the spaces do not matter
+        var titles = catalog.Index<long, string>("titles").MultiWord().Owned().Ensure();
+        titles.Upsert(1, "Apfel Kuchen", weight: 10);
+        titles.Upsert(2, "Bratapfelkuchen", weight: 1000);
+
+        var reordered = titles.Query("kuchen apfel").Execute().Hits.FirstOrDefault().Text;
+        var compact = titles.Query("apfelkuch").Execute().Hits.FirstOrDefault().Text;
+        Console.WriteLine($"kuchen apfel -> {reordered}; apfelkuch -> {compact}");
+
+        if (first != "Apfelkuchen" || system != "vegan" || reordered != "Apfel Kuchen" || compact != "Apfel Kuchen")
         {
             Console.Error.WriteLine("the packed library answered a query wrongly");
             return 1;

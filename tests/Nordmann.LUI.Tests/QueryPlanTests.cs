@@ -24,6 +24,23 @@ public sealed class QueryPlanTests
     }
 
     [Theory]
+    [InlineData("(s_norm : (\"apfel\" AND \"kuch\")) OR (s_compact : \"apfelkuch\")")]
+    [InlineData("s_compact : \"apfelkuch\"")]
+    [InlineData("s_compact : \"abcd\"")]
+    public void The_candidate_query_of_a_multi_word_index_has_the_same_plan(string expression)
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Index<long, Chip>("tags").MultiWord().Owned().Ensure();
+
+        var plan = Plan(database, QueryRunner<long, Chip>.CandidateSql("lui_tags_fts", "lui_tags"), "$expr", expression);
+
+        plan.ShouldContain(line => line.Contains("VIRTUAL TABLE INDEX 64", StringComparison.Ordinal), customMessage: Describe(plan));
+        plan.ShouldContain(line => line.Contains("USING INTEGER PRIMARY KEY", StringComparison.Ordinal), customMessage: Describe(plan));
+        plan.ShouldNotContain(line => line.Contains("TEMP B-TREE", StringComparison.Ordinal), Describe(plan));
+    }
+
+    [Theory]
     [InlineData(1, "lui_tags_p1")]
     [InlineData(2, "lui_tags_p2")]
     public void The_prefix_path_reads_its_index_in_rowid_order_without_a_sorter(int length, string expectedIndex)

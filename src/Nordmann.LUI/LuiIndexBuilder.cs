@@ -42,6 +42,19 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     }
 
     /// <summary>
+    /// A multi-word index: names and titles. The input is split into words that are
+    /// ANDed, and it is also searched compactly, so the order of the words and the
+    /// spaces do not matter (<c>kuchen apfel</c> and <c>apfelkuch</c> both find
+    /// „Apfel Kuchen"). The default similarity is N-gram Dice.
+    /// </summary>
+    /// <returns>The builder.</returns>
+    public LuiIndexBuilder<TKey, TPayload> MultiWord()
+    {
+        _kind = IndexKind.MultiWord;
+        return this;
+    }
+
+    /// <summary>
     /// The content lives in a table of the library, <c>lui_&lt;name&gt;</c>;
     /// the application writes through the index (§5).
     /// </summary>
@@ -181,7 +194,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
         if (_kind is null)
         {
             throw new InvalidOperationException(
-                $"The index '{_name}' needs a kind: call SingleWord() before Ensure().");
+                $"The index '{_name}' needs a kind: call SingleWord() or MultiWord() before Ensure().");
         }
 
         if (!_owned)

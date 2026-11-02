@@ -14,6 +14,10 @@ public sealed class QueryPerformance(ITestOutputHelper output)
 {
     private const int Queries = 2_000;
 
+    /// <summary><c>LUI_PERF_KIND=multi</c>: titles of two to four words and inputs of one or two words.</summary>
+    private static readonly bool Multi =
+        string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_KIND"), "multi", StringComparison.Ordinal);
+
     [PerformanceFact]
     public void A_query_over_the_corpus_stays_within_the_budget()
     {
@@ -21,7 +25,8 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         // LUI_PERF_DB keeps the database between runs: the build of three million entries takes minutes
         using var database = new TestDatabase(Environment.GetEnvironmentVariable("LUI_PERF_DB"));
         using var catalog = database.Open(options => options.CacheSize(512).MemoryMap(2048));
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var builder = catalog.Index<long, Chip>("tags");
+        var index = (Multi ? builder.MultiWord() : builder.SingleWord()).Owned().Ensure();
 
         if (string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_OPTIMIZE"), "1", StringComparison.Ordinal))
         {
@@ -72,7 +77,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         Report($"query: p50 {Percentile(latencies, 50):F2} ms, p95 {Percentile(latencies, 95):F2} ms, max {latencies.Max():F2} ms");
         Report($"alloc: p50 {Percentile(allocations, 50) / 1024:F0} KB, p95 {Percentile(allocations, 95) / 1024:F0} KB");
 
-        foreach (var length in Enumerable.Range(1, 8))
+        foreach (var length in Enumerable.Range(1, 12))
         {
             var group = inputs.Select((input, i) => (input.Length, latencies[i])).Where(x => x.Length == length).Select(x => x.Item2).ToArray();
             if (group.Length > 0)
@@ -144,9 +149,11 @@ public sealed class QueryPerformance(ITestOutputHelper output)
 
         for (var i = 1; i <= entries; i++)
         {
-            var text = i <= words.Count
-                ? words[i - 1]
-                : Capitalize(words[random.Next(words.Count)]) + words[random.Next(words.Count)].ToLowerInvariant();
+            var text = Multi
+                ? Title(words, random)
+                : i <= words.Count
+                    ? words[i - 1]
+                    : Capitalize(words[random.Next(words.Count)]) + words[random.Next(words.Count)].ToLowerInvariant();
             texts.Add(text);
 
             var weight = Weight(random);
@@ -174,6 +181,10 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         return (int)Math.Min(536_870_911, 1 + (long)(random.NextDouble() * random.NextDouble() * random.NextDouble() * 1_000_000));
     }
 
+    /// <summary>A title of two to four words, each from the word list.</summary>
+    private static string Title(List<string> words, Random random) =>
+        string.Join(' ', Enumerable.Range(0, random.Next(2, 5)).Select(_ => Capitalize(words[random.Next(words.Count)])));
+
     private static string Capitalize(string word) => char.ToUpperInvariant(word[0]) + word[1..];
 
     /// <summary>What users type: the beginning of an entry, or a piece out of its middle, 1 … 8 characters.</summary>
@@ -183,6 +194,19 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         while (inputs.Count < Queries)
         {
             var text = texts[random.Next(texts.Count)];
+            if (Multi && random.Next(3) == 0)
+            {
+                // two words of the title, a few letters of each, in either order
+                var parts = text.Split(' ').Select(w => w[..Math.Min(w.Length, random.Next(3, 6))]).Take(2).ToArray();
+                if (random.Next(2) == 0)
+                {
+                    Array.Reverse(parts);
+                }
+
+                inputs.Add(string.Join(' ', parts));
+                continue;
+            }
+
             var length = Math.Min(text.Length, random.Next(1, 9));
             var start = random.Next(3) == 0 && text.Length > length ? random.Next(text.Length - length + 1) : 0;
             var input = text.Substring(start, length).Trim();

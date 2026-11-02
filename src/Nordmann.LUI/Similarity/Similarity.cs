@@ -36,23 +36,118 @@ public static class Similarity
         public double Similarity(string query, string text) => _measure.Similarity(query, text);
     }
 
+    /// <summary>
+    /// The Sørensen-Dice coefficient over the <b>sets</b> of bigrams of two texts, with runs of white space
+    /// read as one space — the definition of <c>F23.StringSimilarity.SorensenDice(2)</c>, without its
+    /// allocation: the library builds a dictionary per comparison (about 6.5 KB), and a query compares
+    /// up to 500 candidates (ADR-0011).
+    /// </summary>
     private sealed class NgramDiceSimilarity : ITextSimilarity
     {
-        private readonly SorensenDice _measure = new(2);
+        /// <summary>Bigram sets up to this size are handled on the stack.</summary>
+        private const int StackBigrams = 256;
 
         public string Name => nameof(NgramDice);
 
         public double Similarity(string query, string text)
         {
-            // a text shorter than a bigram has no bigrams: the measure is 0/0 — two equal texts are
-            // identical, any other pair has nothing in common
-            if (query.Length < 2 || text.Length < 2)
+            ArgumentNullException.ThrowIfNull(query);
+            ArgumentNullException.ThrowIfNull(text);
+
+            var first = ToBigrams(query, stackalloc uint[StackBigrams], out var firstRented);
+            var second = ToBigrams(text, stackalloc uint[StackBigrams], out var secondRented);
+
+            try
             {
-                return string.Equals(query, text, StringComparison.Ordinal) ? 1.0 : 0.0;
+                // a text shorter than a bigram has none: two equal texts are identical, any other pair
+                // has nothing in common
+                if (first.IsEmpty || second.IsEmpty)
+                {
+                    return string.Equals(query, text, StringComparison.Ordinal) ? 1.0 : 0.0;
+                }
+
+                var common = 0;
+                int i = 0, j = 0;
+                while (i < first.Length && j < second.Length)
+                {
+                    if (first[i] == second[j])
+                    {
+                        common++;
+                        i++;
+                        j++;
+                    }
+                    else if (first[i] < second[j])
+                    {
+                        i++;
+                    }
+                    else
+                    {
+                        j++;
+                    }
+                }
+
+                return 2.0 * common / (first.Length + second.Length);
+            }
+            finally
+            {
+                Return(firstRented);
+                Return(secondRented);
+            }
+        }
+
+        private static void Return(uint[]? rented)
+        {
+            if (rented is not null)
+            {
+                System.Buffers.ArrayPool<uint>.Shared.Return(rented);
+            }
+        }
+
+        /// <summary>The distinct bigrams of a text, sorted; white space runs count as one space.</summary>
+        private static Span<uint> ToBigrams(string text, Span<uint> stack, out uint[]? rented)
+        {
+            rented = null;
+            var buffer = stack;
+            if (text.Length > stack.Length)
+            {
+                rented = System.Buffers.ArrayPool<uint>.Shared.Rent(text.Length);
+                buffer = rented;
             }
 
-            var value = _measure.Similarity(query, text);
-            return double.IsNaN(value) ? 0.0 : value;
+            var count = 0;
+            var previous = '\0';
+            var hasPrevious = false;
+            foreach (var raw in text)
+            {
+                var c = char.IsWhiteSpace(raw) ? ' ' : raw;
+                if (c == ' ' && hasPrevious && previous == ' ')
+                {
+                    continue;
+                }
+
+                if (hasPrevious)
+                {
+                    buffer[count++] = ((uint)previous << 16) | c;
+                }
+
+                previous = c;
+                hasPrevious = true;
+            }
+
+            var bigrams = buffer[..count];
+            bigrams.Sort();
+
+            // distinct
+            var distinct = 0;
+            for (var k = 0; k < bigrams.Length; k++)
+            {
+                if (k == 0 || bigrams[k] != bigrams[k - 1])
+                {
+                    bigrams[distinct++] = bigrams[k];
+                }
+            }
+
+            return bigrams[..distinct];
         }
     }
 
