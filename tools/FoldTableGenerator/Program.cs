@@ -13,6 +13,7 @@
 // and compares it with the checked-in table on every build — so a table that
 // no longer matches the tokenizer fails the build instead of lying.
 
+using System.Globalization;
 using System.Text;
 using Microsoft.Data.Sqlite;
 
@@ -28,20 +29,29 @@ internal static class Program
         var target = Path.Combine(repoRoot, Target);
 
         var result = Measure();
+        var comparison = Compare(result.Mappings, result.Dropped);
 
-        File.WriteAllText(target, Render(result.Mappings, result.Dropped, result.SqliteVersion));
+        File.WriteAllText(target, Render(result.Mappings, result.Dropped, result.SqliteVersion, comparison));
         Console.WriteLine($"wrote {result.Mappings.Count} mappings and {result.Dropped.Count} removals to {target}");
+        Console.WriteLine(
+            $"{comparison.DifferingFromToLowerInvariant} of {comparison.CodePoints} code points differ from " +
+            "char.ToLowerInvariant, " +
+            $"{comparison.DifferingFromPrecomposedStrip} from the precomposed-diacritic rule.");
 
         return 0;
     }
 
-    private static string Render(SortedDictionary<int, char> mappings, List<int> dropped, string sqliteVersion)
+    private static string Render(
+        SortedDictionary<int, char> mappings,
+        List<int> dropped,
+        string sqliteVersion,
+        Comparison comparison)
     {
         var lines = new StringBuilder();
         lines.Append("# LUI tokenizer fold table — generated, do not edit by hand.\n");
         lines.Append("#\n");
         lines.Append("# Measured from FTS5's trigram tokenizer with `remove_diacritics 1`\n");
-        lines.Append($"# (SQLite {sqliteVersion}). Every entry is one code point and the\n");
+        lines.Append(CultureInfo.InvariantCulture, $"# (SQLite {sqliteVersion}). Every entry is one code point and the\n");
         lines.Append("# single character the tokenizer makes of it. A code point that is not\n");
         lines.Append("# listed is passed through unchanged. A '-' means the tokenizer drops\n");
         lines.Append("# the character entirely (the combining marks).\n");
@@ -49,16 +59,26 @@ internal static class Program
         lines.Append("# Regenerate:  dotnet run --project tools/FoldTableGenerator\n");
         lines.Append("# Verify:      the parity test re-measures the tokenizer and compares.\n");
         lines.Append("#\n");
+        lines.Append(CultureInfo.InvariantCulture, $"# Of the {comparison.CodePoints} code points of the Basic Multilingual Plane,\n");
+        lines.Append(CultureInfo.InvariantCulture, $"# {comparison.DifferingFromToLowerInvariant} are folded differently than\n");
+        lines.Append("# char.ToLowerInvariant, and\n");
+        lines.Append(CultureInfo.InvariantCulture, $"# {comparison.DifferingFromPrecomposedStrip} differently than\n");
+        lines.Append("# char.ToLowerInvariant plus \"strip the diacritic of the precomposed\n");
+        lines.Append("# character\" (the decomposition of the folded character is exactly one\n");
+        lines.Append("# base character and one non-spacing mark -> the base character).\n");
+        lines.Append("# Both rules are implemented in this generator, so both figures can be\n");
+        lines.Append("# regenerated.\n");
+        lines.Append("#\n");
         lines.Append("# from    to\n");
 
         foreach (var (from, to) in mappings)
         {
-            lines.Append($"{from:X4} {(int)to:X4}\n");
+            lines.Append(CultureInfo.InvariantCulture, $"{from:X4} {(int)to:X4}\n");
         }
 
         foreach (var codePoint in dropped)
         {
-            lines.Append($"{codePoint:X4} -\n");
+            lines.Append(CultureInfo.InvariantCulture, $"{codePoint:X4} -\n");
         }
 
         return lines.ToString();
@@ -101,6 +121,90 @@ internal static class Program
         }
 
         return new Measurement(mappings, dropped, SqliteVersion());
+    }
+
+    /// <summary>
+    /// How the tokenizer's folding differs from the two rules a C#
+    /// implementation would most likely be written from.
+    /// </summary>
+    private static Comparison Compare(SortedDictionary<int, char> mappings, List<int> dropped)
+    {
+        // A character the tokenizer drops has no output at all — that is a
+        // difference from every rule that keeps it.
+        var removed = dropped.ToHashSet();
+        var codePoints = 0;
+        var differingFromToLowerInvariant = 0;
+        var differingFromPrecomposedStrip = 0;
+
+        for (var cp = 1; cp <= 0xFFFF; cp++)
+        {
+            if (cp is >= 0xD800 and <= 0xDFFF)
+            {
+                continue;
+            }
+
+            codePoints++;
+
+            var original = char.ConvertFromUtf32(cp)[0];
+            var tokenizer = removed.Contains(cp)
+                ? string.Empty
+                : mappings.TryGetValue(cp, out var mapped) ? mapped.ToString() : original.ToString();
+
+            var toLowerInvariant = original.ToString().ToLowerInvariant();
+            if (!string.Equals(toLowerInvariant, tokenizer, StringComparison.Ordinal))
+            {
+                differingFromToLowerInvariant++;
+            }
+
+            var precomposedStrip = StripPrecomposed(toLowerInvariant);
+            if (!string.Equals(precomposedStrip, tokenizer, StringComparison.Ordinal))
+            {
+                differingFromPrecomposedStrip++;
+            }
+        }
+
+        return new Comparison(
+            codePoints,
+            differingFromToLowerInvariant,
+            differingFromPrecomposedStrip);
+    }
+
+    /// <summary>
+    /// The rule "ToLowerInvariant plus strip the diacritic of the precomposed
+    /// character": if the canonical decomposition of the folded character is
+    /// exactly one base character and one non-spacing mark, the base
+    /// character is the result.
+    /// </summary>
+    private static string StripPrecomposed(string value)
+    {
+        var builder = new StringBuilder(value.Length);
+
+        foreach (var ch in value)
+        {
+            string decomposed;
+
+            try
+            {
+                decomposed = ch.ToString().Normalize(NormalizationForm.FormD);
+            }
+            catch (ArgumentException)
+            {
+                // A noncharacter (U+FFFE, U+FFFF) cannot be normalised at all.
+                builder.Append(ch);
+                continue;
+            }
+
+            if (decomposed.Length == 2
+                && CharUnicodeInfo.GetUnicodeCategory(decomposed[1]) == UnicodeCategory.NonSpacingMark)
+            {
+                builder.Append(decomposed[0]);
+                continue;
+            }
+
+            builder.Append(ch);
+        }
+
+        return builder.ToString();
     }
 
     private static List<int> CodePoints()
@@ -238,4 +342,9 @@ internal static class Program
         SortedDictionary<int, char> Mappings,
         List<int> Dropped,
         string SqliteVersion);
+
+    private sealed record Comparison(
+        int CodePoints,
+        int DifferingFromToLowerInvariant,
+        int DifferingFromPrecomposedStrip);
 }

@@ -6,6 +6,16 @@
     <RootNamespace>Lui.Tools.FoldTableGenerator</RootNamespace>
     <AssemblyName>Lui.Tools.FoldTableGenerator</AssemblyName>
     <IsPackable>false</IsPackable>
+
+    <!--
+      The library runs with InvariantGlobalization=true, and under it
+      string.Normalize is a no-op (measured: "é".Normalize(FormD) has one
+      character instead of two). The generator compares the tokenizer with
+      two .NET rules, and one of those rules needs the decomposition — so the
+      tool runs with ICU. The table itself comes from SQLite and does not
+      depend on it.
+    -->
+    <InvariantGlobalization>false</InvariantGlobalization>
   </PropertyGroup>
 
   <ItemGroup>

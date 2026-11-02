@@ -9,6 +9,16 @@
 # Regenerate:  dotnet run --project tools/FoldTableGenerator
 # Verify:      the parity test re-measures the tokenizer and compares.
 #
+# Of the 63487 code points of the Basic Multilingual Plane,
+# 697 are folded differently than
+# char.ToLowerInvariant, and
+# 681 differently than
+# char.ToLowerInvariant plus "strip the diacritic of the precomposed
+# character" (the decomposition of the folded character is exactly one
+# base character and one non-spacing mark -> the base character).
+# Both rules are implemented in this generator, so both figures can be
+# regenerated.
+#
 # from    to
 0041 0061
 0042 0062

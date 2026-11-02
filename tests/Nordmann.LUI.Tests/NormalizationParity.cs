@@ -2,6 +2,7 @@ using System.Globalization;
 using Nordmann.LUI.Normalization;
 using Nordmann.LUI.Testing;
 using Shouldly;
+using Xunit.Abstractions;
 
 namespace Nordmann.LUI.Tests;
 
@@ -15,6 +16,10 @@ public sealed class NormalizationParity
 {
     private const string SampleCorpus = "tests/Nordmann.LUI.TestData/wordlist/german-words.sample.txt";
     private const string EdgeCases = "tests/Nordmann.LUI.TestData/wordlist/edge-cases.txt";
+
+    private readonly ITestOutputHelper _output;
+
+    public NormalizationParity(ITestOutputHelper output) => _output = output;
 
     [Fact]
     public void The_fold_table_matches_the_tokenizer_for_every_code_point()
@@ -78,12 +83,27 @@ public sealed class NormalizationParity
     [Fact]
     public void The_normalizer_and_the_tokenizer_agree_on_the_full_word_list()
     {
-        var full = Path.Combine(Repository.RootPath, "artifacts", "wordlist", "german-words.txt");
+        var full = Environment.GetEnvironmentVariable("LUI_WORDLIST")
+            ?? Path.Combine(Repository.RootPath, "artifacts", "wordlist", "german-words.txt");
 
         if (!File.Exists(full))
         {
             // The full list is not checked in — tools/fetch-wordlist.sh puts it
-            // there. The release gate runs it; the pull request gate does not.
+            // there. The release gate fetches it and demands it; the pull
+            // request gate does not, and says so.
+            if (string.Equals(
+                Environment.GetEnvironmentVariable("LUI_REQUIRE_FULL_WORDLIST"),
+                "1",
+                StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    $"The full word list is required but missing: {full}. Run tools/fetch-wordlist.sh.");
+            }
+
+            _output.WriteLine(
+                $"The full word list is not present ({full}) — the full gate did not run. " +
+                "The release gate fetches it; the pull request gate runs the sample.");
+
             return;
         }
 
