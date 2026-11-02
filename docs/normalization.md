@@ -6,7 +6,8 @@
 > two sides are held together.
 >
 > The specification (LUI-Spezifikation §6.2) demands the parity; this
-> document is the evidence.
+> document is the evidence. The decisions behind it are in
+> [ADR-0005](../adr/0005-measured-normalisation.md).
 
 ---
 
@@ -42,6 +43,17 @@ diacritics lives in the tokenizer, and a generated column cannot call a
 function that the tokenizer provides. The tokenizer applies its folding to
 the indexed text *and* to the query, so both sides of the comparison see the
 same thing.
+
+### The decomposed umlauts
+
+A decomposed umlaut is a letter plus U+0308: `Mu` + U+0308 + `ller`. macOS
+file names and some clipboards deliver that form, and the tokenizer *drops*
+the mark — so without a transliteration of its own, the decomposed spelling
+would become `muller` while the composed one becomes `mueller`. Two words,
+one of them silently unfindable.
+
+The C# side therefore transliterates `a/o/u` (either case) followed by
+U+0308 and skips the mark; the SQL side replaces the same six sequences.
 
 ---
 
@@ -79,11 +91,15 @@ give `ǽ` and the per-character folding gives `e` + cedilla.
 | `µ` | `μ` | the Greek mu. .NET keeps the micro sign. |
 | `Æ`, `Œ` | `æ`, `œ` | the case is folded, the letter is not decomposed. |
 
-**696 characters of the Basic Multilingual Plane** are folded differently by
-the tokenizer and by .NET's `ToLowerInvariant` — and 680 of them differ from
-"ToLowerInvariant plus strip the diacritic of the precomposed character",
-the rule one would write from the specification. Every one of them is a text
-the library would silently fail to find.
+**697 characters of the Basic Multilingual Plane** are folded differently by
+the tokenizer than by `char.ToLowerInvariant`, and **681** differently than
+"ToLowerInvariant plus strip the diacritic of the precomposed character"
+(the rule one would write from the specification: if the canonical
+decomposition of the folded character is exactly one base character and one
+non-spacing mark, the result is the base character).
+
+Both figures are produced by `tools/FoldTableGenerator`, which implements
+both rules itself, so they can be regenerated.
 
 ⇒ The C# side uses the **measured table**, not a Unicode rule.
 
@@ -137,6 +153,15 @@ dotnet run --project tools/FoldTableGenerator
 The generator sweeps every code point of the Basic Multilingual Plane through
 the live tokenizer and writes what comes back. It takes about two seconds.
 
+Two things the generator has to be taught, both measured:
+
+- **The tool runs with ICU, the library does not.** Under
+  `InvariantGlobalization=true`, `string.Normalize` is a **no-op**:
+  `"é".Normalize(FormD)` keeps one character instead of two. A rule that
+  needs the decomposition cannot even be *expressed* there — which is one
+  more reason the library uses a table instead of a rule.
+- **ICU refuses to normalise the noncharacters** U+FFFE and U+FFFF.
+
 ### Verify it
 
 The parity test does the same sweep and compares the result with the table:
@@ -148,6 +173,15 @@ The_fold_table_matches_the_tokenizer_for_every_code_point
 **A table that no longer matches the tokenizer fails the build instead of
 lying.** That is the point of the exercise: the C# side and the SQLite side
 have to agree, and the only way to know is to ask SQLite.
+
+### The scope of the claim
+
+The table covers the **Basic Multilingual Plane**. SQLite also folds case
+*outside* it (a lowercase query finds uppercase Deseret text), and the C#
+side leaves those characters unchanged. It does not affect German or emoji,
+and it cannot make the search fail: SQLite folds the query and the indexed
+text alike, so both sides of the comparison still agree. The C# side's view
+is simply the unfolded one for those characters.
 
 ---
 
@@ -161,27 +195,68 @@ have to agree, and the only way to know is to ask SQLite.
 | `The_normalizer_and_the_tokenizer_agree_on_the_edge_cases` | the same for the characters a stride cannot reach for |
 | `The_edge_cases_hold_the_measured_expectations` | the expectations in the corpus file are the measured ones |
 | `The_compact_form_of_the_sql_column_matches_the_compact_form_of_the_normalizer` | the SQL compact column and the C# compact form are the same text |
-| `No_folded_character_is_a_separator` | the folding never produces a separator, so stripping before and after the folding agree |
+| `No_folded_character_is_a_separator` | the folding never produces a separator |
+| `No_separator_is_folded_into_a_letter` | a separator never becomes a letter |
 
 The corpus lives in `tests/Nordmann.LUI.TestData/wordlist/` — a deterministic
 stride over the German word list (CC0), plus the edge cases whose behaviour
 was measured rather than assumed.
 
 The full list is not checked in. `tools/fetch-wordlist.sh` downloads it; the
-test uses it when it is there and skips it when it is not. The pull request
-gate runs the sample, the release gate runs the whole list.
+test uses it when it is there and skips it when it is not. The **release
+gate** (`publish.yml`) fetches it and demands it —
+`LUI_REQUIRE_FULL_WORDLIST=1` makes the test fail rather than skip. The pull
+request gate runs the sample and says in its output that the full gate did
+not run.
 
 ---
 
-## 5. What this costs
+## 5. The compact form
+
+The specification says the compact form removes "everything except letters
+and digits". SQLite cannot express that in a generated column, so both
+sides work from the **same explicit list**:
+
+- the ASCII punctuation,
+- the control characters that separate words (tab, line break, carriage
+  return),
+- the Unicode spaces (no-break, thin, narrow, ideographic, …), the dashes,
+  the quotes, the guillemets, the middle dot, the bullet and the ellipsis.
+
+**This is a deliberate deviation from §6.1's wording** (ADR-0005): the two
+sides have to agree *exactly*, or the C# compact form (which strips after
+the folding) and the SQL compact column (which strips before it) would
+differ, and a query would stop finding what it should.
+
+Two tests keep the two sides honest: the folding must never produce a
+separator, and a separator must never fold into a letter.
+
+---
+
+## 6. What this costs
 
 | | |
 |---|---|
 | Memory | one `char[65536]` — 128 KB per process, built once |
-| Time | one dictionary-free array lookup per character |
+| Time | one array lookup per character; the allocation-free path is `TryWriteSearchForm` / `TryWriteCompactForm` |
 | Startup | the table is parsed once, lazily, when the first text is normalised |
 | Dependencies | none — the table is measured data, not a Unicode library |
 
 The normaliser is **globalization-independent**: it does not call
 `ToLowerInvariant` and does not normalise, so it behaves the same under
 `InvariantGlobalization=true` as under ICU.
+
+---
+
+## 7. The open decision (PR-003)
+
+The table is measured from the SQLite that `Microsoft.Data.Sqlite` bundles.
+An application that loads a **different** SQLite folds text with other
+tables — and an index stored with the old folding becomes invisible to the
+query.
+
+⇒ **Decided:** `LuiCatalog.Open` probes the folding of the SQLite it is
+actually talking to (a few dozen code points, a fraction of the full sweep)
+and fails with a clear error when it differs from the table. The version of
+the fold table goes into `lui_meta`, so an index stored with an older table
+is detected and the application is told to `Rebuild()`.

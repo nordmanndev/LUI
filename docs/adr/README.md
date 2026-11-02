@@ -36,3 +36,4 @@ here — in the **same pull request** as the change it describes.
 | [0002](./0002-library-not-an-application.md) | LUI is a library, not an application — the standards delta | Accepted |
 | [0003](./0003-defer-the-open-questions.md) | The nine open questions of the specification are deferred | Accepted |
 | [0004](./0004-dependencies.md) | The dependency set — and the deviation from the closed library list | Accepted |
+| [0005](./0005-measured-normalisation.md) | The normalisation rule is measured, not derived | Accepted |
