@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The multi-word index** (`MultiWord`, `Owned`): `catalog.Index<…>(name).MultiWord().Owned().Ensure()`
+  for names and titles ([ADR-0011](docs/adr/0011-the-multi-word-index.md)). The input is split
+  into words that are ANDed and also searched compactly, so `kuchen apfel` and `apfelkuch` both
+  find „Apfel Kuchen"; the word start is decided on the compact form; the default similarity is
+  N-gram Dice. A multi-word index has a compact column `s_compact` and a search index over it
+  and `s_norm`.
+- `Similarity.NgramDice` no longer allocates: a query that compared 500 candidates allocated
+  3.6 MB at the 95th percentile, now 263 KB; the number is the one of `F23.SorensenDice(2)`.
+
 - **The single-word index** (`SingleWord`, `Owned`) — the first index that
   answers a query ([ADR-0006](docs/adr/0006-the-single-word-index.md),
   [ADR-0008](docs/adr/0008-the-query-path.md)):

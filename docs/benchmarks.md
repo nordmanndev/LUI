@@ -170,3 +170,34 @@ path — rowid-ordered loading, one merge at the end — belongs to `Sync` and
 ([ADR-0007](./adr/0007-the-catalog-checks-the-sqlite-it-runs-on.md)): **110 ms**
 cold (JIT included), **37 ms** warm, 2,466 code points. Every further `Open` in
 the process skips it.
+
+---
+
+## Results: the multi-word index (PR-004)
+
+Same machine, SQLite and method as above. **Corpus:** titles of two to four words, each from the German word
+list (average 36 characters — a recipe title is nearer 25), weights as above. **Inputs** (2,000): two thirds the
+beginning of a title or a piece of it, 1–8 characters; one third the first two words of a title, 3–5 letters of
+each, in either order. Row-by-row build through the triggers.
+
+```bash
+LUI_PERF=1 LUI_PERF_KIND=multi LUI_PERF_ENTRIES=1000000 \
+  dotnet test tests/Nordmann.LUI.Tests -c Release --filter QueryPerformance \
+  --logger "console;verbosity=detailed"
+```
+
+| Entries | build | file | query p50 / p95 | alloc p50 / p95 | write p50 / p95 |
+|---:|---:|---:|---:|---:|---:|
+| 200,000 | 33 s | 126 MB | 1.64 / 4.9 ms | 46 / 263 KB | 0.31 / 1.9 ms |
+| 1,000,000 | 180 s | 619 MB | 4.16 / 21.0 ms | 83 / 273 KB | 0.35 / 4.8 ms |
+| *target (§16)* | *3 M ≤ 3 min* | *1 M ≤ 300 MB* | *3 M ≤ 2 / 5 ms* | *≤ 250 KB* | *≤ 1 ms p95* |
+
+- **Allocation.** With `F23`'s Dice the 95th percentile was **3,651 KB** (a dictionary per comparison, 500
+  comparisons); with the allocation-free Dice of this PR it is 263 KB ([ADR-0011](./adr/0011-the-multi-word-index.md)).
+- **Missed:** the query at 1 M (p50 4.2 ms, p95 21 ms — the two-word inputs of frequent trigrams, `Rent Schwe` 54 ms
+  for 38 candidates; the mechanism of ADR-0010), the file size (2× the target; long titles, and the search index holds
+  every title in two columns), the 3 M build (extrapolated: about nine minutes). Held: the query at 200 k (p50 1.6 ms,
+  p95 4.9 ms), the allocation, the write at 200 k except the p95 (1.9 ms).
+- **One column instead of two** (`MultiWordLayoutExperiment`, 500 k titles, built in rowid order and merged):
+  −36 % file, −40 % build, −30 % query latency for one candidate more in 190 — a proposal in ADR-0011, not built.
+

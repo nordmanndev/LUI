@@ -311,6 +311,15 @@ also changed three things the plan did not foresee:
 | **The query budget of §16 is not met at 3 M entries** ([ADR-0010](../adr/0010-the-query-budget-at-three-million-entries.md), *Proposed*) | Measured: p50 3.6 ms, p95 26 ms on a trigram-dense synthetic corpus; the time is FTS5's. The plan's "done when" for step 3 named the budget; the pull request reports the numbers instead of the promise, and asks the owner. |
 
 
+## 6c. PR-004 — what actually happened
+
+| What | Why |
+|---|---|
+| `Similarity.NgramDice` is **our own, allocation-free** ([ADR-0011](../adr/0011-the-multi-word-index.md)) | Measured: 3.6 MB per query at the 95th percentile with `F23`'s Dice (a dictionary per comparison). Equal to `SorensenDice(2)` on 10,000 random pairs. |
+| One word is searched in `s_compact` alone | Same hits as §8.2's two arms (tested on 1,500 titles), one posting list instead of two. |
+| **Proposed, not built:** index `s_compact` only | −36 % file, −40 % build, −30 % latency on 500 k titles; it changes §7.4 and §8.2, so it is the owner's call. |
+| The file size target of §16 (1 M `MultiWord` ≤ 300 MB) is **missed**: 619 MB | long titles, two indexed columns; the proposal above halves most of it. |
+
 ---
 
 ## 7. README outline (the front door)
