@@ -7,8 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-Nothing yet — the first release is the assembly of the delivery plan in
-[`docs/plan/2026-11-02-lui-repo-plan.md`](./docs/plan/2026-11-02-lui-repo-plan.md).
+### Added
+
+- `Nordmann.LUI.Normalization.Normalizer` — the C# side of the normalisation
+  rule: the search form, the compact form and the map back to the original
+  text, with the German transliteration on or off.
+- The measured fold table that keeps the C# side and SQLite's tokenizer in
+  step — see [`docs/normalization.md`](./docs/normalization.md).
 
 ## [0.1.0] — not published
 

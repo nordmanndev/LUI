@@ -1,5 +1,7 @@
 using Shouldly;
 
+using Nordmann.LUI.Testing;
+
 namespace Nordmann.LUI.Architecture.Tests;
 
 /// <summary>

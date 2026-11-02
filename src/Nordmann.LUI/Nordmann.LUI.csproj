@@ -48,4 +48,14 @@
     <None Include="../../README.md" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
+  <!--
+    The tokenizer fold table: measured from FTS5's trigram tokenizer by
+    tools/FoldTableGenerator and verified against the live tokenizer by the
+    parity test. The name is fixed so that the lookup does not depend on the
+    project's root namespace.
+  -->
+  <ItemGroup>
+    <EmbeddedResource Include="Normalization/tokenizer-fold.txt" LogicalName="Nordmann.LUI.tokenizer-fold.txt" />
+  </ItemGroup>
+
 </Project>

@@ -1,12 +1,12 @@
 using System.Xml.Linq;
 
-namespace Nordmann.LUI.Architecture.Tests;
+namespace Nordmann.LUI.Testing;
 
 /// <summary>
 /// Finds the repository on disk. The architecture rules read the *source* —
 /// a rule that reads a hand-written list proves nothing about the tree.
 /// </summary>
-internal static class Repository
+public static class Repository
 {
     private static readonly Lazy<DirectoryInfo> Root = new(FindRoot);
 

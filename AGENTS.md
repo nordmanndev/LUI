@@ -19,9 +19,11 @@ difference where they do not.
    spec wins and the difference becomes an ADR
 3. [`docs/plan/2026-11-02-lui-repo-plan.md`](./docs/plan/2026-11-02-lui-repo-plan.md)
    — the delivery plan, one pull request per step
-4. [`docs/architecture/alignment.md`](./docs/architecture/alignment.md) — which
+4. [`docs/normalization.md`](./docs/normalization.md) — the normalisation
+   rule, and what was *measured* about the half of it that lives inside SQLite
+5. [`docs/architecture/alignment.md`](./docs/architecture/alignment.md) — which
    standards rules apply here, and which do not
-5. [`docs/adr/`](./docs/adr/) — the decisions, and why
+6. [`docs/adr/`](./docs/adr/) — the decisions, and why
 
 ## Project-level deltas
 
