@@ -6,9 +6,13 @@
 
 ## Status
 
-**No measurements yet.** The benchmark project exists
-(`benchmarks/Nordmann.LUI.Benchmarks/`); the measurements arrive with the
-feature they measure (PR-009).
+**The single-word index is measured; the budget of §16 is not met at three
+million entries.** The numbers are below, with the machine and the corpus; the
+reason and the options are in
+[ADR-0010](./adr/0010-the-query-budget-at-three-million-entries.md) (Proposed).
+`MultiWord`, typo correction and `Sync` are measured with the pull requests that
+build them (PR-004 … PR-009); the benchmark project
+(`benchmarks/Nordmann.LUI.Benchmarks/`) arrives with PR-009.
 
 ## The targets
 
@@ -47,3 +51,122 @@ The reference measurements of the specification (Anhang A) were taken on
 
 The numbers this repository publishes come from the machine the CI ran on —
 which is a smaller one. The difference is stated, not hidden.
+
+---
+
+## Results: the single-word index (PR-003)
+
+Run on **2026-11-02**. Machine: Intel Xeon @ 2.80 GHz, **4 cores**, 15 GB RAM,
+Ubuntu 24.04, .NET 10.0.14 (SDK 10.0.114), SQLite 3.53.3
+(`Microsoft.Data.Sqlite` 10.0.14), the database on a local disk and in the
+page cache. This is a cloud VM; the reference machine of Anhang A is a
+2.1 GHz Xeon with the same core count, so the two are comparable.
+
+**Corpus.** The 685,829 words of the German word list (CC0,
+`tools/fetch-wordlist.sh`), then compounds of two random words — the first
+capitalised — up to the number of entries. Weights: a long tail
+(`1 + 10⁶·u³`, `u` uniform), seed 42. The compound corpus is **dense in
+trigrams**: 3 M entries from 685 k words means 2.3 M compounds.
+
+**Queries.** 2,000 inputs per run, seed 7: two thirds the *beginning* of a
+random entry, one third a piece from its *middle*, 1–8 characters (about 250
+per length), warmed with 500 queries first. Default options: 20 hits, 500
+candidates, `WordStartThenSimilarity`, Jaro-Winkler. One query is
+`index.Query(input).Execute()`, measured in-process on one thread.
+
+**Reproduce.**
+
+```bash
+tools/fetch-wordlist.sh
+LUI_PERF=1 LUI_PERF_ENTRIES=3000000 \
+  dotnet test tests/Nordmann.LUI.Tests -c Release --filter QueryPerformance \
+  --logger "console;verbosity=detailed"
+# LUI_PERF_DB=<path> keeps the database, so that the next run skips the build
+```
+
+### The query
+
+| Entries | p50 | p95 | max | allocation p50 / p95 |
+|---:|---:|---:|---:|---:|
+| 200,000 | **0.86 ms** | **2.2 ms** | 4.0 ms | 58 KB / 235 KB |
+| 1,000,000 | 2.02 ms | 7.4 ms | 25 ms | 63 KB / 267 KB |
+| 3,000,000 | 3.57 ms | 26.5 ms | 120 ms | 79 KB / 290 KB |
+| *target (§16), 3,000,000* | *≤ 2 ms* | *≤ 5 ms* | | *≤ 250 KB* |
+
+**After the join was moved to the primary key** (`doc_id = f.rowid & 4294967295`
+instead of a seek on `s_rowid`, [ADR-0006](./adr/0006-the-single-word-index.md)),
+same index, same queries: 200,000 entries p50 **0.82 ms**, p95 **1.8 ms**;
+1,000,000 entries p50 **1.39 ms**, p95 **6.1 ms**. The 3,000,000 row above was
+measured before and has not been repeated.
+
+By length of the input (p50 / p95, ms), before that change:
+
+| Chars | 200 k | 1 M | 3 M |
+|---:|---:|---:|---:|
+| 1 | 0.96 / 1.5 | 1.15 / 1.7 | 1.41 / 2.1 |
+| 2 | 0.79 / 1.4 | 1.01 / 1.9 | 1.34 / 2.2 |
+| 3 | 1.44 / 2.4 | 1.99 / 3.0 | 2.34 / 3.5 |
+| 4 | 1.40 / 2.4 | 2.44 / 4.4 | 3.29 / 7.7 |
+| 5 | 0.73 / 2.4 | 2.72 / 6.4 | 4.85 / 14.2 |
+| 6 | 0.61 / 2.0 | 2.52 / 9.0 | 7.83 / 25.8 |
+| 7 | 0.68 / 2.2 | 3.09 / 10.6 | 10.62 / 33.6 |
+| 8 | 0.81 / 1.9 | 3.75 / 10.9 | 14.42 / 48.8 |
+
+**Reading.** The prefix path (1–2 characters) is a range scan and stays at
+≈ 1.4 ms / 2.2 ms even at 3 M. From three characters the time is FTS5's: the
+slowest queries spend 99.5 % of their time in the candidate statement (ranking
+0.4 ms, payload 0.3 ms). A phrase made of frequent trigrams with few matches
+walks the posting lists to the end — see ADR-0010 for the mechanism and the
+measured alternatives (no join, `AND` of trigrams: no change).
+
+**The target is missed at 3 M** — p50 by a factor of 1.8, p95 by a factor of 5 —
+**and held at 200 k.** At 1 M the median is on the line and the p95 is 1.5×
+over. The allocation target holds at the median at every size.
+
+**What was checked afterwards** (ADR-0010, "Follow-up measurement"): the
+plan, the indexes and the ordering are the specification's. The same texts
+loaded in rowid order are 3× faster to query (warm) and 8× faster to build than
+the row-by-row index measured above; whether that carries over to the cold p95
+is shown in ADR-0010: **bulk-built and merged, the 3 M index answers at p50
+1.3–1.8 ms and p95 13.5 ms, and builds in about 100 s** (the targets: ≤ 2 ms,
+≤ 5 ms, ≤ 3 min). SQLite settings (memory map, cache, page size, FTS5 `pgsz`,
+journal mode) change nothing.
+
+### The write
+
+One call, own transaction (the writer connection of the catalog), over the
+index above; 500 calls, a third each `UpdateWeight`, `Upsert` of an existing
+key and `UpdatePriority`:
+
+| Entries | p50 | p95 | target p95 |
+|---:|---:|---:|---:|
+| 200,000 | 0.18 ms | **1.0 ms** | ≤ 1 ms |
+| 1,000,000 | 0.26 ms | 5.7 ms | ≤ 1 ms |
+| 3,000,000 | 0.28 ms | 2.6 ms | ≤ 1 ms |
+
+The median is a fifth of a millisecond at every size; the p95 is the FTS5
+segment merges that a write now and then triggers. **Missed at 1 M and 3 M.**
+
+### The build
+
+200,000 entries in 13.8 s (14,500/s); 1,000,000 in 87 s (11,500/s);
+**3,000,000 in 334 s (9,000/s) — the target is 3 minutes, missed.** The file is
+913 MB at 3 M. The build is `Upsert` inside one transaction of the application
+on a connection with a 512 MB cache. What moved it:
+
+| Per entry | |
+|---|---:|
+| `Upsert` through a fresh command (first version) | 184 µs |
+| `Upsert` through a prepared statement (this version, [ADR-0009](./adr/0009-writes-use-prepared-statements.md)) | 59 µs at 50 k |
+| the same without the three triggers (content table, generated columns, four indexes) | 11 µs |
+
+The rest is the search index, whose segments are merged as it grows. The bulk
+path — rowid-ordered loading, one merge at the end — belongs to `Sync` and
+`Rebuild` (PR-007) and is measured there.
+
+### Opening a catalog
+
+`LuiCatalog.Open` probes the folding of the loaded SQLite once per process
+([ADR-0007](./adr/0007-the-catalog-checks-the-sqlite-it-runs-on.md)): **110 ms**
+cold (JIT included), **37 ms** warm, 2,466 code points. Every further `Open` in
+the process skips it.

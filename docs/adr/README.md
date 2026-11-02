@@ -37,3 +37,8 @@ here — in the **same pull request** as the change it describes.
 | [0003](./0003-defer-the-open-questions.md) | The nine open questions of the specification are deferred | Accepted |
 | [0004](./0004-dependencies.md) | The dependency set — and the deviation from the closed library list | Accepted |
 | [0005](./0005-measured-normalisation.md) | The normalisation rule is measured, not derived | Accepted |
+| [0006](./0006-the-single-word-index.md) | The single-word index: one rowid, three indexes, one external-content FTS5 table | Accepted |
+| [0007](./0007-the-catalog-checks-the-sqlite-it-runs-on.md) | The catalog checks the SQLite it runs on | Accepted |
+| [0008](./0008-the-query-path.md) | The query path: groups, a lazy similarity, and what the result reserves | Accepted |
+| [0009](./0009-writes-use-prepared-statements.md) | Writes use prepared statements on one writer connection | Accepted |
+| [0010](./0010-the-query-budget-at-three-million-entries.md) | The query budget of §16 does not hold at three million entries on FTS5 alone | Proposed |
