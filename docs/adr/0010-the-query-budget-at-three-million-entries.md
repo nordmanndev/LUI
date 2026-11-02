@@ -47,6 +47,37 @@ It is not the library, and it is not the prefix path.
   or titles. §16's own numbers (Anhang A1, A5) were taken on a different
   synthetic corpus, "als Größenordnung" (Anhang A).
 
+## Follow-up measurement (same day, after review)
+
+Question asked: *are the indexes and the ordering right, and why does the
+specification's measurement not reproduce?* Checked, at 1,000,000 entries,
+the same texts in four FTS5 indexes (warm, best of 7 runs, `LIMIT 501`,
+`ORDER BY rowid`, milliseconds):
+
+| Index | `gescher` | `verscha` | `resche` | `rausch` | `kuchen` | built in |
+|---|---:|---:|---:|---:|---:|---:|
+| plain, dense rowid 1…N, bulk-built | 6.9 | 5.4 | 5.4 | 4.0 | 2.6 | 8 s |
+| packed rowid, bulk-built in rowid order | 8.5 | 7.4 | 6.5 | 4.5 | 2.8 | 11 s |
+| packed rowid, same + `optimize` (1 segment) | 7.5 | 6.4 | 6.4 | 6.4 | 3.4 | +2 s |
+| **packed rowid, row by row through the triggers (this PR)** | **25.4** | **19.6** | **20.5** | **12.5** | **7.0** | **82 s** |
+
+- **The ordering and the indexes are right.** The plan is the specification's
+  (`INDEX 64`, no `TEMP B-TREE`); the packed rowid costs about 20 % against a
+  dense one when both are built the same way. Half of the weights being 0
+  (Anhang A1) changes the file by 11 % and the latency not at all.
+- **What differs is how the FTS5 index came to be.** Inserted row by row, in
+  the random rowid order that the weight imposes, it ends in 24 segments
+  (every committed write adds a small one; `automerge` only trims them) and
+  is 3× slower to read and 8× slower to build than the same index loaded in
+  rowid order. The specification's build figures (Anhang A6) are not the
+  figures of a row-by-row build either.
+- **Not reconciled end to end.** The library's own run on a merged index
+  (1 M, 2,000 single-shot queries) gave p50 2.65 ms / p95 12.1 ms — no better
+  than before. The table above is warm and repeats one query; the budget is
+  cold and single-shot. Whether bulk loading and merging closes the gap
+  there, or only the warm part of it, needs an A/B on the *same* query
+  sequence before it is claimed.
+
 ## Options
 
 1. **Keep the budget, measure on a real stock.** The synthetic compound corpus
@@ -70,9 +101,16 @@ It is not the library, and it is not the prefix path.
    `Sync`/`Rebuild` (PR-007) and the benchmarks (PR-009); it addresses the
    3-minute build and part of the write p95, not the query.
 
+5. **Load in bulk and keep the index merged.** `Sync`/`Rebuild`/`Optimize`
+   (PR-007) should fill the content table, then build the search index in rowid
+   order and `optimize` it (about 10 s and 2 s per million entries here), and
+   `automerge` can be tightened for the steady state. The follow-up
+   measurement says this is worth 3× on the warm query and 8× on the build;
+   it is not proven on the cold p95.
+
 ## Decision
 
-**Proposed — the owner decides.** Option 1 is cheap and should come first; if
+**Proposed — the owner decides.** Options 1 and 5 are cheap and should come first (the original probe of the specification would settle both at once); if
 a real stock confirms the numbers, options 2 and 3 are the real choice. Until
 then the pull request reports the numbers as measured and does not claim the
 budget. The target in `docs/benchmarks.md` is **not** lowered quietly (its own

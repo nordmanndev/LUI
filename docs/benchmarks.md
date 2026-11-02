@@ -117,6 +117,12 @@ measured alternatives (no join, `AND` of trigrams: no change).
 **and held at 200 k.** At 1 M the median is on the line and the p95 is 1.5×
 over. The allocation target holds at the median at every size.
 
+**What was checked afterwards** (ADR-0010, "Follow-up measurement"): the
+plan, the indexes and the ordering are the specification's. The same texts
+loaded in rowid order are 3× faster to query (warm) and 8× faster to build than
+the row-by-row index measured above; whether that carries over to the cold p95
+is not yet shown.
+
 ### The write
 
 One call, own transaction (the writer connection of the catalog), over the
