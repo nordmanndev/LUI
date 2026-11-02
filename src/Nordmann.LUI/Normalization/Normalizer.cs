@@ -302,7 +302,7 @@ public static class Normalizer
         return value == 'ẞ' ? "ss" : null;
     }
 
-    private static bool IsSeparator(char value) =>
+    internal static bool IsSeparator(char value) =>
         value < 0x80 ? AsciiSeparators[value] : UnicodeSeparators.Contains(value);
 
     private static bool[] BuildAsciiSeparators()

@@ -32,6 +32,26 @@ internal static class TokenizerFold
     /// </summary>
     internal static char Fold(char value) => Table[value];
 
+    /// <summary>
+    /// A stable identity of the table: a hash of its entries, not of the file,
+    /// so that line endings do not change it. It is stored in <c>lui_meta</c>;
+    /// an index stored with another table has to be built again.
+    /// </summary>
+    internal static string Version { get; } = ComputeVersion();
+
+    /// <summary>The entries of the table, as listed in the resource.</summary>
+    internal static IReadOnlyList<(int From, char To)> Listed { get; } = [.. Entries()];
+
+    private static string ComputeVersion()
+    {
+        var text = string.Join(
+            '\n',
+            Entries().Select(entry => string.Create(CultureInfo.InvariantCulture, $"{entry.From:X4}:{(int)entry.To:X4}")));
+
+        var hash = System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text));
+        return Convert.ToHexString(hash.AsSpan(0, 8)).ToLowerInvariant();
+    }
+
     private static char[] Build()
     {
         var table = new char[0x10000];
