@@ -78,3 +78,14 @@ E-Mail	e-mail	email
 # dropped from the compact form.
 #Hashtag	#hashtag	hashtag
 S 22	s 22	s22
+
+# --- the decomposed umlauts --------------------------------------------------
+# The German step has to see the mark that follows the letter. Otherwise
+# the composed and the decomposed spelling are two different words, and one
+# of them is never found.
+Müller	mueller	mueller
+Äpfel	aepfel	aepfel
+Öl	oel	oel
+Übung	uebung	uebung
+Grüße	gruesse	gruesse
+Äpfeln	aepfeln	aepfeln
