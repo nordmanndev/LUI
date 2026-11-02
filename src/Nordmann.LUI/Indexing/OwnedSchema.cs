@@ -40,7 +40,7 @@ internal static class OwnedSchema
         // The column the search index holds: s_norm for a single-word index; for a multi-word index
         // s_compact alone (ADR-0011) — it holds everything a multi-word query asks, and s_norm, which
         // stays a column of the table, would only store every title a second time.
-        var columns = multi ? "s_compact" : "s_norm";
+        var column = multi ? "s_compact" : "s_norm";
 
         return
         [
@@ -50,22 +50,29 @@ internal static class OwnedSchema
             $"CREATE INDEX {content}_p2 ON {content}(s_p2, s_rowid);",
             $"""
             CREATE VIRTUAL TABLE {fts} USING fts5(
-                {columns},
+                {column},
                 content = '{content}', content_rowid = 's_rowid',
                 tokenize = 'trigram remove_diacritics 1');
             """,
-            .. Triggers(content, fts, columns, multi),
+            .. Triggers(content, fts, column),
         ];
     }
 
     private static string ContentTable(string content, IndexDefinition definition)
     {
-        // The prefix columns drop the '#' of a hashtag; lower() folds ASCII only (§6.2).
-        const string withoutHash = "replace(s_norm, '#', '')";
+        var multi = definition.Kind == IndexKind.MultiWord;
+
+        // The prefix columns hold the first letters of the text a query is read against: s_norm without its
+        // '#' for a single-word index; s_compact — no spaces, no punctuation, no '#' — for a multi-word index
+        // (§4: „spaces do not matter", review of pull request 8). lower() folds ASCII only (§6.2).
+        var prefixSource = multi ? "s_compact" : "replace(s_norm, '#', '')";
 
         // The compact column strips the separators from the transliterated text (§6.1); the tokenizer
-        // folds it, as it folds s_norm. Only a multi-word index has it (§7.2).
-        var compact = definition.Kind == IndexKind.MultiWord
+        // folds it, as it folds s_norm. Only a multi-word index has it (§7.2). There s_norm is a VIRTUAL
+        // column: nothing reads it but s_compact, which derives from it, and a stored copy of every title
+        // is a tenth of the file.
+        var norm = multi ? "VIRTUAL" : "STORED";
+        var compact = multi
             ? $",\n    s_compact TEXT GENERATED ALWAYS AS ({SqlNormalizer.Compact("s_norm")}) STORED"
             : string.Empty;
 
@@ -77,30 +84,30 @@ internal static class OwnedSchema
                 weight   INTEGER NOT NULL CHECK (weight BETWEEN 0 AND {RowId.MaxWeight}),
                 priority INTEGER NOT NULL DEFAULT 3 CHECK (priority BETWEEN 0 AND 3),
                 payload  BLOB,
-                s_norm   TEXT GENERATED ALWAYS AS ({SqlNormalizer.Transliteration("text", definition.GermanTransliteration)}) STORED{compact},
-                s_p1     TEXT GENERATED ALWAYS AS (substr(lower({withoutHash}), 1, 1)) STORED,
-                s_p2     TEXT GENERATED ALWAYS AS (substr(lower({withoutHash}), 1, 2)) STORED,
+                s_norm   TEXT GENERATED ALWAYS AS ({SqlNormalizer.Transliteration("text", definition.GermanTransliteration)}) {norm}{compact},
+                s_p1     TEXT GENERATED ALWAYS AS (substr(lower({prefixSource}), 1, 1)) STORED,
+                s_p2     TEXT GENERATED ALWAYS AS (substr(lower({prefixSource}), 1, 2)) STORED,
                 s_rowid  INTEGER GENERATED ALWAYS AS ((priority << 61) | (({RowId.MaxWeight} - weight) << 32) | doc_id) STORED
             );
             """;
     }
 
-    private static string[] Triggers(string content, string fts, string columns, bool multi)
+    /// <summary>The triggers; <paramref name="column"/> is the one column the search index holds.</summary>
+    private static string[] Triggers(string content, string fts, string column)
     {
-        var indexed = multi ? "s_compact" : "s_norm";
-        var added = $"new.{indexed}";
-        var removed = $"old.{indexed}";
+        var added = $"new.{column}";
+        var removed = $"old.{column}";
 
         return
         [
             $"""
             CREATE TRIGGER {content}_ai AFTER INSERT ON {content} BEGIN
-                INSERT INTO {fts}(rowid, {columns}) VALUES (new.s_rowid, {added});
+                INSERT INTO {fts}(rowid, {column}) VALUES (new.s_rowid, {added});
             END;
             """,
             $"""
             CREATE TRIGGER {content}_ad AFTER DELETE ON {content} BEGIN
-                INSERT INTO {fts}({fts}, rowid, {columns}) VALUES ('delete', old.s_rowid, {removed});
+                INSERT INTO {fts}({fts}, rowid, {column}) VALUES ('delete', old.s_rowid, {removed});
             END;
             """,
 
@@ -110,10 +117,10 @@ internal static class OwnedSchema
             // compact text counts: „Apfel Kuchen" to „Apfel-Kuchen" is none.
             $"""
             CREATE TRIGGER {content}_au AFTER UPDATE OF text, weight, priority ON {content}
-            WHEN old.s_rowid IS NOT new.s_rowid OR old.{indexed} IS NOT new.{indexed}
+            WHEN old.s_rowid IS NOT new.s_rowid OR old.{column} IS NOT new.{column}
             BEGIN
-                INSERT INTO {fts}({fts}, rowid, {columns}) VALUES ('delete', old.s_rowid, {removed});
-                INSERT INTO {fts}(rowid, {columns}) VALUES (new.s_rowid, {added});
+                INSERT INTO {fts}({fts}, rowid, {column}) VALUES ('delete', old.s_rowid, {removed});
+                INSERT INTO {fts}(rowid, {column}) VALUES (new.s_rowid, {added});
             END;
             """,
         ];

@@ -188,18 +188,18 @@ LUI_PERF=1 LUI_PERF_KIND=multi LUI_PERF_ENTRIES=1000000 \
 
 | Entries | index | build | file | query p50 / p95 | alloc p50 / p95 | write p50 / p95 |
 |---:|---|---:|---:|---:|---:|---:|
-| 200,000 | `s_compact` only (this PR) | 28 s | 99 MB | 1.29 / 3.4 ms | 47 / 263 KB | 0.23 / 1.3 ms |
-| 1,000,000 | `s_compact` only (this PR) | 155 s | 483 MB | 3.13 / 14.8 ms | 83 / 273 KB | 0.32 / 6.2 ms |
+| 200,000 | `s_compact` only, `s_norm` virtual (this PR) | 30 s | 91 MB | 1.26 / 3.4 ms | 47 / 263 KB | 0.24 / 1.5 ms |
+| 1,000,000 | `s_compact` only, `s_norm` virtual (this PR) | 157 s | 445 MB | 3.16 / 14.1 ms | 83 / 273 KB | 0.32 / 5.7 ms |
 | 200,000 | two columns (first version) | 33 s | 126 MB | 1.64 / 4.9 ms | 46 / 263 KB | 0.31 / 1.9 ms |
 | 1,000,000 | two columns (first version) | 180 s | 619 MB | 4.16 / 21.0 ms | 83 / 273 KB | 0.35 / 4.8 ms |
 | *target (§16)* | | *3 M ≤ 3 min* | *1 M ≤ 300 MB* | *3 M ≤ 2 / 5 ms* | *≤ 250 KB* | *≤ 1 ms p95* |
 
 - **Allocation.** With `F23`'s Dice the 95th percentile was **3,651 KB** (a dictionary per comparison, 500
   comparisons); with the allocation-free Dice of this PR it is 263 KB ([ADR-0011](./adr/0011-the-multi-word-index.md)).
-- **Missed:** the query at 1 M (p50 3.1 ms, p95 14.8 ms — the two-word inputs of frequent trigrams, `Rent Schwe` 54 ms
-  for 38 candidates; the mechanism of ADR-0010), the file size (1.6× the target; long titles), the 3 M build
+- **Missed:** the query at 1 M (p50 3.2 ms, p95 14.1 ms — the two-word inputs of frequent trigrams, `Rent Schwe` 54 ms
+  for 38 candidates; the mechanism of ADR-0010), the file size (1.5× the target; long titles), the 3 M build
   (extrapolated: about eight minutes). Held: the query at 200 k (p50 1.3 ms, p95 3.4 ms), the allocation, the write p95
   at 200 k (1.3 ms against 1 ms: just over).
 - **One indexed column instead of two** is built (ADR-0011): −36 % file, −40 % build, −30 % query latency in the
-  500 k experiment (`MultiWordLayoutExperiment`), −22 % file, −14 % build, −25 % to −30 % latency in the table above.
+  500 k experiment (`MultiWordLayoutExperiment`), −28 % file, −13 % build, −24 % to −33 % latency in the table above (two indexed columns → one, `s_norm` virtual).
 

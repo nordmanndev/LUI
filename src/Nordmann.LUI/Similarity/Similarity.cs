@@ -1,3 +1,4 @@
+using System.Buffers;
 using F23.StringSimilarity;
 
 namespace Nordmann.LUI.Similarity;
@@ -99,7 +100,7 @@ public static class Similarity
         {
             if (rented is not null)
             {
-                System.Buffers.ArrayPool<uint>.Shared.Return(rented);
+                ArrayPool<uint>.Shared.Return(rented);
             }
         }
 
@@ -110,7 +111,7 @@ public static class Similarity
             var buffer = stack;
             if (text.Length > stack.Length)
             {
-                rented = System.Buffers.ArrayPool<uint>.Shared.Rent(text.Length);
+                rented = ArrayPool<uint>.Shared.Rent(text.Length);
                 buffer = rented;
             }
 

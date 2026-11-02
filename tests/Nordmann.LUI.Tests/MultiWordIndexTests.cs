@@ -229,6 +229,58 @@ public sealed class MultiWordIndexTests
     }
 
     [Fact]
+    public void One_and_two_letters_do_not_depend_on_spaces_or_punctuation()
+    {
+        // the prefix path of a multi-word index works on the compact text: the answer to „ab", „a b", „a-b"
+        // and „-a b" is the same (review of pull request 8, M1)
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var index = catalog.Index<long, Chip>("titles").MultiWord().Owned().Ensure();
+        index.Upsert(1, "Abendbrot", 100);
+        index.Upsert(2, "A Bit Of Fun", 90);
+        index.Upsert(3, "Anna Berg", 80);
+        index.Upsert(4, "Ab Cd Torte", 70);
+        index.Upsert(5, "Abc", 60);
+        index.Upsert(6, "x-y Test", 50);
+        index.Upsert(7, "Xylophon", 40);
+
+        foreach (var typed in new[] { "ab", "a b", "a-b", "a.b", "AB", "-a b", "  a  b  " })
+        {
+            Keys(index, typed).ShouldBe([1L, 2L, 4L, 5L], $"for '{typed}'");
+        }
+
+        foreach (var typed in new[] { "a", "-a", "#a", "A " })
+        {
+            Keys(index, typed).ShouldBe([1L, 2L, 3L, 4L, 5L], $"for '{typed}'");
+        }
+
+        foreach (var typed in new[] { "xy", "x y", "x-y", "X.Y" })
+        {
+            Keys(index, typed).ShouldBe([6L, 7L], $"for '{typed}'");
+        }
+
+        foreach (var typed in new[] { "-", "- -", ".", "#" })
+        {
+            Keys(index, typed).ShouldBeEmpty($"for '{typed}'");
+        }
+    }
+
+    [Fact]
+    public void A_hundred_words_are_a_valid_query()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var index = catalog.Index<long, Chip>("titles").MultiWord().Owned().Ensure();
+        index.Upsert(1, "wort001 wort002 wort003", 10);
+
+        var typed = string.Join(' ', Enumerable.Range(0, 100).Select(i => $"wort{i:000}"));
+
+        Should.NotThrow(() => index.Query(typed).Execute());
+        index.Query("wort001 wort002 wort003 " + string.Join(' ', Enumerable.Range(4, 20).Select(i => $"wort{i:000}")))
+            .Execute().Hits.ShouldBeEmpty("a title that lacks a word of the longest eight is not a candidate");
+    }
+
+    [Fact]
     public void A_hyphen_separates_words_in_the_input_and_in_the_title()
     {
         using var database = new TestDatabase();
@@ -360,6 +412,9 @@ public sealed class MultiWordIndexTests
         database.Scalar<string>("SELECT count(*) || ':' || coalesce(sum(length(block)), 0) || ':' || coalesce(sum(id), 0) FROM lui_recipes_fts_data").ShouldBe(before);
         index.Query("apfel kuchen").Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfel-Kuchen");
     }
+
+    private static long[] Keys(ILuiIndex<long, Chip> index, string typed) =>
+        [.. index.Query(typed).Execute().Hits.Select(h => h.Key).Order()];
 
     private static List<string> RandomTitles(Random random, int count)
     {

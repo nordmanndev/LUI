@@ -14,6 +14,13 @@ internal sealed class PreparedQuery
     /// <summary>The prefix columns hold one and two characters.</summary>
     private const int LongestPrefix = 2;
 
+    /// <summary>
+    /// The most words that go into the expression: the longest ones. Every word is a phrase with posting
+    /// lists of its own, and a hundred words must not be a hundred lists to walk; the others count in the
+    /// ranking through the compact form (§8.2).
+    /// </summary>
+    private const int MaxExpressionWords = 8;
+
     private readonly IndexKind _kind;
 
     private PreparedQuery(string search, string compact, IndexKind kind)
@@ -21,12 +28,23 @@ internal sealed class PreparedQuery
         _kind = kind;
         Search = search;
         Compact = compact;
-        Words = SplitWords(search);
         SearchLength = CodePoints(search);
         CompactLength = CodePoints(compact);
 
-        var prefix = search.Replace("#", string.Empty, StringComparison.Ordinal);
-        PrefixKey = kind == IndexKind.MultiWord ? FirstCodePoints(prefix, LongestPrefix) : prefix;
+        if (kind == IndexKind.MultiWord)
+        {
+            // A multi-word index is read compactly everywhere: the words are the runs between separators, and
+            // the prefix columns hold the first letters of the compact text — spaces and punctuation do
+            // not count (§4, review of pull request 8).
+            Words = SplitWords(search);
+            PrefixKey = FirstCodePoints(compact, LongestPrefix);
+        }
+        else
+        {
+            Words = [];
+            PrefixKey = search.Replace("#", string.Empty, StringComparison.Ordinal);
+        }
+
         PrefixLength = CodePoints(PrefixKey);
     }
 
@@ -40,10 +58,13 @@ internal sealed class PreparedQuery
     /// <summary>The compact form: for the word-start rule, and for the compact column of a multi-word index.</summary>
     internal string Compact { get; }
 
-    /// <summary>The words of the input: the runs of the search form between separators (§4).</summary>
+    /// <summary>The words of the input of a multi-word index: the runs of the search form between separators (§4).</summary>
     internal IReadOnlyList<string> Words { get; }
 
-    /// <summary>The search form without <c>#</c> — the key of the prefix columns.</summary>
+    /// <summary>
+    /// The key of the prefix columns: the search form without <c>#</c> for a single-word index, the
+    /// first two letters of the compact form for a multi-word index.
+    /// </summary>
     internal string PrefixKey { get; }
 
     /// <summary>The length of <see cref="Search"/> in code points — the unit of SQLite's <c>substr</c> and of the trigram.</summary>
@@ -69,7 +90,7 @@ internal sealed class PreparedQuery
     /// <summary>The FTS5 expression for the candidates (§8.2).</summary>
     internal string Expression => _kind == IndexKind.MultiWord ? MultiWordExpression() : SingleWordExpression();
 
-    internal static PreparedQuery Create(string input, NormalizationOptions options, IndexKind kind = IndexKind.SingleWord)
+    internal static PreparedQuery Create(string input, NormalizationOptions options, IndexKind kind)
     {
         ArgumentNullException.ThrowIfNull(input);
 
@@ -110,7 +131,7 @@ internal sealed class PreparedQuery
     /// </summary>
     private string MultiWordExpression()
     {
-        var words = Words.Where(word => CodePoints(word) >= MinimumTrigramLength).ToArray();
+        var words = ExpressionWords();
         if (words.Length == 0)
         {
             return $"s_compact : {Quote(Compact)}";
@@ -125,6 +146,28 @@ internal sealed class PreparedQuery
         anded.AppendJoin(" AND ", words.Select(Quote));
         anded.Append(')');
         return anded.ToString();
+    }
+
+    /// <summary>
+    /// The words of three or more code points — at most <see cref="MaxExpressionWords"/>, the longest, in the
+    /// order they were typed.
+    /// </summary>
+    private string[] ExpressionWords()
+    {
+        var words = Words.Where(word => CodePoints(word) >= MinimumTrigramLength).ToArray();
+        if (words.Length <= MaxExpressionWords)
+        {
+            return words;
+        }
+
+        var keep = Enumerable.Range(0, words.Length)
+            .OrderByDescending(i => CodePoints(words[i]))
+            .ThenBy(i => i)
+            .Take(MaxExpressionWords)
+            .Order()
+            .ToArray();
+
+        return [.. keep.Select(i => words[i])];
     }
 
     private static List<string> SplitWords(string searchForm)

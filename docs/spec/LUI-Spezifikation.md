@@ -246,6 +246,10 @@ Die Rundreise (kodieren → dekodieren) ist ein Unit-Test.
 
 `s_compact` entfällt bei `SingleWord`.
 
+Bei `MultiWord` ist `s_norm` eine `VIRTUAL`-Spalte (nur `s_compact` leitet sich von ihr ab, ein gespeichertes Duplikat jedes
+Titels wäre ein Zehntel der Datei), und `s_p1`/`s_p2` werden aus `s_compact` gebildet statt aus `s_norm`: Leerzeichen und
+Satzzeichen zählen nicht (ADR-0011).
+
 ### 7.3 Inhaltstabelle bei `Linked`
 
 Die Tabelle der Anwendung bekommt dieselben berechneten Spalten (`s_norm`,
@@ -339,7 +343,8 @@ LIMIT $candidates;
 ```
 
 Das findet zuerst die Einträge höherer Priorität, dann die beliebtesten,
-deren **Text** so beginnt (nicht jedes Wort; § 21, O1).
+deren **Text** so beginnt (nicht jedes Wort; § 21, O1). Bei `MultiWord` zählen die ersten Buchstaben des
+**kompakten** Textes: `ab`, `a b`, `a-b` und `-a b` liefern dieselbe Antwort.
 
 ### 8.2 Kandidaten aus FTS5 (≥ 3 Zeichen)
 
@@ -351,6 +356,8 @@ deren **Text** so beginnt (nicht jedes Wort; § 21, O1).
 - Wörter mit weniger als 3 Zeichen gehen nicht in den Ausdruck ein, aber in das
   Ranking. Bleibt kein Wort von mindestens 3 Zeichen, steht die ganze Eingabe kompakt im Ausdruck
   (`s_compact : "abcd"` für `ab cd`).
+- Höchstens die **8 längsten** Wörter (ab 3 Zeichen) gehen in den Ausdruck, in der getippten Reihenfolge; jedes
+  Wort ist eine Phrase mit eigenen Posting-Listen. Die übrigen zählen im Ranking.
 - Ein Wort ist eine Phrase (`s_compact : "apfelkuch"`). Der Ausdruck der ersten Fassung,
   `(s_norm : ("apfel" AND "kuch")) OR (s_compact : "apfelkuch")`, findet nichts, was der heutige nicht findet;
   der heutige findet zusätzlich Titel, deren Wörter über eine Wortgrenze des Titels laufen (`elk ort` in
@@ -826,6 +833,7 @@ Jeder Schritt ist ein Pull Request mit ADR, Tests und Messung.
 | O7 | Gewichtung von Wortanfang und Gewicht weich mischen statt in Stufen? | erst mit echten Klickdaten entscheiden |
 | O8 | Leere Eingabe: sollen die Einträge der Priorität `System` als Vorschlag kommen („Was schlägst du vor?")? | als Option `.SuggestWhenEmpty()` |
 | O9 | Reichen 4 Prioritätsklassen? | ja; mehr kostet Bits des Gewichts |
+| O10 | Sollen die Anfänge **mehrerer kurzer Wörter** `MultiWord` finden (`an mü` → „Anna Müller")? Heute steht ein Wort unter 3 Zeichen nur im Ranking, `an mü` sucht kompakt `anmu`. | Später; braucht Wortanfangs-Präfixe pro Wort (verwandt mit O1) |
 
 ---
 

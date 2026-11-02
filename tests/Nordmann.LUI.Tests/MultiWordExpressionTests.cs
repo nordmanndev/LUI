@@ -69,8 +69,55 @@ public sealed class MultiWordExpressionTests
     public void The_prefix_key_of_a_short_input_is_at_most_two_code_points()
     {
         Query("ap").PrefixKey.ShouldBe("ap");
-        Query("a b").PrefixKey.ShouldBe("a ");
         Query("😀").PrefixKey.ShouldBe("😀");
+        Query("😀p").PrefixKey.ShouldBe("😀p");
+    }
+
+    [Theory]
+    [InlineData("a b", "ab")]
+    [InlineData("a-b", "ab")]
+    [InlineData("a.b", "ab")]
+    [InlineData("-a", "a")]
+    [InlineData("#a", "a")]
+    [InlineData("A  B", "ab")]
+    public void The_prefix_key_of_a_multi_word_index_is_the_compact_form_spaces_and_punctuation_do_not_count(
+        string typed,
+        string expected)
+    {
+        Query(typed).PrefixKey.ShouldBe(expected);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("-")]
+    [InlineData("- -")]
+    [InlineData("#")]
+    [InlineData(" . ")]
+    public void An_input_of_separators_alone_is_empty(string typed)
+    {
+        Query(typed).IsEmpty.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Only_the_longest_eight_words_go_into_the_expression()
+    {
+        // twelve words of 3 … 14 letters: the eight longest stay, in the order they were typed
+        var typed = string.Join(' ', Enumerable.Range(3, 12).Select(n => new string((char)('a' + (n % 26)), n)));
+
+        var expression = Expression(typed);
+
+        expression.Split(" AND ").Length.ShouldBe(8);
+        expression.ShouldNotContain("\"ddd\"");
+        expression.ShouldContain(new string('o', 14));
+        expression.ShouldStartWith("s_compact : (");
+    }
+
+    [Fact]
+    public void An_input_of_a_hundred_words_is_a_valid_expression_and_a_query_that_returns()
+    {
+        var typed = string.Join(' ', Enumerable.Range(0, 100).Select(i => $"wort{i:000}"));
+
+        Expression(typed).Split(" AND ").Length.ShouldBe(8);
     }
 
     [Fact]

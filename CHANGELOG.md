@@ -14,7 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   into words that are ANDed and also searched compactly, so `kuchen apfel` and `apfelkuch` both
   find „Apfel Kuchen"; the word start is decided on the compact form; the default similarity is
   N-gram Dice. A multi-word index has a compact column `s_compact`, and its search index holds
-  that column alone — the specification (§7.4, §8.2) is corrected accordingly.
+  that column alone — the specification (§7.4, §8.2) is corrected accordingly. One and two letters
+  are read on the compact text (`a b` = `ab` = `a-b`); at most the eight longest words go into the
+  expression.
 - `Similarity.NgramDice` no longer allocates: a query that compared 500 candidates allocated
   3.6 MB at the 95th percentile, now 263 KB; the number is the one of `F23.SorensenDice(2)`.
 
