@@ -74,8 +74,13 @@ internal static class OwnedSchema
                 INSERT INTO {fts}({fts}, rowid, s_norm) VALUES ('delete', old.s_rowid, old.s_norm);
             END;
             """,
+            // Only a change of the rowid or of the indexed text reaches the search index: an identical
+            // upsert and a change of the payload alone leave it alone (review P1) — every touch is a
+            // delete and an insert, and a new small segment.
             $"""
-            CREATE TRIGGER {content}_au AFTER UPDATE OF text, weight, priority ON {content} BEGIN
+            CREATE TRIGGER {content}_au AFTER UPDATE OF text, weight, priority ON {content}
+            WHEN old.s_rowid IS NOT new.s_rowid OR old.s_norm IS NOT new.s_norm
+            BEGIN
                 INSERT INTO {fts}({fts}, rowid, s_norm) VALUES ('delete', old.s_rowid, old.s_norm);
                 INSERT INTO {fts}(rowid, s_norm) VALUES (new.s_rowid, new.s_norm);
             END;

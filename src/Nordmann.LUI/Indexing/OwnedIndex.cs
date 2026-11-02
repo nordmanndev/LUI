@@ -16,6 +16,9 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     private readonly LuiCatalog _catalog;
     private readonly IPayloadSerializer<TPayload>? _payload;
     private readonly QueryRunner<TKey, TPayload> _runner;
+    /// <summary><c>SQLITE_CONSTRAINT_CHECK</c>.</summary>
+    private const int SqliteCheckConstraintFailed = 275;
+
     private readonly OwnedSql _sql;
 
     // The statements of the application's own connections, one set per connection.
@@ -55,8 +58,10 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
         RowId.ValidateWeight(weight);
         RowId.ValidatePriority(priority);
 
+        // A payload that is null, or the default of a value type, is "no payload" — it is stored as NULL
+        // and read back as the default. A value type cannot say more (review B1).
         byte[]? bytes = null;
-        if (payload is not null)
+        if (payload is not null && !EqualityComparer<TPayload>.Default.Equals(payload, default))
         {
             bytes = _payload?.Serialize(payload)
                 ?? throw new InvalidOperationException(
@@ -64,8 +69,23 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
         }
 
         using var scope = _catalog.Begin();
-        StatementsFor(transaction).Upsert(keyText, text, weight, (int)priority, bytes, transaction);
+        try
+        {
+            StatementsFor(transaction).Upsert(keyText, text, weight, (int)priority, bytes, transaction);
+        }
+        catch (SqliteException exception) when (IsDocIdExhausted(exception))
+        {
+            throw new InvalidOperationException(
+                $"The index '{Name}' has used up its document ids (0 … {RowId.MaxDocId:N0}); a new entry gets the "
+                + "highest id plus one. Export the entries, Drop() the index, ensure it again and load them: "
+                + "the ids start from 1 again.",
+                exception);
+        }
     }
+
+    private static bool IsDocIdExhausted(SqliteException exception) =>
+        exception.SqliteExtendedErrorCode == SqliteCheckConstraintFailed
+        && exception.Message.Contains("doc_id", StringComparison.Ordinal);
 
     public bool UpdateWeight(TKey key, int weight, SqliteTransaction? transaction = null)
     {
@@ -127,7 +147,30 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
 
         return _applicationStatements.TryGetValue(connection, out var statements)
             ? statements
-            : _applicationStatements.GetValue(connection, c => new WriteStatements(c, _sql, new Lock()));
+            : _applicationStatements.GetValue(connection, c => ForApplication(c, transaction));
+    }
+
+    /// <summary>
+    /// The statements for a connection of the application. The first use on a connection checks that
+    /// the connection reaches this index at all — a transaction of another database would otherwise
+    /// fail with a bare "no such table" (review B8).
+    /// </summary>
+    private WriteStatements ForApplication(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        using var check = connection.CreateCommand();
+        check.Transaction = transaction;
+        check.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = $name;";
+        check.Parameters.AddWithValue("$name", OwnedSchema.Content(Name));
+
+        if ((long)check.ExecuteScalar()! == 0)
+        {
+            throw new ArgumentException(
+                $"The transaction belongs to another database: the table '{OwnedSchema.Content(Name)}' of the "
+                + $"index '{Name}' is not there.",
+                nameof(transaction));
+        }
+
+        return new WriteStatements(connection, _sql, new Lock());
     }
 
     private WriteStatements CreateOwnStatements()

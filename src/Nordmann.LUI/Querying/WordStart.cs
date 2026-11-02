@@ -7,6 +7,11 @@ namespace Nordmann.LUI.Querying;
 /// there is a word <c>i</c> in the normalised text such that the <b>compact</b>
 /// text from word <c>i</c> on begins with the <b>compact</b> input. Words are
 /// separated by spaces and hyphens; a leading <c>#</c> does not count.
+/// <para>
+/// The split is <b>only</b> at a space or a hyphen, as §9.1 says. The <i>compact</i> comparison skips the
+/// whole separator set (punctuation, no-break space, dashes), so „foo/bar" is one word whose compact
+/// text is „foobar": „bar" does not stand at a word start there.
+/// </para>
 /// </summary>
 internal static class WordStart
 {

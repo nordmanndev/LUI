@@ -53,3 +53,20 @@ guarded by a lock — a connection is used by one thread at a time.
 - The queries do not use this: a query opens a pooled connection and prepares
   its statement each time (about 100 µs of a 0.9 ms query). If the budget ever
   needs it, the same technique applies.
+
+## Update (review of pull request 6)
+
+- **Measured and left alone: the pragmas on every connection.** `OpenConnection`
+  applies `busy_timeout`/`synchronous` (and the cache and map sizes) each time:
+  16 µs against 1 µs for a bare `Open`, about 2 % of a 0.8 ms query. Skipping
+  them would need to know which pooled connection is already configured; not
+  worth the state.
+- **A transaction of another database is refused** on its first use, with a
+  message that names the missing table, instead of the bare "no such table".
+- **Statement sets on the application's connections** live as long as the
+  connection object (`ConditionalWeakTable`), one set per index and connection.
+  With a pool that is the pool's lifetime; the sets are small.
+- **Not done: recreating the writer after a fatal error.** If the catalog's
+  writer connection ever fails for good (I/O error, a database that was
+  replaced), writes fail until the catalog is opened again. A restart is the
+  remedy for now; recovery belongs with `Check`/`Rebuild` (PR-007).

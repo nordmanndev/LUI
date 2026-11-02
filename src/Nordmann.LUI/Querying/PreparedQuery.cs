@@ -16,9 +16,15 @@ internal sealed class PreparedQuery
         Search = search;
         Compact = compact;
         PrefixKey = search.Replace("#", string.Empty, StringComparison.Ordinal);
+        SearchLength = CodePoints(search);
+        PrefixLength = CodePoints(PrefixKey);
     }
 
-    /// <summary>The search form: what is compared with the index.</summary>
+    /// <summary>
+    /// The search form: what is compared with the index. A leading <c>#</c> of the input is not part
+    /// of it — the hash is not part of the word (§9.1), and both paths must give the same answer
+    /// whether the user typed it or not (ADR-0008).
+    /// </summary>
     internal string Search { get; }
 
     /// <summary>The compact form: for the word-start rule.</summary>
@@ -27,11 +33,20 @@ internal sealed class PreparedQuery
     /// <summary>The search form without <c>#</c> — the key of the prefix columns.</summary>
     internal string PrefixKey { get; }
 
-    /// <summary>Whether the input is too short for a trigram: the prefix path answers it (§8.1).</summary>
-    internal bool IsPrefixPath => Search.Length < MinimumTrigramLength;
+    /// <summary>The length of <see cref="Search"/> in code points — the unit of SQLite's <c>substr</c> and of the trigram.</summary>
+    internal int SearchLength { get; }
+
+    /// <summary>The length of <see cref="PrefixKey"/> in code points: 1 selects <c>s_p1</c>, 2 selects <c>s_p2</c>.</summary>
+    internal int PrefixLength { get; }
+
+    /// <summary>
+    /// Whether the input is too short for a trigram — fewer than three <b>code points</b>, not
+    /// UTF-16 units: the prefix path answers it (§8.1).
+    /// </summary>
+    internal bool IsPrefixPath => SearchLength < MinimumTrigramLength;
 
     /// <summary>Nothing to search for.</summary>
-    internal bool IsEmpty => IsPrefixPath && PrefixKey.Length == 0;
+    internal bool IsEmpty => IsPrefixPath && PrefixLength == 0;
 
     internal static PreparedQuery Create(string input, NormalizationOptions options)
     {
@@ -45,8 +60,23 @@ internal sealed class PreparedQuery
         text = text.Trim();
 
         return new PreparedQuery(
-            Normalizer.ToSearchForm(text, options),
+            Normalizer.ToSearchForm(text, options).TrimStart('#'),
             Normalizer.ToCompactForm(text, options));
+    }
+
+    /// <summary>The number of code points: a surrogate pair is one.</summary>
+    private static int CodePoints(string text)
+    {
+        var count = 0;
+        foreach (var c in text)
+        {
+            if (!char.IsLowSurrogate(c))
+            {
+                count++;
+            }
+        }
+
+        return count;
     }
 
     /// <summary>

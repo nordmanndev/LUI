@@ -25,7 +25,7 @@ internal sealed class WriteStatements(SqliteConnection connection, OwnedSql sql,
     {
         lock (gate)
         {
-            _upsert ??= new Prepared(connection, sql.Upsert, "$key", "$text", "$weight", "$priority", "$payload");
+            _upsert ??= new Prepared(connection, sql.Upsert, ("$key", SqliteType.Text), ("$text", SqliteType.Text), ("$weight", SqliteType.Integer), ("$priority", SqliteType.Integer), ("$payload", SqliteType.Blob));
             _upsert.Set(0, key);
             _upsert.Set(1, text);
             _upsert.Set(2, weight);
@@ -39,7 +39,7 @@ internal sealed class WriteStatements(SqliteConnection connection, OwnedSql sql,
     {
         lock (gate)
         {
-            _updateWeight ??= new Prepared(connection, sql.UpdateWeight, "$key", "$weight");
+            _updateWeight ??= new Prepared(connection, sql.UpdateWeight, ("$key", SqliteType.Text), ("$weight", SqliteType.Integer));
             _updateWeight.Set(0, key);
             _updateWeight.Set(1, weight);
             return _updateWeight.Run(transaction) > 0;
@@ -50,7 +50,7 @@ internal sealed class WriteStatements(SqliteConnection connection, OwnedSql sql,
     {
         lock (gate)
         {
-            _updatePriority ??= new Prepared(connection, sql.UpdatePriority, "$key", "$priority");
+            _updatePriority ??= new Prepared(connection, sql.UpdatePriority, ("$key", SqliteType.Text), ("$priority", SqliteType.Integer));
             _updatePriority.Set(0, key);
             _updatePriority.Set(1, priority);
             return _updatePriority.Run(transaction) > 0;
@@ -61,7 +61,7 @@ internal sealed class WriteStatements(SqliteConnection connection, OwnedSql sql,
     {
         lock (gate)
         {
-            _remove ??= new Prepared(connection, sql.Remove, "$key");
+            _remove ??= new Prepared(connection, sql.Remove, ("$key", SqliteType.Text));
             _remove.Set(0, key);
             return _remove.Run(transaction) > 0;
         }
@@ -72,15 +72,15 @@ internal sealed class WriteStatements(SqliteConnection connection, OwnedSql sql,
         private readonly SqliteCommand _command;
         private readonly SqliteParameter[] _parameters;
 
-        internal Prepared(SqliteConnection connection, string text, params string[] names)
+        internal Prepared(SqliteConnection connection, string text, params (string Name, SqliteType Type)[] parameters)
         {
             _command = connection.CreateCommand();
             _command.CommandText = text;
-            _parameters = new SqliteParameter[names.Length];
+            _parameters = new SqliteParameter[parameters.Length];
 
-            for (var i = 0; i < names.Length; i++)
+            for (var i = 0; i < parameters.Length; i++)
             {
-                _parameters[i] = _command.Parameters.Add(names[i], SqliteType.Text);
+                _parameters[i] = _command.Parameters.Add(parameters[i].Name, parameters[i].Type);
             }
         }
 

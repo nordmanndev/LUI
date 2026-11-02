@@ -4,6 +4,7 @@ using Nordmann.LUI.Indexing;
 using Nordmann.LUI.Normalization;
 using Nordmann.LUI.Payloads;
 using Nordmann.LUI.Similarity;
+using Measures = Nordmann.LUI.Similarity.Similarity;
 
 namespace Nordmann.LUI;
 
@@ -72,7 +73,10 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
 
     /// <summary>
     /// The default similarity measure of the queries of this index. Default:
-    /// Jaro-Winkler for a single-word index.
+    /// Jaro-Winkler for a single-word index. It is a property of <b>this
+    /// instance</b>, not of the stored index: it changes no table, so it is not
+    /// part of the definition, and two <c>Ensure()</c> calls with different
+    /// measures give two instances that rank differently.
     /// </summary>
     /// <param name="similarity">The measure.</param>
     /// <returns>The builder.</returns>
@@ -103,12 +107,6 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     public ILuiIndex<TKey, TPayload> Ensure()
     {
         var definition = Describe();
-        var index = new OwnedIndex<TKey, TPayload>(
-            _catalog,
-            _name,
-            definition,
-            _payload,
-            _similarity ?? global::Nordmann.LUI.Similarity.Similarity.DefaultFor(definition.Kind));
 
         using var scope = _catalog.Begin();
         using var connection = _catalog.OpenConnection();
@@ -133,13 +131,21 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
         }
 
         transaction.Commit();
-        return index;
+
+        return new OwnedIndex<TKey, TPayload>(
+            _catalog,
+            _name,
+            definition,
+            _payload,
+            _similarity ?? Measures.DefaultFor(definition.Kind));
     }
 
     /// <summary>
     /// Removes the index with its tables, indexes and triggers and its row in
     /// <c>lui_meta</c>. It works whatever the stored definition is — it is the
-    /// way out of a <see cref="LuiDefinitionMismatchException"/>.
+    /// way out of a <see cref="LuiDefinitionMismatchException"/>. Index objects that
+    /// were created before do not survive a <c>Drop()</c>: ensure the index again
+    /// and use the new object.
     /// </summary>
     /// <returns><see langword="true"/> when the index existed.</returns>
     public bool Drop()

@@ -30,7 +30,8 @@ internal static class Ranker
         PriorityRanking priorities,
         ITextSimilarity similarity,
         NormalizationOptions normalization,
-        int take)
+        int take,
+        CancellationToken cancellationToken)
     {
         var wordStartStage = order is RankingOrder.WordStartThenSimilarity or RankingOrder.WordStartThenWeight;
         var priorityFirst = priorities == PriorityRanking.First;
@@ -41,25 +42,8 @@ internal static class Ranker
             return candidates[..Math.Min(count, take)];
         }
 
-        Span<int> sizes = stackalloc int[GroupCount];
-        for (var i = 0; i < count; i++)
-        {
-            sizes[GroupOf(candidates[i], priorityFirst, wordStartStage)]++;
-        }
-
         Span<int> starts = stackalloc int[GroupCount + 1];
-        for (var g = 0; g < GroupCount; g++)
-        {
-            starts[g + 1] = starts[g] + sizes[g];
-        }
-
-        var grouped = new Scored[count];
-        Span<int> next = stackalloc int[GroupCount];
-        starts[..GroupCount].CopyTo(next);
-        for (var i = 0; i < count; i++)
-        {
-            grouped[next[GroupOf(candidates[i], priorityFirst, wordStartStage)]++] = candidates[i];
-        }
+        var grouped = Group(candidates, count, priorityFirst, wordStartStage, starts);
 
         var comparer = ComparerFor(order);
         var needsSimilarity = order != RankingOrder.WeightOnly;
@@ -77,6 +61,12 @@ internal static class Ranker
             {
                 for (var i = starts[g]; i < starts[g + 1]; i++)
                 {
+                    // the similarity is the part that can be slow — a custom measure, 100,000 candidates
+                    if (((i - starts[g]) & 31) == 0)
+                    {
+                        cancellationToken.ThrowIfCancellationRequested();
+                    }
+
                     grouped[i].Similarity = Measure(grouped[i], query, similarity, normalization);
                 }
             }
@@ -90,6 +80,34 @@ internal static class Ranker
         }
 
         return [.. result];
+    }
+
+    /// <summary>
+    /// A stable counting sort of the candidates into their groups; <paramref name="starts"/> receives
+    /// where each group begins (and, in the last place, the end).
+    /// </summary>
+    private static Scored[] Group(Scored[] candidates, int count, bool priorityFirst, bool wordStartStage, Span<int> starts)
+    {
+        Span<int> sizes = stackalloc int[GroupCount];
+        for (var i = 0; i < count; i++)
+        {
+            sizes[GroupOf(candidates[i], priorityFirst, wordStartStage)]++;
+        }
+
+        for (var g = 0; g < GroupCount; g++)
+        {
+            starts[g + 1] = starts[g] + sizes[g];
+        }
+
+        var grouped = new Scored[count];
+        Span<int> next = stackalloc int[GroupCount];
+        starts[..GroupCount].CopyTo(next);
+        for (var i = 0; i < count; i++)
+        {
+            grouped[next[GroupOf(candidates[i], priorityFirst, wordStartStage)]++] = candidates[i];
+        }
+
+        return grouped;
     }
 
     /// <summary>

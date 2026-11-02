@@ -77,18 +77,24 @@ internal sealed class QueryRunner<TKey, TPayload>
 
         using var connection = _catalog.OpenConnection();
 
+        // One snapshot for the candidates and for the hits. A deferred transaction pins the WAL snapshot
+        // at its first read; without it a writer can commit between the two statements, and a freed
+        // doc_id that is handed to a new entry would give a hit the text of the old one and the key and
+        // payload of the new one (review B2).
+        using var snapshot = connection.BeginTransaction(deferred: true);
+
         var similarity = options.Similarity ?? _defaultSimilarity;
-        var candidates = ReadCandidates(connection, query, options, cancellationToken, out var count, out var truncated);
+        var candidates = ReadCandidates(connection, snapshot, query, options, cancellationToken, out var count, out var truncated);
         var read = Stopwatch.GetTimestamp();
 
         // A one- or two-character input carries no similarity worth ranking by: the
         // candidates all begin with it, and "the most popular first" is the answer (Anhang B).
         var order = query.IsPrefixPath ? RankingOrder.WeightOnly : options.Rank;
         var ranked = Ranker.Rank(
-            candidates, count, query.Search, order, options.Priorities, similarity, _normalization, options.MaxResults);
+            candidates, count, query.Search, order, options.Priorities, similarity, _normalization, options.MaxResults, cancellationToken);
         var rankedAt = Stopwatch.GetTimestamp();
 
-        var hits = ReadHits(connection, ranked, query.Search, similarity, order);
+        var hits = ReadHits(connection, snapshot, ranked, query.Search, similarity, order);
         var done = Stopwatch.GetTimestamp();
 
         return new LuiResult<TKey, TPayload>(
@@ -131,6 +137,7 @@ internal sealed class QueryRunner<TKey, TPayload>
 
     private Scored[] ReadCandidates(
         SqliteConnection connection,
+        SqliteTransaction snapshot,
         PreparedQuery query,
         LuiQueryOptions options,
         CancellationToken cancellationToken,
@@ -138,12 +145,13 @@ internal sealed class QueryRunner<TKey, TPayload>
         out bool truncated)
     {
         using var command = connection.CreateCommand();
+        command.Transaction = snapshot;
 
         // one more than asked for tells whether there were more candidates (Truncated)
         var limit = options.Candidates + 1;
         if (query.IsPrefixPath)
         {
-            command.CommandText = query.PrefixKey.Length == 1 ? _prefix1Sql : _prefix2Sql;
+            command.CommandText = query.PrefixLength == 1 ? _prefix1Sql : _prefix2Sql;
             command.Parameters.AddWithValue("$q", query.PrefixKey);
         }
         else
@@ -210,8 +218,8 @@ internal sealed class QueryRunner<TKey, TPayload>
         {
             if (!Normalizer.TryWriteSearchForm(text, buffer, out var written, _normalization))
             {
-                // the transliteration makes a text at most three times as long; never reached
-                return -1;
+                // the transliteration at most doubles a text (ä → ae, ß → ss); the buffer holds three times
+                throw new UnreachableException("The search form of a text is longer than three times the text.");
             }
 
             var searchForm = buffer[..written];
@@ -236,6 +244,7 @@ internal sealed class QueryRunner<TKey, TPayload>
     /// <summary>Key and payload of the hits — and only of the hits (E7), in one statement.</summary>
     private List<LuiHit<TKey, TPayload>> ReadHits(
         SqliteConnection connection,
+        SqliteTransaction snapshot,
         Scored[] ranked,
         string query,
         ITextSimilarity similarity,
@@ -248,6 +257,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         }
 
         using var command = connection.CreateCommand();
+        command.Transaction = snapshot;
         command.CommandText = HitsSql(ranked.Length);
 
         var slot = new Dictionary<long, int>(ranked.Length);
@@ -261,19 +271,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         var keys = new string?[ranked.Length];
         var payloads = new TPayload?[ranked.Length];
 
-        using (var reader = command.ExecuteReader())
-        {
-            while (reader.Read())
-            {
-                var i = slot[reader.GetInt64(0)];
-                keys[i] = reader.GetString(1);
-
-                if (_payload is not null && !reader.IsDBNull(2))
-                {
-                    payloads[i] = _payload.Deserialize(reader.GetFieldValue<byte[]>(2));
-                }
-            }
-        }
+        ReadKeysAndPayloads(command, slot, keys, payloads);
 
         for (var i = 0; i < ranked.Length; i++)
         {
@@ -302,8 +300,29 @@ internal sealed class QueryRunner<TKey, TPayload>
         return hits;
     }
 
+    private void ReadKeysAndPayloads(
+        SqliteCommand command,
+        Dictionary<long, int> slot,
+        string?[] keys,
+        TPayload?[] payloads)
+    {
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            var i = slot[reader.GetInt64(0)];
+            keys[i] = reader.GetString(1);
+
+            if (_payload is not null && !reader.IsDBNull(2))
+            {
+                payloads[i] = _payload.Deserialize(reader.GetFieldValue<byte[]>(2));
+            }
+        }
+    }
+
     private string HitsSql(int count)
     {
+        // Lock-free on purpose: a reference is written atomically, the string is immutable, and two
+        // threads that build the same statement at once build the same text.
         var sql = _hitsSql[count];
         if (sql is not null)
         {

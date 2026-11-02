@@ -12,6 +12,8 @@ public sealed class LuiCatalogOptions
 
     internal TimeSpan BusyTimeoutValue { get; private set; } = TimeSpan.FromSeconds(5);
 
+    internal bool WriteAheadLog { get; private set; } = true;
+
     internal TimeProvider TimeProviderValue { get; private set; } = TimeProvider.System;
 
     /// <summary>
@@ -49,6 +51,22 @@ public sealed class LuiCatalogOptions
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(timeout, TimeSpan.Zero);
         BusyTimeoutValue = timeout;
+        return this;
+    }
+
+    /// <summary>
+    /// Whether <c>LuiCatalog.Open</c> switches the database to write-ahead logging
+    /// (<c>journal_mode = WAL</c>, LUI-Spezifikation §7.5). Default: yes — WAL lets many readers
+    /// run beside one writer. <b>WAL is a property of the file</b>: it stays after LUI is gone,
+    /// adds <c>-wal</c> and <c>-shm</c> files, and does not work on network file systems. When
+    /// LUI shares the database of an application (E9), switch it off here and keep the mode the
+    /// application chose.
+    /// </summary>
+    /// <param name="enabled">Whether to switch to WAL.</param>
+    /// <returns>The options.</returns>
+    public LuiCatalogOptions UseWriteAheadLog(bool enabled)
+    {
+        WriteAheadLog = enabled;
         return this;
     }
 

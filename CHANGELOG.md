@@ -28,6 +28,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `LuiQueryOptions`. The answer is a `LuiResult` of `LuiHit`s.
   - `Priority` (`System` … `Normal`) in the rowid: a system tag is a
     candidate for every input that matches it.
+  - `LuiCatalogOptions.UseWriteAheadLog(bool)`: `Open` switches the database to
+    WAL by default; this keeps the application's journal mode.
   - `Similarity.JaroWinkler`, `NgramDice`, `DamerauLevenshtein`,
     `Levenshtein` and `ITextSimilarity` for your own.
   - Payloads: `IPayloadSerializer<T>` and `JsonPayloadSerializer<T>` over a

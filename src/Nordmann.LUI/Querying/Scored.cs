@@ -1,6 +1,10 @@
 namespace Nordmann.LUI.Querying;
 
-/// <summary>A candidate on its way through the ranking.</summary>
+/// <summary>
+/// A candidate on its way through the ranking. A mutable struct on purpose — the ranking writes the
+/// similarity into the array element in place, so it is only ever used as an array element or passed
+/// by <c>in</c>; a copy would silently lose the write.
+/// </summary>
 internal struct Scored
 {
     /// <summary>The rowid: priority, weight and doc id.</summary>

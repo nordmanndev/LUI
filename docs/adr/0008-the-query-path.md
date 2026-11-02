@@ -64,6 +64,25 @@ the analyzer rule MA0049 forbids a type named like its namespace. The rule is
 suppressed on that one declaration, with the reason next to it; the API the
 specification promises is worth more than the rule.
 
+## Update (review of pull request 6)
+
+- **One snapshot.** The candidates and the hits are read in one deferred read
+  transaction. Without it a writer can commit between the two statements, and a
+  freed `doc_id` handed to a new entry gives a hit the text of the old entry and
+  the key and payload of the new one (reproduced: `Remove(2)` then `Upsert(3)`
+  gets `doc_id` 2). A test lets the similarity — which runs between the two
+  reads — do exactly that.
+- **A leading `#` of the input is not part of the word.** Both paths answer a
+  query the same whether or not the user typed it: `#ap` finds what `ap` finds
+  (before, `#ap` took the trigram path and lost `apfel` while `#a` still found
+  it). A `#` inside the input still has to be in the text.
+- **Lengths are in code points**, the unit of SQLite's `substr` and of the
+  trigram: `😀` is one, `😀p` is two. UTF-16 units chose the wrong prefix column
+  and the wrong path for every input with a character outside the BMP.
+- **Cancellation is checked while ranking** (every 32 similarity computations),
+  not only while reading: a slow custom measure over 100,000 candidates can be
+  stopped.
+
 ## Consequences
 
 - At 200,000 entries a query is p50 0.86 ms, p95 2.2 ms and 58 KB (p50) —

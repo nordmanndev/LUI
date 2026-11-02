@@ -40,6 +40,13 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>
     /// Opens a catalog: checks the SQLite that is loaded, sets the pragmas
     /// and creates <c>lui_meta</c> if it is missing.
+    /// <para>
+    /// <b>This switches the database to write-ahead logging</b> unless
+    /// <see cref="LuiCatalogOptions.UseWriteAheadLog"/> says otherwise. WAL is a
+    /// property of the file: it stays, adds <c>-wal</c> and <c>-shm</c> files and does
+    /// not work on network file systems. Turn it off when LUI shares the database of
+    /// an application that chose its own mode.
+    /// </para>
     /// </summary>
     /// <param name="connectionString">The database: the one of the application, or a file of LUI's own (E9).</param>
     /// <param name="configure">Optional settings.</param>
@@ -55,6 +62,7 @@ public sealed class LuiCatalog : IDisposable
         var options = new LuiCatalogOptions();
         configure?.Invoke(options);
 
+        EnsureSqliteVersion(LoadedSqliteVersion());
         FoldProbe.EnsureVerified();
 
         var catalog = new LuiCatalog(connectionString, options);
@@ -85,6 +93,13 @@ public sealed class LuiCatalog : IDisposable
     /// Waits until the running operations are done, then releases the
     /// connections. Operations that start afterwards throw
     /// <see cref="ObjectDisposedException"/>.
+    /// <para>
+    /// The connection pool of <c>Microsoft.Data.Sqlite</c> belongs to the connection
+    /// string: disposing a catalog clears the pool of <b>every</b> connection that uses
+    /// the same string, the application's own included. At the end of the process that
+    /// is what is wanted; if a catalog is disposed and opened again at run time, give
+    /// LUI its own connection string (for instance another <c>Default Timeout</c>).
+    /// </para>
     /// </summary>
     public void Dispose()
     {
@@ -197,6 +212,27 @@ public sealed class LuiCatalog : IDisposable
         command.ExecuteNonQuery();
     }
 
+    /// <summary>The version of the SQLite library of this process — the same for every connection.</summary>
+    private static string LoadedSqliteVersion()
+    {
+        using var connection = new SqliteConnection("Data Source=:memory:");
+        connection.Open();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT sqlite_version();";
+        return (string)command.ExecuteScalar()!;
+    }
+
+    /// <summary>Refuses a SQLite older than <see cref="MinimumSqliteVersion"/>, naming both versions.</summary>
+    internal static void EnsureSqliteVersion(string loaded)
+    {
+        if (!Version.TryParse(loaded, out var parsed) || parsed < MinimumSqliteVersion)
+        {
+            throw new LuiEnvironmentException(
+                $"LUI needs SQLite {MinimumSqliteVersion} or newer (the trigram tokenizer with "
+                + $"remove_diacritics); the loaded SQLite is {loaded}.");
+        }
+    }
+
     private string Pragmas()
     {
         var timeout = (long)_options.BusyTimeoutValue.TotalMilliseconds;
@@ -220,21 +256,10 @@ public sealed class LuiCatalog : IDisposable
     {
         using var connection = OpenConnection();
 
-        using (var version = connection.CreateCommand())
+        if (_options.WriteAheadLog)
         {
-            version.CommandText = "SELECT sqlite_version();";
-            var text = (string)version.ExecuteScalar()!;
+            using var wal = connection.CreateCommand();
 
-            if (!Version.TryParse(text, out var parsed) || parsed < MinimumSqliteVersion)
-            {
-                throw new LuiEnvironmentException(
-                    $"LUI needs SQLite {MinimumSqliteVersion} or newer (the trigram tokenizer with "
-                    + $"remove_diacritics); the loaded SQLite is {text}.");
-            }
-        }
-
-        using (var wal = connection.CreateCommand())
-        {
             // WAL lets many readers run beside one writer (§7.5). It is a property of the
             // file; for a database that cannot have it (in memory) SQLite keeps its mode.
             wal.CommandText = "PRAGMA journal_mode = WAL;";
