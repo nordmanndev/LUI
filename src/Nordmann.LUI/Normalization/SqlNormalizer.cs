@@ -38,22 +38,33 @@ internal static class SqlNormalizer
     {
         ArgumentNullException.ThrowIfNull(expression);
 
-        return Apply(expression, Normalizer.Separators.Select(c => (c, string.Empty)));
+        return Apply(expression, Normalizer.Separators.Select(c => (c.ToString(), string.Empty)));
     }
 
-    private static readonly (char From, string To)[] GermanReplacements =
+    /// <summary>
+    /// The German letters, composed and decomposed. The decomposed form is a
+    /// letter plus the combining diaeresis — the C# side handles the same
+    /// sequences, or the two spellings would be two different words.
+    /// </summary>
+    private static readonly (string From, string To)[] GermanReplacements =
     [
-        ('ä', "ae"),
-        ('Ä', "ae"),
-        ('ö', "oe"),
-        ('Ö', "oe"),
-        ('ü', "ue"),
-        ('Ü', "ue"),
-        ('ß', "ss"),
-        ('ẞ', "ss")
+        ("a" + Normalizer.CombiningDiaeresis, "ae"),
+        ("A" + Normalizer.CombiningDiaeresis, "ae"),
+        ("o" + Normalizer.CombiningDiaeresis, "oe"),
+        ("O" + Normalizer.CombiningDiaeresis, "oe"),
+        ("u" + Normalizer.CombiningDiaeresis, "ue"),
+        ("U" + Normalizer.CombiningDiaeresis, "ue"),
+        ("ä", "ae"),
+        ("Ä", "ae"),
+        ("ö", "oe"),
+        ("Ö", "oe"),
+        ("ü", "ue"),
+        ("Ü", "ue"),
+        ("ß", "ss"),
+        ("ẞ", "ss")
     ];
 
-    private static string Apply(string expression, IEnumerable<(char From, string To)> replacements)
+    private static string Apply(string expression, IEnumerable<(string From, string To)> replacements)
     {
         var result = expression;
 
@@ -64,8 +75,6 @@ internal static class SqlNormalizer
 
         return result;
     }
-
-    private static string Escape(char value) => value.ToString().Replace("'", "''", StringComparison.Ordinal);
 
     private static string Escape(string value) => value.Replace("'", "''", StringComparison.Ordinal);
 }

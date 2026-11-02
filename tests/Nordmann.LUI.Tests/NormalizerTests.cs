@@ -80,6 +80,50 @@ public sealed class NormalizerTests
         Normalizer.ToCompactForm("Apfel.Kuchen").ShouldBe("apfelkuchen");
     }
 
+    [Theory]
+    [InlineData("\t")]
+    [InlineData("\n")]
+    [InlineData("\r")]
+    [InlineData("\u00A0")]
+    [InlineData("\u2009")]
+    [InlineData("\u202F")]
+    [InlineData("\u3000")]
+    [InlineData("\u00B7")]
+    [InlineData("\u2022")]
+    [InlineData("\u00AB")]
+    [InlineData("\u00BB")]
+    public void The_compact_form_drops_the_unicode_word_separators(string separator)
+    {
+        var separatorCharacter = separator[0];
+
+        Normalizer.Separators.Contains(separatorCharacter).ShouldBeTrue(
+            $"U+{(int)separatorCharacter:X4} separates words and has to go");
+
+        Normalizer.ToCompactForm($"Apfel{separator}Kuchen").ShouldBe("apfelkuchen");
+    }
+
+    [Theory]
+    [InlineData("Mu\u0308ller", "mueller")]
+    [InlineData("A\u0308pfel", "aepfel")]
+    [InlineData("O\u0308l", "oel")]
+    [InlineData("U\u0308bung", "uebung")]
+    [InlineData("Gru\u0308\u00dfe", "gruesse")]
+    public void A_decomposed_umlaut_is_transliterated_like_the_composed_one(string text, string expected)
+    {
+        // macOS file names and some clipboards deliver the decomposed form.
+        // Without this, the two spellings would be two different words.
+        Normalizer.ToSearchForm(text).ShouldBe(expected);
+        Normalizer.ToCompactForm(text).ShouldBe(expected);
+    }
+
+    [Fact]
+    public void A_decomposed_umlaut_can_be_transliterated_off()
+    {
+        var without = NormalizationOptions.Default with { GermanTransliteration = false };
+
+        Normalizer.ToSearchForm("Mu\u0308ller", without).ShouldBe("muller");
+    }
+
     [Fact]
     public void The_compact_form_keeps_the_letters_and_the_digits()
     {

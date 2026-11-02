@@ -15,13 +15,30 @@ namespace Nordmann.LUI.Normalization;
 public static class Normalizer
 {
     /// <summary>
-    /// The characters the compact form drops: the ASCII punctuation and the
-    /// Unicode dashes, quotes and the ellipsis. The SQL side strips exactly
-    /// the same set — see <see cref="SqlNormalizer"/>.
+    /// The characters the compact form drops: the ASCII punctuation, the
+    /// control characters that separate words, and the Unicode spaces, dashes
+    /// and quotes. The SQL side strips exactly the same set — see
+    /// <see cref="SqlNormalizer"/>.
+    /// <para>
+    /// The list is a list, not a rule: SQLite cannot express "everything that
+    /// is not a letter or a digit" in a generated column, so both sides work
+    /// from the same explicit set. ADR-0005 records the deviation from the
+    /// specification's wording.
+    /// </para>
     /// </summary>
     internal const string Separators =
         " !\"#$%&'()*+,-./:;<=>?@[\\]^_`{|}~"
-        + "\u00A0\u2010\u2011\u2012\u2013\u2014\u2015\u2018\u2019\u201A\u201B\u201C\u201D\u201E\u2026";
+        + "\t\n\r"
+        + "\u00A0\u00AB\u00B7\u00BB"
+        + "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200A"
+        + "\u200B\u200C\u200D"
+        + "\u2010\u2011\u2012\u2013\u2014\u2015"
+        + "\u2018\u2019\u201A\u201B\u201C\u201D\u201E"
+        + "\u2022\u2026\u2027\u2028\u2029\u202F"
+        + "\u205F\u3000";
+
+    /// <summary>The combining diaeresis — the mark of a decomposed umlaut.</summary>
+    internal const char CombiningDiaeresis = '\u0308';
 
     private static readonly bool[] AsciiSeparators = BuildAsciiSeparators();
     private static readonly HashSet<char> UnicodeSeparators = BuildUnicodeSeparators();
@@ -40,10 +57,7 @@ public static class Normalizer
         var compact = new StringBuilder(text.Length);
         var offsets = new List<int>(text.Length);
 
-        for (var i = 0; i < text.Length; i++)
-        {
-            Append(text[i], german, search, compact, offsets, i);
-        }
+        Fold(text, german, search, compact, offsets);
 
         return new NormalizedText(search.ToString(), compact.ToString(), [.. offsets]);
     }
@@ -59,10 +73,7 @@ public static class Normalizer
         var german = (options ?? NormalizationOptions.Default).GermanTransliteration;
         var search = new StringBuilder(text.Length);
 
-        for (var i = 0; i < text.Length; i++)
-        {
-            Append(text[i], german, search, null, null, i);
-        }
+        Fold(text, german, search, null, null);
 
         return search.ToString();
     }
@@ -78,33 +89,155 @@ public static class Normalizer
         var german = (options ?? NormalizationOptions.Default).GermanTransliteration;
         var compact = new StringBuilder(text.Length);
 
-        for (var i = 0; i < text.Length; i++)
-        {
-            Append(text[i], german, null, compact, null, i);
-        }
+        Fold(text, german, null, compact, null);
 
         return compact.ToString();
     }
 
-    private static void Append(
-        char source,
+    /// <summary>
+    /// Writes the search form into a buffer without allocating — the path
+    /// the ranking takes, once per candidate.
+    /// </summary>
+    /// <returns>
+    /// <see langword="false"/> when the buffer is too small; the required
+    /// length is in <paramref name="written"/>.
+    /// </returns>
+    public static bool TryWriteSearchForm(
+        ReadOnlySpan<char> source,
+        Span<char> destination,
+        out int written,
+        NormalizationOptions? options = null)
+    {
+        var german = (options ?? NormalizationOptions.Default).GermanTransliteration;
+
+        return TryWrite(source, destination, german, compact: false, out written);
+    }
+
+    /// <summary>
+    /// Writes the compact form into a buffer without allocating.
+    /// </summary>
+    /// <returns>
+    /// <see langword="false"/> when the buffer is too small; the required
+    /// length is in <paramref name="written"/>.
+    /// </returns>
+    public static bool TryWriteCompactForm(
+        ReadOnlySpan<char> source,
+        Span<char> destination,
+        out int written,
+        NormalizationOptions? options = null)
+    {
+        var german = (options ?? NormalizationOptions.Default).GermanTransliteration;
+
+        return TryWrite(source, destination, german, compact: true, out written);
+    }
+
+    private static bool TryWrite(
+        ReadOnlySpan<char> source,
+        Span<char> destination,
+        bool german,
+        bool compact,
+        out int written)
+    {
+        written = 0;
+
+        for (var i = 0; i < source.Length; i++)
+        {
+            if (german && TryDecomposedUmlaut(source, i, out var umlaut))
+            {
+                foreach (var ch in umlaut)
+                {
+                    if (!TryWriteChar(ch, destination, compact, ref written))
+                    {
+                        return false;
+                    }
+                }
+
+                i++;
+                continue;
+            }
+
+            var replacement = german ? German(source[i]) : null;
+
+            if (replacement is null)
+            {
+                if (!TryWriteChar(source[i], destination, compact, ref written))
+                {
+                    return false;
+                }
+
+                continue;
+            }
+
+            foreach (var ch in replacement)
+            {
+                if (!TryWriteChar(ch, destination, compact, ref written))
+                {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private static bool TryWriteChar(char source, Span<char> destination, bool compact, ref int written)
+    {
+        var folded = TokenizerFold.Fold(source);
+        if (folded == TokenizerFold.Removed)
+        {
+            return true;
+        }
+
+        if (compact && IsSeparator(folded))
+        {
+            return true;
+        }
+
+        if (written >= destination.Length)
+        {
+            written = destination.Length + 1;
+            return false;
+        }
+
+        destination[written] = folded;
+        written++;
+
+        return true;
+    }
+
+    private static void Fold(
+        string text,
         bool german,
         StringBuilder? search,
         StringBuilder? compact,
-        List<int>? offsets,
-        int sourceIndex)
+        List<int>? offsets)
     {
-        var replacement = german ? German(source) : null;
-
-        if (replacement is null)
+        for (var i = 0; i < text.Length; i++)
         {
-            AppendFolded(source, search, compact, offsets, sourceIndex);
-            return;
-        }
+            if (german && TryDecomposedUmlaut(text, i, out var umlaut))
+            {
+                foreach (var ch in umlaut)
+                {
+                    AppendFolded(ch, search, compact, offsets, i);
+                }
 
-        foreach (var ch in replacement)
-        {
-            AppendFolded(ch, search, compact, offsets, sourceIndex);
+                // The mark belongs to the letter.
+                i++;
+                continue;
+            }
+
+            var replacement = german ? German(text[i]) : null;
+
+            if (replacement is null)
+            {
+                AppendFolded(text[i], search, compact, offsets, i);
+                continue;
+            }
+
+            foreach (var ch in replacement)
+            {
+                AppendFolded(ch, search, compact, offsets, i);
+            }
         }
     }
 
@@ -128,6 +261,31 @@ public static class Normalizer
         {
             compact.Append(folded);
         }
+    }
+
+    /// <summary>
+    /// The German transliteration of a decomposed umlaut — a letter followed
+    /// by the combining diaeresis. Without this, „Müller" and „Müller"
+    /// would be two different words, and one of them would never be found.
+    /// </summary>
+    private static bool TryDecomposedUmlaut(ReadOnlySpan<char> text, int index, out string replacement)
+    {
+        replacement = string.Empty;
+
+        if (index + 1 >= text.Length || text[index + 1] != CombiningDiaeresis)
+        {
+            return false;
+        }
+
+        replacement = text[index] switch
+        {
+            'a' or 'A' => "ae",
+            'o' or 'O' => "oe",
+            'u' or 'U' => "ue",
+            _ => string.Empty
+        };
+
+        return replacement.Length > 0;
     }
 
     /// <summary>

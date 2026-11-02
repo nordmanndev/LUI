@@ -175,6 +175,27 @@ public sealed class NormalizationParity
     }
 
     [Fact]
+    public void No_separator_is_folded_into_a_letter()
+    {
+        // The other direction: a separator the tokenizer folds into a letter
+        // would make the SQL column (which strips before the folding) and the
+        // C# compact form (which strips after it) differ.
+        var offenders = new List<string>();
+
+        foreach (var separator in Normalizer.Separators)
+        {
+            var folded = TokenizerFold.Fold(separator);
+
+            if (folded != TokenizerFold.Removed && !Normalizer.Separators.Contains(folded))
+            {
+                offenders.Add($"'{separator}' folds to '{folded}'");
+            }
+        }
+
+        offenders.ShouldBeEmpty("A separator must not fold into a letter.");
+    }
+
+    [Fact]
     public void No_folded_character_is_a_separator()
     {
         // The SQL side strips the separators from the *unfolded* column, the
