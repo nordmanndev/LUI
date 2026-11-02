@@ -59,6 +59,7 @@ XML
 
 cat > "${SMOKE}/Program.cs" <<'CS'
 using System.Reflection;
+using Nordmann.LUI;
 
 // The consumer's view of the package: can it be restored, does it load, and
 // does it say what it is?
@@ -86,6 +87,36 @@ if (normalizer is null)
 }
 
 Console.WriteLine($"found {normalizer.FullName}");
+
+// And it has to work: a catalog on a file, an index, three entries, two questions.
+var path = Path.Combine(Path.GetTempPath(), $"lui-smoke-{Environment.ProcessId}.db");
+try
+{
+    using (var catalog = LuiCatalog.Open($"Data Source={path}"))
+    {
+        var tags = catalog.Index<long, string>("tags").SingleWord().Owned().Ensure();
+        tags.Upsert(1, "Apfelkuchen", weight: 10);
+        tags.Upsert(2, "Bratapfelkuchen", weight: 1000);
+        tags.Upsert(3, "vegan", weight: 5, priority: Priority.System);
+
+        var first = tags.Query("apfelkuch").Execute().Hits.FirstOrDefault().Text;
+        var system = tags.Query("gan").Execute().Hits.FirstOrDefault().Text;
+        Console.WriteLine($"apfelkuch -> {first}; gan -> {system}");
+
+        if (first != "Apfelkuchen" || system != "vegan")
+        {
+            Console.Error.WriteLine("the packed library answered a query wrongly");
+            return 1;
+        }
+    }
+}
+finally
+{
+    foreach (var suffix in new[] { string.Empty, "-wal", "-shm" })
+    {
+        File.Delete(path + suffix);
+    }
+}
 
 return 0;
 CS
