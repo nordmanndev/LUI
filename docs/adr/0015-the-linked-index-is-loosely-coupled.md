@@ -48,7 +48,9 @@ a source it does not know (review of pull request 14, N2). **Triggers of a linke
 `DropIndex(name, dropTriggers: true)`** (review of pull request 16, M3): they write into the tables that go, so they
 cannot stay — but a migration of the application may count on them, and their removal is not silent. After the drop
 and a new `Ensure()` the index is empty and has no triggers. `Triggers()` tells `None`, `Current` and `Stale` apart — a
-migration's triggers after an update of LUI or a change of the table are `Stale` and are recreated.
+migration's triggers after an update of LUI or a change of the table are `Stale` and are recreated. The message of a
+`LuiDefinitionMismatchException` of a linked index names `DropIndex(name, dropTriggers: true)` (F2). Rows the triggers
+noted stay in the outbox when the triggers are dropped: they changed (F3).
 
 **Values are brought into range, not refused**: a weight outside 0 … 536,870,911 is clamped, a priority outside 0 … 3
 is normal. A row without text, and a row whose key is outside 0 … 2³²−1 — it cannot be a document id — is **left out**,
@@ -61,7 +63,13 @@ application.
 index, the text from the table: without a refresh they can disagree. Every candidate of a source whose text can change
 under the index is checked against its text as it is now — its folded search form must still hold what the expression
 asked for, or begin with the prefix key (`IndexKindRules.StillMatches`). The search form is computed for the word start
-anyway; the query p95 at 200,000 rows stays 1.14 ms. A new text is found only after the refresh.
+anyway; the query p95 at 200,000 rows stays 1.14 ms. A new text is found only after the refresh. **The check comes
+after the `LIMIT`** (re-review of pull request 16, F1, pinned by a test): stale entries still use up the budget of
+`Candidates`, and with many of them among the best an entry that does match can be missed — 600 entries, the 550
+most popular changed without a refresh: no hit with 500 candidates, 20 with 1,000, 20 after `ApplyPending()`. With
+triggers a stale index is the normal state between two `ApplyPending()` calls, so they are to run regularly;
+`Pending()` is the value for a health check. Reading on past the `LIMIT` when many candidates were dropped belongs to
+PR-008, where the outbox gets applied on a timer anyway.
 
 **A table that changed under the index is named** (S4): a missing column or table in a query, a refresh or a sync is a
 `LuiLinkedTableException` that says so, not a bare SQLite error. `INTEGER PRIMARY KEY DESC` is refused at `Ensure()`: it

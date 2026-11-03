@@ -702,6 +702,66 @@ public sealed class LinkedIndexTests
             .WithPayload(["slug", "Slug"], row => row.GetString("slug")));
     }
 
+    // ---- the re-review of pull request 16 ------------------------------------------------------------------------------
+
+    [Fact]
+    public void Stale_candidates_use_up_the_budget_until_the_outbox_is_applied()
+    {
+        // F1, pinned: a changed row that is not applied yet is still a candidate of its old text; the check against its
+        // new text comes after the LIMIT, so many of them among the best can crowd out an entry that does match
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Run(database, "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 600) INSERT INTO tag(id, name, usage_count) SELECT i, 'vegan' || i, i FROM n;");
+        using var catalog = database.Open();
+        var tags = Tags(catalog);
+        tags.Sync();
+        tags.CreateTriggers();
+
+        // the 550 most popular change their text
+        Run(database, "UPDATE tag SET name = 'zucker' || id WHERE id > 50;");
+
+        tags.Search("vegan").Hits.ShouldBeEmpty("500 candidates, all of them stale");
+        tags.Search("vegan", new LuiQueryOptions { Candidates = 1_000 }).Hits.Count.ShouldBe(20);
+
+        tags.ApplyPending().ShouldBe(550);
+        tags.Search("vegan").Hits.Count.ShouldBe(20);
+        tags.Search("zucker").Hits.Count.ShouldBe(20);
+    }
+
+    [Fact]
+    public void The_mismatch_of_a_linked_index_names_the_way_out_that_works()
+    {
+        // F2
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        Tags(catalog);
+
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags").SingleWord().LinkTo("tag", "id", "slug").Ensure())
+            .Message.ShouldContain("dropTriggers: true");
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("owned").SingleWord().Ensure().Count() + catalog.Index("owned").MultiWord().Ensure().Count())
+            .Message.ShouldNotContain("dropTriggers");
+    }
+
+    [Fact]
+    public void Rows_noted_before_the_triggers_were_dropped_stay_in_the_outbox()
+    {
+        // F3: they changed; ApplyPending or Sync brings them in
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = Tags(catalog);
+        tags.CreateTriggers();
+        Run(database, "INSERT INTO tag(id, name) VALUES (1, 'vegan'), (2, 'tofu');");
+
+        tags.DropTriggers();
+
+        tags.Triggers().ShouldBe(LuiTriggerState.None);
+        tags.Pending().ShouldBe(2);
+        tags.ApplyPending().ShouldBe(2);
+        tags.Search("vegan").Hits.ShouldHaveSingleItem();
+    }
+
     private static ILuiLinkedIndex<LuiNoPayload> Tags(LuiCatalog catalog) =>
         catalog.Index("tags").SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").Ensure();
 

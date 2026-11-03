@@ -12,7 +12,10 @@ the scratchpad here at the end of a session.
   `CreateTriggers`, `DropTriggers`); `Owned<long>` as the builder's default, `WithKey<string>()`, `LinkTo(…)`.
 - ADR-0015. Contentless FTS5 + `lui_<name>` without text; 30 integration tests; `SchemaGoldenTests` pins the Owned schema.
 - Measured: sync of 200 k rows 3.5–3.9 s, query p95 1.11–1.17 ms (owned 1.25–1.33), refresh p95 0.51–0.58 ms.
-- Done from the review of PR #14: S3, N2, N3, N6.
+- Done from the review of PR #14: S3, N2, N3, N6. From the reviews of PR #16: M1 as an outbox (`ApplyPending`,
+  `Pending`), M2 key range, M3 `DropIndex(dropTriggers)` + `Triggers()`, S1 stale candidates (F1: they use up the
+  budget until applied — reading on is for PR-008), S3, S4, the builder names `LuiIndexKindBuilder` /
+  `LuiIndexBuilder<TKey, TPayload>`.
 
 ## 2026-11-03 — PR-005b: seams for Linked (issue #13)
 

@@ -296,7 +296,7 @@ Spalte der Anwendung abbilden (`GENERATED ALWAYS AS (CASE WHEN is_system THEN 0 
 | `Refresh(id, transaction?)`, `RefreshMany(ids, transaction?)` | nach eigenen Schreibvorgängen; liest die Zeile selbst, eine fehlende Zeile verlässt den Index. Die Transaktion ist optional: ohne sie eine eigene, mit ihr gehört beides zur Transaktion der Anwendung |
 | `TriggerScript()` | das SQL dreier Trigger für die eigene Migration der Anwendung — ändert nichts. Die Trigger **notieren nur den Schlüssel** einer geänderten Zeile in `lui_<index>_pending` (reines SQL, kein FTS, keine Normalisierung): Jedes Programm mit jedem SQLite kann die Tabelle weiter schreiben, und ein Schreibvorgang der Anwendung scheitert nie am Index |
 | `CreateTriggers()` / `DropTriggers()` | legt die Trigger an bzw. entfernt sie, nur auf Aufruf |
-| `ApplyPending()`, `Pending()` | bringt die notierten Zeilen in den Index (in Stapeln, auf der geprüften Verbindung der Bibliothek) bzw. zählt sie. Eine Abfrage wendet sie **nicht** an — der Index ist so aktuell wie das letzte `ApplyPending()` |
+| `ApplyPending()`, `Pending()` | bringt die notierten Zeilen in den Index (in Stapeln, auf der geprüften Verbindung der Bibliothek) bzw. zählt sie. Eine Abfrage wendet sie **nicht** an — der Index ist so aktuell wie das letzte `ApplyPending()`. Regelmäßig aufrufen: veraltete Einträge verbrauchen das Kandidatenbudget, bis sie angewendet sind; `Pending()` eignet sich als Health-Check |
 | `Triggers()` | `None`, `Current` oder `Stale` (nach einem Update von LUI oder einer Änderung der Tabelle neu anlegen) |
 | `Optimize()` | führt die Segmente zusammen; viele einzelne `Refresh` hinterlassen Löschmarken |
 

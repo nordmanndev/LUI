@@ -154,6 +154,10 @@ tags.Sync();                                             // the whole table; the
 Console.WriteLine(tags.Search("veg").Hits[0].Text);     // vegan
 ```
 
+Triggers are opt-in (`tags.TriggerScript()` for your migration, or `tags.CreateTriggers()`): they only note the key of
+a changed row, so any SQLite can still write your table, and `tags.ApplyPending()` brings the noted rows into the
+index — call it regularly; `tags.Pending()` is a good value for a health check.
+
 ---
 
 ## Repository layout

@@ -183,7 +183,7 @@ public sealed class LuiCatalog : IDisposable
         }
         else if (stored != definition)
         {
-            throw new LuiDefinitionMismatchException(name, stored.ToJson(), definition.ToJson());
+            throw new LuiDefinitionMismatchException(name, stored.ToJson(), definition.ToJson(), linked: stored.Link is not null);
         }
 
         transaction.Commit();

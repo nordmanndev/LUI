@@ -56,18 +56,28 @@ public interface ILuiLinkedIndex<TPayload> : ILuiIndex<long, TPayload>
     /// LUI's own, on its checked connection. The triggers only note the key of a changed row (<see cref="CreateTriggers"/>);
     /// until this runs, the index answers as before the change — a query never applies them, a read stays a read.
     /// Call it after a burst of writes, on a timer, or before a query that has to see them.
+    /// <para>
+    /// Run it regularly (review of pull request 16, F1): a row that changed and is not applied yet still stands in the
+    /// index with its old text, and a query reads it as a candidate before it finds that the text no longer matches —
+    /// such candidates use up the budget of <c>Candidates</c>, and with many of them among the best, an entry that does
+    /// match can be missed. <see cref="Pending"/> tells how far behind the index is; it is a value for a health check.
+    /// </para>
     /// </summary>
     /// <param name="cancellationToken">Checked between the rows; the batch that is running is rolled back.</param>
     /// <returns>How many noted rows were brought in step.</returns>
     int ApplyPending(CancellationToken cancellationToken = default);
 
-    /// <summary>How many rows the triggers noted that <see cref="ApplyPending"/> has not brought in step yet.</summary>
+    /// <summary>
+    /// How many rows the triggers noted that <see cref="ApplyPending"/> has not brought in step yet — a value for a health
+    /// check: it grows with every changed row until the next <c>ApplyPending</c> (at most to the number of rows of the
+    /// table, a key is noted once).
+    /// </summary>
     /// <returns>The number of keys in the outbox.</returns>
     long Pending();
 
     /// <summary>
     /// The SQL of three triggers on the application's table that note every changed row for the index — for the
-    /// application's own migration. Nothing is changed by asking for it.
+    /// application's own migration. Nothing is changed by asking for it. Run it in a transaction of the migration.
     /// </summary>
     /// <returns>The <c>CREATE TRIGGER</c> statements.</returns>
     string TriggerScript();
@@ -84,7 +94,10 @@ public interface ILuiLinkedIndex<TPayload> : ILuiIndex<long, TPayload>
     /// </summary>
     void CreateTriggers();
 
-    /// <summary>Removes the triggers of <see cref="TriggerScript"/>, if they are there.</summary>
+    /// <summary>
+    /// Removes the triggers of <see cref="TriggerScript"/>, if they are there. Rows they noted stay in the outbox — they
+    /// changed — and <see cref="ApplyPending"/> or <see cref="Sync"/> brings them in (review of pull request 16, F3).
+    /// </summary>
     void DropTriggers();
 
     /// <summary>
