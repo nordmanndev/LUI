@@ -75,6 +75,65 @@ public interface ILuiOwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// <returns><see langword="true"/> when the entry exists.</returns>
     bool UpdatePriority(TKey key, LuiPriority priority, SqliteTransaction? transaction = null);
 
+    /// <summary>
+    /// Brings the index in step with a source (§12.4, §14, ADR-0016): adds what is missing, changes what differs, leaves
+    /// alone what is the same, and at the end removes every entry the source does not have — <b>the source is the
+    /// truth</b>, an entry upserted meanwhile and not in the source is removed too.
+    /// <para>
+    /// It works in batches (<see cref="LuiSyncOptions.BatchSize"/>), each in a transaction of its own on the catalog's
+    /// writer, so other writers get their turn between them. Each batch is written in the order of the search index, with
+    /// FTS5's incremental merge off, and the search index is merged once at the end — the bulk path of ADR-0010. A sync
+    /// that is cancelled or fails keeps the batches it committed: run it again, and it skips what is already there. The
+    /// removal at the end happens only when the whole source was read.
+    /// </para>
+    /// </summary>
+    /// <param name="source">The entries; a key that comes twice is written twice, and the last one stays.</param>
+    /// <param name="options">Batch size and progress; <see langword="null"/> takes the defaults.</param>
+    /// <param name="cancellationToken">Checked between the entries; the batch that is running is rolled back.</param>
+    /// <returns>What was added, changed, kept and removed.</returns>
+    /// <exception cref="OperationCanceledException">The token was cancelled; the committed batches stay.</exception>
+    LuiSyncReport Sync(
+        IEnumerable<LuiEntry<TKey, TPayload>> source,
+        LuiSyncOptions? options = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// <see cref="Sync(IEnumerable{LuiEntry{TKey, TPayload}}, LuiSyncOptions?, CancellationToken)"/> with a source that is
+    /// asynchronous — an EF Core query against another database, a stream of a service (§13). The writes to SQLite stay
+    /// synchronous: the call blocks until the sync is done. Run it on a thread that may block (a background service).
+    /// </summary>
+    /// <param name="source">The entries.</param>
+    /// <param name="options">Batch size and progress; <see langword="null"/> takes the defaults.</param>
+    /// <param name="cancellationToken">Passed to the source, and checked between the entries.</param>
+    /// <returns>What was added, changed, kept and removed.</returns>
+    LuiSyncReport Sync(
+        IAsyncEnumerable<LuiEntry<TKey, TPayload>> source,
+        LuiSyncOptions? options = null,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Compares the index with a source and changes nothing (§12.6): the entries of the source that are missing, those the
+    /// source does not have, and those with another text, weight, priority or payload. A sync with the same source repairs
+    /// what it finds. It reads in a snapshot of its own, beside the writers.
+    /// </summary>
+    /// <param name="source">The entries the index should hold.</param>
+    /// <param name="cancellationToken">Checked between the entries.</param>
+    /// <returns>The counts, and a finding with a few keys for each kind of difference.</returns>
+    LuiIntegrityReport Check(IEnumerable<LuiEntry<TKey, TPayload>> source, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Builds what is derived from the content table anew (§12.6): the three triggers, and the search index — FTS5 reads
+    /// the content table in the order of the rowid —, then merges it. The repair for every finding of <see cref="ILuiIndex{TKey, TPayload}.Check"/>
+    /// below the content table. One transaction: other writers wait until it is done.
+    /// </summary>
+    void Rebuild();
+
+    /// <summary>
+    /// Merges the segments of the search index into one. Single writes leave small segments and deletion marks behind
+    /// that a query steps over; FTS5 merges some of them as it goes, and this merges all. A sync does it at its end.
+    /// </summary>
+    void Optimize();
+
     /// <summary>Removes an entry.</summary>
     /// <param name="key">The key of the application.</param>
     /// <param name="transaction">The transaction of the application, or <see langword="null"/>.</param>

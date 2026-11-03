@@ -30,6 +30,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
     private readonly LinkedSource _source;
     private readonly TypoDictionary _typos;
     private readonly QueryRunner<long, TPayload> _runner;
+    private readonly IReadOnlyList<string> _payloadColumns;
 
     internal LinkedIndex(
         Database database,
@@ -45,6 +46,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         Kind = source.Rules.Kind;
         _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql));
         _runner = new QueryRunner<long, TPayload>(database, source, payload, similarity, _typos, typoTolerance);
+        _payloadColumns = payload.Columns;
     }
 
     public string Name { get; }
@@ -62,7 +64,13 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
     {
         using var scope = _database.Begin();
         using var connection = _database.OpenConnection();
+        return TriggerState(connection, null);
+    }
+
+    private LuiTriggerState TriggerState(SqliteConnection connection, SqliteTransaction? transaction)
+    {
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = _source.StoredTriggersSql;
 
         var stored = new Dictionary<string, string>(StringComparer.Ordinal);
@@ -81,7 +89,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
 
         var expected = _source.TriggerStatements();
         return expected.Count == stored.Count
-            && expected.All(trigger => stored.TryGetValue(trigger.Name, out var sql) && SameStatement(sql, trigger.Sql))
+            && expected.All(trigger => stored.TryGetValue(trigger.Name, out var sql) && SqlText.Same(sql, trigger.Sql))
             ? LuiTriggerState.Current
             : LuiTriggerState.Stale;
     }
@@ -278,6 +286,96 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         Write(null, (connection, transaction) => Execute(connection, transaction, _source.OptimizeSql));
     }
 
+    public LuiIntegrityReport Check()
+    {
+        using var scope = _database.Begin();
+        List<string> problems = [];
+        LuiIntegrityReport? report = null;
+        lock (_database.WriterGate)
+        {
+            // the integrity check of FTS5 is an insert: it runs on the writer, and the transaction is rolled back
+            var writer = _database.Writer;
+            using var transaction = writer.BeginTransaction(deferred: false);
+            if (IndexCheck.Definition(writer, transaction, _source, problems) && TableFits(writer, transaction, problems))
+            {
+                if (TriggerState(writer, transaction) == LuiTriggerState.Stale)
+                {
+                    problems.Add(
+                        $"The triggers of '{Name}' on the table '{_source.Link.Table}' are not the ones the index writes now: "
+                        + "CreateTriggers() creates them anew — or put TriggerScript() into a migration.");
+                }
+
+                IndexCheck.SearchIndex(writer, transaction, _source, problems, "Sync() builds the index anew.");
+                report = CompareWithTable(writer, transaction, problems);
+            }
+
+            transaction.Rollback();
+        }
+
+        return report ?? new LuiIntegrityReport { Problems = problems };
+    }
+
+    /// <summary>The table still has what the link reads — a finding, not an exception, when it does not.</summary>
+    private bool TableFits(SqliteConnection connection, SqliteTransaction transaction, List<string> problems)
+    {
+        try
+        {
+            LinkedTable.Verify(connection, transaction, _source.Link, _payloadColumns);
+            return true;
+        }
+        catch (LuiLinkedTableException exception)
+        {
+            problems.Add($"{exception.Message} The index cannot read the table: drop the index and ensure it anew.");
+            return false;
+        }
+    }
+
+    /// <summary>The entries against the rows of the table: missing, extra, with another weight, priority or beginning.</summary>
+    private LuiIntegrityReport CompareWithTable(SqliteConnection connection, SqliteTransaction transaction, List<string> problems)
+    {
+        var (missing, missingKeys) = Finding(connection, transaction, _source.MissingSql(count: true), _source.MissingSql(count: false));
+        var (extra, extraKeys) = Finding(connection, transaction, _source.ExtraSql(count: true), _source.ExtraSql(count: false));
+        var (different, differentKeys) = Finding(connection, transaction, _source.DifferentSql(count: true), _source.DifferentSql(count: false));
+
+        var repair = Scalar(connection, transaction, _source.PendingCountSql) is var pending and > 0
+            ? $"ApplyPending() brings the {pending:N0} rows the triggers noted in step, Sync() all of them"
+            : "Refresh(id) or Sync() brings them in step";
+
+        if (missing > 0)
+        {
+            problems.Add($"{missing:N0} rows of '{_source.Link.Table}' are not in the index ({IndexCheck.Keys(missingKeys, missing)}): {repair}.");
+        }
+
+        if (extra > 0)
+        {
+            problems.Add($"{extra:N0} entries of the index have no row to index any more ({IndexCheck.Keys(extraKeys, extra)}): {repair}.");
+        }
+
+        if (different > 0)
+        {
+            problems.Add(
+                $"{different:N0} entries of the index have another weight, priority or beginning than their row "
+                + $"({IndexCheck.Keys(differentKeys, different)}): {repair}.");
+        }
+
+        return new LuiIntegrityReport { Problems = problems, Missing = missing, Extra = extra, Different = different };
+    }
+
+    private static (long Count, List<string> Keys) Finding(SqliteConnection connection, SqliteTransaction transaction, string countSql, string keysSql)
+    {
+        var count = Scalar(connection, transaction, countSql);
+        using var command = Command(connection, transaction, keysSql);
+        command.Parameters.AddWithValue("$n", IndexCheck.Examples);
+        using var reader = command.ExecuteReader();
+        var keys = new List<string>();
+        while (reader.Read())
+        {
+            keys.Add(reader.GetInt64(0).ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+
+        return (count, keys);
+    }
+
     public string TriggerScript() => _source.TriggerScript();
 
     public void CreateTriggers()
@@ -363,13 +461,6 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         run();
         return true;
     });
-
-    /// <summary>Two statements are the same when they differ only in white space and a closing semicolon.</summary>
-    private static bool SameStatement(string stored, string expected) =>
-        string.Equals(Collapse(stored), Collapse(expected), StringComparison.Ordinal);
-
-    private static string Collapse(string sql) =>
-        string.Join(' ', sql.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).TrimEnd(';').TrimEnd();
 
     private static SqliteCommand Command(SqliteConnection connection, SqliteTransaction transaction, string sql)
     {

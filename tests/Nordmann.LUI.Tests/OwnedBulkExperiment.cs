@@ -64,6 +64,10 @@ public sealed class OwnedBulkExperiment(ITestOutputHelper output)
         // the catalog's writer has the cache of the options; a plain connection would measure SQLite's 2 MB default
         using var connection = database.Connect();
         Execute(connection, "PRAGMA cache_size = -524288; PRAGMA synchronous = NORMAL;");
+        if (Environment.GetEnvironmentVariable("LUI_PERF_CHECKPOINT") is { } pages)
+        {
+            Execute(connection, $"PRAGMA wal_autocheckpoint = {pages};");
+        }
         var clock = Stopwatch.StartNew();
         switch (variant)
         {

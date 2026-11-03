@@ -18,6 +18,7 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
 #pragma warning restore CA1001
 {
     private static readonly LuiQueryOptions DefaultOptions = new();
+    private static readonly LuiSyncOptions DefaultSyncOptions = new();
 
     private readonly Database _database;
     private readonly ILuiPayloadSerializer<TPayload>? _payload;
@@ -27,6 +28,8 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
 
     private readonly OwnedSource _source;
     private readonly TypoDictionary _typos;
+    private readonly OwnedSync<TKey, TPayload> _sync;
+    private readonly OwnedCheck<TKey, TPayload> _check;
 
     // The statements of the application's own connections, one set per connection.
     private readonly ConditionalWeakTable<SqliteConnection, WriteStatements> _applicationStatements = [];
@@ -49,6 +52,8 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
         _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql));
         _runner = new QueryRunner<TKey, TPayload>(
             database, source, new SerializedPayload<TPayload>(payload), similarity, _typos, typoTolerance);
+        _sync = new OwnedSync<TKey, TPayload>(database, source, PayloadBytes, _typos);
+        _check = new OwnedCheck<TKey, TPayload>(database, source, PayloadBytes);
     }
 
     public string Name { get; }
@@ -176,6 +181,42 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
     private static bool IsDocIdExhausted(SqliteException exception) =>
         exception.SqliteExtendedErrorCode == SqliteCheckConstraintFailed
         && exception.Message.Contains("doc_id", StringComparison.Ordinal);
+
+    public LuiSyncReport Sync(
+        IEnumerable<LuiEntry<TKey, TPayload>> source,
+        LuiSyncOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = _database.Begin();
+        try
+        {
+            return _sync.Run(source, options ?? DefaultSyncOptions, cancellationToken);
+        }
+        catch (SqliteException exception) when (IsDocIdExhausted(exception))
+        {
+            throw DocIdsExhausted(exception);
+        }
+    }
+
+    public LuiSyncReport Sync(
+        IAsyncEnumerable<LuiEntry<TKey, TPayload>> source,
+        LuiSyncOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        // the source may be asynchronous, the writes to SQLite are not (§13): the entries are awaited one by one
+        return Sync(source.ToBlockingEnumerable(cancellationToken), options, cancellationToken);
+    }
+
+    public LuiIntegrityReport Check(IEnumerable<LuiEntry<TKey, TPayload>> source, CancellationToken cancellationToken = default) =>
+        _check.Against(source, cancellationToken);
+
+    public LuiIntegrityReport Check() => _check.Itself();
+
+    public void Rebuild() => _check.Rebuild();
+
+    public void Optimize() => _check.Optimize();
 
     public bool UpdateWeight(TKey key, int weight, SqliteTransaction? transaction = null)
     {

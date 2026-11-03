@@ -68,4 +68,17 @@ internal abstract class ContentSource
 
     /// <summary>What the typo dictionary is built from: <c>(text, weight)</c> of every entry (§10.1).</summary>
     internal abstract string TextsSql { get; }
+
+    /// <summary>Merges the segments of the search index into one (FTS5 <c>optimize</c>).</summary>
+    internal string OptimizeSql => $"INSERT INTO {FtsTable}({FtsTable}) VALUES ('optimize');";
+
+    /// <summary>
+    /// Sets how eagerly FTS5 merges segments while it is written (<c>automerge</c>, 0 = not at all, 4 = SQLite's
+    /// default). A sync turns it off while it loads and merges once at the end (ADR-0016).
+    /// </summary>
+    internal string AutomergeSql(int segments) =>
+        $"INSERT INTO {FtsTable}({FtsTable}, rank) VALUES ('automerge', {segments.ToString(System.Globalization.CultureInfo.InvariantCulture)});";
+
+    /// <summary>The integrity check of the search index (FTS5 <c>integrity-check</c>); an error is a finding.</summary>
+    internal virtual string IntegrityCheckSql => $"INSERT INTO {FtsTable}({FtsTable}) VALUES ('integrity-check');";
 }

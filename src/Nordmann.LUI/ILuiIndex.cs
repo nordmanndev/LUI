@@ -34,6 +34,15 @@ public interface ILuiIndex<TKey, TPayload>
     LuiResult<TKey, TPayload> Search(string text, LuiQueryOptions? options = null, CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Checks the index (§12.6, §14): the stored definition is the one of this instance, the search index passes FTS5's
+    /// integrity check, and what keeps it in step is in place — the triggers of an <c>Owned</c> index; for a
+    /// <c>Linked</c> one, the application's table still fits and the entries agree with its rows. Nothing is changed; the
+    /// integrity check reads the whole search index under SQLite's write lock (seconds for a million entries).
+    /// </summary>
+    /// <returns>What was found; <see cref="LuiIntegrityReport.IsHealthy"/> when nothing.</returns>
+    LuiIntegrityReport Check();
+
+    /// <summary>
     /// Builds the typo dictionary now, if it is not built yet — so that the first typo does not pay for it
     /// (about 5 seconds and 140 MB for 685,000 words). Meant for the start of an application; it builds the
     /// dictionary even when this instance has the typo tolerance off. Nothing happens if it exists.
