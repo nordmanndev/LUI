@@ -328,7 +328,7 @@ also changed three things the plan did not foresee:
 | Frequency = sum of **`weight + 1`** | SymSpell drops a count of 0, and half of a tag stock has the weight 0. |
 | The candidates of the input **stay** when a correction is searched; each candidate is ranked against the input it was found with | §10.3 says „unite"; the first reading would have lost the mid-word hits and the similarity of the wrong input. |
 | A typo **after the tenth letter** is not corrected; neither is a letter left out or too many in a word of ten letters or more | The dictionary holds the beginnings of 3 … 10 letters (§10.1) — pinned by tests, written down. |
-| The p95 of a corrected query (12.8 ms) is above the 10 ms target at 685 k entries | up to three more FTS statements on a row-by-row index; the bulk build (PR-007) is the lever. |
+| The p95 of a corrected query is 8.7 ms at 685 k entries (target 10 ms); at 3 M entries it is untested | up to three more FTS statements on a row-by-row index; the bulk build (PR-007) is the lever. |
 
 ---
 

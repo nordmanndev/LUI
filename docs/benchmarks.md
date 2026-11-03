@@ -218,10 +218,10 @@ LUI_PERF=1 dotnet test tests/Nordmann.LUI.Tests -c Release --filter TypoPerforma
 
 | | Result | Target (§16) |
 |---|---:|---:|
-| Dictionary build (first correction) | **4.7 s** | ≤ 10 s |
+| Dictionary build (first correction) | **4.2 s** | ≤ 10 s |
 | Dictionary memory | **138 MB** | ≤ 200 MB |
-| Corrected query p50 / p95 | 4.0 / **12.8 ms** | p95 ≤ 10 ms |
-| Corrected query allocation p50 / p95 | 78 / 351 KB | ≤ 250 KB (p50 holds) |
+| Corrected query p50 / p95 | 2.7 / **8.7 ms** | p95 ≤ 10 ms |
+| Corrected query allocation p50 / p95 | 91 / 408 KB | ≤ 250 KB (p50 holds) |
 
 | Beginning | Hit@20 right | Hit@20 with a typo | Anhang A4: right / typo |
 |---:|---:|---:|---:|
@@ -230,8 +230,9 @@ LUI_PERF=1 dotnet test tests/Nordmann.LUI.Tests -c Release --filter TypoPerforma
 | 6 letters | 68 % | 46 % | 64 % / 55 % |
 | 7 letters | 86 % | 70 % | 75 % / 69 % |
 
-- **Held:** the dictionary (time and memory), the allocation at the median, the absolute quality (like Anhang A4).
-- **Missed, written down:** the p95 of a corrected query (12.8 ms against 10 ms) — up to three more FTS statements, each at the price of
-  ADR-0010 on a row-by-row index; the allocation at p95. The ratios of Anhang A4 (69 / 69 / 86 / 92 %) are not reached (26 / 52 / 69 / 82 %)
-  because the cases are drawn uniformly here and by popularity there; the absolute figures agree. Details in [ADR-0012](./adr/0012-typo-tolerance.md).
+- **Held:** the dictionary (time and memory), the p95 of a corrected query (8.7 ms against 10 ms, at 685 k entries built row by row; untested
+  at 3 M), the allocation at the median, the absolute quality (like Anhang A4).
+- **Missed, written down:** the allocation at p95 (408 KB: up to three more candidate lists and their unions) and the ratios of Anhang A4
+  (69 / 69 / 86 / 92 %) which are not reached (25 / 53 / 69 / 82 %) because the cases are drawn uniformly here and by popularity there; the
+  absolute figures agree. Details in [ADR-0012](./adr/0012-typo-tolerance.md).
 

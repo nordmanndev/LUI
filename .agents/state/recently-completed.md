@@ -11,7 +11,7 @@ the scratchpad here at the end of a session.
   candidate stands at a word start, up to three corrections searched and united with the input's candidates, each candidate ranked
   against the input it was found with. ADR-0012; spec §10.3a.
 - Off by default. Limits pinned by tests: nothing after the tenth letter, no deletion/insertion in a word of ten letters or more.
-- Measured on the whole word list: dictionary 4.7 s / 138 MB; corrected query p95 12.8 ms (target 10).
+- Measured on the whole word list: dictionary 4.2 s / 138 MB; corrected query p95 8.7 ms (target 10) at 685 k entries.
 - `TypoQualityTests` pins floors (4 letters 55 % … 8 letters 88 % of the right beginning); `TypoPerformance` is gated.
 
 ## 2026-11-02 — PR-004: the multi-word index (issue #7)

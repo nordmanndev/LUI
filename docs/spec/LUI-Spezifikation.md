@@ -489,7 +489,9 @@ Wörtern.
 
 - **Standard: aus.** `.TypoTolerance(maxEdits: 1)` am Builder schaltet ein (0 schaltet aus, mehr als 1 wird abgelehnt); die
   Abfrage überschreibt mit `.TypoTolerance(bool)`. Das Wörterbuch kostet Speicher, den die Anwendung nicht verlangt hat.
-- **Häufigkeit = Summe von `Gewicht + 1`** (SymSpell verwirft einen Eintrag mit Häufigkeit 0).
+- **Häufigkeit = Summe von `Gewicht + 1`** (SymSpell verwirft einen Eintrag mit Häufigkeit 0). Der Aufbau summiert über alle Texte;
+  `Upsert` ergänzt nur Wortanfänge, die es noch nicht gibt, und ändert die Häufigkeit der vorhandenen nicht. Die Häufigkeiten (und damit
+  die Reihenfolge der drei Vorschläge) spiegeln den Bestand daher erst nach `RebuildTypoDictionary()` genau wider.
 - **Mehrere Wörter:** die k-te Korrektur der Eingabe nimmt den k-ten Vorschlag jedes Wortes, das einen hat. Die Kandidaten der
   Eingabe selbst bleiben; ein Dokument, das mit mehreren Eingaben gefunden wird, behält die Fassung mit Wortanfang. Das Ranking misst
   jeden Kandidaten an der Eingabe, mit der er gefunden wurde.
@@ -498,8 +500,19 @@ Wörtern.
 - **Ein zusammengetipptes Kompositum** wird nur korrigiert, wenn es ein solches Wort gibt: das Wörterbuch kennt die Anfänge der
   *Wörter* der Titel. „Apfel Kuchen" hat die Wörter `apfel` und `kuchen`; `apflekuchen` hat kein Wort in der Nähe, `apfle kuchen`
   schon.
-- **`CorrectedQuery`** ist die erste Korrektur, die Kandidaten lieferte, in Suchform (`apfelkuchen`).
-- Das Wörterbuch wird beim ersten Bedarf gebaut; `RebuildTypoDictionary()` baut es neu (nach vielen `Remove`).
+- **Die Kandidaten werden gekappt** (`Candidates`), und die Kappung behält zuerst die Kandidaten **mit Wortanfang** (in Rowid-Reihenfolge),
+  dann füllen die Treffer mitten im Wort auf: ein volles Budget an Treffern mitten im Wort verdrängt die korrigierten nicht.
+- **`DistinctText`** gilt je Eingabe und dann über alle: bei gleichem normalisiertem Text bleibt der Eintrag mit Wortanfang, dann der mit der
+  besseren Rowid.
+- **`CorrectedQuery`** ist die erste Korrektur, von der nach der Kappung ein Kandidat übrig ist, in Suchform (`apfelkuchen`).
+- Die Korrektur prüft nur die Kandidaten im Budget: ist `Truncated` gesetzt, kann jenseits des Budgets ein Wortanfang existieren, und es wird
+  trotzdem korrigiert.
+- Das Wörterbuch wird beim ersten Bedarf gebaut (`WarmUpTypoDictionary()` baut es vorab, zum Beispiel beim Start); `RebuildTypoDictionary()`
+  baut es neu (nach vielen `Remove`, und für Schreibvorgänge an der Bibliothek vorbei). Beide nehmen ein `CancellationToken`. Ein `Upsert`
+  trägt die Wortanfänge sofort ein, auch wenn seine Transaktion später zurückgerollt wird — wie bei `Remove` findet eine Korrektur dorthin
+  dann nichts.
+- Die Messung des Wörterbuchs (Anhang A4: 179 MB für 676.000 Wörter, Aufbau 5 s) war ein Vorversuch; die Umsetzung braucht 138 MB für 685.739 Wörter
+  und 4,7 s (ADR-0012).
 
 ### 10.4 Grenzen
 
@@ -717,10 +730,14 @@ abbrechbar und wieder aufsetzbar.
   Änderungen am Tag ist das bedeutungslos; ein großer `Sync` oder `Rebuild`
   blockiert aber die Schreibvorgänge der Anwendung in derselben Datei, solange
   eine Stapel-Transaktion offen ist.
-- **SymSpell-Wörterbuch:** Lesen ohne Sperre; Ergänzungen unter einer Sperre
-  pro Index (SymSpell ist für gleichzeitiges Schreiben und Lesen nicht
-  ausgelegt). Ein Test mit parallelen Abfragen und gleichzeitigem `Upsert`
-  sichert das ab.
+- **SymSpell-Wörterbuch:** Abfragen lesen unter einer gemeinsamen Lesesperre
+  (`ReaderWriterLockSlim`), eine Ergänzung nimmt die Schreibsperre allein
+  (SymSpell ist für gleichzeitiges Schreiben und Lesen nicht ausgelegt). Der
+  Aufbau hält die Sperre **nicht**: er baut ein eigenes Wörterbuch, spielt die
+  Schreibvorgänge nach, die währenddessen eintrafen, und tauscht es ein — ein
+  `Upsert` wartet nie auf ihn (ADR-0012). Es gibt **ein** Wörterbuch pro Index
+  eines Katalogs, egal wie oft der Index mit `Ensure()` geöffnet wird. Ein Test
+  mit parallelen Abfragen und gleichzeitigem `Upsert` sichert das ab.
 - **Lebensdauer:** `LuiCatalog` und alle `ILuiIndex` sind Singletons;
   `Dispose()` des Katalogs wartet, bis laufende Abfragen fertig sind
   (Zähler pro Abfrage), und gibt dann frei.

@@ -1,7 +1,9 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
 using Nordmann.LUI.Indexing;
+using System.Collections.Concurrent;
 using Nordmann.LUI.Normalization;
+using Nordmann.LUI.Typos;
 
 namespace Nordmann.LUI;
 
@@ -22,6 +24,10 @@ public sealed class LuiCatalog : IDisposable
 
     private readonly LuiCatalogOptions _options;
     private readonly object _lifetime = new();
+
+    // One typo dictionary per index of the catalog, however many times the index is ensured (review of pull
+    // request 10, S1): two instances would build 138 MB each and not see each other's writes.
+    private readonly ConcurrentDictionary<string, TypoDictionary> _typoDictionaries = new(StringComparer.Ordinal);
     private int _running;
     private bool _disposed;
     private SqliteConnection? _writer;
@@ -125,6 +131,16 @@ public sealed class LuiCatalog : IDisposable
         using var connection = new SqliteConnection(ConnectionString);
         SqliteConnection.ClearPool(connection);
     }
+
+    /// <summary>The typo dictionary of an index — the same object for every instance of that index.</summary>
+    internal TypoDictionary TypoDictionaryFor(string indexName, NormalizationOptions normalization) =>
+        _typoDictionaries.GetOrAdd(
+            indexName,
+            static (name, state) => new TypoDictionary(state.Normalization, () => TypoSource.Read(state.Catalog, name)),
+            (Catalog: this, Normalization: normalization));
+
+    /// <summary>Forgets the typo dictionary of an index that was dropped: the next index of that name starts empty.</summary>
+    internal void ForgetTypoDictionary(string indexName) => _typoDictionaries.TryRemove(indexName, out _);
 
     /// <summary>The lock that serialises the statements on <see cref="Writer"/>.</summary>
     internal Lock WriterGate { get; } = new();

@@ -44,9 +44,9 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
         Name = name;
         Kind = definition.Kind;
         _sql = new OwnedSql(name);
-        _typos = new TypoDictionary(
-            new NormalizationOptions { GermanTransliteration = definition.GermanTransliteration },
-            () => ReadTexts(name));
+        _typos = catalog.TypoDictionaryFor(
+            name,
+            new NormalizationOptions { GermanTransliteration = definition.GermanTransliteration });
         _runner = new QueryRunner<TKey, TPayload>(catalog, name, definition, payload, similarity, _typos, typoTolerance);
     }
 
@@ -125,10 +125,16 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
         return StatementsFor(transaction).Remove(keyText, transaction);
     }
 
-    public void RebuildTypoDictionary()
+    public void RebuildTypoDictionary(CancellationToken cancellationToken = default)
     {
         using var scope = _catalog.Begin();
-        _typos.Rebuild();
+        _typos.Rebuild(cancellationToken);
+    }
+
+    public void WarmUpTypoDictionary(CancellationToken cancellationToken = default)
+    {
+        using var scope = _catalog.Begin();
+        _typos.EnsureBuilt(cancellationToken);
     }
 
     public long Count()
@@ -189,20 +195,6 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
         }
 
         return new WriteStatements(connection, _sql, new Lock());
-    }
-
-    /// <summary>The texts and weights of the index — the source of the typo dictionary.</summary>
-    private IEnumerable<(string Text, int Weight)> ReadTexts(string name)
-    {
-        using var connection = _catalog.OpenConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT text, weight FROM {OwnedSchema.Content(name)};";
-
-        using var reader = command.ExecuteReader();
-        while (reader.Read())
-        {
-            yield return (reader.GetString(0), reader.GetInt32(1));
-        }
     }
 
     private WriteStatements CreateOwnStatements()

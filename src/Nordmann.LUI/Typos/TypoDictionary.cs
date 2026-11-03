@@ -11,11 +11,12 @@ namespace Nordmann.LUI.Typos;
 /// typo (Anhang A4).
 /// </para>
 /// <para>
-/// It lives in memory, is built <b>lazily</b> on the first correction (the 676,000 word beginnings of a
-/// large index cost about 180 MB and a few seconds, which the application should not pay at start), and
-/// grows with <see cref="Add"/>. A word that is removed stays (SymSpell cannot forget): a correction towards
-/// it finds nothing. <see cref="Rebuild"/> starts anew. SymSpell is not made for reading while writing, so
-/// the dictionary has a lock: lookups share it, additions and the build have it alone (§15).
+/// It lives in memory, is built <b>lazily</b> on the first correction (the word beginnings of 685,000 words
+/// cost about 140 MB and a few seconds, which the application should not pay at start), and grows with
+/// <see cref="Add"/>. A word that is removed stays (SymSpell cannot forget): a correction towards it finds
+/// nothing. <see cref="Rebuild"/> starts anew. SymSpell is not made for reading while writing, so the
+/// dictionary has a lock: lookups share it, an addition has it alone (§15) — the build does not, it works
+/// on a dictionary of its own and swaps it in, so a write never waits for it.
 /// </para>
 /// </summary>
 #pragma warning disable CA1001 // the lock allocates a kernel event only when a thread has to wait; it is reclaimed by the GC
@@ -31,10 +32,22 @@ internal sealed class TypoDictionary
     /// <summary>The most corrections that are searched (§10.3).</summary>
     internal const int MaxVariants = 3;
 
+    // The lock guards the structure of the dictionary that readers see: lookups share it, an addition has it
+    // alone. The build does NOT hold it — a build takes seconds, and a write must not wait that long
+    // (review of pull request 10, M1). It builds a dictionary of its own and swaps it in.
     private readonly ReaderWriterLockSlim _lock = new();
+
+    // One build at a time.
+    private readonly Lock _buildGate = new();
+
+    // Guards _pending: the writes that arrive while a dictionary is being built are queued here and replayed
+    // on the new dictionary before it is swapped in — so neither the first build nor a rebuild loses a word.
+    private readonly Lock _pendingGate = new();
+
     private readonly NormalizationOptions _normalization;
     private readonly Func<IEnumerable<(string Text, int Weight)>> _source;
     private SymSpell? _symSpell;
+    private Queue<(string Text, int Weight)>? _pending;
 
     internal TypoDictionary(NormalizationOptions normalization, Func<IEnumerable<(string Text, int Weight)>> source)
     {
@@ -43,21 +56,7 @@ internal sealed class TypoDictionary
     }
 
     /// <summary>Whether the dictionary has been built.</summary>
-    internal bool IsBuilt
-    {
-        get
-        {
-            _lock.EnterReadLock();
-            try
-            {
-                return _symSpell is not null;
-            }
-            finally
-            {
-                _lock.ExitReadLock();
-            }
-        }
-    }
+    internal bool IsBuilt => Volatile.Read(ref _symSpell) is not null;
 
     /// <summary>Builds the dictionary from the content table, once; later calls return at once.</summary>
     internal void EnsureBuilt(CancellationToken cancellationToken)
@@ -67,40 +66,47 @@ internal sealed class TypoDictionary
             return;
         }
 
-        _lock.EnterWriteLock();
-        try
+        lock (_buildGate)
         {
-            _symSpell ??= Build(cancellationToken);
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
-        }
-    }
-
-    /// <summary>Builds the dictionary anew: the beginnings of words that were removed are gone.</summary>
-    internal void Rebuild()
-    {
-        // the build reads the content table; the swap is the only moment readers wait
-        var fresh = Build(CancellationToken.None);
-
-        _lock.EnterWriteLock();
-        try
-        {
-            _symSpell = fresh;
-        }
-        finally
-        {
-            _lock.ExitWriteLock();
+            if (!IsBuilt)
+            {
+                BuildAndPublish(cancellationToken);
+            }
         }
     }
 
     /// <summary>
-    /// Adds the word beginnings of a text that are not in the dictionary yet. Nothing happens while the
-    /// dictionary is not built: the build reads the table and finds the text there.
+    /// Builds the dictionary anew: the beginnings of words that were removed are gone, and the frequencies
+    /// are the sums of the weights as they are now.
+    /// </summary>
+    internal void Rebuild(CancellationToken cancellationToken)
+    {
+        lock (_buildGate)
+        {
+            BuildAndPublish(cancellationToken);
+        }
+    }
+
+    /// <summary>
+    /// Adds the word beginnings of a text that are not in the dictionary yet. Nothing happens while there is no
+    /// dictionary and none is being built: the build reads the table and finds the text there. While a build
+    /// runs the text is queued for it — and, if there is a dictionary already, added to that one as well.
     /// </summary>
     internal void Add(string text, int weight)
     {
+        lock (_pendingGate)
+        {
+            _pending?.Enqueue((text, weight));
+        }
+
+        // No dictionary yet: either none is wanted, or the build finds the text in the table — or replays the
+        // queue above. The publish writes the dictionary and ends the queue in one step under the same gate, so
+        // a write cannot fall between the two.
+        if (Volatile.Read(ref _symSpell) is null)
+        {
+            return;
+        }
+
         _lock.EnterWriteLock();
         try
         {
@@ -133,7 +139,7 @@ internal sealed class TypoDictionary
         _lock.EnterReadLock();
         try
         {
-            if (_symSpell is not { } symSpell)
+            if (Volatile.Read(ref _symSpell) is not { } symSpell)
             {
                 return [];
             }
@@ -209,18 +215,61 @@ internal sealed class TypoDictionary
         return variants;
     }
 
+    /// <summary>
+    /// Builds a dictionary outside the lock, replays the writes that arrived meanwhile, swaps it in. Called
+    /// with the build gate. A cancelled or failed build leaves the dictionary as it was.
+    /// </summary>
+    private void BuildAndPublish(CancellationToken cancellationToken)
+    {
+        lock (_pendingGate)
+        {
+            _pending = new Queue<(string, int)>();
+        }
+
+        try
+        {
+            var fresh = Build(cancellationToken);
+
+            _lock.EnterWriteLock();
+            try
+            {
+                lock (_pendingGate)
+                {
+                    while (_pending!.TryDequeue(out var write))
+                    {
+                        AddBeginnings(fresh, write.Text, write.Weight, onlyNew: true);
+                    }
+
+                    // the dictionary first, then the end of the queue: a write sees one or the other
+                    Volatile.Write(ref _symSpell, fresh);
+                    _pending = null;
+                }
+            }
+            finally
+            {
+                _lock.ExitWriteLock();
+            }
+        }
+        catch
+        {
+            lock (_pendingGate)
+            {
+                _pending = null;
+            }
+
+            throw;
+        }
+    }
+
     private SymSpell Build(CancellationToken cancellationToken)
     {
         // one edit, the default prefix length; a count of at least 1 keeps every beginning
         var symSpell = new SymSpell(initialCapacity: 1 << 16, maxDictionaryEditDistance: 1, prefixLength: 7, countThreshold: 1);
 
-        var rows = 0;
         foreach (var (text, weight) in _source())
         {
-            if ((rows++ & 1023) == 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-            }
+            // a volatile read per row: a build that is cancelled stops at the next row
+            cancellationToken.ThrowIfCancellationRequested();
 
             AddBeginnings(symSpell, text, weight, onlyNew: false);
         }

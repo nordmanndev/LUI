@@ -93,8 +93,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         using var snapshot = connection.BeginTransaction(deferred: true);
 
         var similarity = options.Similarity ?? _defaultSimilarity;
-        var seen = options.DistinctText ? new HashSet<string>(StringComparer.Ordinal) : null;
-        var candidates = ReadCandidates(connection, snapshot, query, options, seen, variant: 0, cancellationToken, out var count, out var truncated);
+        var candidates = ReadCandidates(connection, snapshot, query, options, variant: 0, cancellationToken, out var count, out var truncated);
         var read = Stopwatch.GetTimestamp();
 
         // An input without a word start may be a typo (§10.2) — not only an input without hits.
@@ -104,7 +103,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         if ((options.TypoTolerance ?? _typoDefault) && !query.IsPrefixPath && NoWordStart(candidates, count))
         {
             (candidates, count, truncated, queries, corrected) =
-                Correct(connection, snapshot, query, options, seen, candidates, count, truncated, cancellationToken);
+                Correct(connection, snapshot, query, options, candidates, count, truncated, cancellationToken);
             corrections = Stopwatch.GetTimestamp();
         }
 
@@ -145,7 +144,6 @@ internal sealed class QueryRunner<TKey, TPayload>
         SqliteTransaction snapshot,
         PreparedQuery query,
         LuiQueryOptions options,
-        HashSet<string>? seen,
         Scored[] candidates,
         int count,
         bool truncated,
@@ -155,7 +153,6 @@ internal sealed class QueryRunner<TKey, TPayload>
 
         var queries = new List<string> { query.Search };
         var parts = new List<(Scored[] Items, int Count)> { (candidates, count) };
-        string? corrected = null;
 
         foreach (var text in _typos.Corrections(query.Search))
         {
@@ -167,13 +164,12 @@ internal sealed class QueryRunner<TKey, TPayload>
 
             queries.Add(variant.Search);
             var items = ReadCandidates(
-                connection, snapshot, variant, options, seen, (byte)(queries.Count - 1), cancellationToken, out var found, out var more);
+                connection, snapshot, variant, options, (byte)(queries.Count - 1), cancellationToken, out var found, out var more);
 
             truncated |= more;
             if (found > 0)
             {
                 parts.Add((items, found));
-                corrected ??= variant.Search;
             }
         }
 
@@ -182,16 +178,29 @@ internal sealed class QueryRunner<TKey, TPayload>
             return (candidates, count, truncated, queries, null);
         }
 
-        var united = Union(parts, options.Candidates, out var total, out var cut);
-        return (united, total, truncated | cut, queries, corrected);
+        var united = Union(parts, options.Candidates, options.DistinctText, out var total, out var cut);
+
+        // what was searched: the first correction that still has a candidate after the cap (review M2)
+        byte best = 0;
+        for (var i = 0; i < total; i++)
+        {
+            if (united[i].Variant > 0 && (best == 0 || united[i].Variant < best))
+            {
+                best = united[i].Variant;
+            }
+        }
+
+        return (united, total, truncated | cut, queries, best > 0 ? queries[best] : null);
     }
 
     /// <summary>
-    /// The candidates of several inputs as one list in the order of the rowid; a document found with more than
-    /// one input keeps the version that stands at a word start (§10.3: the best value per <c>doc_id</c>).
-    /// At most <paramref name="limit"/> remain.
+    /// The candidates of several inputs as one list in the order of the rowid. A document found with more than
+    /// one input keeps the version that stands at a word start (§10.3: the best value per <c>doc_id</c>); with
+    /// <paramref name="distinct"/> one entry per normalised text remains, again the one at a word start first. At
+    /// most <paramref name="limit"/> remain, and the cap keeps the word starts first — they are what the
+    /// correction was for (review M2): hits in the middle of words, in rowid order, fill what is left.
     /// </summary>
-    private static Scored[] Union(List<(Scored[] Items, int Count)> parts, int limit, out int count, out bool cut)
+    private static Scored[] Union(List<(Scored[] Items, int Count)> parts, int limit, bool distinct, out int count, out bool cut)
     {
         var all = new List<Scored>();
         foreach (var (items, found) in parts)
@@ -202,30 +211,59 @@ internal sealed class QueryRunner<TKey, TPayload>
         all.Sort(static (a, b) =>
         {
             var byRowId = a.RowId.CompareTo(b.RowId);
-            if (byRowId != 0)
-            {
-                return byRowId;
-            }
-
-            // the same document: a word start first, then the earlier input
-            var byStart = (b.WordStart >= 0).CompareTo(a.WordStart >= 0);
-            return byStart != 0 ? byStart : a.Variant.CompareTo(b.Variant);
+            return byRowId != 0 ? byRowId : BestFirst(a, b);
         });
 
-        var united = new List<Scored>(Math.Min(all.Count, limit));
+        var united = new List<Scored>(all.Count);
         foreach (var candidate in all)
         {
-            if (united.Count > 0 && united[^1].RowId == candidate.RowId)
+            if (united.Count == 0 || united[^1].RowId != candidate.RowId)
             {
-                continue;
+                united.Add(candidate);
             }
+        }
 
-            united.Add(candidate);
+        if (distinct)
+        {
+            united = DistinctByKey(united);
         }
 
         cut = united.Count > limit;
-        count = Math.Min(united.Count, limit);
-        return [.. united.Take(count)];
+
+        var kept = new List<Scored>(Math.Min(united.Count, limit));
+        kept.AddRange(united.Where(static c => c.WordStart >= 0).Take(limit));
+        kept.AddRange(united.Where(static c => c.WordStart < 0).Take(limit - kept.Count));
+        kept.Sort(static (a, b) => a.RowId.CompareTo(b.RowId));
+
+        count = kept.Count;
+        return [.. kept];
+    }
+
+    /// <summary>A word start first, then the earlier input.</summary>
+    private static int BestFirst(in Scored a, in Scored b)
+    {
+        var byStart = (b.WordStart >= 0).CompareTo(a.WordStart >= 0);
+        return byStart != 0 ? byStart : a.Variant.CompareTo(b.Variant);
+    }
+
+    /// <summary>One entry per normalised text: the one at a word start, then the better rowid (§9.2).</summary>
+    private static List<Scored> DistinctByKey(List<Scored> candidates)
+    {
+        var best = new Dictionary<string, Scored>(StringComparer.Ordinal);
+        foreach (var candidate in candidates)
+        {
+            var key = candidate.Key ?? candidate.Text;
+            if (!best.TryGetValue(key, out var kept)
+                || (candidate.WordStart >= 0 && kept.WordStart < 0)
+                || ((candidate.WordStart >= 0) == (kept.WordStart >= 0) && candidate.RowId < kept.RowId))
+            {
+                best[key] = candidate;
+            }
+        }
+
+        var result = new List<Scored>(best.Values);
+        result.Sort(static (a, b) => a.RowId.CompareTo(b.RowId));
+        return result;
     }
 
     private static LuiTimings? Timings(
@@ -233,10 +271,10 @@ internal sealed class QueryRunner<TKey, TPayload>
         options.TrackTimings
             ? new LuiTimings(
                 Stopwatch.GetElapsedTime(started, read),
-                Stopwatch.GetElapsedTime(read, corrected),
                 Stopwatch.GetElapsedTime(corrected, ranked),
                 Stopwatch.GetElapsedTime(ranked, done),
-                Stopwatch.GetElapsedTime(started, done))
+                Stopwatch.GetElapsedTime(started, done),
+                Stopwatch.GetElapsedTime(read, corrected))
             : null;
 
     private static void Validate(LuiQueryOptions options)
@@ -269,7 +307,6 @@ internal sealed class QueryRunner<TKey, TPayload>
         SqliteTransaction snapshot,
         PreparedQuery query,
         LuiQueryOptions options,
-        HashSet<string>? seen,
         byte variant,
         CancellationToken cancellationToken,
         out int count,
@@ -294,6 +331,9 @@ internal sealed class QueryRunner<TKey, TPayload>
         command.Parameters.AddWithValue("$n", limit);
 
         var candidates = new Scored[Math.Min(limit, 512)];
+
+        // one entry per text within this input; across the inputs it is decided after the union
+        var seen = options.DistinctText ? new HashSet<string>(StringComparer.Ordinal) : null;
         var rows = 0;
         count = 0;
 
@@ -311,7 +351,7 @@ internal sealed class QueryRunner<TKey, TPayload>
             }
 
             var text = reader.GetString(1);
-            var start = StartOf(text, query.Compact, seen, out var duplicate);
+            var start = StartOf(text, query.Compact, seen, out var duplicate, out var key);
             if (duplicate)
             {
                 continue;
@@ -322,7 +362,7 @@ internal sealed class QueryRunner<TKey, TPayload>
                 Array.Resize(ref candidates, Math.Min(limit, candidates.Length * 2));
             }
 
-            candidates[count++] = new Scored { RowId = reader.GetInt64(0), Text = text, WordStart = start, Variant = variant };
+            candidates[count++] = new Scored { RowId = reader.GetInt64(0), Text = text, Key = key, WordStart = start, Variant = variant };
         }
 
         // the LIMIT stops the statement one row after the budget
@@ -335,9 +375,10 @@ internal sealed class QueryRunner<TKey, TPayload>
     /// <c>DistinctText</c> — remembers the text. The candidates arrive in the
     /// order of the rowid, so the first one of a text is the best one (§9.2).
     /// </summary>
-    private int StartOf(string text, string compactQuery, HashSet<string>? seen, out bool duplicate)
+    private int StartOf(string text, string compactQuery, HashSet<string>? seen, out bool duplicate, out string? key)
     {
         duplicate = false;
+        key = null;
 
         char[]? rented = null;
         var buffer = text.Length * 3 <= StackTextLength
@@ -354,10 +395,14 @@ internal sealed class QueryRunner<TKey, TPayload>
 
             var searchForm = buffer[..written];
 
-            if (seen is not null && !seen.Add(new string(searchForm)))
+            if (seen is not null)
             {
-                duplicate = true;
-                return -1;
+                key = new string(searchForm);
+                if (!seen.Add(key))
+                {
+                    duplicate = true;
+                    return -1;
+                }
             }
 
             return WordStart.Find(searchForm, compactQuery);
