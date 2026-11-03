@@ -203,3 +203,35 @@ LUI_PERF=1 LUI_PERF_KIND=multi LUI_PERF_ENTRIES=1000000 \
 - **One indexed column instead of two** is built (ADR-0011): −36 % file, −40 % build, −30 % query latency in the
   500 k experiment (`MultiWordLayoutExperiment`), −28 % file, −13 % build, −24 % to −33 % latency in the table above (two indexed columns → one, `s_norm` virtual).
 
+---
+
+## Results: the typo tolerance (PR-005)
+
+Same machine, SQLite and method as above. **Corpus:** the whole German word list as a `SingleWord` index — 685,739 words, weights
+random, built row by row. **Cases:** 400 words per length; the beginning of the word typed right, and typed with one typo of the four
+kinds (a letter left out, one too many, one wrong, two swapped) after the first letter. Hit@20 = the meant word is among the best 20.
+
+```bash
+tools/fetch-wordlist.sh
+LUI_PERF=1 dotnet test tests/Nordmann.LUI.Tests -c Release --filter TypoPerformance --logger "console;verbosity=detailed"
+```
+
+| | Result | Target (§16) |
+|---|---:|---:|
+| Dictionary build (first correction) | **4.7 s** | ≤ 10 s |
+| Dictionary memory | **138 MB** | ≤ 200 MB |
+| Corrected query p50 / p95 | 4.0 / **12.8 ms** | p95 ≤ 10 ms |
+| Corrected query allocation p50 / p95 | 78 / 351 KB | ≤ 250 KB (p50 holds) |
+
+| Beginning | Hit@20 right | Hit@20 with a typo | Anhang A4: right / typo |
+|---:|---:|---:|---:|
+| 4 letters | 30 % | 8 % | 13 % / 9 % |
+| 5 letters | 53 % | 28 % | 42 % / 29 % |
+| 6 letters | 68 % | 46 % | 64 % / 55 % |
+| 7 letters | 86 % | 70 % | 75 % / 69 % |
+
+- **Held:** the dictionary (time and memory), the allocation at the median, the absolute quality (like Anhang A4).
+- **Missed, written down:** the p95 of a corrected query (12.8 ms against 10 ms) — up to three more FTS statements, each at the price of
+  ADR-0010 on a row-by-row index; the allocation at p95. The ratios of Anhang A4 (69 / 69 / 86 / 92 %) are not reached (26 / 52 / 69 / 82 %)
+  because the cases are drawn uniformly here and by popularity there; the absolute figures agree. Details in [ADR-0012](./adr/0012-typo-tolerance.md).
+

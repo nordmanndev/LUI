@@ -485,6 +485,22 @@ Wörtern.
 3. Das Ranking läuft mit der korrigierten Eingabe; `CorrectedQuery` sagt, was
    gesucht wurde.
 
+### 10.3a Festlegungen der Umsetzung (ADR-0012)
+
+- **Standard: aus.** `.TypoTolerance(maxEdits: 1)` am Builder schaltet ein (0 schaltet aus, mehr als 1 wird abgelehnt); die
+  Abfrage überschreibt mit `.TypoTolerance(bool)`. Das Wörterbuch kostet Speicher, den die Anwendung nicht verlangt hat.
+- **Häufigkeit = Summe von `Gewicht + 1`** (SymSpell verwirft einen Eintrag mit Häufigkeit 0).
+- **Mehrere Wörter:** die k-te Korrektur der Eingabe nimmt den k-ten Vorschlag jedes Wortes, das einen hat. Die Kandidaten der
+  Eingabe selbst bleiben; ein Dokument, das mit mehreren Eingaben gefunden wird, behält die Fassung mit Wortanfang. Das Ranking misst
+  jeden Kandidaten an der Eingabe, mit der er gefunden wurde.
+- **Wörter über 10 Zeichen** werden mit ihren ersten zehn nachgeschlagen; ein Tippfehler dahinter wird nicht korrigiert, und bei einem Wort
+  ab zehn Zeichen findet die Korrektur ein ausgelassenes oder überzähliges Zeichen nicht.
+- **Ein zusammengetipptes Kompositum** wird nur korrigiert, wenn es ein solches Wort gibt: das Wörterbuch kennt die Anfänge der
+  *Wörter* der Titel. „Apfel Kuchen" hat die Wörter `apfel` und `kuchen`; `apflekuchen` hat kein Wort in der Nähe, `apfle kuchen`
+  schon.
+- **`CorrectedQuery`** ist die erste Korrektur, die Kandidaten lieferte, in Suchform (`apfelkuchen`).
+- Das Wörterbuch wird beim ersten Bedarf gebaut; `RebuildTypoDictionary()` baut es neu (nach vielen `Remove`).
+
 ### 10.4 Grenzen
 
 Bei 4–5 Zeichen ist auch ohne Tippfehler nur begrenzt etwas zu holen (viele
