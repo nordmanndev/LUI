@@ -505,6 +505,10 @@ Wörtern.
 - **Häufigkeit = Summe von `Gewicht + 1`** (SymSpell verwirft einen Eintrag mit Häufigkeit 0). Der Aufbau summiert über alle Texte;
   `Upsert` ergänzt nur Wortanfänge, die es noch nicht gibt, und ändert die Häufigkeit der vorhandenen nicht. Die Häufigkeiten (und damit
   die Reihenfolge der drei Vorschläge) spiegeln den Bestand daher erst nach `RebuildTypoDictionary()` genau wider.
+- **Transaktion der Anwendung:** Das Wörterbuch lernt die Wörter eines Schreibvorgangs, wenn er geschrieben wird, nicht wenn er
+  bestätigt wird — LUI gehört die Transaktion nicht, und es erfährt nicht, wie sie endet. Ein **Rollback** lässt die Wortanfänge
+  seiner Texte im Wörterbuch; eine Eingabe, die genau ein solcher Anfang ist, gilt dann als Wort des Index und wird nicht korrigiert.
+  `RebuildTypoDictionary()` bringt das Wörterbuch wieder in Einklang (Review von PR #12, ADR-0013).
 - **Mehrere Wörter:** die k-te Korrektur der Eingabe nimmt den k-ten Vorschlag jedes Wortes, das einen hat. Die Kandidaten der
   Eingabe selbst bleiben; ein Dokument, das mit mehreren Eingaben gefunden wird, behält die Fassung mit Wortanfang. Das Ranking misst
   jeden Kandidaten an der Eingabe, mit der er gefunden wurde.
@@ -560,6 +564,10 @@ für die Kandidaten berechnet (≤ `Candidates`) und nur in Stufe 2 des Rankings
 ---
 
 ## 12. Öffentliche API
+
+Die Listings in § 12 beschreiben die **Ziel-API**: Was erst mit einem späteren Schritt kommt, ist markiert
+(`Sync` mit Schritt 7, `Highlight` mit Schritt 8, `LinkedTo` mit Schritt 6) und lässt sich bis dahin nicht
+kompilieren. Was heute gilt, führt der Quick Start des README vor; der Paket-Smoke-Test führt ihn aus.
 
 ### 12.1 Katalog öffnen
 
@@ -655,7 +663,10 @@ SyncReport report = recipes.Sync(source, new LuiSyncOptions { BatchSize = 10_000
 ```
 
 `UpsertMany` schreibt ohne Transaktion der Anwendung in **einer eigenen**: alle Einträge oder — bei einem
-Fehler oder einem Abbruch — keiner. Mit der Transaktion der Anwendung gehören die Einträge zu ihr.
+Fehler oder einem Abbruch — keiner. Mit der Transaktion der Anwendung gehören die Einträge zu ihr; die Zahl,
+die `UpsertMany` zurückgibt, ist dann die der Einträge, die in sie geschrieben wurden. Das
+Tippfehler-Wörterbuch gehört nicht zur Transaktion: Es lernt die Wörter sofort, auch die eines Rollbacks
+(§ 10.3a).
 
 Bei `Linked` gibt es diese Methoden nicht: Der Index ist nur ein `ILuiIndex`, die Anwendung schreibt in ihre
 Tabelle — auch das Gewicht —, die Trigger erledigen den Rest.

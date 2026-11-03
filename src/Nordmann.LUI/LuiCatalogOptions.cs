@@ -5,7 +5,10 @@ namespace Nordmann.LUI;
 /// <summary>
 /// The options of a catalog (LUI-Spezifikation §12.1, §7.5). They steer how every
 /// connection of the catalog is set up. Every value is checked when it is set, so
-/// the options can be bound from configuration and fail where they are wrong.
+/// the options can be bound from configuration and fail where they are wrong — the
+/// exception names the property. Bound through <c>IConfiguration.Bind</c>, it arrives
+/// wrapped in a <see cref="System.Reflection.TargetInvocationException"/>: the binder wraps
+/// what a setter throws; the inner exception is the one that says what is wrong.
 /// </summary>
 public sealed record LuiCatalogOptions
 {
@@ -36,9 +39,7 @@ public sealed record LuiCatalogOptions
     public TimeSpan BusyTimeout
     {
         get;
-        init => field = value >= TimeSpan.Zero
-            ? value
-            : throw new ArgumentOutOfRangeException(nameof(value), value, "BusyTimeout is not negative.");
+        init => field = Setting.NotNegative(value, nameof(BusyTimeout));
     } = TimeSpan.FromSeconds(5);
 
     /// <summary>
@@ -54,6 +55,6 @@ public sealed record LuiCatalogOptions
     public TimeProvider TimeProvider
     {
         get;
-        init => field = value ?? throw new ArgumentNullException(nameof(value), "TimeProvider is not null.");
+        init => field = Setting.NotNull(value, nameof(TimeProvider));
     } = TimeProvider.System;
 }

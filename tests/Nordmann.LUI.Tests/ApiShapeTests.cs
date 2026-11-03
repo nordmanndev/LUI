@@ -235,6 +235,20 @@ public sealed class ApiShapeTests
     }
 
     [Fact]
+    public void The_exception_of_a_wrong_value_names_the_property_as_its_parameter()
+    {
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiQueryOptions { MaxResults = 0 }).ParamName.ShouldBe("MaxResults");
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiQueryOptions { Candidates = 0 }).ParamName.ShouldBe("Candidates");
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiQueryOptions { Rank = (LuiRankingOrder)42 }).ParamName.ShouldBe("Rank");
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiCatalogOptions { CacheSizeMegabytes = 0 }).ParamName.ShouldBe("CacheSizeMegabytes");
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(-1) }).ParamName.ShouldBe("BusyTimeout");
+        Should.Throw<ArgumentNullException>(() => new LuiCatalogOptions { TimeProvider = null! }).ParamName.ShouldBe("TimeProvider");
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry<long, LuiNoPayload>(1, "a") { Weight = -1 }).ParamName.ShouldBe("Weight");
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry<long, LuiNoPayload>(1, "a") { Priority = (LuiPriority)7 }).ParamName.ShouldBe("Priority");
+        Should.Throw<ArgumentException>(() => new LuiEntry<long, LuiNoPayload>(1, string.Empty)).ParamName.ShouldBe("Text");
+    }
+
+    [Fact]
     public void The_catalog_options_reach_the_connections()
     {
         using var database = new TestDatabase();
@@ -268,13 +282,51 @@ public sealed class ApiShapeTests
         var index = catalog.Index("words").SingleWord().Owned<long>()
             .TypoTolerance()
             .GermanTransliteration(false)
+            .Similarity(new Constant(0.25))
             .WithPayload(ChipJsonContext.Default.Chip)
             .Ensure();
         index.Upsert(new LuiEntry<long, Chip>(1, "Apfelkuchen") { Weight = 10, Payload = new Chip("a") });
 
+        // the typo tolerance
         index.Search("apflekuchen").CorrectedQuery.ShouldBe("apfelkuchen");
+
+        // the similarity
+        index.Search("apfelkuch").Hits.ShouldHaveSingleItem().Similarity.ShouldBe(0.25);
+
+        // the transliteration: it is part of the definition, so an index with it on is another index
         Should.Throw<LuiDefinitionMismatchException>(
             () => catalog.Index("words").SingleWord().Owned<long>().WithPayload(ChipJsonContext.Default.Chip).Ensure());
+    }
+
+    [Fact]
+    public void A_rolled_back_write_leaves_its_beginnings_in_the_typo_dictionary_until_it_is_rebuilt()
+    {
+        // A documented limit (review of pull request 12): the library does not own the transaction of the
+        // application and learns its words when they are written. The rollback itself is correct.
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var index = catalog.Index("titles").MultiWord().Owned<long>().TypoTolerance().Ensure();
+        index.Upsert(1, "Schifffahrt", 10);
+        index.WarmUpTypoDictionary();
+        index.Search("schiffb").CorrectedQuery.ShouldBe("schifff");
+
+        using (var connection = database.Connect())
+        using (var transaction = connection.BeginTransaction())
+        {
+            index.UpsertMany([new LuiEntry<long, LuiNoPayload>(2, "Schiffbruecke")], transaction);
+            transaction.Rollback();
+        }
+
+        index.Count().ShouldBe(1);
+        var stale = index.Search("schiffb");
+        stale.CorrectedQuery.ShouldBeNull("to the dictionary, schiffb is a beginning of the index now");
+        stale.Hits.ShouldBeEmpty();
+
+        index.RebuildTypoDictionary();
+
+        var rebuilt = index.Search("schiffb");
+        rebuilt.CorrectedQuery.ShouldBe("schifff");
+        rebuilt.Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
     }
 
     [Fact]
@@ -316,6 +368,13 @@ public sealed class ApiShapeTests
         catalog.DropIndex("tags").ShouldBeFalse();
         Should.Throw<ArgumentException>(() => catalog.DropIndex("Not A Name"));
         database.Scalar<long>("SELECT count(*) FROM sqlite_master WHERE name LIKE 'lui_tags%'").ShouldBe(0);
+    }
+
+    private sealed class Constant(double value) : ILuiSimilarity
+    {
+        public string Name => "constant";
+
+        public double Similarity(string query, string text) => value;
     }
 
     private static IEnumerable<LuiEntry<long, LuiNoPayload>> FailingAfter(int count)

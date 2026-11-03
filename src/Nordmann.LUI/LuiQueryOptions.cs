@@ -7,7 +7,9 @@ namespace Nordmann.LUI;
 /// The options of a query (LUI-Spezifikation §12.5), for configuration that
 /// comes from a file. What follows from the kind of the index — how the input
 /// is searched, the prefix path, the word-start rule — is not an option. Every
-/// value is checked when it is set.
+/// value is checked when it is set, and the exception names the property (bound through
+/// <c>IConfiguration.Bind</c>, it arrives wrapped in a
+/// <see cref="System.Reflection.TargetInvocationException"/>).
 /// </summary>
 public sealed record LuiQueryOptions
 {

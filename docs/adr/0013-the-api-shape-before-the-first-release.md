@@ -103,6 +103,15 @@ triggers and building the search index sorted — stays in PR-007 (ADR-0010).
 
 ## Consequences
 
+- **The typo dictionary is not part of a transaction of the application** (review of pull request 12). It learns
+  the words of a write when they are written — by `Upsert` and `UpsertMany` alike — because LUI does not own the
+  transaction and does not learn of its end. A rollback leaves the beginnings of its texts behind; an input that
+  is exactly such a beginning then counts as a word of the index and is not corrected, and the answer can be
+  empty where the committed state would correct it. `RebuildTypoDictionary()` brings the dictionary back in step.
+  This is older than this ADR (the single `Upsert` behaves the same since ADR-0012); it is written down here,
+  where the transaction semantics of the batch are, and pinned by a test. Not learning inside a transaction of the
+  application would trade this rare case for a common one — every committed transaction would stay unknown to
+  the dictionary until a rebuild.
 - Every caller of the old API breaks once; the package has not been published, so the callers are this repository's
   own tests, the smoke test and the specification.
 - The review's internal seams — the kind as a strategy, the content source as a strategy, the direction of the
@@ -113,7 +122,7 @@ triggers and building the search index sorted — stays in PR-007 (ADR-0010).
   `Suggest(text, take)` as a shortcut — `Search(text)` covers the default case.
 
 **Verified by:** `tests/Nordmann.LUI.Tests/ApiShapeTests.cs` (the entry, the batch: all or nothing, cancellation, the
-application's transaction, the typo dictionary, beside other writers; the options; the key type; the read interface;
+application's transaction, the typo dictionary — and what a rollback leaves in it —, beside other writers; the options and the parameter names of their errors; the key type; the read interface;
 `DropIndex`), `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs`
 (`A_consumer_needs_one_using_and_every_public_type_says_it_is_lui`,
 `The_results_and_options_have_named_properties_not_positions`), `Repository_Layout.cs`

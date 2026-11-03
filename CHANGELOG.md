@@ -38,6 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - `ILuiOwnedIndex.UpsertMany(entries, transaction, cancellationToken)` — many entries in one transaction, all or
   nothing in LUI's own; 100,000 entries in 3.8 s instead of 16.9 s one by one (4.4×).
+  The typo dictionary learns the words at once, also inside the application's transaction: a rollback leaves
+  them there until `RebuildTypoDictionary()` (documented and pinned by a test).
 - A quick start in the README, run by the package smoke test.
 
 - **Typo tolerance** ([ADR-0012](docs/adr/0012-typo-tolerance.md)): `TypoTolerance()` on the builder

@@ -15,7 +15,9 @@ public interface ILuiOwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// Adds an entry, or <b>replaces the whole entry</b> with the same key — text, weight, priority
     /// <i>and payload</i>: an entry without a payload clears the payload that was stored. To change only the
     /// weight or the priority use <see cref="UpdateWeight"/> and <see cref="UpdatePriority"/>. Writing an entry
-    /// that is identical to the stored one changes nothing in the search index.
+    /// that is identical to the stored one changes nothing in the search index. Inside the transaction of the
+    /// application, the entry is committed or rolled back with the application's rows; the typo dictionary
+    /// learns its words at once (see <c>TypoTolerance</c> on the builder for what a rollback leaves behind).
     /// </summary>
     /// <param name="entry">The entry.</param>
     /// <param name="transaction">The transaction of the application, or <see langword="null"/> for one of its own.</param>
@@ -43,12 +45,16 @@ public interface ILuiOwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// Upserts many entries in one transaction — the way to load an index: a commit per entry costs far more
     /// than the entry. Without <paramref name="transaction"/> LUI opens one of its own and commits it at the
     /// end: all entries are written, or — on an error or a cancellation — none. With the transaction of the
-    /// application the entries are part of it, and the application commits or rolls back.
+    /// application the entries are part of it, and the application commits or rolls back; the typo dictionary
+    /// learns their words at once, as with <see cref="Upsert(LuiEntry{TKey, TPayload}, SqliteTransaction?)"/>.
     /// </summary>
     /// <param name="entries">The entries; a key that comes twice is written twice, and the last one stays.</param>
     /// <param name="transaction">The transaction of the application, or <see langword="null"/> for one of its own.</param>
     /// <param name="cancellationToken">Checked between the entries.</param>
-    /// <returns>The number of entries written.</returns>
+    /// <returns>
+    /// The number of entries written — with the transaction of the application, written into it: they are in
+    /// the index once the application commits.
+    /// </returns>
     /// <exception cref="OperationCanceledException">The token was cancelled; LUI's own transaction is rolled back.</exception>
     int UpsertMany(
         IEnumerable<LuiEntry<TKey, TPayload>> entries,

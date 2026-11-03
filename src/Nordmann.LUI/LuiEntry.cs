@@ -24,22 +24,14 @@ public sealed record LuiEntry<TKey, TPayload>(TKey Key, string Text)
     public int Weight
     {
         get;
-        init
-        {
-            RowId.ValidateWeight(value);
-            field = value;
-        }
+        init => field = Setting.InRange(value, 0, RowId.MaxWeight, nameof(Weight));
     }
 
     /// <summary>The class of the entry, ahead of its weight. Default: <see cref="LuiPriority.Normal"/>.</summary>
     public LuiPriority Priority
     {
         get;
-        init
-        {
-            RowId.ValidatePriority(value);
-            field = value;
-        }
+        init => field = Setting.Defined(value, nameof(Priority));
     } = LuiPriority.Normal;
 
     /// <summary>

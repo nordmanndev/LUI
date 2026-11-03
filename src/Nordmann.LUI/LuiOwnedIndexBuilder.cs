@@ -88,9 +88,11 @@ public sealed class LuiOwnedIndexBuilder<TKey, TPayload>
     /// of <b>this instance</b>, not of the stored index; a query can override it. The dictionary itself belongs
     /// to the index of the catalog and is shared by all its instances.
     /// <para>
-    /// The dictionary learns the words that are written through the library (<c>Upsert</c>, <c>UpsertMany</c>).
-    /// Writes past it — another process, direct SQL, a transaction that commits after the dictionary was
-    /// built — reach it with <c>RebuildTypoDictionary()</c>.
+    /// The dictionary learns the words that are written through the library (<c>Upsert</c>, <c>UpsertMany</c>)
+    /// when they are written. Writes past it — another process, direct SQL, a transaction that commits after the
+    /// dictionary was built — reach it with <c>RebuildTypoDictionary()</c>; so does a transaction of the
+    /// application that is <b>rolled back</b>: its words stay in the dictionary until the rebuild, and an input
+    /// that is exactly the beginning of such a word is not corrected.
     /// </para>
     /// </summary>
     /// <param name="enabled">Whether an input without a word start is corrected.</param>
