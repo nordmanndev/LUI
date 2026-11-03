@@ -47,6 +47,34 @@ internal static class Identifier
         return name;
     }
 
+    /// <summary>The pattern of a name of the application — a table or a column a <c>Linked</c> index reads.</summary>
+    internal const string ApplicationPattern = "^[A-Za-z_][A-Za-z0-9_]{0,63}$";
+
+    /// <summary>
+    /// Checks a name of the application's schema: letters, digits and underscores, as the application chose them —
+    /// <c>Tags</c> and <c>usage_count</c> alike. The name is always quoted where it reaches SQL (<see cref="Quote"/>).
+    /// </summary>
+    internal static string ValidateApplicationName(string? name, string parameterName)
+    {
+        ArgumentNullException.ThrowIfNull(name, parameterName);
+
+        var valid = name.Length is > 0 and <= 64
+            && (char.IsAsciiLetter(name[0]) || name[0] == '_')
+            && name.AsSpan(1).IndexOfAnyExcept(ApplicationNameCharacters) < 0;
+
+        return valid
+            ? name
+            : throw new ArgumentException(
+                $"'{name}' is not a name LUI reads. A name of the application matches {ApplicationPattern}.",
+                parameterName);
+    }
+
+    /// <summary>A checked name as an SQL identifier, in double quotes.</summary>
+    internal static string Quote(string name) => $"\"{name}\"";
+
+    private static readonly System.Buffers.SearchValues<char> ApplicationNameCharacters =
+        System.Buffers.SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789_");
+
     internal static bool IsValid(string name)
     {
         if (name.Length is 0 or > 41 || name[0] is < 'a' or > 'z')

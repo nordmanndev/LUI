@@ -36,8 +36,12 @@ internal sealed class MultiWordRules : IndexKindRules
     internal override string PrefixSource => "s_compact";
 
     // the separators stripped from the transliterated text (§6.1); the tokenizer folds it, as it folds s_norm
-    internal override string CompactColumn =>
-        $",\n    s_compact TEXT GENERATED ALWAYS AS ({SqlNormalizer.Compact("s_norm")}) STORED";
+    internal override string? CompactColumnDefinition =>
+        $"s_compact TEXT GENERATED ALWAYS AS ({SqlNormalizer.Compact("s_norm")}) STORED";
+
+    internal override string IndexedValue(string searchForm) => SqlNormalizer.Compact(searchForm);
+
+    internal override string PrefixValue(string searchForm) => SqlNormalizer.Compact(searchForm);
 
     // nothing reads s_norm but s_compact, which derives from it: a stored copy of every title is a tenth of the file
     internal override string NormStorage => "VIRTUAL";

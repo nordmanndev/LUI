@@ -78,9 +78,11 @@ The generated column `s_rowid` packs priority, weight and document id into
 one 64-bit number, so that "highest priority first, then most popular first"
 is the *order of the row ids* — no sort step, no temporary B-tree.
 
-In `Linked` mode the content table is the application's own; LUI adds the
-same five generated columns, three indices and three triggers to it — only
-with the application's explicit consent.
+In `Linked` mode the content table is the application's own, and LUI does not
+change it (ADR-0015): no column, no index, no trigger unless the application
+asks for one. LUI keeps a table without text and a contentless search index of
+its own, and reads text and payload from the application's table by its
+primary key.
 
 ## 5. The flows
 
@@ -92,8 +94,10 @@ read the payloads of the hits → answer.
 `Remove` — one statement each, inside the application's transaction when the
 application has one.
 
-**The write (Linked).** The application writes its own table; the triggers do
-the rest. LUI has no write API for a linked index, on purpose.
+**The write (Linked).** The application writes its own table and tells the
+index: `Refresh(key)` after a write (in its transaction, if it likes),
+`Sync()` for everything — or triggers it created on purpose. LUI has no write
+API for the content of a linked index, on purpose: the table is the content.
 
 **The reconciliation.** `Sync` compares the content table with a source in
 batches, adds what is missing, changes what differs, removes what is gone.

@@ -1,0 +1,129 @@
+table lui_many
+CREATE TABLE lui_many (
+    doc_id   INTEGER PRIMARY KEY CHECK (doc_id BETWEEN 0 AND 4294967295),
+    key      TEXT    NOT NULL UNIQUE,
+    text     TEXT    NOT NULL,
+    weight   INTEGER NOT NULL CHECK (weight BETWEEN 0 AND 536870911),
+    priority INTEGER NOT NULL DEFAULT 3 CHECK (priority BETWEEN 0 AND 3),
+    payload  BLOB,
+    s_norm   TEXT GENERATED ALWAYS AS (text) VIRTUAL,
+    s_compact TEXT GENERATED ALWAYS AS (replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(s_norm, ' ', ''), '!', ''), '"', ''), '#', ''), '$', ''), '%', ''), '&', ''), '''', ''), '(', ''), ')', ''), '*', ''), '+', ''), ',', ''), '-', ''), '.', ''), '/', ''), ':', ''), ';', ''), '<', ''), '=', ''), '>', ''), '?', ''), '@', ''), '[', ''), '\', ''), ']', ''), '^', ''), '_', ''), '`', ''), '{', ''), '|', ''), '}', ''), '~', ''), '	', ''), '
+', ''), '', ''), ' ', ''), '«', ''), '·', ''), '»', ''), ' ', ''), ' ', ''), ' ', ''), ' ', ''), ' ', ''), ' ', ''), ' ', ''), ' ', ''), ' ', ''), ' ', ''), ' ', ''), '​', ''), '‌', ''), '‍', ''), '‐', ''), '‑', ''), '‒', ''), '–', ''), '—', ''), '―', ''), '‘', ''), '’', ''), '‚', ''), '‛', ''), '“', ''), '”', ''), '„', ''), '•', ''), '…', ''), '‧', ''), ' ', ''), ' ', ''), ' ', ''), ' ', ''), '　', '')) STORED,
+    s_p1     TEXT GENERATED ALWAYS AS (substr(lower(s_compact), 1, 1)) STORED,
+    s_p2     TEXT GENERATED ALWAYS AS (substr(lower(s_compact), 1, 2)) STORED,
+    s_rowid  INTEGER GENERATED ALWAYS AS ((priority << 61) | ((536870911 - weight) << 32) | doc_id) STORED
+)
+---
+trigger lui_many_ad
+CREATE TRIGGER lui_many_ad AFTER DELETE ON lui_many BEGIN
+    INSERT INTO lui_many_fts(lui_many_fts, rowid, s_compact) VALUES ('delete', old.s_rowid, old.s_compact);
+END
+---
+trigger lui_many_ai
+CREATE TRIGGER lui_many_ai AFTER INSERT ON lui_many BEGIN
+    INSERT INTO lui_many_fts(rowid, s_compact) VALUES (new.s_rowid, new.s_compact);
+END
+---
+trigger lui_many_au
+CREATE TRIGGER lui_many_au AFTER UPDATE OF text, weight, priority ON lui_many
+WHEN old.s_rowid IS NOT new.s_rowid OR old.s_compact IS NOT new.s_compact
+BEGIN
+    INSERT INTO lui_many_fts(lui_many_fts, rowid, s_compact) VALUES ('delete', old.s_rowid, old.s_compact);
+    INSERT INTO lui_many_fts(rowid, s_compact) VALUES (new.s_rowid, new.s_compact);
+END
+---
+table lui_many_fts
+CREATE VIRTUAL TABLE lui_many_fts USING fts5(
+    s_compact,
+    content = 'lui_many', content_rowid = 's_rowid',
+    tokenize = 'trigram remove_diacritics 1')
+---
+table lui_many_fts_config
+CREATE TABLE 'lui_many_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID
+---
+table lui_many_fts_data
+CREATE TABLE 'lui_many_fts_data'(id INTEGER PRIMARY KEY, block BLOB)
+---
+table lui_many_fts_docsize
+CREATE TABLE 'lui_many_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB)
+---
+table lui_many_fts_idx
+CREATE TABLE 'lui_many_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID
+---
+index lui_many_p1
+CREATE INDEX lui_many_p1 ON lui_many(s_p1, s_rowid)
+---
+index lui_many_p2
+CREATE INDEX lui_many_p2 ON lui_many(s_p2, s_rowid)
+---
+index lui_many_rowid
+CREATE UNIQUE INDEX lui_many_rowid ON lui_many(s_rowid)
+---
+table lui_meta
+CREATE TABLE lui_meta (
+    index_name     TEXT PRIMARY KEY,
+    kind           TEXT NOT NULL,
+    source         TEXT NOT NULL,
+    definition     TEXT NOT NULL,
+    schema_version INTEGER NOT NULL,
+    created_at     TEXT NOT NULL
+)
+---
+table lui_one
+CREATE TABLE lui_one (
+    doc_id   INTEGER PRIMARY KEY CHECK (doc_id BETWEEN 0 AND 4294967295),
+    key      TEXT    NOT NULL UNIQUE,
+    text     TEXT    NOT NULL,
+    weight   INTEGER NOT NULL CHECK (weight BETWEEN 0 AND 536870911),
+    priority INTEGER NOT NULL DEFAULT 3 CHECK (priority BETWEEN 0 AND 3),
+    payload  BLOB,
+    s_norm   TEXT GENERATED ALWAYS AS (replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(text, 'ä', 'ae'), 'Ä', 'ae'), 'ö', 'oe'), 'Ö', 'oe'), 'ü', 'ue'), 'Ü', 'ue'), 'ä', 'ae'), 'Ä', 'ae'), 'ö', 'oe'), 'Ö', 'oe'), 'ü', 'ue'), 'Ü', 'ue'), 'ß', 'ss'), 'ẞ', 'ss')) STORED,
+    s_p1     TEXT GENERATED ALWAYS AS (substr(lower(replace(s_norm, '#', '')), 1, 1)) STORED,
+    s_p2     TEXT GENERATED ALWAYS AS (substr(lower(replace(s_norm, '#', '')), 1, 2)) STORED,
+    s_rowid  INTEGER GENERATED ALWAYS AS ((priority << 61) | ((536870911 - weight) << 32) | doc_id) STORED
+)
+---
+trigger lui_one_ad
+CREATE TRIGGER lui_one_ad AFTER DELETE ON lui_one BEGIN
+    INSERT INTO lui_one_fts(lui_one_fts, rowid, s_norm) VALUES ('delete', old.s_rowid, old.s_norm);
+END
+---
+trigger lui_one_ai
+CREATE TRIGGER lui_one_ai AFTER INSERT ON lui_one BEGIN
+    INSERT INTO lui_one_fts(rowid, s_norm) VALUES (new.s_rowid, new.s_norm);
+END
+---
+trigger lui_one_au
+CREATE TRIGGER lui_one_au AFTER UPDATE OF text, weight, priority ON lui_one
+WHEN old.s_rowid IS NOT new.s_rowid OR old.s_norm IS NOT new.s_norm
+BEGIN
+    INSERT INTO lui_one_fts(lui_one_fts, rowid, s_norm) VALUES ('delete', old.s_rowid, old.s_norm);
+    INSERT INTO lui_one_fts(rowid, s_norm) VALUES (new.s_rowid, new.s_norm);
+END
+---
+table lui_one_fts
+CREATE VIRTUAL TABLE lui_one_fts USING fts5(
+    s_norm,
+    content = 'lui_one', content_rowid = 's_rowid',
+    tokenize = 'trigram remove_diacritics 1')
+---
+table lui_one_fts_config
+CREATE TABLE 'lui_one_fts_config'(k PRIMARY KEY, v) WITHOUT ROWID
+---
+table lui_one_fts_data
+CREATE TABLE 'lui_one_fts_data'(id INTEGER PRIMARY KEY, block BLOB)
+---
+table lui_one_fts_docsize
+CREATE TABLE 'lui_one_fts_docsize'(id INTEGER PRIMARY KEY, sz BLOB)
+---
+table lui_one_fts_idx
+CREATE TABLE 'lui_one_fts_idx'(segid, term, pgno, PRIMARY KEY(segid, term)) WITHOUT ROWID
+---
+index lui_one_p1
+CREATE INDEX lui_one_p1 ON lui_one(s_p1, s_rowid)
+---
+index lui_one_p2
+CREATE INDEX lui_one_p2 ON lui_one(s_p2, s_rowid)
+---
+index lui_one_rowid
+CREATE UNIQUE INDEX lui_one_rowid ON lui_one(s_rowid)

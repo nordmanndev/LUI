@@ -51,19 +51,15 @@ internal abstract class ContentSource
     /// <summary>The candidates of an input of three or more characters (§8.2): <c>(rowid, text)</c> in the order of the rowid.</summary>
     internal abstract string CandidateSql { get; }
 
-    /// <summary>Key and payload of the hits (E7): <c>(doc_id, key, payload …)</c> for the doc_ids <paramref name="parameters"/>.</summary>
-    internal abstract string HitsSql(string parameters);
+    /// <summary>
+    /// Key and payload of the hits (E7): <c>(doc_id, key, payload …)</c> for the doc_ids <paramref name="parameters"/>,
+    /// the payload being <paramref name="payloadColumns"/> in their order.
+    /// </summary>
+    internal abstract string HitsSql(string parameters, IReadOnlyList<string> payloadColumns);
 
     /// <summary>The number of entries.</summary>
     internal abstract string CountSql { get; }
 
     /// <summary>What the typo dictionary is built from: <c>(text, weight)</c> of every entry (§10.1).</summary>
     internal abstract string TextsSql { get; }
-
-    /// <summary>
-    /// The statements that remove an index — whatever its stored definition is, and when there is none: the way
-    /// out of a <see cref="LuiDefinitionMismatchException"/>. <c>Linked</c> (PR-006) decides by the stored
-    /// source and removes the columns, indexes and triggers it put on the application's table.
-    /// </summary>
-    internal static IReadOnlyList<string> DropStatements(string indexName) => OwnedSource.Drop(indexName);
 }

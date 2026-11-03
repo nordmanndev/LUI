@@ -22,7 +22,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
-        var index = catalog.Index("words").SingleWord().Owned<long>().TypoTolerance().Ensure();
+        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
 
         var random = new Random(5);
         using (var connection = catalog.OpenConnection())

@@ -7,7 +7,7 @@ describes it. Link the issue; do not repeat the whole plan here.
 
 **Issue:** [#15](https://github.com/nordmanndev/LUI/issues/15) — Linked index, loosely coupled (PR-006)
 **Branch:** `feat/linked-index`
-**State:** the spike is done and passed; the implementation is next.
+**State:** implemented, measured and verified; the pull request is opened when the owner asks.
 
 ## Where the work stands
 

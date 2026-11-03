@@ -71,7 +71,7 @@ using Nordmann.LUI;
 using var lui = LuiCatalog.Open("Data Source=app.db");
 
 // an index of titles: words in any order, spaces optional, one typo forgiven
-var recipes = lui.Index("recipes").MultiWord().Owned<long>().TypoTolerance().Ensure();
+var recipes = lui.Index("recipes").MultiWord().TypoTolerance().Ensure();
 
 recipes.Upsert(1, "Gedeckter Apfelkuchen", weight: 9000);
 recipes.Upsert(2, "Apfelstrudel", weight: 5000);
@@ -124,14 +124,35 @@ searched. The caller does not have to know how.
 
 ## The two content sources
 
-| | `Owned` | `Linked` |
+| | `Owned` (the default) | `Linked` |
 |---|---|---|
 | Content table | `lui_<index>` — the library's own | a table of your application |
-| Who writes | the application, via `Upsert` / `Remove` / `Sync` | the application, with ordinary SQL |
-| Index ↔ content | consistent by triggers | consistent by triggers |
+| Who writes | the application, via `Upsert` / `UpsertMany` / `Remove` | the application, with ordinary SQL |
+| Index ↔ content | consistent by triggers | the application: `Refresh(id)` after its writes (in its transaction, if it likes), `Sync()` for everything — or triggers it asks for |
+| Your schema changed | — | **never**: no column, no index, no trigger unless you call for one |
 | Text stored twice | yes | no |
 
-Both use the same mechanism, so there is one thing to learn, not two.
+```csharp
+using Microsoft.Data.Sqlite;
+
+// a table of the application, as it is
+using (var app = new SqliteConnection("Data Source=app.db"))
+{
+    app.Open();
+    using var create = app.CreateCommand();
+    create.CommandText = """
+        CREATE TABLE IF NOT EXISTS tag (id INTEGER PRIMARY KEY, name TEXT NOT NULL, usage_count INTEGER NOT NULL);
+        INSERT OR REPLACE INTO tag VALUES (1, 'vegan', 120), (2, 'vegetarisch', 80), (3, 'glutenfrei', 40);
+        """;
+    create.ExecuteNonQuery();
+}
+
+// linked: LUI reads the table and never changes it
+var tags = lui.Index("tags").SingleWord().LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count").Ensure();
+tags.Sync();                                             // the whole table; then tags.Refresh(id) after a write
+
+Console.WriteLine(tags.Search("veg").Hits[0].Text);     // vegan
+```
 
 ---
 

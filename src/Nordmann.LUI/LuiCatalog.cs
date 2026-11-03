@@ -109,9 +109,10 @@ public sealed class LuiCatalog : IDisposable
         using var connection = OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
 
-        var existed = ReadDefinition(connection, transaction, name) is not null;
+        var stored = ReadDefinition(connection, transaction, name);
+        var existed = stored is not null;
 
-        foreach (var statement in ContentSource.DropStatements(name))
+        foreach (var statement in ContentSources.DropStatements(name, stored))
         {
             Execute(connection, transaction, statement);
         }
@@ -136,11 +137,22 @@ public sealed class LuiCatalog : IDisposable
     /// transaction, so that two processes cannot both create it.
     /// </summary>
     /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
-    internal void EnsureIndex(string name, IndexDefinition definition, IEnumerable<string> createStatements)
+    /// <param name="name">The name of the index.</param>
+    /// <param name="definition">The definition that is asked for.</param>
+    /// <param name="createStatements">The statements that create the index, when it is not there.</param>
+    /// <param name="verify">A check of the environment of the index in the same transaction — for <c>Linked</c>, the
+    /// application's table — that runs every time, not only when the index is created.</param>
+    internal void EnsureIndex(
+        string name,
+        IndexDefinition definition,
+        IEnumerable<string> createStatements,
+        Action<SqliteConnection, SqliteTransaction>? verify = null)
     {
         using var scope = Begin();
         using var connection = OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
+
+        verify?.Invoke(connection, transaction);
 
         var stored = ReadDefinition(connection, transaction, name);
         if (stored is null)

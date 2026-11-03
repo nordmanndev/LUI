@@ -5,6 +5,15 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-03 — PR-006: the linked index, loosely coupled (issue #15)
+
+- Owner's decisions: no column/index/implicit trigger on the application's table; the application keeps the index current
+  (`Sync`, `Refresh`/`RefreshMany` with an optional transaction), triggers only on request (`TriggerScript`,
+  `CreateTriggers`, `DropTriggers`); `Owned<long>` as the builder's default, `WithKey<string>()`, `LinkTo(…)`.
+- ADR-0015. Contentless FTS5 + `lui_<name>` without text; 30 integration tests; `SchemaGoldenTests` pins the Owned schema.
+- Measured: sync of 200 k rows 3.5–3.9 s, query p95 1.11–1.17 ms (owned 1.25–1.33), refresh p95 0.51–0.58 ms.
+- Done from the review of PR #14: S3, N2, N3, N6.
+
 ## 2026-11-03 — PR-005b: seams for Linked (issue #13)
 
 - ADR-0014: the kind as rules (one place, an architecture test forbids kind comparisons elsewhere), the content source as

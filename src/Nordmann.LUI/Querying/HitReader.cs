@@ -101,7 +101,7 @@ internal sealed class HitReader<TKey, TPayload>(ContentSource source, PayloadRea
             return sql;
         }
 
-        sql = source.HitsSql(string.Join(',', Enumerable.Range(0, count).Select(ParameterName)));
+        sql = source.HitsSql(string.Join(',', Enumerable.Range(0, count).Select(ParameterName)), payload.Columns);
         _hitsSql[count] = sql;
         return sql;
     }

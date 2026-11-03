@@ -21,7 +21,11 @@ internal sealed class SingleWordRules : IndexKindRules
     // s_norm without its '#': the hash is not part of the word (§9.1). lower() folds ASCII only (§6.2).
     internal override string PrefixSource => "replace(s_norm, '#', '')";
 
-    internal override string CompactColumn => string.Empty;
+    internal override string? CompactColumnDefinition => null;
+
+    internal override string IndexedValue(string searchForm) => searchForm;
+
+    internal override string PrefixValue(string searchForm) => $"replace({searchForm}, '#', '')";
 
     // the search index reads s_norm
     internal override string NormStorage => "STORED";

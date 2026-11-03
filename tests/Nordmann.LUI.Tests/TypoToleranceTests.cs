@@ -86,7 +86,7 @@ public sealed class TypoToleranceTests
         // §6.3: „muller" is not „mueller" in the index, and one edit away from it
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("people").MultiWord().Owned<long>().TypoTolerance().Ensure();
+        var index = catalog.Index("people").MultiWord().TypoTolerance().Ensure();
         index.Upsert(1, "Anna Müller", 10);
         index.Upsert(2, "Hans Schmidt", 20);
 
@@ -102,7 +102,7 @@ public sealed class TypoToleranceTests
         // „apflekuchen" has a hit in the middle of another word — 34 % of the typos do (§10.2)
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().Owned<long>().TypoTolerance().Ensure();
+        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
         index.Upsert(1, "Apfelkuchen", 10);
         index.Upsert(2, "Teigapflekuchen", 20);
 
@@ -119,7 +119,7 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("words").SingleWord().Ensure();
         index.Upsert(1, "Apfelkuchen", 10);
 
         var off = index.Query("apflekuchen").Execute();
@@ -173,7 +173,7 @@ public sealed class TypoToleranceTests
         // apfel and kuchen, and no word apfelkuchen
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("titles").MultiWord().Owned<long>().TypoTolerance().Ensure();
+        var index = catalog.Index("titles").MultiWord().TypoTolerance().Ensure();
         index.Upsert(1, "Apfel Kuchen", 10);
 
         var together = index.Query("apflekuchen").Execute();
@@ -202,7 +202,7 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().Owned<long>().TypoTolerance().Ensure();
+        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
         index.Upsert(1, "Donaudampfschifffahrtsgesellschaft", 10);
 
         var result = index.Query("donaudampgschifffahrtsgesellschaft").Execute();
@@ -250,7 +250,7 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().Owned<long>().TypoTolerance().TypoTolerance(false).Ensure();
+        var index = catalog.Index("words").SingleWord().TypoTolerance().TypoTolerance(false).Ensure();
         index.Upsert(1, "Apfelkuchen", 10);
 
         index.Query("apflekuchen").Execute().CorrectedQuery.ShouldBeNull();
@@ -261,9 +261,9 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("words").SingleWord().Owned<long>().TypoTolerance().Ensure();
+        catalog.Index("words").SingleWord().TypoTolerance().Ensure();
 
-        Should.NotThrow(() => catalog.Index("words").SingleWord().Owned<long>().Ensure());
+        Should.NotThrow(() => catalog.Index("words").SingleWord().Ensure());
     }
 
     [Fact]
@@ -271,7 +271,7 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().TypoTolerance().Ensure();
+        var index = catalog.Index("tags").SingleWord().TypoTolerance().Ensure();
         index.Upsert(1, "vegan", 0, priority: LuiPriority.System);
         index.Upsert(2, "veganer kuchen", 900);
 
@@ -331,7 +331,7 @@ public sealed class TypoToleranceTests
     private static Fixture Recipes(TestDatabase database)
     {
         var catalog = database.Open();
-        var index = catalog.Index("recipes").MultiWord().Owned<long>().TypoTolerance().Ensure();
+        var index = catalog.Index("recipes").MultiWord().TypoTolerance().Ensure();
         index.Upsert(1, "Apfelkuchen", 900);
         index.Upsert(2, "Gedeckter Apfelkuchen", 800);
         index.Upsert(3, "Apfel Kuchen", 700);

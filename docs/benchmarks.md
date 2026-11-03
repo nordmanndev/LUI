@@ -147,6 +147,30 @@ key and `UpdatePriority`:
 The median is a fifth of a millisecond at every size; the p95 is the FTS5
 segment merges that a write now and then triggers. **Missed at 1 M and 3 M.**
 
+### The linked index
+
+A `Linked` index over a table of the application ([ADR-0015](./adr/0015-the-linked-index-is-loosely-coupled.md)):
+a contentless FTS5 table and LUI's table without text; the text comes from the application's table by its primary
+key. Against an `Owned` index of the same entries, single-word, the whole word list:
+
+| | 200,000 rows | 1,000,000 rows |
+|---|---:|---:|
+| `Sync` of the table | 3.5–3.9 s | 26.7 s |
+| `UpsertMany` of the same entries into `Owned` | 8.2 s | 50.8 s |
+| query p50 / p95, linked | 0.52 / 1.11–1.17 ms | 1.10 / 3.43 ms |
+| query p50 / p95, owned | 0.59–0.61 / 1.25–1.33 ms | 1.41 / 4.72 ms |
+| `Refresh` of one row, p50 / p95 | 0.31–0.33 / 0.51–0.58 ms | 0.94 / 1.67 ms |
+| size of the index (spike) | 36 MB (owned: 45 MB) | — |
+
+`Sync` writes the search index sorted and merges it; `UpsertMany` builds it row by row and does not merge — the
+difference is the bulk path of ADR-0010, not the source. Many single refreshes leave deletion marks: p95 1.78 ms
+after 3,000 changes at 200,000 rows, 0.82 ms after `Optimize()`.
+
+```text
+LUI_PERF=1 dotnet test -c Release --filter LinkedPerformance --logger "console;verbosity=detailed"
+LUI_PERF=1 dotnet test -c Release --filter LinkedLayoutExperiment --logger "console;verbosity=detailed"
+```
+
 ### The batch
 
 `UpsertMany` ([ADR-0013](./adr/0013-the-api-shape-before-the-first-release.md)) against a loop of single `Upsert`s,

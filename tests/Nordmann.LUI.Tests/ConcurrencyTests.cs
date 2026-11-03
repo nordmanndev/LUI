@@ -13,7 +13,7 @@ public sealed class ConcurrencyTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("tags").SingleWord().Ensure();
         for (var i = 0; i < 2_000; i++)
         {
             index.Upsert(i, $"kuchen{i}", i);

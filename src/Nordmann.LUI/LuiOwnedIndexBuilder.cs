@@ -6,11 +6,12 @@ using Nordmann.LUI.Normalization;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// The last step of describing an index whose content lives in a table of the
-/// library (LUI-Spezifikation §12.2). Every method is optional and returns a builder;
-/// <see cref="Ensure"/> finishes it.
+/// Describes an index whose content lives in a table of the library, <c>lui_&lt;name&gt;</c> — <c>Owned</c>, the
+/// default (LUI-Spezifikation §5, §12.2): the application writes through the index. Every method is optional and
+/// returns a builder; <see cref="Ensure"/> finishes it. An index over a table of the application starts here too,
+/// with <c>LinkTo(…)</c>, as long as no key and no payload are chosen.
 /// </summary>
-/// <typeparam name="TKey">The key of the application: <see cref="long"/> or <see cref="string"/>.</typeparam>
+/// <typeparam name="TKey">The key of the application: <see cref="long"/> (the default) or <see cref="string"/>.</typeparam>
 /// <typeparam name="TPayload">The payload that comes back with a hit; <see cref="LuiNoPayload"/> until <c>WithPayload</c>.</typeparam>
 public sealed class LuiOwnedIndexBuilder<TKey, TPayload>
 {
@@ -28,6 +29,43 @@ public sealed class LuiOwnedIndexBuilder<TKey, TPayload>
         _name = name;
         _kind = kind;
         _payload = payload;
+    }
+
+    /// <summary>The name of the index.</summary>
+    internal string Name => _name;
+
+    /// <summary>The kind of the index.</summary>
+    internal LuiIndexKind Kind => _kind;
+
+    /// <summary>The catalog of the index.</summary>
+    internal LuiCatalog Catalog => _catalog;
+
+    /// <summary>The similarity set so far, or <see langword="null"/> for the default of the kind.</summary>
+    internal ILuiSimilarity? SimilaritySetting => _similarity;
+
+    /// <summary>The transliteration set so far.</summary>
+    internal bool GermanTransliterationSetting => _germanTransliteration;
+
+    /// <summary>The typo tolerance set so far.</summary>
+    internal bool TypoToleranceSetting => _typoTolerance;
+
+    /// <summary>
+    /// The key of the application: <see cref="long"/> by default, <see cref="string"/> for anything else that names an
+    /// entry — a slug, a <see cref="Guid"/> as text, the text itself.
+    /// </summary>
+    /// <typeparam name="TNewKey"><see cref="long"/> or <see cref="string"/>.</typeparam>
+    /// <returns>A builder of an index with that key, with the settings made so far.</returns>
+    /// <exception cref="NotSupportedException"><typeparamref name="TNewKey"/> is neither <see cref="long"/> nor <see cref="string"/>.</exception>
+    public LuiOwnedIndexBuilder<TNewKey, TPayload> WithKey<TNewKey>()
+    {
+        // the key type is checked here, where it is chosen, not when the index is ensured
+        _ = KeyCodec<TNewKey>.KeyType;
+        return new LuiOwnedIndexBuilder<TNewKey, TPayload>(_catalog, _name, _kind, _payload)
+        {
+            _similarity = _similarity,
+            _germanTransliteration = _germanTransliteration,
+            _typoTolerance = _typoTolerance,
+        };
     }
 
     /// <summary>

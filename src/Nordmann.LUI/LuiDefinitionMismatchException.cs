@@ -17,7 +17,7 @@ public sealed class LuiDefinitionMismatchException : InvalidOperationException
             + $"  stored:    {stored}{Environment.NewLine}"
             + $"  requested: {requested}{Environment.NewLine}"
             + "An index is never rebuilt silently. Ask for the stored definition, "
-            + "or Drop() the index and ensure it again.")
+            + "or remove the index with LuiCatalog.DropIndex(name) and ensure it again.")
     {
         IndexName = indexName;
         Stored = stored;

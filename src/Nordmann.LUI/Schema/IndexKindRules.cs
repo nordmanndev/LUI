@@ -30,10 +30,20 @@ internal abstract class IndexKindRules
     internal abstract string PrefixSource { get; }
 
     /// <summary>
-    /// The definition of the compact column after <c>s_norm</c> — <c>,\n    s_compact TEXT GENERATED …</c> —,
-    /// or empty when the kind has none.
+    /// The definition of the compact column of a content table — <c>s_compact TEXT GENERATED …</c> —, or
+    /// <see langword="null"/> when the kind has none. The layout of the statement it goes into is the source's
+    /// (review of pull request 14, N3).
     /// </summary>
-    internal abstract string CompactColumn { get; }
+    internal abstract string? CompactColumnDefinition { get; }
+
+    /// <summary>
+    /// The value of <see cref="IndexedColumn"/> as an SQL expression over an expression of the search form — for a
+    /// source without generated columns (<c>Linked</c>, ADR-0015).
+    /// </summary>
+    internal abstract string IndexedValue(string searchForm);
+
+    /// <summary>The text the prefix columns take their first letters from, as an SQL expression over the search form.</summary>
+    internal abstract string PrefixValue(string searchForm);
 
     /// <summary>How <c>s_norm</c> is kept: <c>STORED</c> when the search index reads it, <c>VIRTUAL</c> otherwise.</summary>
     internal abstract string NormStorage { get; }

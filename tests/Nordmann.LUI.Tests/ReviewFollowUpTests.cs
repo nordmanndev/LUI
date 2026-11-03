@@ -16,7 +16,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("nums").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("nums").SingleWord().Ensure();
 
         Should.NotThrow(() => index.Upsert(1, "vegan", 5));
 
@@ -28,7 +28,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("nums").SingleWord().Owned<long>().WithPayload(new IntSerializer()).Ensure();
+        var index = catalog.Index("nums").SingleWord().WithPayload(new IntSerializer()).Ensure();
 
         index.Upsert(new(1, "vegan") { Weight = 5, Payload = 42 });
         index.Upsert(2, "vegane torte", 4);
@@ -46,7 +46,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        var index = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure();
         index.Upsert(new(1, "kirsche kuchen") { Weight = 10, Payload = new Chip("old1") });
         index.Upsert(new(2, "zitrone kuchen") { Weight = 5, Payload = new Chip("old2") });
 
@@ -79,7 +79,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("tags").SingleWord().Ensure();
         index.Upsert(1, "apfel", 10);
         index.Upsert(2, "#apfelkuchen", 20);
         index.Upsert(3, "birne", 30);
@@ -98,7 +98,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("tags").SingleWord().Ensure();
         index.Upsert(1, "😀party", 5);
         index.Upsert(2, "😀smile", 3);
 
@@ -114,7 +114,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        var index = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure();
         index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan") });
 
         index.Upsert(1, "vegan", 5);
@@ -136,7 +136,7 @@ public sealed class ReviewFollowUpTests
         }
 
         using var catalog = database.Open(new LuiCatalogOptions { WriteAheadLog = false });
-        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("tags").SingleWord().Ensure();
         index.Upsert(1, "vegan", 5);
 
         database.Scalar<string>("PRAGMA journal_mode").ShouldBe("delete");
@@ -167,7 +167,7 @@ public sealed class ReviewFollowUpTests
         using var database = new TestDatabase();
         using var other = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("tags").SingleWord().Ensure();
 
         using var connection = other.Connect();
         using var transaction = connection.BeginTransaction();
@@ -197,7 +197,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("tags").SingleWord().Ensure();
         using (var connection = database.Connect())
         {
             using var command = connection.CreateCommand();
@@ -217,7 +217,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        var index = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure();
         index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("v") });
         index.Upsert(new(2, "vegane torte") { Weight = 4, Payload = new Chip("t") });
         var before = SearchIndexFingerprint(database);
@@ -235,7 +235,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        var index = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure();
         index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("v") });
         var before = SearchIndexFingerprint(database);
 
@@ -252,7 +252,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("tags").SingleWord().Ensure();
         index.Upsert(1, "vegan", 5);
         var before = SearchIndexFingerprint(database);
 
@@ -278,7 +278,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("tags").SingleWord().Ensure();
         using (var connection = database.Connect())
         {
             using var transaction = connection.BeginTransaction();

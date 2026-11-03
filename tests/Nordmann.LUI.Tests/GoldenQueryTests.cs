@@ -13,7 +13,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("rezepte").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("rezepte").SingleWord().Ensure();
         index.Upsert(1, "Apfelkuchen", 900);
         index.Upsert(2, "Gedeckter Apfelkuchen", 800);
         index.Upsert(3, "Apfelkuchen mit Sahne", 400);
@@ -33,7 +33,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("rezepte").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("rezepte").SingleWord().Ensure();
         index.Upsert(1, "Apfelkuchen", 900);
         index.Upsert(2, "Gedeckter Apfelkuchen", 800);
         index.Upsert(3, "Bratapfelkuchen", 9_000);
@@ -54,7 +54,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("rezepte").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("rezepte").SingleWord().Ensure();
         index.Upsert(1, "Gedeckter Apfelkuchen mit Äpfeln", 10);
         index.Upsert(2, "Gedeckter Apfelkuchen", 20);
 
@@ -68,7 +68,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("orte").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("orte").SingleWord().Ensure();
         index.Upsert(1, "Hauptstraße", 10);
         index.Upsert(2, "Hauptstrasse", 5);
 
@@ -80,7 +80,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("rezepte").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("rezepte").SingleWord().Ensure();
         index.Upsert(1, "Apfelkuchen", 300);
         index.Upsert(2, "Ananas-Torte", 700);
         index.Upsert(3, "Aprikosenkuchen", 500);
@@ -95,7 +95,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("tags").SingleWord().Ensure();
         LoadTagCorpus(database, index);
 
         foreach (var input in new[] { "gan", "veg", "vega", "vegan" })
@@ -121,7 +121,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        var index = catalog.Index("tags").SingleWord().Ensure();
         index.Upsert(1, "vegan", 0, priority: LuiPriority.System);
         index.Upsert(2, "Vegan", 800_000);
         index.Upsert(3, "vegane torte", 700_000);

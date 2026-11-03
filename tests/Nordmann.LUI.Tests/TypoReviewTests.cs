@@ -123,7 +123,7 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().Owned<long>().TypoTolerance().Ensure();
+        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
         for (var i = 1; i <= 10; i++)
         {
             index.Upsert(i, $"Teigapfle{i:00}", 1_000);
@@ -145,7 +145,7 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("titles").MultiWord().Owned<long>().TypoTolerance().Ensure();
+        var index = catalog.Index("titles").MultiWord().TypoTolerance().Ensure();
         index.Upsert(1, "Bratapfle Apfel", 10);
 
         var plain = index.Query("apfle").Execute();
@@ -162,7 +162,7 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("titles").SingleWord().Owned<long>().TypoTolerance().Ensure();
+        var index = catalog.Index("titles").SingleWord().TypoTolerance().Ensure();
         index.Upsert(1, "Teigapfle", 10);
         index.Upsert(2, "teigapfle", 20);
         index.Upsert(3, "Apfelkuchen", 5);
@@ -180,11 +180,11 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var reader = catalog.Index("words").SingleWord().Owned<long>().TypoTolerance().Ensure();
+        var reader = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
         reader.Upsert(1, "Apfelkuchen", 10);
         reader.Query("apflekuchen").Execute();   // reader builds the dictionary
 
-        var importer = catalog.Index("words").SingleWord().Owned<long>().Ensure();
+        var importer = catalog.Index("words").SingleWord().Ensure();
         importer.Upsert(2, "Zwetschge", 5);
 
         var result = reader.Query("zwetchge").Execute();
@@ -197,12 +197,12 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var first = catalog.Index("words").SingleWord().Owned<long>().TypoTolerance().Ensure();
+        var first = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
         first.Upsert(1, "Apfelkuchen", 10);
         first.Query("apflekuchen").Execute().CorrectedQuery.ShouldBe("apfelkuchen");
 
         catalog.DropIndex("words");
-        var second = catalog.Index("words").SingleWord().Owned<long>().TypoTolerance().Ensure();
+        var second = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
         second.Upsert(1, "Birnentorte", 10);
 
         var result = second.Query("apflekuchen").Execute();
@@ -217,7 +217,7 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().Owned<long>().TypoTolerance().Ensure();
+        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
         index.Upsert(1, "Apfelkuchen", 10);
 
         using var cancelled = new CancellationTokenSource();
@@ -237,8 +237,8 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var on = catalog.Index("a").SingleWord().Owned<long>().TypoTolerance().Ensure();
-        var off = catalog.Index("b").SingleWord().Owned<long>().TypoTolerance(true).TypoTolerance(false).Ensure();
+        var on = catalog.Index("a").SingleWord().TypoTolerance().Ensure();
+        var off = catalog.Index("b").SingleWord().TypoTolerance(true).TypoTolerance(false).Ensure();
         on.Upsert(1, "Apfelkuchen", 1);
         off.Upsert(1, "Apfelkuchen", 1);
 
