@@ -36,11 +36,12 @@ internal static class Identifier
             || name!.Contains("_fts", StringComparison.Ordinal)
             || name.EndsWith("_rowid", StringComparison.Ordinal)
             || name.EndsWith("_p1", StringComparison.Ordinal)
-            || name.EndsWith("_p2", StringComparison.Ordinal))
+            || name.EndsWith("_p2", StringComparison.Ordinal)
+            || name.EndsWith("_pending", StringComparison.Ordinal))
         {
             throw new ArgumentException(
                 $"'{name}' is reserved: 'meta' is the catalog, and a name that contains '_fts' or ends with "
-                + "'_rowid', '_p1' or '_p2' could collide with the tables and indexes LUI creates for another index.",
+                + "'_rowid', '_p1', '_p2' or '_pending' could collide with the tables and indexes LUI creates for another index.",
                 parameterName);
         }
 

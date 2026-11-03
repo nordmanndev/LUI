@@ -294,8 +294,9 @@ Spalte der Anwendung abbilden (`GENERATED ALWAYS AS (CASE WHEN is_system THEN 0 
 |---|---|
 | `Sync()` | Erstaufbau und Reparatur: liest die ganze Tabelle, schreibt den Suchindex in Rowid-Reihenfolge, führt am Ende zusammen; eine Transaktion der Bibliothek |
 | `Refresh(id, transaction?)`, `RefreshMany(ids, transaction?)` | nach eigenen Schreibvorgängen; liest die Zeile selbst, eine fehlende Zeile verlässt den Index. Die Transaktion ist optional: ohne sie eine eigene, mit ihr gehört beides zur Transaktion der Anwendung |
-| `TriggerScript()` | das SQL dreier Trigger für die eigene Migration der Anwendung — ändert nichts |
-| `CreateTriggers()` / `DropTriggers()` | legt die Trigger an bzw. entfernt sie, nur auf Aufruf. **Achtung:** Mit Triggern braucht jedes Programm, das die Tabelle schreibt, SQLite ≥ 3.43 mit FTS5 und Trigram-Tokenizer; ein älteres scheitert am Schreibvorgang |
+| `TriggerScript()` | das SQL dreier Trigger für die eigene Migration der Anwendung — ändert nichts. Die Trigger **notieren nur den Schlüssel** einer geänderten Zeile in `lui_<index>_pending` (reines SQL, kein FTS, keine Normalisierung): Jedes Programm mit jedem SQLite kann die Tabelle weiter schreiben, und ein Schreibvorgang der Anwendung scheitert nie am Index |
+| `CreateTriggers()` / `DropTriggers()` | legt die Trigger an bzw. entfernt sie, nur auf Aufruf |
+| `ApplyPending()`, `Pending()` | bringt die notierten Zeilen in den Index (in Stapeln, auf der geprüften Verbindung der Bibliothek) bzw. zählt sie. Eine Abfrage wendet sie **nicht** an — der Index ist so aktuell wie das letzte `ApplyPending()` |
 | `Triggers()` | `None`, `Current` oder `Stale` (nach einem Update von LUI oder einer Änderung der Tabelle neu anlegen) |
 | `Optimize()` | führt die Segmente zusammen; viele einzelne `Refresh` hinterlassen Löschmarken |
 
@@ -720,6 +721,7 @@ tags.Sync();                                       // alles aus der Tabelle
 
 string sql = tags.TriggerScript();                 // oder Trigger — für die eigene Migration
 tags.CreateTriggers();                             // … oder direkt, nur auf Aufruf
+tags.ApplyPending();                               // die notierten Zeilen in den Index bringen
 ```
 
 ### 12.5 Abfragen (fluent)

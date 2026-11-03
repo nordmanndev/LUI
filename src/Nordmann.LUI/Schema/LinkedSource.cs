@@ -35,6 +35,7 @@ internal sealed class LinkedSource : ContentSource
         ContentTable = Identifier.Quote(Link.Table);
         FtsTable = Fts(indexName);
         EntryTable = Entries(indexName);
+        PendingTable = Pending(indexName);
         _key = $"h.{Identifier.Quote(Link.Key)}";
         _text = $"h.{Identifier.Quote(Link.Text)}";
 
@@ -68,6 +69,21 @@ internal sealed class LinkedSource : ContentSource
     /// <summary>The table of LUI: <c>(doc_id, s_rowid, s_p1, s_p2)</c>, no text.</summary>
     internal string EntryTable { get; }
 
+    /// <summary>
+    /// The outbox of the triggers: the keys of the rows that changed since the index was last brought in step —
+    /// <c>(doc_id)</c>, plain SQL, no check, so that any SQLite can write it (review of pull request 16, M1).
+    /// </summary>
+    internal string PendingTable { get; }
+
+    /// <summary>The next keys of the outbox, the smallest first, at most <c>$n</c>.</summary>
+    internal string PendingBatchSql => $"SELECT doc_id FROM {PendingTable} ORDER BY doc_id LIMIT $n;";
+
+    /// <summary>Takes <c>$id</c> out of the outbox: its entry is in step with its row.</summary>
+    internal string ForgetPendingSql => $"DELETE FROM {PendingTable} WHERE doc_id = $id;";
+
+    /// <summary>The number of keys in the outbox.</summary>
+    internal string PendingCountSql => $"SELECT count(*) FROM {PendingTable};";
+
     internal override string CandidateSql { get; }
 
     internal override string CountSql { get; }
@@ -84,7 +100,8 @@ internal sealed class LinkedSource : ContentSource
         + $"coalesce(sum(CASE WHEN ({HasText}) AND NOT ({KeyInRange}) THEN 1 ELSE 0 END), 0) FROM {ContentTable} h;";
 
     /// <summary>Clears the index before a <see cref="SyncChunkSql"/> fills it anew.</summary>
-    internal string ClearSql => $"DELETE FROM {EntryTable}; INSERT INTO {FtsTable}({FtsTable}) VALUES ('delete-all');";
+    internal string ClearSql =>
+        $"DELETE FROM {EntryTable}; INSERT INTO {FtsTable}({FtsTable}) VALUES ('delete-all'); DELETE FROM {PendingTable};";
 
     /// <summary>The key that ends the next chunk of a sync: the <c>$size</c>-th key after <c>$from</c>, or none.</summary>
     internal string ChunkEndSql =>
@@ -115,6 +132,7 @@ internal sealed class LinkedSource : ContentSource
         """,
         $"CREATE INDEX {EntryTable}_p1 ON {EntryTable}(s_p1, s_rowid);",
         $"CREATE INDEX {EntryTable}_p2 ON {EntryTable}(s_p2, s_rowid);",
+        $"CREATE TABLE {PendingTable} (doc_id INTEGER PRIMARY KEY);",
         $"""
         CREATE VIRTUAL TABLE {FtsTable} USING fts5(
             {Rules.IndexedColumn},
@@ -135,8 +153,10 @@ internal sealed class LinkedSource : ContentSource
     internal string RefreshSql(string id) => RemoveSql(id) + " " + Insert($"{_key} = {id}", $"s.doc_id = {id}");
 
     /// <summary>
-    /// The three triggers that keep the index in step with the table — for the application's own migration, or
-    /// for <c>CreateTriggers()</c>. LUI creates them only when it is asked to (ADR-0015).
+    /// The three triggers that note the changed rows of the table in the outbox — for the application's own
+    /// migration, or for <c>CreateTriggers()</c>. LUI creates them only when it is asked to (ADR-0015). They are plain
+    /// SQL: any SQLite writes the table with them, and the index itself is written by <c>ApplyPending()</c> on LUI's
+    /// checked connection.
     /// </summary>
     internal string TriggerScript() =>
         string.Join(Environment.NewLine, TriggerStatements().Select(trigger => trigger.Sql + ";"));
@@ -154,9 +174,9 @@ internal sealed class LinkedSource : ContentSource
 
         return
         [
-            (inserted, $"CREATE TRIGGER {inserted} AFTER INSERT ON {table} BEGIN {RefreshSql($"new.{key}")} END"),
-            (updated, $"CREATE TRIGGER {updated} AFTER UPDATE OF {columns} ON {table} BEGIN {RemoveSql($"old.{key}")} {RefreshSql($"new.{key}")} END"),
-            (deleted, $"CREATE TRIGGER {deleted} AFTER DELETE ON {table} BEGIN {RemoveSql($"old.{key}")} END"),
+            (inserted, $"CREATE TRIGGER {inserted} AFTER INSERT ON {table} BEGIN {Note($"new.{key}")} END"),
+            (updated, $"CREATE TRIGGER {updated} AFTER UPDATE OF {columns} ON {table} BEGIN {Note($"old.{key}")} {Note($"new.{key}")} END"),
+            (deleted, $"CREATE TRIGGER {deleted} AFTER DELETE ON {table} BEGIN {Note($"old.{key}")} END"),
         ];
     }
 
@@ -184,11 +204,17 @@ internal sealed class LinkedSource : ContentSource
     internal static IReadOnlyList<string> Drop(string indexName) =>
     [
         DropTriggersSql(indexName),
+        $"DROP TABLE IF EXISTS {Pending(indexName)};",
         $"DROP TABLE IF EXISTS {Fts(indexName)};",
         $"DROP TABLE IF EXISTS {Entries(indexName)};",
     ];
 
     private static string Entries(string indexName) => $"lui_{indexName}";
+
+    private static string Pending(string indexName) => $"lui_{indexName}_pending";
+
+    /// <summary>What a trigger does: it notes the key in the outbox — nothing else, no FTS, no normalisation.</summary>
+    private string Note(string id) => $"INSERT OR IGNORE INTO {PendingTable}(doc_id) VALUES ({id});";
 
     private static string Fts(string indexName) => $"lui_{indexName}_fts";
 

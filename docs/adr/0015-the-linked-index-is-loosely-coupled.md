@@ -38,8 +38,9 @@ primary key. The query path is the one of ADR-0014; `LinkedSource` is the second
 |---|---|
 | `Sync()` | the whole table, in one transaction of LUI's: clears the index, fills it in chunks of 10,000 keys (the cancellation is checked between them), the search index in the order of the rowid, merges it at the end |
 | `Refresh(key, transaction = null)`, `RefreshMany(keys, transaction = null)` | after the application's own writes: LUI reads the row, a missing row or one without text leaves the index. Without a transaction LUI opens its own; with the application's, both belong to it |
-| `TriggerScript()` | the SQL of three triggers (insert, update of the watched columns, delete) for the application's own migration — nothing is changed by asking |
+| `TriggerScript()` | the SQL of three triggers (insert, update of the watched columns, delete) for the application's own migration — nothing is changed by asking. The triggers **only note the key** of a changed row in an outbox, `lui_<name>_pending(doc_id)` |
 | `CreateTriggers()`, `DropTriggers()` | create and remove them, only on a call |
+| `ApplyPending()`, `Pending()` | bring the noted rows into the index — in batches of 1,000, each in a transaction of LUI's, on its checked connection — and count them. A query never applies them: a read stays a read |
 | `Optimize()` | merges the segments; many single refreshes leave deletion marks a query steps over |
 
 `DropIndex` removes LUI's tables, never the application's table or its rows; it decides by the stored source, and refuses
@@ -104,12 +105,17 @@ gives — the bulk path for `Owned` stays in PR-007.
 
 ## Consequences
 
-- **Triggers bind every writer of the table to what LUI needs** (review of pull request 16, M1, reproduced with SQLite
-  3.40.1): they write the contentless FTS5 table with the trigram tokenizer, so any program that writes the table — an
-  admin script, a database browser, an import job — needs SQLite 3.43 or newer with FTS5; an older one fails the write,
-  and the failing trigger rolls back the application's write. The normalisation runs on the writer's SQLite. Without
-  triggers the table stays a plain table. The XML documentation of `CreateTriggers` says so. An outbox — triggers that
-  only note the key in a plain table, and LUI applies them on its own, checked connection — is the owner's decision.
+- **The triggers are an outbox** (review of pull request 16, M1; owner's decision). The first version wrote the
+  contentless FTS5 table in the trigger; the review showed with SQLite 3.40.1 that every program writing the table then
+  needs SQLite ≥ 3.43 with FTS5 — an older one failed the application's own write — and that the normalisation ran on
+  the writer's SQLite, never checked by `FoldProbe`. Now a trigger is one `INSERT OR IGNORE` of a key into a plain table:
+  any SQLite writes the table, a key out of range is noted and later left out, and the forms are computed only by LUI,
+  on its checked connection, in `ApplyPending()`. The price is the consistency: with triggers the index is as current as
+  the last `ApplyPending()` — not as the write. A hosted service that applies them on a timer comes with the dependency
+  injection (PR-008). Verified: the trigger script holds no FTS5 and no normalisation (a test); a second SQLite (Python's
+  3.45.1, not the one LUI bundles) writes, changes and deletes through the triggers. A SQLite below 3.43 could not be
+  built in this environment (sqlite.org is not reachable), so that the old version writes is argued from the script,
+  not measured.
 - **A sync is one write transaction** (S2): other writers of the file wait up to their busy timeout — a million rows take
   about half a minute, so a writer with a shorter timeout gets `SQLITE_BUSY`. A shadow build in chunks with a short swap
   belongs to PR-007, measured first.
@@ -122,7 +128,7 @@ gives — the bulk path for `Owned` stays in PR-007.
   with `WithKey<string>()`.
 - `Check()` for `Linked` comes with PR-007, as for `Owned`.
 
-**Verified by:** `tests/Nordmann.LUI.Tests/LinkedIndexTests.cs` (40 tests; from the review of pull request 16: a key out of
+**Verified by:** `tests/Nordmann.LUI.Tests/LinkedIndexTests.cs` (43 tests; from the review of pull request 16: the outbox — noted, applied, out of the outbox after a refresh and a sync, more than one batch, a script without FTS5 —, a key out of
 range in a sync and through a trigger, a drop refused with triggers and done with `dropTriggers`, the trigger states, a
 stale text in a single- and a multi-word index, a renamed column, a key twice in a refresh, a transaction of another
 database, a payload column named twice, `INTEGER PRIMARY KEY DESC`; and before: the schema of the application's table

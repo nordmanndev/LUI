@@ -52,22 +52,34 @@ public interface ILuiLinkedIndex<TPayload> : ILuiIndex<long, TPayload>
     void Optimize();
 
     /// <summary>
-    /// The SQL of three triggers on the application's table that keep the index in step with it — for the application's
-    /// own migration. Nothing is changed by asking for it. Read <see cref="CreateTriggers"/> for what they cost.
+    /// Brings the rows the triggers noted in step with the index — in batches of a thousand, each in a transaction of
+    /// LUI's own, on its checked connection. The triggers only note the key of a changed row (<see cref="CreateTriggers"/>);
+    /// until this runs, the index answers as before the change — a query never applies them, a read stays a read.
+    /// Call it after a burst of writes, on a timer, or before a query that has to see them.
+    /// </summary>
+    /// <param name="cancellationToken">Checked between the rows; the batch that is running is rolled back.</param>
+    /// <returns>How many noted rows were brought in step.</returns>
+    int ApplyPending(CancellationToken cancellationToken = default);
+
+    /// <summary>How many rows the triggers noted that <see cref="ApplyPending"/> has not brought in step yet.</summary>
+    /// <returns>The number of keys in the outbox.</returns>
+    long Pending();
+
+    /// <summary>
+    /// The SQL of three triggers on the application's table that note every changed row for the index — for the
+    /// application's own migration. Nothing is changed by asking for it.
     /// </summary>
     /// <returns>The <c>CREATE TRIGGER</c> statements.</returns>
     string TriggerScript();
 
     /// <summary>
-    /// Creates the triggers of <see cref="TriggerScript"/> on the application's table — only when it is called. They make
-    /// every write to the table, by any code, a write to the index in the same transaction.
+    /// Creates the triggers of <see cref="TriggerScript"/> on the application's table — only when it is called. They note
+    /// the key of every row that any code inserts, changes or deletes, in a plain table of LUI's (an outbox), in the same
+    /// transaction as the write; <see cref="ApplyPending"/> brings those rows into the index.
     /// <para>
-    /// <b>They bind every writer of the table to what LUI needs</b> (review of pull request 16, M1): the triggers write
-    /// the contentless FTS5 table with the trigram tokenizer, so <i>any</i> program that inserts, changes or deletes a
-    /// row — an admin script, a database browser, an import job in another language — needs SQLite 3.43 or newer with
-    /// FTS5 and the trigram tokenizer; an older SQLite fails the write, and a failing trigger rolls back the write of the
-    /// application. The normalisation runs on the writer's SQLite. Without triggers none of this applies: the table
-    /// stays a plain table, and the index follows <see cref="Refresh"/> and <see cref="Sync"/>.
+    /// The triggers are plain SQL — an <c>INSERT OR IGNORE</c> of a key, no FTS5, no normalisation, no check — so every
+    /// program that writes the table, with any SQLite, still can, and a write of the application never fails because of
+    /// the index (review of pull request 16, M1). The price: the index is as current as the last <c>ApplyPending</c>.
     /// </para>
     /// </summary>
     void CreateTriggers();

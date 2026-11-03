@@ -17,6 +17,9 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
     /// <summary>The rows a sync indexes per statement: the cancellation is checked between chunks.</summary>
     internal const int SyncChunk = 10_000;
 
+    /// <summary>The keys of the outbox that <c>ApplyPending</c> brings in step per transaction.</summary>
+    internal const int PendingBatch = 1_000;
+
     /// <summary><c>SQLITE_ERROR</c>: among others, a table or a column that is not there.</summary>
     private const int SqliteError = 1;
 
@@ -127,34 +130,84 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         List<(string Text, int Weight)> learned,
         CancellationToken cancellationToken)
     {
+        using var refresher = new Refresher(connection, inTransaction, _source);
+        foreach (var key in keys)
         {
-            using var read = Command(connection, inTransaction, _source.ReadRowSql);
-            using var refresh = Command(connection, inTransaction, _source.RefreshSql("$id"));
-            var id = read.Parameters.Add("$id", SqliteType.Integer);
-            var refreshed = refresh.Parameters.Add("$id", SqliteType.Integer);
-
-            foreach (var key in keys)
+            cancellationToken.ThrowIfCancellationRequested();
+            if (key is < 0 or > RowId.MaxDocId)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (key is < 0 or > RowId.MaxDocId)
-                {
-                    throw new ArgumentOutOfRangeException(
-                        nameof(keys), key, $"The key of a linked index is its document id: 0 … {RowId.MaxDocId:N0}.");
-                }
+                throw new ArgumentOutOfRangeException(
+                    nameof(keys), key, $"The key of a linked index is its document id: 0 … {RowId.MaxDocId:N0}.");
+            }
 
-                id.Value = key;
-                using (var reader = read.ExecuteReader())
-                {
-                    if (reader.Read())
-                    {
-                        learned.Add((reader.GetString(0), reader.GetInt32(1)));
-                    }
-                }
+            refresher.Refresh(key, learned);
+        }
+    }
 
-                refreshed.Value = key;
-                refresh.ExecuteNonQuery();
+    public int ApplyPending(CancellationToken cancellationToken = default)
+    {
+        using var scope = _catalog.Begin();
+        var applied = 0;
+        var learned = new List<(string Text, int Weight)>();
+        while (true)
+        {
+            var batch = 0;
+            Guarded(() => Write(null, (connection, transaction) => batch = ApplyBatch(connection, transaction, learned, cancellationToken)));
+
+            // a batch is committed: its words join the typo dictionary, if it is built
+            _typos.AddRange(learned);
+            learned.Clear();
+            applied += batch;
+
+            if (batch < PendingBatch)
+            {
+                return applied;
             }
         }
+    }
+
+    public long Pending()
+    {
+        using var scope = _catalog.Begin();
+        using var connection = _catalog.OpenConnection();
+        return Guarded(() => Scalar(connection, null, _source.PendingCountSql));
+    }
+
+    /// <summary>Brings up to <see cref="PendingBatch"/> keys of the outbox in step, the smallest first, and takes them out.</summary>
+    private int ApplyBatch(
+        SqliteConnection connection,
+        SqliteTransaction transaction,
+        List<(string Text, int Weight)> learned,
+        CancellationToken cancellationToken)
+    {
+        var keys = new List<long>(PendingBatch);
+        using (var next = Command(connection, transaction, _source.PendingBatchSql))
+        {
+            next.Parameters.AddWithValue("$n", PendingBatch);
+            using var reader = next.ExecuteReader();
+            while (reader.Read())
+            {
+                keys.Add(reader.GetInt64(0));
+            }
+        }
+
+        using var refresher = new Refresher(connection, transaction, _source);
+        foreach (var key in keys)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            // a key that cannot be a document id is not indexed — it only leaves the outbox (M2)
+            if (key is < 0 or > RowId.MaxDocId)
+            {
+                refresher.Forget(key);
+            }
+            else
+            {
+                refresher.Refresh(key, learned);
+            }
+        }
+
+        return keys.Count;
     }
 
     public LuiSyncResult Sync(CancellationToken cancellationToken = default)
@@ -336,5 +389,58 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         command.Transaction = transaction;
         command.CommandText = sql;
         return (long)command.ExecuteScalar()!;
+    }
+
+    /// <summary>
+    /// The statements of a refresh, prepared once for a batch: read the row (for the typo dictionary), bring its entry in
+    /// step, and take its key out of the outbox — it is current now.
+    /// </summary>
+    private sealed class Refresher : IDisposable
+    {
+        private readonly SqliteCommand _read;
+        private readonly SqliteCommand _refresh;
+        private readonly SqliteCommand _forget;
+        private readonly SqliteParameter _readKey;
+        private readonly SqliteParameter _refreshKey;
+        private readonly SqliteParameter _forgetKey;
+
+        internal Refresher(SqliteConnection connection, SqliteTransaction transaction, LinkedSource source)
+        {
+            _read = Command(connection, transaction, source.ReadRowSql);
+            _refresh = Command(connection, transaction, source.RefreshSql("$id"));
+            _forget = Command(connection, transaction, source.ForgetPendingSql);
+            _readKey = _read.Parameters.Add("$id", SqliteType.Integer);
+            _refreshKey = _refresh.Parameters.Add("$id", SqliteType.Integer);
+            _forgetKey = _forget.Parameters.Add("$id", SqliteType.Integer);
+        }
+
+        internal void Refresh(long key, List<(string Text, int Weight)> learned)
+        {
+            _readKey.Value = key;
+            using (var reader = _read.ExecuteReader())
+            {
+                if (reader.Read())
+                {
+                    learned.Add((reader.GetString(0), reader.GetInt32(1)));
+                }
+            }
+
+            _refreshKey.Value = key;
+            _refresh.ExecuteNonQuery();
+            Forget(key);
+        }
+
+        internal void Forget(long key)
+        {
+            _forgetKey.Value = key;
+            _forget.ExecuteNonQuery();
+        }
+
+        public void Dispose()
+        {
+            _read.Dispose();
+            _refresh.Dispose();
+            _forget.Dispose();
+        }
     }
 }
