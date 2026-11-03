@@ -45,18 +45,7 @@ public sealed class LuiServicesBuilder
         _registrations.Add(new IndexRegistration(
             name,
             Ensure: provider => provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name),
-            WarmUp: (provider, token) =>
-            {
-                // only an index that asked for typo tolerance: the dictionary of another one would cost memory for nothing
-                var built = provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name);
-                if (!built.TypoTolerance)
-                {
-                    return false;
-                }
-
-                built.WarmUpTypoDictionary(token);
-                return true;
-            },
+            WarmUp: (provider, token) => WarmUp(provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name), token),
             ApplyPending: null,
             ApplyPendingEvery: null));
 
@@ -100,18 +89,7 @@ public sealed class LuiServicesBuilder
         _registrations.Add(new IndexRegistration(
             name,
             Ensure: provider => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name),
-            WarmUp: (provider, token) =>
-            {
-                // only an index that asked for typo tolerance: the dictionary of another one would cost memory for nothing
-                var built = provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name);
-                if (!built.TypoTolerance)
-                {
-                    return false;
-                }
-
-                built.WarmUpTypoDictionary(token);
-                return true;
-            },
+            WarmUp: (provider, token) => WarmUp(provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name), token),
             ApplyPending: (provider, token) => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name).ApplyPending(token),
             ApplyPendingEvery: applyPendingEvery));
 
@@ -125,6 +103,11 @@ public sealed class LuiServicesBuilder
     /// <summary>
     /// Whether every index is ensured when the host starts (default: on). Off, an index is ensured when it is first
     /// resolved — a definition that does not match then fails that request, not the start.
+    /// <para>
+    /// Hosted services start in the order of their registration, and <c>AddLui</c> registers this one: a hosted service
+    /// the application adds later — a migration that creates the table of a linked index — starts after it. Register the
+    /// migration before <c>AddLui</c>, run it before <c>host.Run()</c>, or switch this off.
+    /// </para>
     /// </summary>
     /// <param name="enabled">Whether the indexes are ensured on start.</param>
     /// <returns>The builder.</returns>
@@ -153,5 +136,21 @@ public sealed class LuiServicesBuilder
     {
         _registrations.WarmUpTypoDictionariesOnStart = enabled;
         return this;
+    }
+
+    /// <summary>
+    /// Builds the typo dictionary of an index that asked for typo tolerance; the dictionary of another one would cost
+    /// memory for nothing.
+    /// </summary>
+    /// <returns>Whether it was built.</returns>
+    private static bool WarmUp<TKey, TPayload>(ILuiIndex<TKey, TPayload> index, CancellationToken cancellationToken)
+    {
+        if (!index.TypoTolerance)
+        {
+            return false;
+        }
+
+        index.WarmUpTypoDictionary(cancellationToken);
+        return true;
     }
 }

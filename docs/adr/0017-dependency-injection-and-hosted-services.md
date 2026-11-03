@@ -60,6 +60,14 @@ front end marks the match; highlighting moves to a later version (issue #20).
   the rounds after it at debug level, and the round that succeeds again says how many failed (review of pull request 23,
   N3).
 - Both use the `TimeProvider` of the catalog's settings.
+- **Both resolve the catalog before they are built**, so the container disposes them before it: a host disposed without
+  a stop cancels the warm-up instead of waiting for it, and a round of the outbox that meets a disposed catalog ends the
+  loop quietly (review of `main` after pull request 23, findings 1 and 3). With it, the catalog is opened when the host
+  starts, also with `EnsureOnStart(false)`.
+- **The order of the hosted services is the order of their registration** (.NET). `LuiStartup` is registered by
+  `AddLui`, so it starts before a hosted service the application adds later — a migration that creates the table of a
+  linked index has to run before: register it before `AddLui`, run it before `host.Run()`, or switch the ensure on start
+  off (finding 2).
 
 **What the warm-up does not do** (review of pull request 23, S1). Queries **without** a correction do not wait for it. A
 query that **needs** a correction waits until the dictionary is built — it takes the same lock as the build — and its
@@ -93,7 +101,9 @@ correction took 2 ms, one with a correction 11.6 s; `StopAsync` in the middle of
 - An index ensured on start keeps its typo tolerance and similarity as described; they are not part of the definition, so
   the description in `AddIndex` is what every injected instance has.
 - `ApplyPending` on a timer makes a linked index with triggers as current as the interval; a health check asks `Pending()`.
-- The edge of F1 is hard: 500 outdated rows among the best of a budget of 500 still give hits, 1,001 give none. A count of
+- The edge of F1 is hard: 500 outdated rows among the best of a budget of 500 still give hits, **501** give none —
+  the read stops at the 501st (corrected after a review of `main`, finding 5; the reviewer of pull request 23 had
+  measured it so). A count of
   the outdated candidates in the result would let a health check see why; it is not built (review of pull request 23,
   N1) — `Pending()` is the value to watch.
 - The typo dictionary is still built anew at the end of a sync with changes (ADR-0016), and a correcting query waits for

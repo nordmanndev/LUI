@@ -50,6 +50,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   index only when asked. A candidate whose current text no longer matches is not a hit.
   200,000 rows: sync 3.5–3.9 s, query p95 1.11–1.17 ms, refresh p95 0.51–0.58 ms.
 
+### Fixed
+
+- A host disposed without a stop no longer waits for the warm-up of the typo dictionaries: the hosted services are
+  disposed before the catalog and cancel it; a round of `ApplyPending` that meets a disposed catalog ends quietly
+  instead of logging an error (#26).
+- `Truncated` is no longer set for a linked index when the only row after the budget is an outdated one (#26).
+
 ### Changed
 
 - A candidate of a linked index whose current text no longer matches does not count against the candidate budget any

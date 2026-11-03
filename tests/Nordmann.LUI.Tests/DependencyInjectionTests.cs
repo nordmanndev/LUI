@@ -50,6 +50,21 @@ public sealed class DependencyInjectionTests
     }
 
     [Fact]
+    public void A_migration_registered_before_AddLui_creates_the_linked_table_before_the_index_is_ensured()
+    {
+        // review of main after #23, finding 2: hosted services start in the order of their registration
+        using var database = new TestDatabase();
+        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        builder.Services.AddHostedService(_ => new Migration(database));
+        builder.Services.AddLui(database.ConnectionString).AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        using var host = builder.Build();
+
+        host.Start();
+
+        host.Services.GetRequiredKeyedService<ILuiLinkedIndex<LuiNoPayload>>("tags").Count().ShouldBe(0);
+    }
+
+    [Fact]
     public void Without_ensure_on_start_an_index_is_ensured_when_it_is_first_resolved()
     {
         using var database = new TestDatabase();
@@ -173,6 +188,29 @@ public sealed class DependencyInjectionTests
     }
 
     [Fact]
+    public void A_host_disposed_without_a_stop_cancels_the_warm_up_instead_of_waiting_for_it()
+    {
+        // review of main after #23, finding 1: the README's own host block ends with Dispose, not StopAsync
+        using var database = new TestDatabase();
+        using (var catalog = database.Open())
+        {
+            var random = new Random(5);
+            catalog.Index("typos").SingleWord().TypoTolerance().Ensure().UpsertMany(Enumerable.Range(1, 20_000)
+                .Select(i => new LuiEntry<long, LuiNoPayload>(i, new string([.. Enumerable.Range(0, 10).Select(_ => (char)('a' + random.Next(26)))]))));
+        }
+
+        LuiCatalog hosted;
+        using (var host = Host(database, lui => lui.AddIndex("typos", index => index.SingleWord().TypoTolerance()).WarmUpTypoDictionariesOnStart()))
+        {
+            host.Start();
+            hosted = host.Services.GetRequiredService<LuiCatalog>();
+        }
+
+        // the warm-up was cancelled, not waited for
+        hosted.TypoDictionaries.IsBuilt("typos").ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task The_catalog_goes_with_the_host()
     {
         using var database = new TestDatabase();
@@ -258,6 +296,18 @@ public sealed class DependencyInjectionTests
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         command.ExecuteNonQuery();
+    }
+
+    /// <summary>A migration of the application: it creates the table a linked index reads.</summary>
+    private sealed class Migration(TestDatabase database) : IHostedService
+    {
+        public Task StartAsync(CancellationToken cancellationToken)
+        {
+            Run(database, "CREATE TABLE tag (id INTEGER PRIMARY KEY, name TEXT);");
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     /// <summary>The log lines of LUI's hosted services, for the tests that ask how often something was logged.</summary>

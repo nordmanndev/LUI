@@ -57,6 +57,11 @@ internal sealed partial class LuiPendingApplier(
             {
                 return;
             }
+            catch (ObjectDisposedException)
+            {
+                // the catalog or the container is gone: the application ends, this is not a failed round
+                return;
+            }
 #pragma warning disable CA1031 // the loop outlives one failure; the failure is logged and the next round tries again
             catch (Exception exception)
 #pragma warning restore CA1031
