@@ -1,34 +1,32 @@
 using System.Buffers;
 using F23.StringSimilarity;
 
-namespace Nordmann.LUI.Similarity;
+namespace Nordmann.LUI;
 
 /// <summary>
 /// The similarity measures LUI ships (LUI-Spezifikation §11), implemented on
 /// <c>F23.StringSimilarity</c>. All of them are stateless and may be shared
 /// between threads.
 /// </summary>
-#pragma warning disable MA0049 // the specification names the type Similarity (§11, §12.5): Similarity.JaroWinkler
-public static class Similarity
-#pragma warning restore MA0049
+public static class LuiSimilarity
 {
-    /// <summary>Jaro-Winkler — the default of <see cref="IndexKind.SingleWord"/>.</summary>
-    public static ITextSimilarity JaroWinkler { get; } = new JaroWinklerSimilarity();
+    /// <summary>Jaro-Winkler — the default of <see cref="LuiIndexKind.SingleWord"/>.</summary>
+    public static ILuiSimilarity JaroWinkler { get; } = new JaroWinklerSimilarity();
 
-    /// <summary>Dice coefficient over bigrams — the default of <see cref="IndexKind.MultiWord"/>.</summary>
-    public static ITextSimilarity NgramDice { get; } = new NgramDiceSimilarity();
+    /// <summary>Dice coefficient over bigrams — the default of <see cref="LuiIndexKind.MultiWord"/>.</summary>
+    public static ILuiSimilarity NgramDice { get; } = new NgramDiceSimilarity();
 
     /// <summary>Damerau-Levenshtein, normalised by the longer text — for codes and numbers.</summary>
-    public static ITextSimilarity DamerauLevenshtein { get; } = new DamerauLevenshteinSimilarity();
+    public static ILuiSimilarity DamerauLevenshtein { get; } = new DamerauLevenshteinSimilarity();
 
     /// <summary>Levenshtein, normalised by the longer text.</summary>
-    public static ITextSimilarity Levenshtein { get; } = new LevenshteinSimilarity();
+    public static ILuiSimilarity Levenshtein { get; } = new LevenshteinSimilarity();
 
     /// <summary>The default measure of an index kind (LUI-Spezifikation §4).</summary>
-    internal static ITextSimilarity DefaultFor(IndexKind kind) =>
-        kind == IndexKind.MultiWord ? NgramDice : JaroWinkler;
+    internal static ILuiSimilarity DefaultFor(LuiIndexKind kind) =>
+        kind == LuiIndexKind.MultiWord ? NgramDice : JaroWinkler;
 
-    private sealed class JaroWinklerSimilarity : ITextSimilarity
+    private sealed class JaroWinklerSimilarity : ILuiSimilarity
     {
         private readonly JaroWinkler _measure = new();
 
@@ -43,7 +41,7 @@ public static class Similarity
     /// allocation: the library builds a dictionary per comparison (about 6.5 KB), and a query compares
     /// up to 500 candidates (ADR-0011).
     /// </summary>
-    private sealed class NgramDiceSimilarity : ITextSimilarity
+    private sealed class NgramDiceSimilarity : ILuiSimilarity
     {
         /// <summary>Bigram sets up to this size are handled on the stack.</summary>
         private const int StackBigrams = 256;
@@ -152,7 +150,7 @@ public static class Similarity
         }
     }
 
-    private sealed class DamerauLevenshteinSimilarity : ITextSimilarity
+    private sealed class DamerauLevenshteinSimilarity : ILuiSimilarity
     {
         private readonly Damerau _measure = new();
 
@@ -165,7 +163,7 @@ public static class Similarity
         }
     }
 
-    private sealed class LevenshteinSimilarity : ITextSimilarity
+    private sealed class LevenshteinSimilarity : ILuiSimilarity
     {
         private readonly NormalizedLevenshtein _measure = new();
 

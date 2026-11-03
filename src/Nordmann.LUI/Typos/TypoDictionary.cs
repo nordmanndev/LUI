@@ -18,6 +18,13 @@ namespace Nordmann.LUI.Typos;
 /// dictionary has a lock: lookups share it, an addition has it alone (§15) — the build does not, it works
 /// on a dictionary of its own and swaps it in, so a write never waits for it.
 /// </para>
+/// <para>
+/// A write inside a transaction of the application is learned when it is <b>written</b>, not when it is
+/// committed — the library does not own the transaction and does not learn of its end. A rollback therefore
+/// leaves the beginnings of its texts behind, and an input that is exactly such a beginning is not corrected:
+/// to the dictionary it is a word of the index (review of pull request 12). <see cref="Rebuild"/> brings the
+/// dictionary back in step with the table.
+/// </para>
 /// </summary>
 #pragma warning disable CA1001 // the lock allocates a kernel event only when a thread has to wait; it is reclaimed by the GC
 internal sealed class TypoDictionary
@@ -113,6 +120,50 @@ internal sealed class TypoDictionary
             if (_symSpell is { } symSpell)
             {
                 AddBeginnings(symSpell, text, weight, onlyNew: true);
+            }
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
+    /// <see cref="Add"/> for many texts at once (<c>UpsertMany</c>): the queue gate and the write lock are taken
+    /// once for all of them.
+    /// </summary>
+    internal void AddRange(IReadOnlyCollection<(string Text, int Weight)> texts)
+    {
+        if (texts.Count == 0)
+        {
+            return;
+        }
+
+        lock (_pendingGate)
+        {
+            if (_pending is { } pending)
+            {
+                foreach (var text in texts)
+                {
+                    pending.Enqueue(text);
+                }
+            }
+        }
+
+        if (Volatile.Read(ref _symSpell) is null)
+        {
+            return;
+        }
+
+        _lock.EnterWriteLock();
+        try
+        {
+            if (_symSpell is { } symSpell)
+            {
+                foreach (var (text, weight) in texts)
+                {
+                    AddBeginnings(symSpell, text, weight, onlyNew: true);
+                }
             }
         }
         finally

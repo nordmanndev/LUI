@@ -16,7 +16,7 @@ public sealed class MultiWordIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        catalog.Index("recipes").MultiWord().Owned<long>().Ensure();
 
         Columns(database, "lui_recipes").Contains("s_compact", StringComparer.Ordinal).ShouldBeTrue();
         Columns(database, "lui_recipes").Contains("s_norm", StringComparer.Ordinal).ShouldBeTrue("s_norm stays a column of the table");
@@ -30,7 +30,7 @@ public sealed class MultiWordIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         Columns(database, "lui_tags").Contains("s_compact", StringComparer.Ordinal).ShouldBeFalse();
         Columns(database, "lui_tags_fts").ShouldBe(["s_norm"]);
@@ -46,7 +46,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        var index = catalog.Index("recipes").MultiWord().Owned<long>().Ensure();
 
         index.Upsert(1, text, 1);
 
@@ -60,10 +60,10 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        catalog.Index("recipes").MultiWord().Owned<long>().Ensure();
 
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index<long, Chip>("recipes").SingleWord().Owned().Ensure());
+            () => catalog.Index("recipes").SingleWord().Owned<long>().Ensure());
     }
 
     [Fact]
@@ -71,11 +71,11 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        var index = catalog.Index("recipes").MultiWord().Owned<long>().Ensure();
         index.Upsert(1, "Apfelkuchen", 1);
 
-        var expected = Similarity.Similarity.NgramDice.Similarity("apfelkuch", "apfelkuchen");
-        var jaro = Similarity.Similarity.JaroWinkler.Similarity("apfelkuch", "apfelkuchen");
+        var expected = LuiSimilarity.NgramDice.Similarity("apfelkuch", "apfelkuchen");
+        var jaro = LuiSimilarity.JaroWinkler.Similarity("apfelkuch", "apfelkuchen");
 
         index.Query("apfelkuch").Execute().Hits.ShouldHaveSingleItem().Similarity.ShouldBe(expected, 1e-9);
         expected.ShouldNotBe(jaro, "the two measures must differ here, or the test proves nothing");
@@ -86,7 +86,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        var index = catalog.Index("recipes").MultiWord().Owned<long>().Ensure();
 
         for (var i = 1; i <= 40; i++)
         {
@@ -96,7 +96,7 @@ public sealed class MultiWordIndexTests
         for (var i = 1; i <= 40; i += 2)
         {
             index.UpdateWeight(i, 1_000 - i);
-            index.UpdatePriority(i + 1, Priority.High);
+            index.UpdatePriority(i + 1, LuiPriority.High);
         }
 
         index.Upsert(3, "Birnen Torte", 3);
@@ -235,7 +235,7 @@ public sealed class MultiWordIndexTests
         // and „-a b" is the same (review of pull request 8, M1)
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("titles").MultiWord().Owned().Ensure();
+        var index = catalog.Index("titles").MultiWord().Owned<long>().Ensure();
         index.Upsert(1, "Abendbrot", 100);
         index.Upsert(2, "A Bit Of Fun", 90);
         index.Upsert(3, "Anna Berg", 80);
@@ -270,7 +270,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("titles").MultiWord().Owned().Ensure();
+        var index = catalog.Index("titles").MultiWord().Owned<long>().Ensure();
         index.Upsert(1, "wort001 wort002 wort003", 10);
 
         var typed = string.Join(' ', Enumerable.Range(0, 100).Select(i => $"wort{i:000}"));
@@ -285,7 +285,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        var index = catalog.Index("recipes").MultiWord().Owned<long>().Ensure();
         index.Upsert(1, "Apfel-Zimt-Kuchen", 10);
         index.Upsert(2, "Zimtschnecken", 20);
 
@@ -300,12 +300,12 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        var index = catalog.Index("recipes").MultiWord().Owned<long>().Ensure();
         index.Upsert(1, "Apfel Kuchen", 900);
-        index.Upsert(2, "Brat Apfel Kuchen", 0, priority: Priority.System);
+        index.Upsert(2, "Brat Apfel Kuchen", 0, priority: LuiPriority.System);
 
         index.Query("apfel kuchen").Execute().Hits.Select(h => h.Key).ShouldBe([2L, 1L]);
-        index.Query("apfel kuchen").Priorities(PriorityRanking.CandidatesOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1L, 2L]);
+        index.Query("apfel kuchen").Priorities(LuiPriorityRanking.CandidatesOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1L, 2L]);
     }
 
     [Fact]
@@ -313,7 +313,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("people").MultiWord().Owned().Ensure();
+        var index = catalog.Index("people").MultiWord().Owned<long>().Ensure();
         index.Upsert(1, "Anna Müller", 10);
         index.Upsert(2, "Anna Schmidt", 20);
         index.Upsert(3, "Hans Müller", 30);
@@ -331,7 +331,7 @@ public sealed class MultiWordIndexTests
         // boundary of the title — checked here without FTS5, on the folded texts.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        var index = catalog.Index("recipes").MultiWord().Owned<long>().Ensure();
 
         var random = new Random(4);
         var titles = RandomTitles(random, 1_500);
@@ -347,7 +347,7 @@ public sealed class MultiWordIndexTests
         for (var i = 0; i < 600; i++)
         {
             var query = RandomQuery(titles, random);
-            var prepared = Querying.PreparedQuery.Create(query, NormalizationOptions.Default, IndexKind.MultiWord);
+            var prepared = Querying.PreparedQuery.Create(query, NormalizationOptions.Default, LuiIndexKind.MultiWord);
             var longWords = prepared.Words.Where(w => w.Length >= 3).ToArray();
             if (prepared.IsPrefixPath || longWords.Length == 0)
             {
@@ -387,7 +387,7 @@ public sealed class MultiWordIndexTests
         // the one thing the compact column adds to the two columns of the first version of §8.2 (ADR-0011)
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        var index = catalog.Index("recipes").MultiWord().Owned<long>().Ensure();
         index.Upsert(1, "Apfel Kuchen Torte", 10);
         index.Upsert(2, "Elke Ortmann", 5);
 
@@ -403,7 +403,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        var index = catalog.Index("recipes").MultiWord().Owned<long>().Ensure();
         index.Upsert(1, "Apfel Kuchen", 10);
         var before = database.Scalar<string>("SELECT count(*) || ':' || coalesce(sum(length(block)), 0) || ':' || coalesce(sum(id), 0) FROM lui_recipes_fts_data");
 
@@ -413,7 +413,7 @@ public sealed class MultiWordIndexTests
         index.Query("apfel kuchen").Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfel-Kuchen");
     }
 
-    private static long[] Keys(ILuiIndex<long, Chip> index, string typed) =>
+    private static long[] Keys(ILuiOwnedIndex<long, LuiNoPayload> index, string typed) =>
         [.. index.Query(typed).Execute().Hits.Select(h => h.Key).Order()];
 
     private static List<string> RandomTitles(Random random, int count)
@@ -425,7 +425,7 @@ public sealed class MultiWordIndexTests
             .Select(_ => string.Join(random.Next(3) == 0 ? "-" : " ", Enumerable.Range(0, random.Next(1, 4)).Select(_ => words[random.Next(words.Count)])))];
     }
 
-    private static void Load(LuiCatalog catalog, ILuiIndex<long, Chip> index, List<string> titles)
+    private static void Load(LuiCatalog catalog, ILuiOwnedIndex<long, LuiNoPayload> index, List<string> titles)
     {
         using var connection = catalog.OpenConnection();
         using var transaction = connection.BeginTransaction();
@@ -490,7 +490,7 @@ public sealed class MultiWordIndexTests
     private static Fixture Recipes(TestDatabase database)
     {
         var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("recipes").MultiWord().Owned().Ensure();
+        var index = catalog.Index("recipes").MultiWord().Owned<long>().Ensure();
         index.Upsert(1, "Apfelkuchen", 900);
         index.Upsert(2, "Gedeckter Apfelkuchen", 800);
         index.Upsert(3, "Apfel Kuchen", 700);
@@ -518,9 +518,9 @@ public sealed class MultiWordIndexTests
         return names;
     }
 
-    private sealed class Fixture(ILuiIndex<long, Chip> index) : IDisposable
+    private sealed class Fixture(ILuiOwnedIndex<long, LuiNoPayload> index) : IDisposable
     {
-        internal ILuiIndex<long, Chip> Index => index;
+        internal ILuiOwnedIndex<long, LuiNoPayload> Index => index;
 
         public void Dispose()
         {

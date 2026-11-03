@@ -5,7 +5,7 @@ namespace Nordmann.LUI;
 /// priority: an entry of a higher priority is a candidate for every input it
 /// matches, before any entry of a lower one (LUI-Spezifikation §2, E10).
 /// </summary>
-public enum Priority
+public enum LuiPriority
 {
     /// <summary>Reserved entries, e.g. system tags such as „vegan".</summary>
     System = 0,

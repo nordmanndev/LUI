@@ -18,7 +18,7 @@ internal static class RowId
     /// <summary>The largest <c>doc_id</c>: 2^32 − 1.</summary>
     internal const long MaxDocId = 4_294_967_295;
 
-    internal static long Encode(Priority priority, int weight, long docId)
+    internal static long Encode(LuiPriority priority, int weight, long docId)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(weight, 0);
         ArgumentOutOfRangeException.ThrowIfGreaterThan(weight, MaxWeight);
@@ -29,7 +29,7 @@ internal static class RowId
         return ((long)priority << 61) | ((long)(MaxWeight - weight) << 32) | docId;
     }
 
-    internal static Priority PriorityOf(long rowId) => (Priority)(rowId >> 61);
+    internal static LuiPriority PriorityOf(long rowId) => (LuiPriority)(rowId >> 61);
 
     internal static int WeightOf(long rowId) => MaxWeight - (int)((rowId >> 32) & MaxWeight);
 
@@ -41,9 +41,9 @@ internal static class RowId
         ArgumentOutOfRangeException.ThrowIfGreaterThan(weight, MaxWeight);
     }
 
-    internal static void ValidatePriority(Priority priority)
+    internal static void ValidatePriority(LuiPriority priority)
     {
-        if (priority is < Priority.System or > Priority.Normal)
+        if (priority is < LuiPriority.System or > LuiPriority.Normal)
         {
             throw new ArgumentOutOfRangeException(
                 nameof(priority), priority, "The priority is 0 (System) … 3 (Normal).");

@@ -24,9 +24,9 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         var entries = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? "200000", CultureInfo.InvariantCulture);
         // LUI_PERF_DB keeps the database between runs: the build of three million entries takes minutes
         using var database = new TestDatabase(Environment.GetEnvironmentVariable("LUI_PERF_DB"));
-        using var catalog = database.Open(options => options.CacheSize(512).MemoryMap(2048));
-        var builder = catalog.Index<long, Chip>("tags");
-        var index = (Multi ? builder.MultiWord() : builder.SingleWord()).Owned().Ensure();
+        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
+        var builder = catalog.Index("tags");
+        var index = (Multi ? builder.MultiWord() : builder.SingleWord()).Owned<long>().Ensure();
 
         if (string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_OPTIMIZE"), "1", StringComparison.Ordinal))
         {
@@ -55,7 +55,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         }
     }
 
-    private (double[] Latencies, double[] Allocations) MeasureQueries(ILuiIndex<long, Chip> index, List<string> inputs)
+    private (double[] Latencies, double[] Allocations) MeasureQueries(ILuiOwnedIndex<long, LuiNoPayload> index, List<string> inputs)
     {
         // warm the page cache and the JIT, as a running application would be
         foreach (var input in inputs.Take(500))
@@ -97,7 +97,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         return (latencies, allocations);
     }
 
-    private void MeasureWrites(ILuiIndex<long, Chip> index, List<string> texts, int entries)
+    private void MeasureWrites(ILuiOwnedIndex<long, LuiNoPayload> index, List<string> texts, int entries)
     {
         var writes = new double[500];
         var random = new Random(11);
@@ -114,7 +114,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
                     index.Upsert(key, texts[key - 1], random.Next(0, 1_000_000));
                     break;
                 default:
-                    index.UpdatePriority(key, i % 2 == 0 ? Priority.High : Priority.Normal);
+                    index.UpdatePriority(key, i % 2 == 0 ? LuiPriority.High : LuiPriority.Normal);
                     break;
             }
 
@@ -139,7 +139,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
     }
 
     /// <summary>The words first, then compounds of two words — German is full of them.</summary>
-    private static List<string> Build(LuiCatalog catalog, ILuiIndex<long, Chip> index, List<string> words, int entries)
+    private static List<string> Build(LuiCatalog catalog, ILuiOwnedIndex<long, LuiNoPayload> index, List<string> words, int entries)
     {
         var random = new Random(42);
         var texts = new List<string>(entries);

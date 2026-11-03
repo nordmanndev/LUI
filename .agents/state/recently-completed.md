@@ -5,6 +5,15 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-03 — PR-005a: the API shape before 0.1.0 (issue #11)
+
+- From the owner's DevEx/architecture review: staged builder (`Index(name).SingleWord().Owned<long>().WithPayload(…)`),
+  `ILuiIndex` (read) / `ILuiOwnedIndex` (write), `LuiEntry` + `UpsertMany` (4.4× faster than a loop), named result
+  properties, `Lui` prefix and one public namespace, `Normalizer` internal (owner's decision), options checked when set,
+  the three unused `Microsoft.Extensions.*` references out. ADR-0013; spec §8.3/§11/§12/§17 corrected.
+- The smoke test runs every C# block of the README and checks what the quick start says it prints.
+- Not done, by decision: the internal seams (next PR, 005b), instance cache and hosted warm-up (PR-008), `Suggest`.
+
 ## 2026-11-03 — PR-005: typo tolerance (issue #9)
 
 - `TypoDictionary` (SymSpell, beginnings 3 … 10, frequency `weight + 1`, lazy, `ReaderWriterLockSlim`), correction when no

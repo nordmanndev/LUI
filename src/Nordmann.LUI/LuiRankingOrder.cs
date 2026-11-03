@@ -4,7 +4,7 @@ namespace Nordmann.LUI;
 /// The order in which the candidates are ranked, after the priority
 /// (LUI-Spezifikation §9.2).
 /// </summary>
-public enum RankingOrder
+public enum LuiRankingOrder
 {
     /// <summary>The default: word start, then similarity, then weight.</summary>
     WordStartThenSimilarity,

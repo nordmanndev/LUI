@@ -9,6 +9,10 @@
 #   2. a dependency is missing from the nuspec, so the restore fails
 #   3. the assembly loads but its identity is not what the package claims
 #
+# It also runs every C# block of the README, in order, as one method of the
+# smoke application: a README that shows an API the package does not have
+# fails here (AGENTS.md).
+#
 # The smoke application runs in an isolated packages folder, so a cached
 # Nordmann.LUI in ~/.nuget/packages can never win over the freshly built one.
 #
@@ -57,9 +61,23 @@ cat > "${SMOKE}/nuget.config" <<XML
 </configuration>
 XML
 
-cat > "${SMOKE}/Program.cs" <<'CS'
-using System.Reflection;
-using Nordmann.LUI;
+# The C# blocks of the README: their `using` lines go to the top of the file,
+# the rest becomes the body of Readme(), in the order of the README.
+readme_blocks() {
+  awk '/^```csharp$/ { inside = 1; next } /^```$/ { inside = 0; next } inside { print }' "${ROOT}/README.md"
+}
+readonly README_USINGS="$(readme_blocks | grep -E '^using [A-Za-z0-9_.]+;$' | sort -u || true)"
+readonly README_BODY="$(readme_blocks | grep -vE '^using [A-Za-z0-9_.]+;$' | sed 's/^/    /' || true)"
+if [ -z "${README_BODY//[[:space:]]/}" ]; then
+  echo "package-smoke-test: the README has no C# block to run" >&2
+  exit 1
+fi
+
+{
+  echo "using System.Reflection;"
+  echo "using Nordmann.LUI;"
+  echo "${README_USINGS}" | grep -vx "using Nordmann.LUI;" || true
+  cat <<'CS'
 
 // The consumer's view of the package: can it be restored, does it load, and
 // does it say what it is?
@@ -78,15 +96,15 @@ if (name != "Nordmann.LUI")
 }
 
 // The package has to carry the public API, not just an empty shell.
-var normalizer = assembly.GetType("Nordmann.LUI.Normalization.Normalizer");
+var catalogType = assembly.GetType("Nordmann.LUI.LuiCatalog");
 
-if (normalizer is null)
+if (catalogType is not { IsPublic: true })
 {
-    Console.Error.WriteLine("the package does not contain Nordmann.LUI.Normalization.Normalizer");
+    Console.Error.WriteLine("the package does not contain the public Nordmann.LUI.LuiCatalog");
     return 1;
 }
 
-Console.WriteLine($"found {normalizer.FullName}");
+Console.WriteLine($"found {catalogType.FullName}");
 
 // And it has to work: a catalog on a file, an index, three entries, two questions.
 var path = Path.Combine(Path.GetTempPath(), $"lui-smoke-{Environment.ProcessId}.db");
@@ -94,17 +112,17 @@ try
 {
     using (var catalog = LuiCatalog.Open($"Data Source={path}"))
     {
-        var tags = catalog.Index<long, string>("tags").SingleWord().Owned().Ensure();
+        var tags = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         tags.Upsert(1, "Apfelkuchen", weight: 10);
         tags.Upsert(2, "Bratapfelkuchen", weight: 1000);
-        tags.Upsert(3, "vegan", weight: 5, priority: Priority.System);
+        tags.Upsert(3, "vegan", weight: 5, priority: LuiPriority.System);
 
         var first = tags.Query("apfelkuch").Execute().Hits.FirstOrDefault().Text;
         var system = tags.Query("gan").Execute().Hits.FirstOrDefault().Text;
         Console.WriteLine($"apfelkuch -> {first}; gan -> {system}");
 
         // and a multi-word index: the order of the words and the spaces do not matter
-        var titles = catalog.Index<long, string>("titles").MultiWord().Owned().TypoTolerance(1).Ensure();
+        var titles = catalog.Index("titles").MultiWord().Owned<long>().TypoTolerance().Ensure();
         titles.Upsert(1, "Apfel Kuchen", weight: 10);
         titles.Upsert(2, "Bratapfelkuchen", weight: 1000);
 
@@ -132,8 +150,17 @@ finally
     }
 }
 
+// And the README has to be true: its C# blocks, in order.
+Console.WriteLine("running the C# blocks of the README");
+Readme();
 return 0;
+
+static void Readme()
+{
 CS
+  echo "${README_BODY}"
+  echo "}"
+} > "${SMOKE}/Program.cs"
 
 echo "package-smoke-test: installing the package from the local feed"
 dotnet add "${SMOKE}/SmokeTest.csproj" package Nordmann.LUI \
@@ -143,6 +170,16 @@ dotnet add "${SMOKE}/SmokeTest.csproj" package Nordmann.LUI \
 dotnet restore "${SMOKE}/SmokeTest.csproj" --nologo >/dev/null
 
 echo "package-smoke-test: running the smoke application"
-dotnet run --project "${SMOKE}/SmokeTest.csproj" --no-restore --nologo
+# in its own folder: the README's database (app.db) lands there and goes with it
+OUTPUT="$(cd "${SMOKE}" && dotnet run --project "${SMOKE}/SmokeTest.csproj" --no-restore --nologo)"
+echo "${OUTPUT}"
+
+# The comments of the quick start say what it prints; they have to stay true.
+for expected in "Gedeckter Apfelkuchen (9000)" "Bratapfelkuchen (800)" "Gedeckter Apfelkuchen" "gedeckter"; do
+  if ! grep -qxF "${expected}" <<<"${OUTPUT}"; then
+    echo "package-smoke-test: the README's quick start did not print '${expected}'" >&2
+    exit 1
+  fi
+done
 
 echo "package-smoke-test: OK"

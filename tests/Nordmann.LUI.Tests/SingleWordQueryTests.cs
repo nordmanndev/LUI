@@ -1,4 +1,3 @@
-using Nordmann.LUI.Similarity;
 using Shouldly;
 
 namespace Nordmann.LUI.Tests;
@@ -14,7 +13,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "Apfelkuchen", 10);
         index.Upsert(2, "Birne", 10);
 
@@ -26,7 +25,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "Äpfel", 10);
         index.Upsert(2, "Straße", 10);
         index.Upsert(3, "Café", 10);
@@ -52,7 +51,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().GermanTransliteration(false).Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().GermanTransliteration(false).Ensure();
         index.Upsert(1, "Müller", 10);
 
         index.Query("mueller").Execute().Hits.ShouldBeEmpty();
@@ -64,7 +63,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "apfel", 5);
         index.Upsert(2, "ananas", 50);
         index.Upsert(3, "aprikose", 30);
@@ -80,7 +79,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "kuchen apfel", 1);
 
         index.Query("ap").Execute().Hits.ShouldBeEmpty();
@@ -91,7 +90,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "#Bahnhof", 10);
         index.Upsert(2, "Äpfel", 10);
 
@@ -108,7 +107,7 @@ public sealed class SingleWordQueryTests
         // more (Ä is transliterated first); another accented capital is found from three characters on.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "Éclair", 10);
 
         index.Query("e").Execute().Hits.ShouldBeEmpty();
@@ -120,7 +119,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "apfel", 10);
 
         var hit = index.Query("ap").Execute().Hits.ShouldHaveSingleItem();
@@ -137,7 +136,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "apfel", 10);
 
         var result = index.Query(input).Execute();
@@ -161,7 +160,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "apfelkuchen", 10);
         index.Upsert(2, "birne", 10);
 
@@ -174,7 +173,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "das \"beste\" rezept", 10);
         index.Upsert(2, "das beste rezept", 10);
 
@@ -186,7 +185,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "bratapfelkuchen", 100_000);
         index.Upsert(2, "apfelkuchen", 10);
         index.Upsert(3, "gedeckter apfelkuchen", 20);
@@ -202,13 +201,13 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "apfelkuchenrezept", 1_000);
         index.Upsert(2, "apfelkuchen", 10);
         index.Upsert(3, "apfelkuchen mit sahne und zimt", 5_000);
 
         index.Query("apfelkuch").Execute().Hits.Select(h => h.Key).ShouldBe([2, 1, 3]);
-        index.Query("apfelkuch").Rank(RankingOrder.WordStartThenWeight).Execute().Hits.Select(h => h.Key).ShouldBe([3, 1, 2]);
+        index.Query("apfelkuch").Rank(LuiRankingOrder.WordStartThenWeight).Execute().Hits.Select(h => h.Key).ShouldBe([3, 1, 2]);
     }
 
     [Fact]
@@ -216,14 +215,14 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "kuchen" + new string('x', 200), 5);  // word start, but nothing like the input
         index.Upsert(2, "xkuchen", 100);                      // no word start, much like the input
 
-        Keys(index, "kuchen", RankingOrder.WordStartThenSimilarity).ShouldBe([1, 2]);
-        Keys(index, "kuchen", RankingOrder.WordStartThenWeight).ShouldBe([1, 2]);
-        Keys(index, "kuchen", RankingOrder.SimilarityOnly).ShouldBe([2, 1]);
-        Keys(index, "kuchen", RankingOrder.WeightOnly).ShouldBe([2, 1]);
+        Keys(index, "kuchen", LuiRankingOrder.WordStartThenSimilarity).ShouldBe([1, 2]);
+        Keys(index, "kuchen", LuiRankingOrder.WordStartThenWeight).ShouldBe([1, 2]);
+        Keys(index, "kuchen", LuiRankingOrder.SimilarityOnly).ShouldBe([2, 1]);
+        Keys(index, "kuchen", LuiRankingOrder.WeightOnly).ShouldBe([2, 1]);
     }
 
     [Fact]
@@ -231,12 +230,12 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "apfelkuchen", 100);
-        index.Upsert(2, "bratapfelkuchen", 0, priority: Priority.System);
+        index.Upsert(2, "bratapfelkuchen", 0, priority: LuiPriority.System);
 
         index.Query("apfelkuch").Execute().Hits.Select(h => h.Key).ShouldBe([2, 1]);
-        index.Query("apfelkuch").Priorities(PriorityRanking.CandidatesOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1, 2]);
+        index.Query("apfelkuch").Priorities(LuiPriorityRanking.CandidatesOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1, 2]);
     }
 
     [Fact]
@@ -244,12 +243,12 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "kuchen a", 100);
-        index.Upsert(2, "kuchen b", 1, priority: Priority.High);
+        index.Upsert(2, "kuchen b", 1, priority: LuiPriority.High);
 
-        Keys(index, "kuchen", RankingOrder.WeightOnly).ShouldBe([2, 1]);
-        index.Query("kuchen").Rank(RankingOrder.WeightOnly).Priorities(PriorityRanking.CandidatesOnly).Execute()
+        Keys(index, "kuchen", LuiRankingOrder.WeightOnly).ShouldBe([2, 1]);
+        index.Query("kuchen").Rank(LuiRankingOrder.WeightOnly).Priorities(LuiPriorityRanking.CandidatesOnly).Execute()
             .Hits.Select(h => h.Key).ShouldBe([1, 2]);
     }
 
@@ -258,9 +257,9 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "Vegan", 900_000);
-        index.Upsert(2, "vegan", 5, priority: Priority.System);
+        index.Upsert(2, "vegan", 5, priority: LuiPriority.System);
         index.Upsert(3, "veganer kuchen", 10);
 
         index.Query("vegan").Execute().Hits.Count.ShouldBe(3);
@@ -276,7 +275,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         for (var i = 1; i <= 30; i++)
         {
             index.Upsert(i, $"kuchen{i:00}", i);
@@ -301,7 +300,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         for (var i = 1; i <= 30; i++)
         {
             index.Upsert(i, $"kuchen{i:00}", i);
@@ -319,14 +318,14 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         for (var i = 1; i <= 30; i++)
         {
             index.Upsert(i, $"kuchen{i:00}", i);
         }
 
-        var viaOptions = index.Query("kuchen", new LuiQueryOptions { MaxResults = 7, Rank = RankingOrder.WeightOnly });
-        var fluent = index.Query("kuchen").Take(7).Rank(RankingOrder.WeightOnly).Execute();
+        var viaOptions = index.Search("kuchen", new LuiQueryOptions { MaxResults = 7, Rank = LuiRankingOrder.WeightOnly });
+        var fluent = index.Query("kuchen").Take(7).Rank(LuiRankingOrder.WeightOnly).Execute();
 
         viaOptions.Hits.Select(h => h.Key).ShouldBe(fluent.Hits.Select(h => h.Key));
         viaOptions.Hits.Count.ShouldBe(7);
@@ -337,12 +336,12 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "apfelkuchen", 10);
 
         var jaro = index.Query("apfelkuchen").Execute().Hits[0].Similarity;
-        var dice = index.Query("apfelkuch").Similarity(Similarity.Similarity.NgramDice).Execute().Hits[0].Similarity;
-        var levenshtein = index.Query("apfelkuch").Similarity(Similarity.Similarity.Levenshtein).Execute().Hits[0].Similarity;
+        var dice = index.Query("apfelkuch").Similarity(LuiSimilarity.NgramDice).Execute().Hits[0].Similarity;
+        var levenshtein = index.Query("apfelkuch").Similarity(LuiSimilarity.Levenshtein).Execute().Hits[0].Similarity;
 
         jaro.ShouldBe(1.0, 1e-9);
         dice.ShouldBeInRange(0.8, 1.0);
@@ -354,7 +353,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned()
+        var index = catalog.Index("tags").SingleWord().Owned<long>()
             .Similarity(new ConstantSimilarity(0.25)).Ensure();
         index.Upsert(1, "apfelkuchen", 10);
 
@@ -366,7 +365,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "apfelkuchen", 10);
 
         index.Query("apfel").Execute().Timings.ShouldBeNull();
@@ -381,7 +380,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "apfelkuchen", 10);
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
@@ -397,7 +396,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         Should.Throw<ArgumentOutOfRangeException>(() => index.Query("apfel").Take(take).Execute());
     }
@@ -411,7 +410,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         Should.Throw<ArgumentOutOfRangeException>(() => index.Query("apfel").Candidates(candidates).Execute());
     }
@@ -421,7 +420,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         var result = index.Query("Äpfel").Execute();
 
@@ -429,10 +428,10 @@ public sealed class SingleWordQueryTests
         result.CorrectedQuery.ShouldBeNull();
     }
 
-    private static long[] Keys(ILuiIndex<long, Chip> index, string input, RankingOrder order) =>
+    private static long[] Keys(ILuiOwnedIndex<long, LuiNoPayload> index, string input, LuiRankingOrder order) =>
         [.. index.Query(input).Rank(order).Execute().Hits.Select(h => h.Key)];
 
-    private sealed class ConstantSimilarity(double value) : ITextSimilarity
+    private sealed class ConstantSimilarity(double value) : ILuiSimilarity
     {
         public string Name => "Constant";
 

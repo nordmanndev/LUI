@@ -118,7 +118,7 @@ public sealed class FtsLayoutExperiment(ITestOutputHelper output)
             var text = i <= words.Count ? words[i - 1] : char.ToUpperInvariant(words[random.Next(words.Count)][0]) + words[random.Next(words.Count)][1..] + words[random.Next(words.Count)].ToLowerInvariant();
             texts.Add(text);
             var weight = (int)Math.Min(536_870_911, 1 + (long)(random.NextDouble() * random.NextDouble() * random.NextDouble() * Entries));
-            if (!exists) { pr.Value = RowId.Encode(Priority.Normal, weight, i); ps.Value = Normalizer.ToSearchForm(text); ins.ExecuteNonQuery(); }
+            if (!exists) { pr.Value = RowId.Encode(LuiPriority.Normal, weight, i); ps.Value = Normalizer.ToSearchForm(text); ins.ExecuteNonQuery(); }
         }
         tx.Commit();
         return texts;

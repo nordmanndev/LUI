@@ -1,9 +1,7 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Data.Sqlite;
 using Nordmann.LUI.Normalization;
-using Nordmann.LUI.Payloads;
 using Nordmann.LUI.Querying;
-using Nordmann.LUI.Similarity;
 using Nordmann.LUI.Typos;
 
 namespace Nordmann.LUI.Indexing;
@@ -14,11 +12,13 @@ namespace Nordmann.LUI.Indexing;
 /// forms, the triggers keep the search index in step (E3).
 /// </summary>
 #pragma warning disable CA1001 // see TypoDictionary: the lock of the dictionary needs no disposal, and an index lives as long as its catalog
-internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
+internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload>
 #pragma warning restore CA1001
 {
+    private static readonly LuiQueryOptions DefaultOptions = new();
+
     private readonly LuiCatalog _catalog;
-    private readonly IPayloadSerializer<TPayload>? _payload;
+    private readonly ILuiPayloadSerializer<TPayload>? _payload;
     private readonly QueryRunner<TKey, TPayload> _runner;
     /// <summary><c>SQLITE_CONSTRAINT_CHECK</c>.</summary>
     private const int SqliteCheckConstraintFailed = 275;
@@ -35,8 +35,8 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
         LuiCatalog catalog,
         string name,
         IndexDefinition definition,
-        IPayloadSerializer<TPayload>? payload,
-        ITextSimilarity similarity,
+        ILuiPayloadSerializer<TPayload>? payload,
+        ILuiSimilarity similarity,
         bool typoTolerance)
     {
         _catalog = catalog;
@@ -52,48 +52,125 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
 
     public string Name { get; }
 
-    public IndexKind Kind { get; }
+    public LuiIndexKind Kind { get; }
 
-    public void Upsert(
-        TKey key,
-        string text,
-        int weight,
-        TPayload? payload = default,
-        Priority priority = Priority.Normal,
-        SqliteTransaction? transaction = null)
+    public void Upsert(LuiEntry<TKey, TPayload> entry, SqliteTransaction? transaction = null)
     {
-        var keyText = KeyCodec<TKey>.ToText(key);
-        ArgumentException.ThrowIfNullOrEmpty(text);
-        RowId.ValidateWeight(weight);
-        RowId.ValidatePriority(priority);
-
-        // A payload that is null, or the default of a value type, is "no payload" — it is stored as NULL
-        // and read back as the default. A value type cannot say more (review B1).
-        byte[]? bytes = null;
-        if (payload is not null && !EqualityComparer<TPayload>.Default.Equals(payload, default))
-        {
-            bytes = _payload?.Serialize(payload)
-                ?? throw new InvalidOperationException(
-                    $"The index '{Name}' stores no payload: configure Payload(…) when the index is ensured.");
-        }
+        ArgumentNullException.ThrowIfNull(entry);
+        var keyText = KeyCodec<TKey>.ToText(entry.Key);
+        var bytes = PayloadBytes(entry.Payload);
 
         using var scope = _catalog.Begin();
         try
         {
-            StatementsFor(transaction).Upsert(keyText, text, weight, (int)priority, bytes, transaction);
-
-            // the new word beginnings join the typo dictionary, if it is built (§10.1)
-            _typos.Add(text, weight);
+            StatementsFor(transaction).Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, bytes, transaction);
         }
         catch (SqliteException exception) when (IsDocIdExhausted(exception))
         {
-            throw new InvalidOperationException(
-                $"The index '{Name}' has used up its document ids (0 … {RowId.MaxDocId:N0}); a new entry gets the "
-                + "highest id plus one. Export the entries, Drop() the index, ensure it again and load them: "
-                + "the ids start from 1 again.",
-                exception);
+            throw DocIdsExhausted(exception);
+        }
+
+        // the new word beginnings join the typo dictionary, if it is built (§10.1)
+        _typos.Add(entry.Text, entry.Weight);
+    }
+
+    public void Upsert(
+        TKey key,
+        string text,
+        int weight = 0,
+        LuiPriority priority = LuiPriority.Normal,
+        SqliteTransaction? transaction = null) =>
+        Upsert(new LuiEntry<TKey, TPayload>(key, text) { Weight = weight, Priority = priority }, transaction);
+
+    public int UpsertMany(
+        IEnumerable<LuiEntry<TKey, TPayload>> entries,
+        SqliteTransaction? transaction = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(entries);
+
+        using var scope = _catalog.Begin();
+        var written = new List<(string Text, int Weight)>();
+        try
+        {
+            if (transaction is null)
+            {
+                WriteOwnBatch(entries, written, cancellationToken);
+            }
+            else
+            {
+                WriteBatch(StatementsFor(transaction), entries, transaction, written, cancellationToken);
+            }
+        }
+        catch (SqliteException exception) when (IsDocIdExhausted(exception))
+        {
+            throw DocIdsExhausted(exception);
+        }
+
+        // once, after the writes: the dictionary takes its write lock one time for the whole batch
+        _typos.AddRange(written);
+        return written.Count;
+    }
+
+    /// <summary>
+    /// A batch in a transaction of LUI's own, on the catalog's writer: the writer's lock is held for the whole
+    /// batch, so no single write of another index slips into the transaction (there is one writer per file
+    /// anyway, §15).
+    /// </summary>
+    private void WriteOwnBatch(
+        IEnumerable<LuiEntry<TKey, TPayload>> entries,
+        List<(string Text, int Weight)> written,
+        CancellationToken cancellationToken)
+    {
+        var statements = Volatile.Read(ref _ownStatements) ?? CreateOwnStatements();
+        lock (_catalog.WriterGate)
+        {
+            using var transaction = _catalog.Writer.BeginTransaction(deferred: false);
+            WriteBatch(statements, entries, transaction, written, cancellationToken);
+            transaction.Commit();
         }
     }
+
+    private void WriteBatch(
+        WriteStatements statements,
+        IEnumerable<LuiEntry<TKey, TPayload>> entries,
+        SqliteTransaction transaction,
+        List<(string Text, int Weight)> written,
+        CancellationToken cancellationToken)
+    {
+        foreach (var entry in entries)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ArgumentNullException.ThrowIfNull(entry, nameof(entries));
+
+            var keyText = KeyCodec<TKey>.ToText(entry.Key);
+            statements.Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, PayloadBytes(entry.Payload), transaction);
+            written.Add((entry.Text, entry.Weight));
+        }
+    }
+
+    /// <summary>
+    /// The stored form of a payload. A payload that is null, or the default of a value type, is "no payload" —
+    /// it is stored as NULL and read back as the default. A value type cannot say more (review B1).
+    /// </summary>
+    private byte[]? PayloadBytes(TPayload? payload)
+    {
+        if (payload is null || EqualityComparer<TPayload>.Default.Equals(payload, default))
+        {
+            return null;
+        }
+
+        return _payload?.Serialize(payload)
+            ?? throw new InvalidOperationException(
+                $"The index '{Name}' stores no payload: give it one with WithPayload(…) when it is ensured.");
+    }
+
+    private InvalidOperationException DocIdsExhausted(SqliteException exception) =>
+        new(
+            $"The index '{Name}' has used up its document ids (0 … {RowId.MaxDocId:N0}); a new entry gets the "
+            + "highest id plus one. Export the entries, drop the index (LuiCatalog.DropIndex), ensure it again and "
+            + "load them: the ids start from 1 again.",
+            exception);
 
     private static bool IsDocIdExhausted(SqliteException exception) =>
         exception.SqliteExtendedErrorCode == SqliteCheckConstraintFailed
@@ -108,7 +185,7 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
         return StatementsFor(transaction).UpdateWeight(keyText, weight, transaction);
     }
 
-    public bool UpdatePriority(TKey key, Priority priority, SqliteTransaction? transaction = null)
+    public bool UpdatePriority(TKey key, LuiPriority priority, SqliteTransaction? transaction = null)
     {
         var keyText = KeyCodec<TKey>.ToText(key);
         RowId.ValidatePriority(priority);
@@ -148,11 +225,11 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
 
     public LuiQuery<TKey, TPayload> Query(string text) => new(this, text);
 
-    public LuiResult<TKey, TPayload> Query(
+    public LuiResult<TKey, TPayload> Search(
         string text,
-        LuiQueryOptions options,
+        LuiQueryOptions? options = null,
         CancellationToken cancellationToken = default) =>
-        _runner.Execute(text, options, cancellationToken);
+        _runner.Execute(text, options ?? DefaultOptions, cancellationToken);
 
     /// <summary>
     /// The statements for a write: those of the application's connection when

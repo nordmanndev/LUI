@@ -39,7 +39,7 @@ Everything else in LUI is machinery for those four rules.
 | **Weight** | Popularity, `0 … 536 870 911`. Decides *which* entries become candidates, and breaks ties. |
 | **Priority** | A class `0 … 3` in front of the weight: `System`, `High`, `Elevated`, `Normal`. Higher priority entries are candidates **first**. |
 | **Payload** | Data that comes back with a hit (slug, colour, icon). Read only for the hits, never for all candidates. |
-| **Kind** (`IndexKind`) | `SingleWord` or `MultiWord`. Fixed at creation; decides how searching works. |
+| **Kind** (`LuiIndexKind`) | `SingleWord` or `MultiWord`. Fixed at creation; decides how searching works. |
 | **Content source** | `Owned` (the library's own table) or `Linked` (a table of the application). |
 | **Candidate** | An entry the search proposes, before sorting. At most `Candidates` (default 500). |
 | **Hit** | A candidate that made it into the top `MaxResults` (default 20). |
@@ -109,7 +109,7 @@ from the content table, `Optimize` compacts it.
 |---|---|---|
 | Payload (Owned) | a `JsonTypeInfo<T>` or an `IPayloadSerializer<T>` | serialises it, stores it, returns it for the hits |
 | Payload (Linked) | a mapping from the table's columns | reads the columns for the hits |
-| Similarity | `ITextSimilarity` | measures the candidates |
+| Similarity | `ILuiSimilarity` | measures the candidates |
 | Content source (Sync) | a sequence of entries | reconciles the content table |
 
 ## 7. Out of scope for 1.0

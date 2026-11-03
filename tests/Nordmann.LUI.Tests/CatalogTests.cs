@@ -1,4 +1,3 @@
-using Nordmann.LUI.Payloads;
 using Shouldly;
 
 namespace Nordmann.LUI.Tests;
@@ -58,7 +57,7 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        var exception = Should.Throw<ArgumentException>(() => catalog.Index<long, Chip>(name));
+        var exception = Should.Throw<ArgumentException>(() => catalog.Index(name));
         exception.Message.ShouldContain("^[a-z][a-z0-9_]{0,40}$");
     }
 
@@ -74,7 +73,7 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.Throw<ArgumentException>(() => catalog.Index<long, Chip>(name)).Message.ShouldContain("reserved");
+        Should.Throw<ArgumentException>(() => catalog.Index(name)).Message.ShouldContain("reserved");
     }
 
     [Theory]
@@ -87,7 +86,7 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.NotThrow(() => catalog.Index<long, Chip>(name));
+        Should.NotThrow(() => catalog.Index(name));
     }
 
     [Fact]
@@ -97,7 +96,7 @@ public sealed class CatalogTests
         using var catalog = database.Open();
 
         Should.Throw<NotSupportedException>(
-            () => catalog.Index<Guid, Chip>("tags").SingleWord().Owned().Ensure());
+            () => catalog.Index("tags").SingleWord().Owned<Guid>().Ensure());
     }
 
     [Fact]
@@ -105,14 +104,14 @@ public sealed class CatalogTests
     {
         using var database = new TestDatabase();
         var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "vegan", 5);
 
         catalog.Dispose();
 
         Should.Throw<ObjectDisposedException>(() => index.Query("veg").Execute());
         Should.Throw<ObjectDisposedException>(() => index.Upsert(2, "vegetarisch", 5));
-        Should.Throw<ObjectDisposedException>(() => catalog.Index<long, Chip>("other"));
+        Should.Throw<ObjectDisposedException>(() => catalog.Index("other"));
     }
 
     [Fact]
@@ -132,8 +131,8 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         var catalog = database.Open();
         var blocking = new BlockingSerializer();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Payload(blocking).Ensure();
-        index.Upsert(1, "vegan", 5, new Chip("vegan"));
+        var index = catalog.Index("tags").SingleWord().Owned<long>().WithPayload(blocking).Ensure();
+        index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan") });
 
         var query = Task.Run(() => index.Query("vegan").Execute());
         blocking.Entered.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the query reached the payload");
@@ -153,15 +152,15 @@ public sealed class CatalogTests
     {
         using var database = new TestDatabase();
         var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2026, 11, 2, 12, 0, 0, TimeSpan.Zero));
-        using var catalog = database.Open(options => options.UseTimeProvider(clock));
+        using var catalog = database.Open(new LuiCatalogOptions { TimeProvider = clock });
 
-        catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         database.Scalar<string>("SELECT created_at FROM lui_meta WHERE index_name = 'tags'")
             .ShouldStartWith("2026-11-02T12:00:00");
     }
 
-    private sealed class BlockingSerializer : IPayloadSerializer<Chip>
+    private sealed class BlockingSerializer : ILuiPayloadSerializer<Chip>
     {
         internal ManualResetEventSlim Entered { get; } = new();
 

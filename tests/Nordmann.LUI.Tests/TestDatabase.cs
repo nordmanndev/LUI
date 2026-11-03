@@ -36,9 +36,9 @@ internal sealed class TestDatabase : IDisposable
 
     internal string ConnectionString => $"Data Source={_path}";
 
-    internal LuiCatalog Open(Action<LuiCatalogOptions>? configure = null)
+    internal LuiCatalog Open(LuiCatalogOptions? options = null)
     {
-        var catalog = LuiCatalog.Open(ConnectionString, configure);
+        var catalog = LuiCatalog.Open(ConnectionString, options);
         _catalogs.Add(catalog);
         return catalog;
     }

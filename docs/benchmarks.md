@@ -147,6 +147,20 @@ key and `UpdatePriority`:
 The median is a fifth of a millisecond at every size; the p95 is the FTS5
 segment merges that a write now and then triggers. **Missed at 1 M and 3 M.**
 
+### The batch
+
+`UpsertMany` ([ADR-0013](./adr/0013-the-api-shape-before-the-first-release.md)) against a loop of single `Upsert`s,
+each in a transaction of its own, 100,000 single-word entries:
+
+| | Time | Rate |
+|---|---:|---:|
+| 100,000 × `Upsert` | 16.9 s | 5,913/s |
+| one `UpsertMany` | **3.8 s** | 26,052/s — **4.4×** |
+
+```text
+LUI_PERF=1 LUI_PERF_ENTRIES=100000 dotnet test -c Release --filter BatchPerformance --logger "console;verbosity=detailed"
+```
+
 ### The build
 
 200,000 entries in 13.8 s (14,500/s); 1,000,000 in 87 s (11,500/s);

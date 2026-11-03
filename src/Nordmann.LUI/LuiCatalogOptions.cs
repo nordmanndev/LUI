@@ -1,85 +1,60 @@
+using Nordmann.LUI.Indexing;
+
 namespace Nordmann.LUI;
 
 /// <summary>
-/// The options of a catalog (LUI-Spezifikation §12.1, §7.5). They steer how
-/// every connection of the catalog is set up.
+/// The options of a catalog (LUI-Spezifikation §12.1, §7.5). They steer how every
+/// connection of the catalog is set up. Every value is checked when it is set, so
+/// the options can be bound from configuration and fail where they are wrong — the
+/// exception names the property. Bound through <c>IConfiguration.Bind</c>, it arrives
+/// wrapped in a <see cref="System.Reflection.TargetInvocationException"/>: the binder wraps
+/// what a setter throws; the inner exception is the one that says what is wrong.
 /// </summary>
-public sealed class LuiCatalogOptions
+public sealed record LuiCatalogOptions
 {
-    internal int? CacheSizeMegabytes { get; private set; }
-
-    internal int? MemoryMapMegabytes { get; private set; }
-
-    internal TimeSpan BusyTimeoutValue { get; private set; } = TimeSpan.FromSeconds(5);
-
-    internal bool WriteAheadLog { get; private set; } = true;
-
-    internal TimeProvider TimeProviderValue { get; private set; } = TimeProvider.System;
-
     /// <summary>
-    /// The page cache of every connection. It decides whether the index lives
-    /// in memory (LUI-Spezifikation, Anhang A6). Default: SQLite's own.
+    /// The page cache of every connection, in megabytes; at least 1. It decides whether the index lives in
+    /// memory (LUI-Spezifikation, Anhang A6). Default: <see langword="null"/>, SQLite's own.
     /// </summary>
-    /// <param name="megabytes">The size in megabytes; at least 1.</param>
-    /// <returns>The options.</returns>
-    public LuiCatalogOptions CacheSize(int megabytes)
+    public int? CacheSizeMegabytes
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(megabytes, 1);
-        CacheSizeMegabytes = megabytes;
-        return this;
+        get;
+        init => field = value is { } megabytes ? Setting.AtLeast(megabytes, 1, nameof(CacheSizeMegabytes)) : null;
     }
 
     /// <summary>
-    /// The memory-mapped part of the database file. Default: SQLite's own.
+    /// The memory-mapped part of the database file, in megabytes; at least 1. Default:
+    /// <see langword="null"/>, SQLite's own.
     /// </summary>
-    /// <param name="megabytes">The size in megabytes; at least 1.</param>
-    /// <returns>The options.</returns>
-    public LuiCatalogOptions MemoryMap(int megabytes)
+    public int? MemoryMapMegabytes
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(megabytes, 1);
-        MemoryMapMegabytes = megabytes;
-        return this;
+        get;
+        init => field = value is { } megabytes ? Setting.AtLeast(megabytes, 1, nameof(MemoryMapMegabytes)) : null;
     }
 
     /// <summary>
-    /// How long a connection waits for a lock before SQLite reports
-    /// <c>SQLITE_BUSY</c>. Default: five seconds.
+    /// How long a connection waits for a lock before SQLite reports <c>SQLITE_BUSY</c>; not negative.
+    /// Default: five seconds.
     /// </summary>
-    /// <param name="timeout">The wait; not negative.</param>
-    /// <returns>The options.</returns>
-    public LuiCatalogOptions BusyTimeout(TimeSpan timeout)
+    public TimeSpan BusyTimeout
     {
-        ArgumentOutOfRangeException.ThrowIfLessThan(timeout, TimeSpan.Zero);
-        BusyTimeoutValue = timeout;
-        return this;
-    }
+        get;
+        init => field = Setting.NotNegative(value, nameof(BusyTimeout));
+    } = TimeSpan.FromSeconds(5);
 
     /// <summary>
-    /// Whether <c>LuiCatalog.Open</c> switches the database to write-ahead logging
-    /// (<c>journal_mode = WAL</c>, LUI-Spezifikation §7.5). Default: yes — WAL lets many readers
-    /// run beside one writer. <b>WAL is a property of the file</b>: it stays after LUI is gone,
-    /// adds <c>-wal</c> and <c>-shm</c> files, and does not work on network file systems. When
-    /// LUI shares the database of an application (E9), switch it off here and keep the mode the
-    /// application chose.
+    /// Whether <c>LuiCatalog.Open</c> switches the database to write-ahead logging (<c>journal_mode = WAL</c>,
+    /// LUI-Spezifikation §7.5). Default: yes — WAL lets many readers run beside one writer. <b>WAL is a property
+    /// of the file</b>: it stays after LUI is gone, adds <c>-wal</c> and <c>-shm</c> files, and does not work on
+    /// network file systems. When LUI shares the database of an application, switch it off here and keep the
+    /// mode the application chose.
     /// </summary>
-    /// <param name="enabled">Whether to switch to WAL.</param>
-    /// <returns>The options.</returns>
-    public LuiCatalogOptions UseWriteAheadLog(bool enabled)
-    {
-        WriteAheadLog = enabled;
-        return this;
-    }
+    public bool WriteAheadLog { get; init; } = true;
 
-    /// <summary>
-    /// The clock of the catalog (<c>created_at</c> in <c>lui_meta</c>).
-    /// Default: <see cref="TimeProvider.System"/>.
-    /// </summary>
-    /// <param name="timeProvider">The clock.</param>
-    /// <returns>The options.</returns>
-    public LuiCatalogOptions UseTimeProvider(TimeProvider timeProvider)
+    /// <summary>The clock of the catalog (<c>created_at</c> in <c>lui_meta</c>). Default: <see cref="TimeProvider.System"/>.</summary>
+    public TimeProvider TimeProvider
     {
-        ArgumentNullException.ThrowIfNull(timeProvider);
-        TimeProviderValue = timeProvider;
-        return this;
-    }
+        get;
+        init => field = Setting.NotNull(value, nameof(TimeProvider));
+    } = TimeProvider.System;
 }

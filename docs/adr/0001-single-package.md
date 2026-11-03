@@ -3,6 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
+- **Amended by:** [0013](./0013-the-api-shape-before-the-first-release.md) — the namespace layout below
 - **Affects:** `src/Nordmann.LUI/Nordmann.LUI.csproj`, `Directory.Packages.props`,
   `docs/spec/LUI-Spezifikation.md` §17.1, `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs`
 
@@ -22,29 +23,27 @@ The delivery requirement for this repository is **one** package.
 
 LUI ships **one** package: `Nordmann.LUI`, one assembly.
 
-The namespace layout of the specification (§17.2) survives unchanged, because
-the namespace is what a consumer actually sees:
+The namespace a consumer sees is **one**: every public type lives in `Nordmann.LUI` (ADR-0013 — this replaces
+the layout of the specification that this ADR first kept). The other namespaces are internal and follow the
+folders:
 
 ```text
-Nordmann.LUI                    LuiCatalog, LuiCatalogOptions, the builder
-Nordmann.LUI.Indexing           schema, triggers, Ensure, Sync, Check
-Nordmann.LUI.Querying           ILuiIndex, LuiQueryOptions, LuiResult, LuiHit
-Nordmann.LUI.Normalization      Normalizer, SQL expressions, highlight mapping
-Nordmann.LUI.Typos              the prefix dictionary
-Nordmann.LUI.Similarity         ITextSimilarity and the four implementations
-Nordmann.LUI.Payloads           serialization, column mapping
-Nordmann.LUI.DependencyInjection  AddLui(), keyed services, ensure-on-start
+Nordmann.LUI                    every public type: LuiCatalog, the builder steps, ILuiIndex, ILuiOwnedIndex,
+                                LuiEntry, LuiQuery, LuiQueryOptions, LuiResult, LuiHit, LuiSimilarity, …
+Nordmann.LUI.Indexing           schema, triggers, writes                      (internal)
+Nordmann.LUI.Querying           the query path, candidates, ranking            (internal)
+Nordmann.LUI.Normalization      Normalizer, SQL expressions, the fold table    (internal)
+Nordmann.LUI.Typos              the prefix dictionary                          (internal)
 ```
 
-The dependency-injection surface keeps its own namespace inside the same
-assembly, so the *code* that uses `AddLui` reads the same whether the DI
-helpers later move into their own package or not.
+The dependency injection (PR-008) lands in the same assembly; whether it gets a namespace of its own is that
+pull request's decision.
 
 ## Consequences
 
 **The cost, stated plainly.** Every consumer installs `Microsoft.Data.Sqlite`,
-`symspell`, `F23.StringSimilarity` and the `Microsoft.Extensions.*`
-abstractions, whether or not it uses the DI helpers or the typo tolerance. All
+`symspell` and `F23.StringSimilarity` — and, once the dependency injection lands (PR-008), the
+`Microsoft.Extensions.*` abstractions it needs — whether or not it uses the DI helpers or the typo tolerance. All
 of them are permissively licensed (MIT / Apache-2.0), so the cost is a few
 megabytes and a longer restore — not a licence question.
 
