@@ -31,15 +31,32 @@ jobs:
       - name: Build
         run: dotnet build Lui.sln --configuration Release --no-restore
 
-      # The unit, architecture and integration tests. The architecture tests
-      # read the repository from disk — they are the mechanical half of the
-      # standards' rules (ADR-0002).
-      - name: Test
+      # The three lanes of the pyramid (ADR-0017). The unit lane is the fast
+      # one — the rules of the library, without a database. The architecture
+      # tests read the repository from disk — they are the mechanical half of
+      # the standards' rules (ADR-0002) and the guard of the map of the tests.
+      - name: Test · unit
         run: >
-          dotnet test Lui.sln
+          dotnet test tests/Nordmann.LUI.Unit.Tests
           --configuration Release
           --no-build
-          --logger "trx;LogFileName=tests.trx"
+          --logger "trx;LogFileName=unit.trx"
+          --results-directory artifacts/test-results
+
+      - name: Test · architecture
+        run: >
+          dotnet test tests/Nordmann.LUI.Architecture.Tests
+          --configuration Release
+          --no-build
+          --logger "trx;LogFileName=architecture.trx"
+          --results-directory artifacts/test-results
+
+      - name: Test · integration
+        run: >
+          dotnet test tests/Nordmann.LUI.Integration.Tests
+          --configuration Release
+          --no-build
+          --logger "trx;LogFileName=integration.trx"
           --results-directory artifacts/test-results
 
       - name: Upload test results
@@ -52,6 +69,49 @@ jobs:
 
       - name: Format
         run: dotnet format Lui.sln --verify-no-changes --no-restore
+
+  parity:
+    name: The normalisation parity over the whole word list
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore Lui.sln
+
+      # The rule of §6.2 exists twice — as SQL and as C# — and the parity test
+      # compares them over every word of the German word list. Without the
+      # list the test is skipped and says so; this job fetches the list and
+      # demands it, so that the parity is proved here and not only in the
+      # release gate (ADR-0017).
+      - name: Fetch the word list
+        run: bash tools/fetch-wordlist.sh
+
+      - name: Build and test
+        env:
+          LUI_REQUIRE_FULL_WORDLIST: '1'
+        run: |
+          dotnet build Lui.sln --configuration Release --no-restore
+          dotnet test tests/Nordmann.LUI.Integration.Tests --configuration Release --no-build
+
+  mutation:
+    name: The guards bite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      # Every rule is mutated and the guard has to react. A green test proves
+      # nothing until it has been seen red (ADR-0017).
+      - name: Mutation check
+        run: bash tools/mutation-check.sh
 
   package:
     name: Package · Smoke test
