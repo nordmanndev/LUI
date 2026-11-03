@@ -355,6 +355,7 @@ also changed three things the plan did not foresee:
 | `Nordmann.LUI.Hosting` knows only the public API | another assembly, no `InternalsVisibleTo`: the compiler pins it; `ILuiIndex.TypoTolerance` is new for the warm-up |
 | An outdated linked candidate does not count against the budget (F1) | many of them among the best crowded out a match; the read goes on up to a second budget |
 | `Highlight` is not built | owner's decision: the front end marks the match; issue #20 for a later version |
+| The sample does not use LUI yet | on purpose: the sample comes with PR-011 and will use `Nordmann.LUI.Hosting` there (review of PR #23, N6) |
 
 ---
 

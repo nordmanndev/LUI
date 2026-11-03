@@ -53,12 +53,12 @@ public static class LuiServiceCollectionExtensions
 
         var registrations = new LuiRegistrations();
         services.AddSingleton(registrations);
-        services.AddSingleton(provider => options?.Invoke(provider) ?? new LuiCatalogOptions());
-        services.AddSingleton(provider => LuiCatalog.Open(connectionString(provider), provider.GetRequiredService<LuiCatalogOptions>()));
+        services.AddSingleton(provider => new CatalogSettings(options?.Invoke(provider) ?? new LuiCatalogOptions()));
+        services.AddSingleton(provider => LuiCatalog.Open(connectionString(provider), provider.GetRequiredService<CatalogSettings>().Options));
         services.AddHostedService(provider =>
             new LuiStartup(provider, registrations, Logger<LuiStartup>(provider)));
         services.AddHostedService(provider => new LuiPendingApplier(
-            provider, registrations, provider.GetRequiredService<LuiCatalogOptions>().TimeProvider, Logger<LuiPendingApplier>(provider)));
+            provider, registrations, provider.GetRequiredService<CatalogSettings>().Options.TimeProvider, Logger<LuiPendingApplier>(provider)));
 
         return new LuiServicesBuilder(services, registrations);
     }

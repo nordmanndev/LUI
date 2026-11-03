@@ -794,7 +794,9 @@ public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<lon
 - `Ensure()` läuft beim Start (als `IHostedService`, abschaltbar mit `EnsureOnStart(false)`), nicht beim ersten
   Request: Eine abweichende Definition stoppt den Start.
 - `WarmUpTypoDictionariesOnStart()` baut die Wörterbücher der Indizes mit Tippfehler-Toleranz nach dem Start im
-  Hintergrund.
+  Hintergrund. Abfragen ohne Korrektur warten nicht darauf; eine Abfrage, die korrigieren muss, wartet, bis das
+  Wörterbuch gebaut ist — wie beim ersten Tippfehler ohne Warm-up —, und ihr Token unterbricht dieses Warten nicht
+  (ADR-0017; eine Abfrage, die währenddessen ohne Korrektur antwortet, ist Issue #19).
 - `applyPendingEvery` lässt einen gehosteten Dienst `ApplyPending()` eines verknüpften Index im Takt aufrufen; ein
   fehlgeschlagener Durchlauf wird geloggt, der nächste versucht es wieder. Die Trigger legt er nicht an (ADR-0015).
 - Das alles liefert das Paket `Nordmann.LUI.Hosting` (§ 17.1, ADR-0018); den Host bringt die Anwendung mit. Ohne

@@ -19,7 +19,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   background; another one applies the outbox of a linked index on its interval (`applyPendingEvery`). The hosting
   package references `Microsoft.Extensions.DependencyInjection.Abstractions`, `.Hosting.Abstractions` and
   `.Logging.Abstractions` (10.0.14); the core `Nordmann.LUI` does not — a console application carries none of them.
-- `ILuiIndex.TypoTolerance`: whether a query of the instance corrects typos unless it says otherwise.
+- `ILuiIndex.TypoTolerance`: whether a query of the instance corrects typos unless it says otherwise. An application's
+  own implementation of `ILuiIndex` (a test double) has to add it.
 
 - **Sync, check, rebuild and optimize** ([ADR-0016](docs/adr/0016-sync-check-rebuild.md)). An owned index:
   `Sync(source, options?, cancellationToken)` (and an overload for an `IAsyncEnumerable` source) adds what is missing,

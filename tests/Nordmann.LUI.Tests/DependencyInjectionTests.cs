@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 
@@ -93,21 +94,23 @@ public sealed class DependencyInjectionTests
         using var database = new TestDatabase();
         Run(database, "CREATE TABLE tag (id INTEGER PRIMARY KEY, name TEXT, usage_count INTEGER NOT NULL DEFAULT 0);");
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var log = new CapturedLog();
         using var host = Host(
             database,
             lui => lui.AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(1)),
-            new LuiCatalogOptions { TimeProvider = clock });
+            new LuiCatalogOptions { TimeProvider = clock },
+            builder => builder.Logging.SetMinimumLevel(LogLevel.Debug).AddProvider(log));
         host.Start();
         var tags = host.Services.GetRequiredKeyedService<ILuiLinkedIndex<LuiNoPayload>>("tags");
         tags.CreateTriggers();
         Run(database, "INSERT INTO tag(id, name) VALUES (1, 'vegan'); ALTER TABLE tag RENAME COLUMN name TO title;");
 
         // rounds fail while the column is gone …
-        for (var round = 0; round < 3; round++)
+        Eventually(() =>
         {
             clock.Advance(TimeSpan.FromSeconds(1));
-            Thread.Sleep(50);
-        }
+            return log.Count(LogLevel.Debug, "rounds in a row") >= 2;
+        }).ShouldBeTrue("three rounds fail");
 
         tags.Pending().ShouldBe(1);
 
@@ -118,6 +121,35 @@ public sealed class DependencyInjectionTests
             clock.Advance(TimeSpan.FromSeconds(1));
             return tags.Pending() == 0;
         }).ShouldBeTrue("the loop goes on after a failed round");
+
+        // a failure that lasts is one error, not one per round (review of pull request 23, N3)
+        log.Count(LogLevel.Error, "could not be applied").ShouldBe(1);
+        Eventually(() => log.Count(LogLevel.Information, "applied again") == 1).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Options_the_application_registers_for_itself_do_not_change_the_catalog_of_the_container()
+    {
+        // N4: AddLui keeps its settings under a type of its own
+        using var database = new TestDatabase();
+        Run(database, "CREATE TABLE tag (id INTEGER PRIMARY KEY, name TEXT, usage_count INTEGER NOT NULL DEFAULT 0);");
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        using var host = Host(
+            database,
+            lui => lui.AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(5)),
+            new LuiCatalogOptions { TimeProvider = clock },
+            builder => builder.Services.AddSingleton(new LuiCatalogOptions { TimeProvider = TimeProvider.System }));
+        host.Start();
+        var tags = host.Services.GetRequiredKeyedService<ILuiLinkedIndex<LuiNoPayload>>("tags");
+        tags.CreateTriggers();
+        Run(database, "INSERT INTO tag(id, name) VALUES (1, 'vegan');");
+
+        // the timer runs on the clock AddLui was given
+        Eventually(() =>
+        {
+            clock.Advance(TimeSpan.FromSeconds(5));
+            return tags.Pending() == 0;
+        }).ShouldBeTrue();
     }
 
     [Fact]
@@ -189,10 +221,15 @@ public sealed class DependencyInjectionTests
         catalog.Index("typos").SingleWord().TypoTolerance().Ensure().TypoTolerance.ShouldBeTrue();
     }
 
-    private static IHost Host(TestDatabase database, Action<LuiServicesBuilder> indexes, LuiCatalogOptions? options = null)
+    private static IHost Host(
+        TestDatabase database,
+        Action<LuiServicesBuilder> indexes,
+        LuiCatalogOptions? options = null,
+        Action<HostApplicationBuilder>? more = null)
     {
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         indexes(builder.Services.AddLui(database.ConnectionString, options));
+        more?.Invoke(builder);
         return builder.Build();
     }
 
@@ -221,5 +258,32 @@ public sealed class DependencyInjectionTests
         using var command = connection.CreateCommand();
         command.CommandText = sql;
         command.ExecuteNonQuery();
+    }
+
+    /// <summary>The log lines of LUI's hosted services, for the tests that ask how often something was logged.</summary>
+    private sealed class CapturedLog : ILoggerProvider
+    {
+        private readonly System.Collections.Concurrent.ConcurrentQueue<(LogLevel Level, string Message)> _lines = new();
+
+        public ILogger CreateLogger(string categoryName) =>
+            categoryName.StartsWith("Nordmann.LUI", StringComparison.Ordinal) ? new Logger(_lines) : Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
+
+        public int Count(LogLevel level, string text) =>
+            _lines.Count(line => line.Level == level && line.Message.Contains(text, StringComparison.Ordinal));
+
+        public void Dispose()
+        {
+        }
+
+        private sealed class Logger(System.Collections.Concurrent.ConcurrentQueue<(LogLevel Level, string Message)> lines) : ILogger
+        {
+            public IDisposable? BeginScope<TState>(TState state)
+                where TState : notnull => null;
+
+            public bool IsEnabled(LogLevel logLevel) => true;
+
+            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+                lines.Enqueue((logLevel, formatter(state, exception)));
+        }
     }
 }

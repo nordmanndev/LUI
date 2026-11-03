@@ -137,7 +137,15 @@ public sealed class LuiServicesBuilder
     /// <summary>
     /// Builds the typo dictionary of every index with typo tolerance in the background once the host has started
     /// (default: off) — about 5 seconds and 140 MB for 685,000 words each, paid on start instead of by the first typo.
-    /// Queries do not wait for it; an index without typo tolerance gets no dictionary.
+    /// <para>
+    /// Queries without a correction do not wait for it. A query that needs a correction waits until the dictionary is
+    /// built, as it would for the lazy build of the first typo; its cancellation token does not interrupt that wait.
+    /// </para>
+    /// <para>
+    /// An index whose instance has no typo tolerance (<see cref="ILuiIndex{TKey, TPayload}.TypoTolerance"/>) is not
+    /// warmed: when a query asks for a correction (<c>Query(text).TypoTolerance(true)</c>), it builds its dictionary
+    /// then.
+    /// </para>
     /// </summary>
     /// <param name="enabled">Whether the dictionaries are built on start.</param>
     /// <returns>The builder.</returns>

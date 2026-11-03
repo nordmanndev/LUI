@@ -14,7 +14,12 @@ public sealed record LuiResult<TKey, TPayload>
     /// <summary>How many candidates were ranked; at most <see cref="LuiQueryOptions.Candidates"/>.</summary>
     public int CandidatesConsidered { get; init; }
 
-    /// <summary>Whether there were more candidates than <see cref="LuiQueryOptions.Candidates"/>.</summary>
+    /// <summary>
+    /// Whether there were more candidates than <see cref="LuiQueryOptions.Candidates"/>. For a <c>Linked</c> index it is
+    /// also set when the read stopped at a second budget of rows whose text changed and is not applied yet — then the
+    /// answer can be empty although matching rows exist: the index is behind, and <c>Pending()</c> / <c>ApplyPending()</c>
+    /// are the way out (ADR-0017).
+    /// </summary>
     public bool Truncated { get; init; }
 
     /// <summary>

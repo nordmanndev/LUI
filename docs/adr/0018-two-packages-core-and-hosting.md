@@ -28,8 +28,10 @@ What argued for the split:
 
 1. **Dependencies.** The core's dependencies are its contract (AGENTS.md). A console application should not carry the
    abstractions of a host it does not have.
-2. **Versions.** A fix of the DI should not force a release of the core, and a core pinned to `Microsoft.Extensions.*`
-   10.0.14 should not pull an application's own packages up.
+2. **Versions.** A core pinned to `Microsoft.Extensions.*` 10.0.14 should not pull an application's own packages up.
+   *(A first version of this record also said "a fix of the DI should not force a release of the core". With one
+   version for both packages it does: a fix of either releases both, the other one unchanged in content. That is the
+   price of the shared version, not an argument for the split — review of pull request 23, S3.)*
 3. **A passive core.** The core runs no thread and no timer of its own: every call is synchronous and happens when the
    application makes it. Background work — the ensure on start, the warm-up, `ApplyPending` on a timer — belongs to whoever
    owns the lifetime: the host. As a package of its own, that line is visible.
@@ -64,9 +66,14 @@ versions together again. Three places used internals and now do not:
 
 **Released together, one version.** `VersionPrefix` lives in `Directory.Build.props` only, no project sets a version (an
 architecture test). The publish pipeline packs both from the same commit, and the smoke test checks that the hosting
-package depends on the core of the same version. NuGet makes that dependency a lower bound (`>= 0.1.0`), not an exact
-pin: an application could take a newer core with an older hosting package, and that is fine as long as the public API of
-the core does not break — which is what the shared version tells.
+package depends on the core of the same version.
+
+**The range of that dependency is open — to be decided before 0.1.0 is released** (review of pull request 23, S3; issue
+#24). NuGet makes the project reference a lower bound (`>= 0.1.0`), not a pin. In 0.x every minor version may break the
+API (SemVer), so an application that references a newer core directly — `Nordmann.LUI 0.2.0` beside
+`Nordmann.LUI.Hosting 0.1.0` — could meet a changed signature the hosting package calls at run time
+(`MissingMethodException`), not at compile time. The choices: an exact pin `[x.y.z]`, a range `[0.1.0, 0.2.0)`, or the
+lower bound on purpose. How the pack sets a range for a project reference is not checked yet.
 
 **No timer in the core.** A console application keeps its linked index current without a host:
 
