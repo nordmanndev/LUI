@@ -16,6 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The application keeps it current: `Sync()`, `Refresh(key, transaction = null)`, `RefreshMany(keys, transaction = null)`,
   `Optimize()`; triggers only on request: `TriggerScript()`, `CreateTriggers()`, `DropTriggers()`. A payload from columns:
   `WithPayload(columns, row => …)` with `LuiRow`. `LuiLinkedTableException` when the table is not what the link says.
+  `Sync()` returns a `LuiSyncResult` (indexed, without text, key out of range); `Triggers()` returns a
+  `LuiTriggerState` (`None`, `Current`, `Stale`); `DropIndex(name, dropTriggers)` removes the triggers of a linked
+  index only when asked. A candidate whose current text no longer matches is not a hit.
   200,000 rows: sync 3.5–3.9 s, query p95 1.11–1.17 ms, refresh p95 0.51–0.58 ms.
 
 ### Changed

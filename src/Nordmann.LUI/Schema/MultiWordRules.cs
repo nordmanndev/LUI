@@ -111,6 +111,43 @@ internal sealed class MultiWordRules : IndexKindRules
         return anded.ToString();
     }
 
+    internal override bool StillMatches(
+        ReadOnlySpan<char> searchForm, bool prefixPath, string prefixKey, string search, string compact, IReadOnlyList<string> words)
+    {
+        // the compact form of the text: its search form without the separators
+        Span<char> buffer = searchForm.Length <= 256 ? stackalloc char[256] : new char[searchForm.Length];
+        var length = 0;
+        foreach (var c in searchForm)
+        {
+            if (!Normalizer.IsSeparator(c))
+            {
+                buffer[length++] = c;
+            }
+        }
+
+        var text = buffer[..length];
+        if (prefixPath)
+        {
+            return text.StartsWith(prefixKey, StringComparison.Ordinal);
+        }
+
+        var terms = ExpressionWords(words);
+        if (terms.Length == 0)
+        {
+            return text.Contains(compact, StringComparison.Ordinal);
+        }
+
+        foreach (var term in terms)
+        {
+            if (!text.Contains(term, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     /// <summary>
     /// The words of three or more code points — at most <see cref="MaxExpressionWords"/>, the longest, in the
     /// order they were typed.

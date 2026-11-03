@@ -58,6 +58,7 @@ public sealed class LinkedIndexTests
     [InlineData("CREATE TABLE tag (id INTEGER, name TEXT, usage_count INTEGER);", "INTEGER PRIMARY KEY")]
     [InlineData("CREATE TABLE tag (id INTEGER, name TEXT, usage_count INTEGER, PRIMARY KEY (id, name));", "INTEGER PRIMARY KEY")]
     [InlineData("CREATE TABLE tag (id INTEGER PRIMARY KEY, name TEXT, usage_count INTEGER) WITHOUT ROWID;", "INTEGER PRIMARY KEY")]
+    [InlineData("CREATE TABLE tag (id INTEGER PRIMARY KEY DESC, name TEXT, usage_count INTEGER);", "INTEGER PRIMARY KEY")]
     public void A_table_that_is_not_what_the_link_says_is_refused_and_not_changed(string table, string message)
     {
         using var database = new TestDatabase();
@@ -95,8 +96,11 @@ public sealed class LinkedIndexTests
         tags.Count().ShouldBe(0);
         tags.Search("veg").Hits.ShouldBeEmpty();
 
-        tags.Sync().ShouldBe(2);
+        var result = tags.Sync();
 
+        result.Indexed.ShouldBe(2);
+        result.WithoutText.ShouldBe(2);
+        result.KeyOutOfRange.ShouldBe(0);
         tags.Count().ShouldBe(2);
         // word start, then similarity, then weight (§9.2): „vegan" is nearer to „veg" than „vegetarisch"
         tags.Search("veg").Hits.Select(hit => (hit.Key, hit.Text, hit.Weight)).ShouldBe([(1L, "vegan", 5), (2L, "vegetarisch", 9)]);
@@ -113,9 +117,12 @@ public sealed class LinkedIndexTests
         tags.Sync();
 
         Run(database, "UPDATE tag SET name = 'torte' WHERE id = 2; DELETE FROM tag WHERE id = 1; INSERT INTO tag(id, name) VALUES (3, 'tofu');");
-        tags.Search("kuchen").Hits.ShouldHaveSingleItem("the index did not hear of the change");
+        // the index did not hear of the change: the old text is no hit any more (S1), the new one not yet
+        tags.Search("kuchen").Hits.ShouldBeEmpty();
+        tags.Search("torte").Hits.ShouldBeEmpty();
+        tags.Count().ShouldBe(2);
 
-        tags.Sync().ShouldBe(2);
+        tags.Sync().Indexed.ShouldBe(2);
 
         tags.Search("kuchen").Hits.ShouldBeEmpty();
         tags.Search("vegan").Hits.ShouldBeEmpty();
@@ -267,22 +274,40 @@ public sealed class LinkedIndexTests
     }
 
     [Fact]
-    public void A_key_at_the_end_of_the_range_comes_back_as_it_is_and_one_beyond_it_is_refused()
+    public void A_key_at_the_end_of_the_range_comes_back_as_it_is_and_one_beyond_it_is_left_out_not_refused()
     {
-        // review of pull request 14, N6: the key is read back as text
+        // review of pull request 14, N6: the key is read back as text; review of pull request 16, M2: a key out of range
+        // leaves the row out — one such row must not take the whole index with it
         using var database = new TestDatabase();
         Run(database, Table);
-        Insert(database, (4_294_967_295, "vegan", 5));
+        Insert(database, (4_294_967_295, "vegan", 5), (1_700_000_000_000, "veganer", 5), (-1, "vegane", 5));
         using var catalog = database.Open();
         var tags = Tags(catalog);
 
-        tags.Sync().ShouldBe(1);
+        var result = tags.Sync();
+
+        result.Indexed.ShouldBe(1);
+        result.KeyOutOfRange.ShouldBe(2);
         tags.Search("vegan").Hits.ShouldHaveSingleItem().Key.ShouldBe(4_294_967_295L);
 
-        Insert(database, (4_294_967_296, "veganer", 5));
-        Should.Throw<ArgumentOutOfRangeException>(() => tags.Refresh(4_294_967_296));
-        Should.Throw<LuiLinkedTableException>(() => tags.Sync()).Message.ShouldContain("Nothing was changed");
-        tags.Count().ShouldBe(1);
+        // a call of the application with such a key is a mistake of the call, and says so
+        Should.Throw<ArgumentOutOfRangeException>(() => tags.Refresh(1_700_000_000_000));
+    }
+
+    [Fact]
+    public void With_the_triggers_a_row_with_a_key_out_of_range_is_written_and_left_out_of_the_index()
+    {
+        // review of pull request 16, M2: the trigger must not refuse a write of the application
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = Tags(catalog);
+        tags.CreateTriggers();
+
+        Should.NotThrow(() => Run(database, "INSERT INTO tag(id, name, usage_count) VALUES (4294967296, 'vegan', 5), (1, 'veganer', 3);"));
+
+        database.Scalar<long>("SELECT count(*) FROM tag").ShouldBe(2);
+        tags.Search("vegan").Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
     }
 
     [Fact]
@@ -417,7 +442,7 @@ public sealed class LinkedIndexTests
         tags.Sync();
         tags.CreateTriggers();
 
-        catalog.DropIndex("tags").ShouldBeTrue();
+        catalog.DropIndex("tags", dropTriggers: true).ShouldBeTrue();
 
         database.Scalar<long>("SELECT count(*) FROM sqlite_master WHERE name LIKE 'lui_tags%' OR type = 'trigger'").ShouldBe(0);
         database.Scalar<long>("SELECT count(*) FROM tag").ShouldBe(1);
@@ -458,10 +483,160 @@ public sealed class LinkedIndexTests
         using var catalog = database.Open();
         var tags = catalog.Index("tags").SingleWord().LinkTo("Tags", "Id", "Name", weight: "UsageCount").Ensure();
 
-        tags.Sync().ShouldBe(1);
+        tags.Sync().Indexed.ShouldBe(1);
         tags.Search("veg").Hits.ShouldHaveSingleItem().Weight.ShouldBe(5);
         tags.Optimize();
         tags.Search("vegan").Hits.ShouldHaveSingleItem();
+    }
+
+    // ---- review of pull request 16 ------------------------------------------------------------------------------------
+
+    [Fact]
+    public void A_drop_of_an_index_with_triggers_is_refused_unless_the_triggers_go_too()
+    {
+        // M3: a migration of the application may count on the triggers; their removal is not done silently
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = Tags(catalog);
+        Run(database, tags.TriggerScript());
+
+        Should.Throw<InvalidOperationException>(() => catalog.DropIndex("tags")).Message.ShouldContain("dropTriggers: true");
+        database.Scalar<long>("SELECT count(*) FROM sqlite_master WHERE type = 'trigger'").ShouldBe(3);
+        Run(database, "INSERT INTO tag(id, name) VALUES (1, 'vegan');");
+        tags.Search("vegan").Hits.ShouldHaveSingleItem("the index and its triggers are still there");
+
+        catalog.DropIndex("tags", dropTriggers: true).ShouldBeTrue();
+        database.Scalar<long>("SELECT count(*) FROM sqlite_master WHERE type = 'trigger'").ShouldBe(0);
+        Should.NotThrow(() => Run(database, "INSERT INTO tag(id, name) VALUES (2, 'tofu');"));
+
+        // after a new ensure the index is empty and without triggers, and says so
+        var again = Tags(catalog);
+        again.Count().ShouldBe(0);
+        again.Triggers().ShouldBe(LuiTriggerState.None);
+    }
+
+    [Fact]
+    public void The_state_of_the_triggers_tells_none_current_and_stale_apart()
+    {
+        // M3: a migration's triggers after an update of LUI or a change of the table
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = Tags(catalog);
+
+        tags.Triggers().ShouldBe(LuiTriggerState.None);
+
+        Run(database, tags.TriggerScript().Replace(" ", "  ", StringComparison.Ordinal));
+        tags.Triggers().ShouldBe(LuiTriggerState.Current, "white space does not make a trigger another one");
+
+        Run(database, "DROP TRIGGER lui_tags_ad;");
+        tags.Triggers().ShouldBe(LuiTriggerState.Stale);
+
+        tags.CreateTriggers();
+        tags.Triggers().ShouldBe(LuiTriggerState.Current);
+
+        // an index whose name begins like this one's has triggers of its own
+        catalog.Index("tags_all").SingleWord().LinkTo("tag", "id", "name").Ensure().CreateTriggers();
+        tags.Triggers().ShouldBe(LuiTriggerState.Current);
+    }
+
+    [Fact]
+    public void A_text_that_changed_under_the_index_is_not_a_hit()
+    {
+        // S1: the candidates come from the index, the text from the table — they must agree
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "vegan", 5), (2, "veganer", 3));
+        using var catalog = database.Open();
+        var tags = Tags(catalog);
+        tags.Sync();
+
+        Run(database, "UPDATE tag SET name = 'zucker' WHERE id = 1;");
+
+        tags.Search("vegan").Hits.ShouldHaveSingleItem().Key.ShouldBe(2, "„zucker\" does not match „vegan\"");
+        tags.Search("ve").Hits.ShouldHaveSingleItem().Key.ShouldBe(2, "nor does it begin with „ve\"");
+        tags.Search("zuck").Hits.ShouldBeEmpty("the index has not heard of the new text yet");
+
+        tags.Refresh(1);
+        tags.Search("zuck").Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
+    }
+
+    [Fact]
+    public void A_text_that_changed_under_a_multi_word_index_is_not_a_hit()
+    {
+        using var database = new TestDatabase();
+        Run(database, "CREATE TABLE recipe (id INTEGER PRIMARY KEY, title TEXT NOT NULL, views INTEGER NOT NULL);");
+        Run(database, "INSERT INTO recipe VALUES (1, 'Apfel Kuchen', 10), (2, 'Kuchen mit Apfel', 5);");
+        using var catalog = database.Open();
+        var recipes = catalog.Index("recipes").MultiWord().LinkTo("recipe", "id", "title", weight: "views").Ensure();
+        recipes.Sync();
+
+        Run(database, "UPDATE recipe SET title = 'Birnen Torte' WHERE id = 1;");
+
+        recipes.Search("kuchen apfel").Hits.ShouldHaveSingleItem().Key.ShouldBe(2);
+        recipes.Search("ap").Hits.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void A_column_renamed_under_the_index_is_named_and_not_a_bare_sqlite_error()
+    {
+        // S4
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "vegan", 5));
+        using var catalog = database.Open();
+        var tags = Tags(catalog);
+        tags.Sync();
+
+        Run(database, "ALTER TABLE tag RENAME COLUMN name TO title;");
+
+        Should.Throw<LuiLinkedTableException>(() => tags.Search("vegan")).Message.ShouldContain("no such column");
+        Should.Throw<LuiLinkedTableException>(() => tags.Refresh(1));
+        Should.Throw<LuiLinkedTableException>(() => tags.Sync());
+        Should.Throw<LuiLinkedTableException>(() => Tags(catalog)).Message.ShouldContain("'name'");
+    }
+
+    [Fact]
+    public void A_key_that_comes_twice_is_refreshed_once_and_counted_once()
+    {
+        // N2
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "vegan", 5));
+        using var catalog = database.Open();
+        var tags = Tags(catalog);
+
+        tags.RefreshMany([1, 1, 1]).ShouldBe(1);
+        tags.Count().ShouldBe(1);
+    }
+
+    [Fact]
+    public void A_transaction_of_another_database_is_refused_with_a_clear_message()
+    {
+        // N5
+        using var database = new TestDatabase();
+        using var other = new TestDatabase();
+        Run(database, Table);
+        Run(other, Table);
+        using var catalog = database.Open();
+        var tags = Tags(catalog);
+
+        using var connection = other.Connect();
+        using var transaction = connection.BeginTransaction();
+
+        Should.Throw<ArgumentException>(() => tags.Refresh(1, transaction)).Message.ShouldContain("another database");
+    }
+
+    [Fact]
+    public void A_payload_column_named_twice_is_refused()
+    {
+        // N7
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+
+        Should.Throw<ArgumentException>(() => catalog.Index("tags").SingleWord().LinkTo("tag", "id", "name")
+            .WithPayload(["slug", "Slug"], row => row.GetString("slug")));
     }
 
     private static ILuiLinkedIndex<LuiNoPayload> Tags(LuiCatalog catalog) =>

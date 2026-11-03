@@ -55,6 +55,8 @@ internal sealed class LinkedSource : ContentSource
         TextsSql = $"SELECT {_text}, {_weight} FROM {EntryTable} s JOIN {ContentTable} h ON {_key} = s.doc_id;";
     }
 
+    internal override bool TextCanChangeUnderTheIndex => true;
+
     /// <summary>The table of the application and its columns.</summary>
     internal LinkDefinition Link { get; }
 
@@ -75,6 +77,11 @@ internal sealed class LinkedSource : ContentSource
 
     /// <summary>The text and the weight of one row, if it would be indexed: <c>(text, weight)</c> for <c>$id</c>.</summary>
     internal string ReadRowSql => $"SELECT {_text}, {_weight} FROM {ContentTable} h WHERE {_key} = $id AND {Indexable};";
+
+    /// <summary>The rows a sync leaves out: <c>(without text, key out of range)</c>.</summary>
+    internal string SkippedSql =>
+        $"SELECT coalesce(sum(CASE WHEN NOT ({HasText}) THEN 1 ELSE 0 END), 0), "
+        + $"coalesce(sum(CASE WHEN ({HasText}) AND NOT ({KeyInRange}) THEN 1 ELSE 0 END), 0) FROM {ContentTable} h;";
 
     /// <summary>Clears the index before a <see cref="SyncChunkSql"/> fills it anew.</summary>
     internal string ClearSql => $"DELETE FROM {EntryTable}; INSERT INTO {FtsTable}({FtsTable}) VALUES ('delete-all');";
@@ -131,26 +138,39 @@ internal sealed class LinkedSource : ContentSource
     /// The three triggers that keep the index in step with the table — for the application's own migration, or
     /// for <c>CreateTriggers()</c>. LUI creates them only when it is asked to (ADR-0015).
     /// </summary>
-    internal string TriggerScript()
+    internal string TriggerScript() =>
+        string.Join(Environment.NewLine, TriggerStatements().Select(trigger => trigger.Sql + ";"));
+
+    /// <summary>The three triggers, each with its name and its <c>CREATE TRIGGER</c> statement as SQLite stores it.</summary>
+    internal IReadOnlyList<(string Name, string Sql)> TriggerStatements()
     {
         var table = ContentTable;
         var key = Identifier.Quote(Link.Key);
         string[] watched = [Link.Key, Link.Text, .. new[] { Link.Weight, Link.Priority }.OfType<string>()];
         var columns = string.Join(", ", watched.Distinct(StringComparer.OrdinalIgnoreCase).Select(Identifier.Quote));
+        var inserted = Trigger(IndexName, "ai");
+        var updated = Trigger(IndexName, "au");
+        var deleted = Trigger(IndexName, "ad");
 
-        return $"""
-            CREATE TRIGGER {Trigger(IndexName, "ai")} AFTER INSERT ON {table} BEGIN
-                {RefreshSql($"new.{key}")}
-            END;
-            CREATE TRIGGER {Trigger(IndexName, "au")} AFTER UPDATE OF {columns} ON {table} BEGIN
-                {RemoveSql($"old.{key}")}
-                {RefreshSql($"new.{key}")}
-            END;
-            CREATE TRIGGER {Trigger(IndexName, "ad")} AFTER DELETE ON {table} BEGIN
-                {RemoveSql($"old.{key}")}
-            END;
-            """;
+        return
+        [
+            (inserted, $"CREATE TRIGGER {inserted} AFTER INSERT ON {table} BEGIN {RefreshSql($"new.{key}")} END"),
+            (updated, $"CREATE TRIGGER {updated} AFTER UPDATE OF {columns} ON {table} BEGIN {RemoveSql($"old.{key}")} {RefreshSql($"new.{key}")} END"),
+            (deleted, $"CREATE TRIGGER {deleted} AFTER DELETE ON {table} BEGIN {RemoveSql($"old.{key}")} END"),
+        ];
     }
+
+    /// <summary>
+    /// The triggers of the index as SQLite stores them: <c>(name, sql)</c> — by their exact names, so that the triggers
+    /// of an index <c>tags_all</c> are not taken for those of <c>tags</c>.
+    /// </summary>
+    internal string StoredTriggersSql =>
+        TriggerCountSql(IndexName).Replace("SELECT count(*)", "SELECT name, sql", StringComparison.Ordinal);
+
+    /// <summary>How many of the three triggers of an index are on its table.</summary>
+    internal static string TriggerCountSql(string indexName) =>
+        $"SELECT count(*) FROM sqlite_master WHERE type = 'trigger' AND name IN "
+        + $"('{Trigger(indexName, "ai")}', '{Trigger(indexName, "au")}', '{Trigger(indexName, "ad")}');";
 
     /// <summary>Removes the triggers of <see cref="TriggerScript"/>, if they are there.</summary>
     internal static string DropTriggersSql(string indexName) =>
@@ -174,8 +194,18 @@ internal sealed class LinkedSource : ContentSource
 
     private static string Trigger(string indexName, string kind) => $"lui_{indexName}_{kind}";
 
-    /// <summary>A row is indexed when it has a text.</summary>
-    private string Indexable => $"{_text} IS NOT NULL AND {_text} <> ''";
+    /// <summary>A row has a text the index can hold.</summary>
+    private string HasText => $"{_text} IS NOT NULL AND {_text} <> ''";
+
+    /// <summary>A key that can be a document id: 0 … 2³²−1. A row with another key is not indexed.</summary>
+    private string KeyInRange => $"{_key} BETWEEN 0 AND {RowId.MaxDocId}";
+
+    /// <summary>
+    /// A row is indexed when it has a text and a key in range — a row that is neither is left out, never refused: a
+    /// refusal in a trigger would roll back the application's own write, and in a sync the whole index (review of
+    /// pull request 16, M2). <see cref="SkippedSql"/> counts what was left out.
+    /// </summary>
+    private string Indexable => $"{HasText} AND {KeyInRange}";
 
     /// <summary>The two inserts that index the rows of a condition: the entry with its keys, then the search form.</summary>
     private string Insert(string rows, string entries)

@@ -36,6 +36,12 @@ internal abstract class ContentSource
     /// <summary>The normalisation the content was stored with — the one every input is read with.</summary>
     internal NormalizationOptions Normalization { get; }
 
+    /// <summary>
+    /// Whether the text of an entry can change without the index (<c>Linked</c>: the application writes its table, and
+    /// the index follows when it is told). Then every candidate is checked against its text as it is now.
+    /// </summary>
+    internal virtual bool TextCanChangeUnderTheIndex => false;
+
     /// <summary>The table that holds the texts and the generated search columns.</summary>
     internal abstract string ContentTable { get; }
 

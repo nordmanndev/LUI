@@ -17,7 +17,11 @@ public static class LuiIndexBuilderExtensions
     /// <param name="key">Its INTEGER PRIMARY KEY.</param>
     /// <param name="text">The column that is searched and shown.</param>
     /// <param name="weight">The column of the popularity (0 … 536,870,911); <see langword="null"/> for none.</param>
-    /// <param name="priority">The column of the priority (0 … 3); <see langword="null"/> for none.</param>
+    /// <param name="priority">
+    /// The column of the priority, with the values of <see cref="LuiPriority"/> — 0 is <see cref="LuiPriority.System"/>,
+    /// 3 is <see cref="LuiPriority.Normal"/>, a smaller number ranks first; another value counts as normal.
+    /// <see langword="null"/> for none: every entry is normal.
+    /// </param>
     /// <returns>The builder of the linked index, with the settings made so far.</returns>
     /// <exception cref="ArgumentException">A name is not a name of the pattern <c>^[A-Za-z_][A-Za-z0-9_]{0,63}$</c>.</exception>
     public static LuiLinkedIndexBuilder<LuiNoPayload> LinkTo(

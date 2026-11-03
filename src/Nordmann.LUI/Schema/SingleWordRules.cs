@@ -37,6 +37,19 @@ internal sealed class SingleWordRules : IndexKindRules
 
     internal override bool IsPrefixPath(int searchLength, int compactLength) => searchLength < MinimumTrigramLength;
 
+    internal override bool StillMatches(
+        ReadOnlySpan<char> searchForm, bool prefixPath, string prefixKey, string search, string compact, IReadOnlyList<string> words)
+    {
+        if (!prefixPath)
+        {
+            return searchForm.Contains(search, StringComparison.Ordinal);
+        }
+
+        // the prefix columns hold the text without its '#'
+        var start = searchForm.IndexOfAnyExcept('#');
+        return start >= 0 && searchForm[start..].StartsWith(prefixKey, StringComparison.Ordinal);
+    }
+
     /// <summary><c>s_norm : "…"</c>.</summary>
     internal override string Expression(string search, string compact, IReadOnlyList<string> words) =>
         $"s_norm : {Quote(search)}";

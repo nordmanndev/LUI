@@ -21,7 +21,8 @@ internal static class LinkedTable
         if (!columns.TryGetValue(link.Key, out var key) || key.PrimaryKey != 1
             || columns.Values.Count(column => column.PrimaryKey > 0) != 1
             || !string.Equals(key.Type, "INTEGER", StringComparison.OrdinalIgnoreCase)
-            || WithoutRowId(connection, transaction, link.Table))
+            || WithoutRowId(connection, transaction, link.Table)
+            || HasPrimaryKeyIndex(connection, transaction, link.Table))
         {
             throw new LuiLinkedTableException(
                 $"The key '{link.Key}' of the table '{link.Table}' must be its INTEGER PRIMARY KEY — the rowid of the table, "
@@ -54,6 +55,19 @@ internal static class LinkedTable
         }
 
         return columns;
+    }
+
+    /// <summary>
+    /// A primary key with an index of its own is no alias of the rowid — <c>INTEGER PRIMARY KEY DESC</c> is such a key,
+    /// and its column may hold text (review of pull request 16, S3).
+    /// </summary>
+    private static bool HasPrimaryKeyIndex(SqliteConnection connection, SqliteTransaction transaction, string table)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT count(*) FROM pragma_index_list($table) WHERE origin = 'pk';";
+        command.Parameters.AddWithValue("$table", table);
+        return (long)command.ExecuteScalar()! > 0;
     }
 
     private static bool WithoutRowId(SqliteConnection connection, SqliteTransaction transaction, string table)

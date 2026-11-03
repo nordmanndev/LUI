@@ -98,10 +98,19 @@ public sealed class LuiCatalog : IDisposable
     /// Removes an index with its tables, indexes and triggers and its row in <c>lui_meta</c>. It works whatever
     /// the stored definition is — it is the way out of a <see cref="LuiDefinitionMismatchException"/>. Index
     /// objects that were created before do not survive it: ensure the index again and use the new object.
+    /// <para>
+    /// For a <c>Linked</c> index the application's table and its rows stay. Its triggers, if the index has some on
+    /// the table, are removed only with <paramref name="dropTriggers"/>: they write into the tables that go, so they
+    /// cannot stay — but a migration of the application may count on them, and their removal is not done silently
+    /// (review of pull request 16, M3). <b>After the drop and a new <c>Ensure()</c> a linked index is empty and has no
+    /// triggers</b>: <c>Sync()</c> fills it, and <c>CreateTriggers()</c> — or the migration — sets them again.
+    /// </para>
     /// </summary>
     /// <param name="name">The name of the index.</param>
+    /// <param name="dropTriggers">Removes the triggers of a linked index on the application's table, too.</param>
     /// <returns><see langword="true"/> when the index existed.</returns>
-    public bool DropIndex(string name)
+    /// <exception cref="InvalidOperationException">A linked index has triggers, and <paramref name="dropTriggers"/> is not set.</exception>
+    public bool DropIndex(string name, bool dropTriggers = false)
     {
         Identifier.ValidateIndexName(name, nameof(name));
 
@@ -111,6 +120,14 @@ public sealed class LuiCatalog : IDisposable
 
         var stored = ReadDefinition(connection, transaction, name);
         var existed = stored is not null;
+
+        if (!dropTriggers && stored?.Link is { } link && HasTriggers(connection, transaction, name))
+        {
+            throw new InvalidOperationException(
+                $"The linked index '{name}' has triggers on the table '{link.Table}'. They write into the tables of the index "
+                + "and go with it: call DropIndex(name, dropTriggers: true), and take them out of the application's migration "
+                + "too. After a new Ensure() the index is empty and has no triggers — Sync() it and create them again.");
+        }
 
         foreach (var statement in ContentSources.DropStatements(name, stored))
         {
@@ -170,6 +187,14 @@ public sealed class LuiCatalog : IDisposable
         }
 
         transaction.Commit();
+    }
+
+    private static bool HasTriggers(SqliteConnection connection, SqliteTransaction transaction, string indexName)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = LinkedSource.TriggerCountSql(indexName);
+        return (long)command.ExecuteScalar()! > 0;
     }
 
     private static void Execute(SqliteConnection connection, SqliteTransaction transaction, string statement)

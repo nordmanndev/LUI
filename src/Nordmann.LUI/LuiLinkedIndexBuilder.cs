@@ -52,6 +52,11 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
         ArgumentNullException.ThrowIfNull(columns);
         ArgumentNullException.ThrowIfNull(map);
         ArgumentOutOfRangeException.ThrowIfZero(columns.Count, nameof(columns));
+        if (columns.Distinct(StringComparer.OrdinalIgnoreCase).Count() != columns.Count)
+        {
+            // the row would see one of two equal names only (review of pull request 16, N7)
+            throw new ArgumentException("A payload column is named twice.", nameof(columns));
+        }
 
         return new LuiLinkedIndexBuilder<TNewPayload>(
             _catalog,
@@ -112,7 +117,9 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
 
     /// <summary>
     /// Creates LUI's tables of the index, or opens them if the index exists with the same definition — and checks the
-    /// application's table, every time. The index starts empty: fill it with <c>Sync()</c>.
+    /// application's table, every time. The index starts empty: fill it with <c>Sync()</c>. That holds after a
+    /// <c>DropIndex</c> too: a new linked index is empty and has no triggers until <c>Sync()</c> and, if wanted,
+    /// <c>CreateTriggers()</c>.
     /// </summary>
     /// <returns>The index.</returns>
     /// <exception cref="LuiLinkedTableException">The table or a column is missing, or the key is not the table's INTEGER PRIMARY KEY.</exception>

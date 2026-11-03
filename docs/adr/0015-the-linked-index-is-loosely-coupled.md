@@ -42,13 +42,30 @@ primary key. The query path is the one of ADR-0014; `LinkedSource` is the second
 | `CreateTriggers()`, `DropTriggers()` | create and remove them, only on a call |
 | `Optimize()` | merges the segments; many single refreshes leave deletion marks a query steps over |
 
-`DropIndex` removes LUI's tables and the triggers it created, never the application's table or its rows; it decides
-by the stored source, and refuses a source it does not know (review of pull request 14, N2).
+`DropIndex` removes LUI's tables, never the application's table or its rows; it decides by the stored source, and refuses
+a source it does not know (review of pull request 14, N2). **Triggers of a linked index go only with
+`DropIndex(name, dropTriggers: true)`** (review of pull request 16, M3): they write into the tables that go, so they
+cannot stay — but a migration of the application may count on them, and their removal is not silent. After the drop
+and a new `Ensure()` the index is empty and has no triggers. `Triggers()` tells `None`, `Current` and `Stale` apart — a
+migration's triggers after an update of LUI or a change of the table are `Stale` and are recreated.
 
 **Values are brought into range, not refused**: a weight outside 0 … 536,870,911 is clamped, a priority outside 0 … 3
-is normal, a row without text is not indexed. A key outside 0 … 2³²−1 is refused — by `Refresh` with an
-`ArgumentOutOfRangeException`, by `Sync` with a `LuiLinkedTableException` that changes nothing: the key is the document
-id.
+is normal. A row without text, and a row whose key is outside 0 … 2³²−1 — it cannot be a document id — is **left out**,
+never refused: a refusal in a trigger would roll back the application's own write, and in a sync one such row would
+take the whole index with it (review of pull request 16, M2). `Sync` returns a `LuiSyncResult` that counts both. Only
+`Refresh` with such a key throws (`ArgumentOutOfRangeException`): that is a mistake of the call, not a write of the
+application.
+
+**A text that changed under the index is not a hit** (review of pull request 16, S1). The candidates come from the
+index, the text from the table: without a refresh they can disagree. Every candidate of a source whose text can change
+under the index is checked against its text as it is now — its folded search form must still hold what the expression
+asked for, or begin with the prefix key (`IndexKindRules.StillMatches`). The search form is computed for the word start
+anyway; the query p95 at 200,000 rows stays 1.14 ms. A new text is found only after the refresh.
+
+**A table that changed under the index is named** (S4): a missing column or table in a query, a refresh or a sync is a
+`LuiLinkedTableException` that says so, not a bare SQLite error. `INTEGER PRIMARY KEY DESC` is refused at `Ensure()`: it
+has an index of its own and is no alias of the rowid (S3). A transaction of another database is refused with a clear
+message (N5).
 
 **The payload** comes from columns: `WithPayload(["slug", "color"], row => new TagChip(…))`. The `PayloadReader` names
 its columns and the hits statement is built from that list (review of pull request 14, S3); `LuiRow` sees only them.
@@ -87,6 +104,15 @@ gives — the bulk path for `Owned` stays in PR-007.
 
 ## Consequences
 
+- **Triggers bind every writer of the table to what LUI needs** (review of pull request 16, M1, reproduced with SQLite
+  3.40.1): they write the contentless FTS5 table with the trigram tokenizer, so any program that writes the table — an
+  admin script, a database browser, an import job — needs SQLite 3.43 or newer with FTS5; an older one fails the write,
+  and the failing trigger rolls back the application's write. The normalisation runs on the writer's SQLite. Without
+  triggers the table stays a plain table. The XML documentation of `CreateTriggers` says so. An outbox — triggers that
+  only note the key in a plain table, and LUI applies them on its own, checked connection — is the owner's decision.
+- **A sync is one write transaction** (S2): other writers of the file wait up to their busy timeout — a million rows take
+  about half a minute, so a writer with a shorter timeout gets `SQLITE_BUSY`. A shadow build in chunks with a short swap
+  belongs to PR-007, measured first.
 - An application decides how current its index is. Without triggers and without refreshes, a linked index is as
   current as its last `Sync` — the same promise `Owned` makes for writes the index is not told of.
 - The typo dictionary learns the words of `Refresh` and `Sync`; a write it is not told of reaches it with
@@ -96,7 +122,10 @@ gives — the bulk path for `Owned` stays in PR-007.
   with `WithKey<string>()`.
 - `Check()` for `Linked` comes with PR-007, as for `Owned`.
 
-**Verified by:** `tests/Nordmann.LUI.Tests/LinkedIndexTests.cs` (30 tests: the schema of the application's table
+**Verified by:** `tests/Nordmann.LUI.Tests/LinkedIndexTests.cs` (40 tests; from the review of pull request 16: a key out of
+range in a sync and through a trigger, a drop refused with triggers and done with `dropTriggers`, the trigger states, a
+stale text in a single- and a multi-word index, a renamed column, a key twice in a refresh, a transaction of another
+database, a payload column named twice, `INTEGER PRIMARY KEY DESC`; and before: the schema of the application's table
 before and after; refused tables and names; sync; refresh with and without a transaction, rollback, cancellation;
 weights and priorities in range; payload from columns; the key at 2³²−1; multi-word; the same answers as `Owned`; the
 typo dictionary; the trigger script, created and dropped triggers; drop; definition mismatch; a source this version does

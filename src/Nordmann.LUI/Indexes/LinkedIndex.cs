@@ -17,8 +17,8 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
     /// <summary>The rows a sync indexes per statement: the cancellation is checked between chunks.</summary>
     internal const int SyncChunk = 10_000;
 
-    /// <summary><c>SQLITE_CONSTRAINT_CHECK</c>.</summary>
-    private const int SqliteCheckConstraintFailed = 275;
+    /// <summary><c>SQLITE_ERROR</c>: among others, a table or a column that is not there.</summary>
+    private const int SqliteError = 1;
 
     private static readonly LuiQueryOptions DefaultOptions = new();
 
@@ -53,13 +53,41 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         return Scalar(connection, null, _source.CountSql);
     }
 
+    public LuiTriggerState Triggers()
+    {
+        using var scope = _catalog.Begin();
+        using var connection = _catalog.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = _source.StoredTriggersSql;
+
+        var stored = new Dictionary<string, string>(StringComparer.Ordinal);
+        using (var reader = command.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                stored[reader.GetString(0)] = reader.GetString(1);
+            }
+        }
+
+        if (stored.Count == 0)
+        {
+            return LuiTriggerState.None;
+        }
+
+        var expected = _source.TriggerStatements();
+        return expected.Count == stored.Count
+            && expected.All(trigger => stored.TryGetValue(trigger.Name, out var sql) && SameStatement(sql, trigger.Sql))
+            ? LuiTriggerState.Current
+            : LuiTriggerState.Stale;
+    }
+
     public LuiQuery<long, TPayload> Query(string text) => new(this, text);
 
     public LuiResult<long, TPayload> Search(
         string text,
         LuiQueryOptions? options = null,
         CancellationToken cancellationToken = default) =>
-        _runner.Execute(text, options ?? DefaultOptions, cancellationToken);
+        Guarded(() => _runner.Execute(text, options ?? DefaultOptions, cancellationToken));
 
     public void WarmUpTypoDictionary(CancellationToken cancellationToken = default)
     {
@@ -80,9 +108,25 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
     {
         ArgumentNullException.ThrowIfNull(keys);
 
+        // a key that comes twice is refreshed once and counted once (review of pull request 16, N2)
+        var distinct = keys.Distinct();
+
         using var scope = _catalog.Begin();
         var learned = new List<(string Text, int Weight)>();
-        Write(transaction, (connection, inTransaction) =>
+        Guarded(() => Write(transaction, (connection, inTransaction) => RefreshAll(connection, inTransaction, distinct, learned, cancellationToken)));
+
+        // the new word beginnings join the typo dictionary, if it is built (§10.1)
+        _typos.AddRange(learned);
+        return learned.Count;
+    }
+
+    private void RefreshAll(
+        SqliteConnection connection,
+        SqliteTransaction inTransaction,
+        IEnumerable<long> keys,
+        List<(string Text, int Weight)> learned,
+        CancellationToken cancellationToken)
+    {
         {
             using var read = Command(connection, inTransaction, _source.ReadRowSql);
             using var refresh = Command(connection, inTransaction, _source.RefreshSql("$id"));
@@ -110,28 +154,14 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
                 refreshed.Value = key;
                 refresh.ExecuteNonQuery();
             }
-        });
-
-        // the new word beginnings join the typo dictionary, if it is built (§10.1)
-        _typos.AddRange(learned);
-        return learned.Count;
+        }
     }
 
-    public long Sync(CancellationToken cancellationToken = default)
+    public LuiSyncResult Sync(CancellationToken cancellationToken = default)
     {
         using var scope = _catalog.Begin();
-        long count = 0;
-        try
-        {
-            Write(null, (connection, transaction) => count = SyncAll(connection, transaction, cancellationToken));
-        }
-        catch (SqliteException exception) when (exception.SqliteExtendedErrorCode == SqliteCheckConstraintFailed)
-        {
-            throw new LuiLinkedTableException(
-                $"The table '{_source.Link.Table}' has a key outside 0 … {RowId.MaxDocId:N0}: the key of a row is the document "
-                + "id of the index. Nothing was changed.",
-                exception);
-        }
+        LuiSyncResult? result = null;
+        Guarded(() => Write(null, (connection, transaction) => result = SyncAll(connection, transaction, cancellationToken)));
 
         // the words of the table as they are now: a built dictionary is built anew
         if (_typos.IsBuilt)
@@ -139,11 +169,11 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
             _typos.Rebuild(cancellationToken);
         }
 
-        return count;
+        return result!;
     }
 
     /// <summary>Clears the index and fills it again from the table, a chunk of rows at a time, then merges it.</summary>
-    private long SyncAll(SqliteConnection connection, SqliteTransaction transaction, CancellationToken cancellationToken)
+    private LuiSyncResult SyncAll(SqliteConnection connection, SqliteTransaction transaction, CancellationToken cancellationToken)
     {
         Execute(connection, transaction, _source.ClearSql);
 
@@ -154,7 +184,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         var from = chunk.Parameters.Add("$from", SqliteType.Integer);
         var to = chunk.Parameters.Add("$to", SqliteType.Integer);
 
-        // from the smallest key on: a negative key is not skipped, it fails the check of the document id
+        // from the smallest key on; a key out of range is left out by the statement and counted below
         var last = long.MinValue;
         while (true)
         {
@@ -175,7 +205,16 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         }
 
         Execute(connection, transaction, _source.OptimizeSql);
-        return Scalar(connection, transaction, _source.CountSql);
+
+        using var skipped = Command(connection, transaction, _source.SkippedSql);
+        using var reader = skipped.ExecuteReader();
+        reader.Read();
+        return new LuiSyncResult
+        {
+            Indexed = Scalar(connection, transaction, _source.CountSql),
+            WithoutText = reader.GetInt64(0),
+            KeyOutOfRange = reader.GetInt64(1),
+        };
     }
 
     public void Optimize()
@@ -214,6 +253,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         {
             var connection = transaction.Connection
                 ?? throw new ArgumentException("The transaction is complete.", nameof(transaction));
+            EnsureSameDatabase(connection, transaction);
             write(connection, transaction);
             return;
         }
@@ -225,6 +265,56 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
             own.Commit();
         }
     }
+
+    /// <summary>
+    /// A transaction of another database would end in a bare "no such table" (review of pull request 16, N5): the
+    /// table of the index has to be on the connection.
+    /// </summary>
+    private void EnsureSameDatabase(SqliteConnection connection, SqliteTransaction transaction)
+    {
+        using var check = Command(connection, transaction, "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = $name;");
+        check.Parameters.AddWithValue("$name", _source.EntryTable);
+        if ((long)check.ExecuteScalar()! == 0)
+        {
+            throw new ArgumentException(
+                $"The transaction belongs to another database: the table '{_source.EntryTable}' of the index '{Name}' is not there.",
+                nameof(transaction));
+        }
+    }
+
+    /// <summary>
+    /// A table that changed under the index — a column renamed, the table dropped — answers with a statement that names
+    /// what is missing, not with a bare SQLite error (review of pull request 16, S4).
+    /// </summary>
+    private T Guarded<T>(Func<T> run)
+    {
+        try
+        {
+            return run();
+        }
+        catch (SqliteException exception) when (exception.SqliteErrorCode == SqliteError
+            && (exception.Message.Contains("no such column", StringComparison.Ordinal)
+                || exception.Message.Contains("no such table", StringComparison.Ordinal)))
+        {
+            throw new LuiLinkedTableException(
+                $"The table '{_source.Link.Table}' does not fit the index '{Name}' any more ({exception.Message}). Ensure the index "
+                + "again to see what is missing; a changed table is a new definition: drop the index and ensure it anew.",
+                exception);
+        }
+    }
+
+    private void Guarded(Action run) => Guarded(() =>
+    {
+        run();
+        return true;
+    });
+
+    /// <summary>Two statements are the same when they differ only in white space and a closing semicolon.</summary>
+    private static bool SameStatement(string stored, string expected) =>
+        string.Equals(Collapse(stored), Collapse(expected), StringComparison.Ordinal);
+
+    private static string Collapse(string sql) =>
+        string.Join(' ', sql.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries)).TrimEnd(';').TrimEnd();
 
     private static SqliteCommand Command(SqliteConnection connection, SqliteTransaction transaction, string sql)
     {

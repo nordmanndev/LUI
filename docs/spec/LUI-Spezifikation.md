@@ -282,7 +282,10 @@ Voraussetzungen, geprüft bei jedem `Ensure()` (sonst `LuiLinkedTableException`,
 
 Werte der Anwendung werden in den Bereich gebracht, statt den ganzen Index scheitern zu lassen: ein Gewicht
 außerhalb von 0 … 536.870.911 wird begrenzt, eine Priorität außerhalb von 0 … 3 gilt als `Normal`; eine Zeile
-ohne Text (`NULL` oder leer) kommt nicht in den Index. Ein Flag wie `is_system` lässt sich als berechnete
+ohne Text (`NULL` oder leer) und eine Zeile mit einem Schlüssel außerhalb von 0 … 2³²−1 kommen nicht in den
+Index — `Sync` zählt sie (`LuiSyncResult`), ein Trigger lehnt den Schreibvorgang der Anwendung nicht ab.
+Ein Kandidat, dessen **aktueller** Text die Eingabe nicht mehr enthält, ist kein Treffer: Der Index ist so
+aktuell, wie die Anwendung ihn hält, aber er zeigt nie einen Text, der nicht passt. Ein Flag wie `is_system` lässt sich als berechnete
 Spalte der Anwendung abbilden (`GENERATED ALWAYS AS (CASE WHEN is_system THEN 0 ELSE 3 END)`).
 
 **Wer den Index nachführt, ist die Anwendung** — ausdrücklich, nie implizit:
@@ -292,7 +295,8 @@ Spalte der Anwendung abbilden (`GENERATED ALWAYS AS (CASE WHEN is_system THEN 0 
 | `Sync()` | Erstaufbau und Reparatur: liest die ganze Tabelle, schreibt den Suchindex in Rowid-Reihenfolge, führt am Ende zusammen; eine Transaktion der Bibliothek |
 | `Refresh(id, transaction?)`, `RefreshMany(ids, transaction?)` | nach eigenen Schreibvorgängen; liest die Zeile selbst, eine fehlende Zeile verlässt den Index. Die Transaktion ist optional: ohne sie eine eigene, mit ihr gehört beides zur Transaktion der Anwendung |
 | `TriggerScript()` | das SQL dreier Trigger für die eigene Migration der Anwendung — ändert nichts |
-| `CreateTriggers()` / `DropTriggers()` | legt die Trigger an bzw. entfernt sie, nur auf Aufruf |
+| `CreateTriggers()` / `DropTriggers()` | legt die Trigger an bzw. entfernt sie, nur auf Aufruf. **Achtung:** Mit Triggern braucht jedes Programm, das die Tabelle schreibt, SQLite ≥ 3.43 mit FTS5 und Trigram-Tokenizer; ein älteres scheitert am Schreibvorgang |
+| `Triggers()` | `None`, `Current` oder `Stale` (nach einem Update von LUI oder einer Änderung der Tabelle neu anlegen) |
 | `Optimize()` | führt die Segmente zusammen; viele einzelne `Refresh` hinterlassen Löschmarken |
 
 ### 7.4 Suchindex (beide Quellen)
@@ -650,8 +654,9 @@ Regeln:
 - `Ensure()` ist **idempotent**: Existiert der Index mit gleicher Definition,
   wird er geöffnet; weicht die Definition ab, wird mit einer Meldung abgebrochen,
   die beide Definitionen nennt. Bei `Linked` gehören Tabelle und Spalten zur Definition.
-- `lui.DropIndex(name)` entfernt einen Index samt **seinen** Tabellen und Triggern — gleich, welche Definition
-  gespeichert ist. Die Tabelle der Anwendung und ihre Zeilen bleiben.
+- `lui.DropIndex(name)` entfernt einen Index samt **seinen** Tabellen — gleich, welche Definition gespeichert ist.
+  Die Tabelle der Anwendung und ihre Zeilen bleiben. Hat ein verknüpfter Index Trigger, verlangt das Entfernen
+  `DropIndex(name, dropTriggers: true)`; danach ist er nach `Ensure()` leer und ohne Trigger.
 
 ### 12.3 Schlüssel und Payload
 

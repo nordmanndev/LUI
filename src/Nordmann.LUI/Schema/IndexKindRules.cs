@@ -62,6 +62,21 @@ internal abstract class IndexKindRules
     /// <summary>The FTS5 expression for the candidates of an input (§8.2).</summary>
     internal abstract string Expression(string search, string compact, IReadOnlyList<string> words);
 
+    /// <summary>
+    /// Whether a text still matches an input the way the search index matched it: the folded search form of the text
+    /// holds what the FTS5 expression asks for, or begins with the prefix key. For a source whose text can change under
+    /// the index (<c>Linked</c>): a candidate of an index that is not current is not a hit (review of pull request 16,
+    /// S1).
+    /// </summary>
+    /// <param name="searchForm">The search form of the candidate's text as it is now.</param>
+    /// <param name="prefixPath">Whether the input took the prefix path.</param>
+    /// <param name="prefixKey">The key of the prefix path.</param>
+    /// <param name="search">The search form of the input.</param>
+    /// <param name="compact">The compact form of the input.</param>
+    /// <param name="words">The words of the input.</param>
+    internal abstract bool StillMatches(
+        ReadOnlySpan<char> searchForm, bool prefixPath, string prefixKey, string search, string compact, IReadOnlyList<string> words);
+
     /// <summary>The rules of a kind.</summary>
     internal static IndexKindRules For(LuiIndexKind kind) => kind switch
     {
