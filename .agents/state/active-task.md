@@ -24,6 +24,12 @@ generated columns, three indexes, three triggers; `TextsSql` from the host colum
 (`WithPayload(columns, row => …)`), `LinkedIndex : ILuiIndex` in `Indexes`, `LuiIndexSourceBuilder.LinkedTo(…)` and
 `ContentSource.DropStatements` by the stored source.
 
+**Owner's decision (2026-11-03), part of PR-006:** `Owned<long>` is the default — `SingleWord()`/`MultiWord()` return the
+owned builder with a `long` key, the source step goes away; `WithKey<TKey>()` chooses `string`. `LinkTo(table, key, text,
+weight, priority, allowSchemaChange)` (the name replaces the spec's `LinkedTo`) switches to the linked builder and is
+offered only on `LuiOwnedIndexBuilder<long, LuiNoPayload>` (an extension method: the compiler refuses it after `WithKey` or
+`WithPayload`). Spec §12.2, ADR-0013 and the README quick start follow; an ADR records the change.
+
 PR-006 — `Linked`: an index over a table of the application (spec §5, §7.3, §12.2, §12.8). `LinkedTo(table, key, text, weight,
 priority, allowSchemaChange)`; five generated columns, three indexes and three triggers on the application's table; the payload from
 columns of the table; `LuiSchemaChangeRequiredException`.
