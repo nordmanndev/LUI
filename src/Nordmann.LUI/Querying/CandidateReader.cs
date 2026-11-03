@@ -54,46 +54,45 @@ internal sealed class CandidateReader
     {
         // one more than asked for tells whether there were more candidates (Truncated)
         var limit = options.Candidates + 1;
-        using var command = Command(connection, snapshot, query, options);
+        using var command = Command(connection, snapshot, query, limit, _verify ? limit + options.Candidates : limit);
 
         var candidates = new Scored[Math.Min(limit, 512)];
 
         // one entry per text within this input; across the inputs it is decided after the union
         var seen = options.DistinctText ? new HashSet<string>(StringComparer.Ordinal) : null;
+        var read = 0;
         var rows = 0;
         var stale = 0;
-        var staleBudgetSpent = false;
+        truncated = false;
         count = 0;
 
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
-            if (((rows++ + stale) & 63) == 0)
+            if ((read++ & 63) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
             }
 
-            if (rows > options.Candidates)
+            // a row past the budget of a source whose texts cannot change under the index is one more: no need to read it
+            if (!_verify && rows == options.Candidates)
             {
+                truncated = true;
                 break;
             }
 
             var text = reader.GetString(1);
             var start = StartOf(text, query, seen, out var duplicate, out var outdated, out var key);
-            if (outdated)
-            {
-                // not a candidate: it does not count against the budget
-                rows--;
-                if (++stale > options.Candidates)
-                {
-                    staleBudgetSpent = true;
-                    break;
-                }
 
-                continue;
+            // an outdated row is not a candidate and does not count against the budget — up to a budget of them; and only
+            // a row that is a candidate past the budget makes the answer truncated (review of main after #23, finding 4)
+            if (outdated ? ++stale > options.Candidates : rows++ == options.Candidates)
+            {
+                truncated = true;
+                break;
             }
 
-            if (duplicate)
+            if (outdated || duplicate)
             {
                 continue;
             }
@@ -106,8 +105,6 @@ internal sealed class CandidateReader
             candidates[count++] = new Scored { RowId = reader.GetInt64(0), Text = text, Key = key, WordStart = start, Variant = variant };
         }
 
-        // the LIMIT stops the statement one row after the budget; a spent budget of outdated rows may hide more
-        truncated = rows > options.Candidates || staleBudgetSpent;
         return candidates;
     }
 
@@ -115,8 +112,9 @@ internal sealed class CandidateReader
     /// The statement of the candidates: the prefix path or FTS5. Its limit is one row after the budget — and, for a source
     /// whose texts can change under the index, another budget of rows that no longer match.
     /// </summary>
-    private SqliteCommand Command(SqliteConnection connection, SqliteTransaction snapshot, PreparedQuery query, LuiQueryOptions options)
+    private SqliteCommand Command(SqliteConnection connection, SqliteTransaction snapshot, PreparedQuery query, int budgetLimit, int statementLimit)
     {
+        Debug.Assert(statementLimit >= budgetLimit, "the statement reads at least one row past the budget");
         var command = connection.CreateCommand();
         command.Transaction = snapshot;
         if (query.IsPrefixPath)
@@ -130,8 +128,7 @@ internal sealed class CandidateReader
             command.Parameters.AddWithValue("$expr", query.Expression);
         }
 
-        var limit = options.Candidates + 1;
-        command.Parameters.AddWithValue("$n", _verify ? limit + options.Candidates : limit);
+        command.Parameters.AddWithValue("$n", statementLimit);
         return command;
     }
 

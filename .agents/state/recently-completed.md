@@ -5,6 +5,13 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-03 — fix: hosting lifecycle, Truncated edge (issue #26)
+
+- A code review of `main` after #23: the hosted services now resolve the catalog first (disposed before it; Dispose
+  cancels the warm-up); an outdated row after the budget no longer sets `Truncated`; the counters of `CandidateReader`
+  are untangled. Docs: the F1 edge is 501 (not 1,001), the test package `Microsoft.Extensions.Hosting` is named, the
+  order of hosted services is documented (+ a test with a migration registered before `AddLui`).
+
 ## 2026-11-03 — PR-008: dependency injection and hosted services (issue #21)
 
 - ADR-0017. `AddLui(…)`, `.AddIndex(name, index => …)` (owned or linked by the lambda's return type), keyed singletons
