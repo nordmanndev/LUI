@@ -182,12 +182,22 @@ expect_caught "unused-central-package-version" "${ARCHITECTURE_PROJECT}" \
 # 12. A test file that the map of the tests does not list (ADR-0019).
 expect_caught "test-file-missing-from-the-map" "${ARCHITECTURE_PROJECT}" \
   "Every_test_file_is_listed_in_the_map" \
-  "printf 'namespace Nordmann.LUI.Unit.Tests;\n\npublic sealed class UnlistedTests\n{\n    [Fact]\n    public void A_test() => true;\n}\n' > tests/Nordmann.LUI.Unit.Tests/UnlistedTests.cs"
+  "printf 'namespace Nordmann.LUI.Unit.Tests;\n\npublic sealed class UnlistedTests\n{\n    [Fact]\n    public void A_test()\n    {\n    }\n}\n' > tests/Nordmann.LUI.Unit.Tests/UnlistedTests.cs"
 
 # 13. A row of the map that points at a file which does not exist (ADR-0019).
 expect_caught "map-row-without-a-file" "${ARCHITECTURE_PROJECT}" \
   "Every_file_the_map_lists_exists" \
   "sed -i 's|SimilarityTests\.cs)|SimilarityTestsGone.cs)|' docs/testing.md"
+
+# 13b. A unit test that opens a database (ADR-0019) — the unit layer is the rules on their own.
+expect_caught "unit-test-opens-a-database" "${ARCHITECTURE_PROJECT}" \
+  "The_unit_layer_opens_no_database" \
+  "printf 'namespace Nordmann.LUI.Unit.Tests;\n\ninternal static class Probe\n{\n    internal static object Open() => LuiCatalog.Open(\"Data Source=probe.db\");\n}\n' > tests/Nordmann.LUI.Unit.Tests/Probe.cs"
+
+# 13c. A test file whose only test is skipped is still a test file the map has to list (review of PR #25).
+expect_caught "skipped-test-file-missing-from-the-map" "${ARCHITECTURE_PROJECT}" \
+  "Every_test_file_is_listed_in_the_map" \
+  "printf 'namespace Nordmann.LUI.Unit.Tests;\n\npublic sealed class SkippedTests\n{\n    [Fact(Skip = \"later\")]\n    public void A_test()\n    {\n    }\n}\n' > tests/Nordmann.LUI.Unit.Tests/SkippedTests.cs"
 
 # 14. The lazy similarity of ADR-0008 — the ranking measures every candidate
 #     again, and the promise that a group that cannot reach the hits costs

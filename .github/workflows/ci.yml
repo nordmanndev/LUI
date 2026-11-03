@@ -31,7 +31,7 @@ jobs:
       - name: Build
         run: dotnet build Lui.sln --configuration Release --no-restore
 
-      # The three lanes of the pyramid (ADR-0017). The unit lane is the fast
+      # The three lanes of the pyramid (ADR-0019). The unit lane is the fast
       # one — the rules of the library, without a database. The architecture
       # tests read the repository from disk — they are the mechanical half of
       # the standards' rules (ADR-0002) and the guard of the map of the tests.
@@ -87,7 +87,7 @@ jobs:
       # compares them over every word of the German word list. Without the
       # list the test is skipped and says so; this job fetches the list and
       # demands it, so that the parity is proved here and not only in the
-      # release gate (ADR-0017).
+      # release gate (ADR-0019).
       - name: Fetch the word list
         run: bash tools/fetch-wordlist.sh
 
@@ -109,7 +109,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       # Every rule is mutated and the guard has to react. A green test proves
-      # nothing until it has been seen red (ADR-0017).
+      # nothing until it has been seen red (ADR-0019).
       - name: Mutation check
         run: bash tools/mutation-check.sh
 

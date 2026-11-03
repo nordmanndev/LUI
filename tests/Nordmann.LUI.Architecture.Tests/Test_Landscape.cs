@@ -1,3 +1,4 @@
+using System.Text.RegularExpressions;
 using Shouldly;
 
 using Nordmann.LUI.Testing;
@@ -17,6 +18,7 @@ namespace Nordmann.LUI.Architecture.Tests;
 /// <item>a test file that is not listed in the map</item>
 /// <item>a row in the map that points at a file that does not exist</item>
 /// <item>a row whose layer does not match the project the file lives in</item>
+/// <item>a unit test that opens a database</item>
 /// </list>
 /// <para>
 /// The unit of the map is the <b>file</b>, not the class: a file holds one test
@@ -36,14 +38,27 @@ public sealed class Test_Landscape
         ("Nordmann.LUI.Architecture.Tests", "Architecture")
     ];
 
-    /// <summary>The attributes that make a file a test file.</summary>
-    private static readonly string[] TestAttributes =
-    [
-        "[Fact]",
-        "[Theory]",
-        "[PerformanceFact]",
-        "[FullWordListFact]"
-    ];
+    /// <summary>
+    /// The attributes that make a file a test file — in any form: <c>[Fact]</c>, <c>[Fact(Skip = …)]</c>,
+    /// <c>[Theory, InlineData(…)]</c>, <c>[InlineData(…), Theory]</c>. A plain string search for <c>[Fact]</c> let a file
+    /// whose only test is skipped out of the map (review of PR #25, finding 4).
+    /// </summary>
+    private static readonly Regex TestAttribute = new(
+        @"[\[,]\s*(Fact|Theory|PerformanceFact|FullWordListFact)\s*[\](,]",
+        RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture,
+        TimeSpan.FromSeconds(1));
+
+    /// <summary>A string literal: a unit test may name a package (the identity of the package does), not use it.</summary>
+    private static readonly Regex StringLiteral = new(
+        @"""(?:[^""\\]|\\.)*""",
+        RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture,
+        TimeSpan.FromSeconds(1));
+
+    /// <summary>What a unit test must not name: a database, or the infrastructure that opens one (ADR-0019).</summary>
+    private static readonly Regex Database = new(
+        @"\b(LuiCatalog|TestDatabase|Sqlite[A-Za-z]*|Microsoft\.Data\.Sqlite|Nordmann\.LUI\.Testing)\b",
+        RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture,
+        TimeSpan.FromSeconds(1));
 
     [Fact]
     public void Every_test_file_is_listed_in_the_map()
@@ -82,12 +97,13 @@ public sealed class Test_Landscape
     {
         var listed = ListedRows();
 
-        var actual = TestFiles().ToDictionary(file => file.File, file => file.Project, StringComparer.Ordinal);
+        // a file name may live in two projects: the map row has to name one of them (review of PR #25, finding 4)
+        var actual = TestFiles().ToLookup(file => file.File, file => file.Project, StringComparer.Ordinal);
 
         var wrong = listed
-            .Where(row => actual.TryGetValue(row.File, out var project)
-                          && !string.Equals(project, row.Project, StringComparison.Ordinal))
-            .Select(row => $"{row.File}: the map says {row.Layer} ({row.Project}), the tree says {actual[row.File]}")
+            .Where(row => actual.Contains(row.File)
+                          && !actual[row.File].Contains(row.Project, StringComparer.Ordinal))
+            .Select(row => $"{row.File}: the map says {row.Layer} ({row.Project}), the tree says {string.Join(", ", actual[row.File])}")
             .OrderBy(text => text, StringComparer.Ordinal)
             .ToArray();
 
@@ -115,13 +131,38 @@ public sealed class Test_Landscape
         var listed = ListedRows();
 
         var doubled = listed
-            .GroupBy(row => row.File, StringComparer.Ordinal)
+            .GroupBy(row => $"{row.Project}/{row.File}", StringComparer.Ordinal)
             .Where(group => group.Count() > 1)
             .Select(group => group.Key)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 
         doubled.ShouldBeEmpty($"Every test file is listed once in the map ({Map}).");
+    }
+
+    [Fact]
+    public void The_unit_layer_opens_no_database()
+    {
+        // ADR-0019: the unit layer is the rules on their own. Microsoft.Data.Sqlite reaches it through the core anyway,
+        // so the project file alone does not keep a unit test from opening a catalog: its source is read too.
+        var directory = Path.Combine(Repository.RootPath, "tests", "Nordmann.LUI.Unit.Tests");
+        var project = Repository.LoadXml(Path.Combine(directory, "Nordmann.LUI.Unit.Tests.csproj"));
+
+        var references = Repository.Elements(project, "PackageReference")
+            .Concat(Repository.Elements(project, "ProjectReference"))
+            .Select(reference => reference.Attribute("Include")?.Value ?? string.Empty)
+            .Where(include => Database.IsMatch(include) || include.Contains("Nordmann.LUI.Hosting", StringComparison.Ordinal))
+            .ToArray();
+
+        var lines = Repository.SourceFiles(directory)
+            .SelectMany(file => File.ReadLines(file).Select((line, number) => (File: Path.GetFileName(file), Line: line, Number: number + 1)))
+            .Where(entry => !entry.Line.TrimStart().StartsWith("//", StringComparison.Ordinal)
+                            && Database.IsMatch(StringLiteral.Replace(entry.Line, "\"\"")))
+            .Select(entry => $"{entry.File}:{entry.Number}: {entry.Line.Trim()}")
+            .ToArray();
+
+        references.ShouldBeEmpty("The unit layer references no database and no infrastructure that opens one.");
+        lines.ShouldBeEmpty("A unit test opens no database: it belongs in Nordmann.LUI.Integration.Tests (docs/testing.md).");
     }
 
     /// <summary>A row of the map: the file it names, the project it lives in and the layer.</summary>
@@ -203,8 +244,8 @@ public sealed class Test_Landscape
             {
                 var content = File.ReadAllText(path);
 
-                // A file that holds a test: it carries one of the attributes.
-                if (!TestAttributes.Any(attribute => content.Contains(attribute, StringComparison.Ordinal)))
+                // A file that holds a test: it carries one of the attributes, in any form.
+                if (!TestAttribute.IsMatch(content))
                 {
                     continue;
                 }

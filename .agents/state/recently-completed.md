@@ -12,7 +12,7 @@ the scratchpad here at the end of a session.
   are untangled. Docs: the F1 edge is 501 (not 1,001), the test package `Microsoft.Extensions.Hosting` is named, the
   order of hosted services is documented (+ a test with a migration registered before `AddLui`).
 
-## 2026-11-04 — #22 → PR #25: the test tree (branch `feat/test-landscape`)
+## 2026-11-03 — #22 → PR #25: the test tree (branch `feat/test-landscape`)
 
 - ADR-0019. The one test project becomes three — `Nordmann.LUI.Unit.Tests` (no SQLite at all),
   `Nordmann.LUI.Integration.Tests`, `Nordmann.LUI.Architecture.Tests` — plus `Nordmann.LUI.Testing`, a

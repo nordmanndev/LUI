@@ -114,7 +114,7 @@ They are not tests of behaviour; they are the numbers in
 | [`Public_API_Shape`](../tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs) | Architecture | the public API is a promise: no web stack, no `Task`, one namespace, one prefix, no positional constructors | spec §13, ADR-0013 |
 | [`Repository_Layout`](../tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs) | Architecture | the build wiring is part of the contract: one place for the versions, exactly one packable project, the documented dependency set | ADR-0001, ADR-0002, ADR-0004 |
 | [`Namespace_Convention`](../tests/Nordmann.LUI.Architecture.Tests/Namespace_Convention.cs) | Architecture | folder = namespace, every namespace below the root | spec §17.2 |
-| [`Test_Landscape`](../tests/Nordmann.LUI.Architecture.Tests/Test_Landscape.cs) | Architecture | this map is the truth: every test file is listed here, every row points at a file that exists | this file |
+| [`Test_Landscape`](../tests/Nordmann.LUI.Architecture.Tests/Test_Landscape.cs) | Architecture | this map is the truth: every test file is listed here, every row points at a file that exists; the unit layer opens no database | this file, ADR-0019 |
 
 ---
 

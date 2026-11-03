@@ -1,7 +1,7 @@
 # 0019 — The test tree: three layers, one shared infrastructure, one map that is a guard
 
 - **Status:** Accepted
-- **Date:** 2026-11-04
+- **Date:** 2026-11-03
 - **Affects:** `tests/` (the whole tree), `Directory.Packages.props`, `Lui.sln`,
   `src/Nordmann.LUI/Nordmann.LUI.csproj` and `src/Nordmann.LUI.Hosting/Nordmann.LUI.Hosting.csproj`
   (`InternalsVisibleTo`), `docs/testing.md`, `docs/architecture/alignment.md`, `AGENTS.md`,
@@ -69,9 +69,17 @@ is skipped and says why. The same pattern the measurements already use (`Perform
 `LUI_PERF=1`; the budgets are asserted at every size, not only at three million.
 
 **The map of the tests is a guard, not a document.** `docs/testing.md` says which test holds which rule of the
-specification up. `Test_Landscape` reads the map and the tree and fails when they disagree: a test class that is
-not listed, a row that points at a class that does not exist, a row whose layer does not match the project the
-class lives in. A map that rots is worse than no map.
+specification up. `Test_Landscape` reads the map and the tree and fails when they disagree: a test **file** that is
+not listed, a row that points at a file that does not exist, a row whose layer does not match the project the
+file lives in, a file listed twice, a layer without tests. The unit of the map is the file, not the class: a file is
+what a reader opens, and a guard that parses class names out of the source finds the prose of its comments. A map
+that rots is worse than no map.
+
+**The unit layer opens no database — and a guard says so.** It references neither `Microsoft.Data.Sqlite` nor the
+shared infrastructure (`Nordmann.LUI.Testing`, which opens databases), and no line of its code names `LuiCatalog`,
+`TestDatabase` or a `Sqlite…` type. `Microsoft.Data.Sqlite` reaches the unit project transitively through the core,
+so the reference alone would not keep a unit test from calling `LuiCatalog.Open`; `Test_Landscape` reads the project
+file and the source.
 
 **The pin and the reference are checked in both directions.** `Repository_Layout` now also asserts that every
 `PackageVersion` is referenced by some project. `Alba` is removed.
@@ -112,7 +120,7 @@ filter matches no test, and the pattern escapes its brackets.
   is now `dotnet test tests/Nordmann.LUI.Unit.Tests`, and it is the lane a change to a rule is proved in.
 - **The infrastructure is a dependency of the tests, not a link.** `tests/Shared/` is gone. The `Repository` helper
   — which reads the *tree* rather than a hand-written list, the way the architecture rules do — is compiled once.
-- **A test class that is not in the map fails the build.** That is the price of the map: a new test class has to
+- **A test file that is not in the map fails the build.** That is the price of the map: a new test file has to
   say which rule it holds up. It is also the benefit — the question "which test proves §10.4?" has an answer that
   cannot go stale.
 - **`Nordmann.LUI.Testing` is public API of the test tree.** Everything in it is `public`, and it is not
@@ -126,5 +134,6 @@ filter matches no test, and the pattern escapes its brackets.
 **Verified by:** `tests/Nordmann.LUI.Unit.Tests/` (the rules without a database, the JSON payload serialiser, the
 ranking and the lazy similarity), `tests/Nordmann.LUI.Integration.Tests/` (the library against SQLite, the
 measurements gated behind `LUI_PERF=1`), `tests/Nordmann.LUI.Architecture.Tests/Test_Landscape.cs` (the map and
-the tree agree), `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs` (every pinned version is used);
+the tree agree — a file is a test file by any form of its test attribute, `[Fact(Skip = …)]` included; two test
+files of the same name in two projects are told apart; the unit layer opens no database), `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs` (every pinned version is used);
 `dotnet format --verify-no-changes`; `tools/mutation-check.sh`.
