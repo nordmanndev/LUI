@@ -77,5 +77,5 @@ dependency is smaller than the risk of owning the algorithm.
 **Verified by:** `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs`
 — `The_library_references_only_the_documented_dependencies` and
 `The_library_ships_only_the_documented_runtime_dependencies`; and
-`tests/Nordmann.LUI.Tests/PackageIdentityTests.cs` —
+`tests/Nordmann.LUI.Unit.Tests/PackageIdentityTests.cs` —
 `Library_references_no_undocumented_dependency`.

@@ -5,15 +5,21 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** [#17](https://github.com/nordmanndev/LUI/issues/17) — Sync, Check, Rebuild, Optimize (PR-007)
-**Branch:** `feat/sync-check-rebuild`
-**State:** implemented, measured, documented (ADR-0016); waiting for the owner's go to open the pull request.
+**Issue:** [#22](https://github.com/nordmanndev/LUI/issues/22) — The test tree: three layers, one map
+**Branch:** `feat/test-landscape`
+**State:** implemented, measured, documented (ADR-0017); the pull request is open.
+
+## What this one did
+
+The one test project became three (`Nordmann.LUI.Unit.Tests`, `Nordmann.LUI.Integration.Tests`,
+`Nordmann.LUI.Architecture.Tests`) plus the shared `Nordmann.LUI.Testing`. `docs/testing.md` says which test holds
+which rule up, and `Test_Landscape` fails when the map and the tree disagree. The pin of `Alba` is gone; the guard
+now checks both directions of the package rule.
 
 ## Open for the owner
 
-- The default `LuiSyncOptions.BatchSize`: 10,000 (spec, lock < 1 s) vs 50,000 / 100,000 (20–30 % faster, lock 2–5 s).
-- A shadow build for `Linked.Sync()` (review of PR #16, S2): one transaction of 26.7 s per million rows today.
-- ADR-0010 (the query budget at 3 M) — measure again after this bulk path, with PR-009.
+- The three `Microsoft.Extensions.*` pins stay on purpose (ADR-0013, PR-008) and are the only exception of the
+  "every pin is used" rule.
 
 ## The next step
 

@@ -20,11 +20,12 @@ at `c63d696` (v2.5.5).
 | Standards rule | Source | How LUI implements it | The test that guards it |
 |---|---|---|---|
 | `Directory.Build.props` block | `architecture/layering.md` | verbatim: net10.0, nullable, `TreatWarningsAsErrors`, `EnableNETAnalyzers`, `AnalysisLevel=latest-recommended`, `NuGetAudit` | build fails on any warning |
-| Central package management | `architecture/layering.md` | `Directory.Packages.props` is the only place with a version | `No_PackageReference_carries_a_Version`, `Every_PackageReference_has_a_Central_PackageVersion` |
+| Central package management | `architecture/layering.md` | `Directory.Packages.props` is the only place with a version | `No_PackageReference_carries_a_Version`, `Every_PackageReference_has_a_Central_PackageVersion`, `Every_Central_PackageVersion_is_referenced_somewhere` |
 | `Meziantou.Analyzer` from day one | `architecture/stack.md` entry 9 | analyzer package, `TreatWarningsAsErrors` | the build itself |
-| Test pyramid | `architecture/operations.md` | unit · architecture · integration, three projects | the test run itself |
+| Test pyramid | `architecture/operations.md` | unit · architecture · integration, three projects, plus the shared `Nordmann.LUI.Testing` (ADR-0017) | the test run itself; `Test_Landscape` (the map of the tests agrees with the tree) |
 | NetArchTest for architectural rules | `architecture/operations.md` | `Nordmann.LUI.Architecture.Tests` | `Public_API_Shape` |
 | ADR discipline | `architecture/meta.md` | `docs/adr/`, one ADR per decision | — (review) |
+| The test map is a guard | `AGENTS.md`, ADR-0017 | `docs/testing.md` says which test holds which rule up | `Test_Landscape` |
 | `CHANGELOG.md` on public API change | `AGENTS.md` | `CHANGELOG.md` | — (review) |
 | Closed library list | `architecture/stack.md`, ADR-0008 | every deviation gets an ADR | `The_library_references_only_the_documented_dependencies` |
 | README shape | the standards' own README | "what this is / what this is not / install / quick start / layout" | the package smoke test |

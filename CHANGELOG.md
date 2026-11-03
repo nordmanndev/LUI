@@ -39,6 +39,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The test tree** ([ADR-0017](docs/adr/0017-the-test-tree-three-layers-one-map.md)). The one test project
+  becomes three — `Nordmann.LUI.Unit.Tests` (the rules, without a database), `Nordmann.LUI.Integration.Tests`
+  (the library against a real SQLite file) and `Nordmann.LUI.Architecture.Tests` — plus
+  `Nordmann.LUI.Testing`, a library that holds the shared setup: the database, the corpora, the fixtures. The
+  infrastructure that was copied, pasted and `<Compile Include>`-linked is in one place now. The unit lane takes
+  about ten seconds; it used to be part of a process of thirty-six seconds.
+- **The map of the tests** is [`docs/testing.md`](docs/testing.md): which test holds which rule of the
+  specification up. It is a guard, not a document — `Test_Landscape` fails when the map and the tree disagree.
+- The pin of `Alba` is gone: no project referenced it.
+
 - `ILuiIndex<TKey, TPayload>` has `Check()`. Inside, the catalog is taken apart (review DevEx D4, D6): no change to
   the public API besides.
 - **The builder: `Owned<long>` is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;

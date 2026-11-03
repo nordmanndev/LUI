@@ -178,6 +178,7 @@ index — call it regularly; `tags.Pending()` is a good value for a health check
 ```text
 src/Nordmann.LUI/            ← the package (one assembly, one package)
 tests/                       ← unit, architecture and integration tests
+                              (and the map of them: docs/testing.md)
 benchmarks/                  ← BenchmarkDotNet + the corpus generator
 samples/Lui.Sample/          ← ASP.NET Core API + the inline static site
 docs/adr/                    ← the decisions, and why
