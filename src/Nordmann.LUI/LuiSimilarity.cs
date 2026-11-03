@@ -22,9 +22,6 @@ public static class LuiSimilarity
     /// <summary>Levenshtein, normalised by the longer text.</summary>
     public static ILuiSimilarity Levenshtein { get; } = new LevenshteinSimilarity();
 
-    /// <summary>The default measure of an index kind (LUI-Spezifikation §4).</summary>
-    internal static ILuiSimilarity DefaultFor(LuiIndexKind kind) =>
-        kind == LuiIndexKind.MultiWord ? NgramDice : JaroWinkler;
 
     private sealed class JaroWinklerSimilarity : ILuiSimilarity
     {

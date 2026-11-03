@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
-- **Amended by:** [0013](./0013-the-api-shape-before-the-first-release.md) — the namespace layout below
+- **Amended by:** [0013](./0013-the-api-shape-before-the-first-release.md) — the namespace layout below; [0014](./0014-seams-for-the-second-content-source.md) — the internal namespaces
 - **Affects:** `src/Nordmann.LUI/Nordmann.LUI.csproj`, `Directory.Packages.props`,
   `docs/spec/LUI-Spezifikation.md` §17.1, `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs`
 
@@ -30,10 +30,12 @@ folders:
 ```text
 Nordmann.LUI                    every public type: LuiCatalog, the builder steps, ILuiIndex, ILuiOwnedIndex,
                                 LuiEntry, LuiQuery, LuiQueryOptions, LuiResult, LuiHit, LuiSimilarity, …
-Nordmann.LUI.Indexing           schema, triggers, writes                      (internal)
-Nordmann.LUI.Querying           the query path, candidates, ranking            (internal)
-Nordmann.LUI.Normalization      Normalizer, SQL expressions, the fold table    (internal)
+Nordmann.LUI.Indexes            an index: source + writes + query path         (internal, ADR-0014)
+Nordmann.LUI.Querying           the query path as a pipeline                   (internal)
+Nordmann.LUI.Writing            the write statements                           (internal)
+Nordmann.LUI.Schema             definitions, kind rules, content sources, SQL  (internal)
 Nordmann.LUI.Typos              the prefix dictionary                          (internal)
+Nordmann.LUI.Normalization      Normalizer, SQL expressions, the fold table    (internal)
 ```
 
 The dependency injection (PR-008) lands in the same assembly; whether it gets a namespace of its own is that

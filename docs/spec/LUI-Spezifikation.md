@@ -827,10 +827,19 @@ bzw. `ILui` (ein Architekturtest hält das fest, ADR-0013). Die übrigen Namespa
 | Namespace | Inhalt | sichtbar |
 |---|---|---|
 | `Nordmann.LUI` | `LuiCatalog`, die Builder-Stufen, `ILuiIndex`, `ILuiOwnedIndex`, `LuiEntry`, Abfrage, Optionen, Ergebnisse, `ILuiSimilarity`/`LuiSimilarity`, `ILuiPayloadSerializer`, Ausnahmen | öffentlich |
-| `Nordmann.LUI.Indexing` | Schema, Trigger, Schreibzugriffe, `Sync`, `Check` | intern |
-| `Nordmann.LUI.Querying` | Abfrage-Ablauf, Kandidaten, Ranking | intern |
-| `Nordmann.LUI.Normalization` | `Normalizer`, SQL-Ausdrücke, Zuordnung für Highlight | intern |
+| `Nordmann.LUI.Indexes` | ein Index: setzt Inhaltsquelle, Schreibzugriffe und Abfrage zusammen (`Owned`, `Linked`); führt `Sync`, `Check`, `Rebuild` aus | intern |
+| `Nordmann.LUI.Querying` | Abfrage-Ablauf als Pipeline: Kandidaten, Korrektur, Ranking, Treffer | intern |
+| `Nordmann.LUI.Writing` | Schreibzugriffe (vorbereitete Statements) | intern |
+| `Nordmann.LUI.Schema` | Definition, Rowid, Regeln der Art, Inhaltsquellen mit ihrem SQL — auch dem von `Sync` und `Check`, nicht deren Ausführung | intern |
 | `Nordmann.LUI.Typos` | Wörterbuch der Wortanfänge | intern |
+| `Nordmann.LUI.Normalization` | `Normalizer`, SQL-Ausdrücke, Zuordnung für Highlight | intern |
+
+Die internen Namespaces haben eine Richtung: Jeder kennt nur die unter ihm (in der Tabelle von oben nach unten;
+`Typos` und `Normalization` kennen keinen anderen). Keiner kennt die Builder; den Katalog kennen nur `Querying` und
+`Indexes`, bis er zerlegt ist (Schritt 7). Was schreibt und Verbindungen braucht — `Sync`, `Check`, `Rebuild` —,
+wird in `Indexes` ausgeführt; `Schema` liefert nur das SQL dazu. Die Regeln der Art (`SingleWord`, `MultiWord`) stehen an
+**einer** Stelle, die Inhaltsquelle (`Owned`, `Linked`) ist eine Nahtstelle; die Abfrage kennt keinen
+Tabellennamen. Architekturtests halten das fest (ADR-0014).
 
 ### 17.3 Abhängigkeiten
 

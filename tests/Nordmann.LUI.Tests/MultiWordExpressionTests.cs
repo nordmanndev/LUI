@@ -1,3 +1,4 @@
+using Nordmann.LUI.Schema;
 using Nordmann.LUI.Normalization;
 using Nordmann.LUI.Querying;
 using Shouldly;
@@ -123,8 +124,8 @@ public sealed class MultiWordExpressionTests
     [Fact]
     public void A_term_is_quoted_and_a_quotation_mark_in_it_is_doubled()
     {
-        PreparedQuery.Quote("a\"b").ShouldBe("\"a\"\"b\"");
-        PreparedQuery.Quote("plain").ShouldBe("\"plain\"");
+        IndexKindRules.Quote("a\"b").ShouldBe("\"a\"\"b\"");
+        IndexKindRules.Quote("plain").ShouldBe("\"plain\"");
     }
 
     [Theory]
@@ -139,5 +140,5 @@ public sealed class MultiWordExpressionTests
     private static string Expression(string typed) => Query(typed).Expression;
 
     private static PreparedQuery Query(string typed) =>
-        PreparedQuery.Create(typed, NormalizationOptions.Default, LuiIndexKind.MultiWord);
+        PreparedQuery.Create(typed, NormalizationOptions.Default, MultiWordRules.Instance);
 }

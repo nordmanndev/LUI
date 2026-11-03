@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization.Metadata;
-using Nordmann.LUI.Indexing;
+using Nordmann.LUI.Indexes;
+using Nordmann.LUI.Schema;
 using Nordmann.LUI.Normalization;
 
 namespace Nordmann.LUI;
@@ -112,20 +113,20 @@ public sealed class LuiOwnedIndexBuilder<TKey, TPayload>
     {
         var definition = new IndexDefinition(
             _kind,
-            OwnedSchema.Source,
+            OwnedSource.SourceName,
             KeyCodec<TKey>.KeyType,
             _germanTransliteration,
             _payload is not null,
             TokenizerFold.Version);
 
-        _catalog.EnsureIndex(_name, definition, OwnedSchema.Create(_name, definition));
+        var source = new OwnedSource(_name, definition);
+        _catalog.EnsureIndex(_name, definition, source.CreateStatements());
 
         return new OwnedIndex<TKey, TPayload>(
             _catalog,
-            _name,
-            definition,
+            source,
             _payload,
-            _similarity ?? LuiSimilarity.DefaultFor(definition.Kind),
+            _similarity ?? source.Rules.DefaultSimilarity,
             _typoTolerance);
     }
 }

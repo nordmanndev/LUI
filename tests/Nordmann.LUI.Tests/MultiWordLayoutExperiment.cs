@@ -1,7 +1,7 @@
 #pragma warning disable MA0051, CA1861, MA0004, MA0002, CA1845, MA0074, MA0006, CA1305, CA2100, MA0011, CA1307, CA1866
 using System.Diagnostics;
 using Microsoft.Data.Sqlite;
-using Nordmann.LUI.Indexing;
+using Nordmann.LUI.Schema;
 using Nordmann.LUI.Normalization;
 using Nordmann.LUI.Querying;
 using Xunit.Abstractions;
@@ -88,14 +88,14 @@ public sealed class MultiWordLayoutExperiment(ITestOutputHelper output)
             {
                 foreach (var input in inputs)
                 {
-                    var pq = PreparedQuery.Create(input, NormalizationOptions.Default, LuiIndexKind.MultiWord);
+                    var pq = PreparedQuery.Create(input, NormalizationOptions.Default, MultiWordRules.Instance);
                     if (pq.IsPrefixPath) continue;
                     string expr;
-                    if (variant.StartsWith("A2") && pq.Words.Count == 1 && pq.Words[0] == pq.Compact) expr = "s_compact : " + PreparedQuery.Quote(pq.Compact);
+                    if (variant.StartsWith("A2") && pq.Words.Count == 1 && pq.Words[0] == pq.Compact) expr = "s_compact : " + IndexKindRules.Quote(pq.Compact);
                     else if (variant.StartsWith("B"))
                     {
                         var longWords = pq.Words.Where(w => w.Length >= 3).ToArray();
-                        expr = longWords.Length == 0 ? "s_compact : " + PreparedQuery.Quote(pq.Compact) : "s_compact : (" + string.Join(" AND ", longWords.Select(PreparedQuery.Quote)) + ")";
+                        expr = longWords.Length == 0 ? "s_compact : " + IndexKindRules.Quote(pq.Compact) : "s_compact : (" + string.Join(" AND ", longWords.Select(IndexKindRules.Quote)) + ")";
                     }
                     else expr = pq.Expression;
                     using var cmd = q.CreateCommand();

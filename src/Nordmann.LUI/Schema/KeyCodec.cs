@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace Nordmann.LUI.Indexing;
+namespace Nordmann.LUI.Schema;
 
 /// <summary>
 /// The key of the application as the <c>key</c> column holds it. A key is a

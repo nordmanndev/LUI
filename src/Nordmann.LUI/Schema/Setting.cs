@@ -1,4 +1,4 @@
-namespace Nordmann.LUI.Indexing;
+namespace Nordmann.LUI.Schema;
 
 /// <summary>
 /// Checks for the values of the options and entries, made in their <c>init</c> accessors: the error comes
