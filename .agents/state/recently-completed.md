@@ -11,7 +11,7 @@ the scratchpad here at the end of a session.
   (lui_meta, DDL), `Typos.TypoDictionaries`; the `LuiCatalog` exception of `Internal_Layering` is gone, two new mutations.
 - Owned `Sync` in batches (default 10,000), sorted by rowid, `automerge` off, one `optimize` at the end; removal by a
   snapshot of the keys at the start, crossed off — a key added meanwhile stays. `Check(source)`, `Check()` (on
-  `ILuiIndex`, also Linked), `Rebuild()`, `Optimize()`. 29 tests in `SyncCheckRebuildTests`.
+  `ILuiIndex`, also Linked), `Rebuild()`, `Optimize()`. 30 tests in `SyncCheckRebuildTests`; review of PR #18 worked in (S1–S4 docs, S3 and N6 in code, N3–N5, N7).
 - Measured at 1 M: sync 77.8 s (batch 10 k) / 54.9 s (100 k), UpsertMany 52.5 s; query p95 after sync 3.9 ms vs 5.4 ms.
   The number of commits costs more than the order; the merge decides the query.
 - Open for the owner: the default batch size; a shadow build for `Linked.Sync()` (S2; 26.7 s lock per million rows).

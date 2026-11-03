@@ -14,8 +14,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   writes what differs, keeps what is the same and removes the keys that were there when it began and that the source
   does not have — in batches of
   `LuiSyncOptions.BatchSize` (default 10,000), each in a transaction of its own, written in the order of the search
-  index and merged once at the end. A cancelled sync keeps its committed batches and removes nothing; run again, it
-  skips them. It returns a `LuiSyncReport` (`Read`, `Added`, `Changed`, `Unchanged`, `Removed`, `Batches`, `Merged`) and
+  index and merged once at the end. A sync cancelled while it reads the source keeps its committed batches and removes
+  nothing (one cancelled during the removal at the end leaves the rest of it); run again, it skips what is done. It returns a `LuiSyncReport` (`Read`, `Added`, `Changed`, `Unchanged`, `Removed`, `Batches`, `Merged`) and
   reports the same after every batch to `LuiSyncOptions.Progress`. `Check(source)` compares and changes nothing;
   `Rebuild()` creates the triggers and the search index anew; `Optimize()` merges. Every index has `Check()` (on
   `ILuiIndex`): the definition, the triggers, FTS5's integrity check — for a linked index also the table and the

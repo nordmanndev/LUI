@@ -37,7 +37,10 @@ public interface ILuiIndex<TKey, TPayload>
     /// Checks the index (§12.6, §14): the stored definition is the one of this instance, the search index passes FTS5's
     /// integrity check, and what keeps it in step is in place — the triggers of an <c>Owned</c> index; for a
     /// <c>Linked</c> one, the application's table still fits and the entries agree with its rows. Nothing is changed; the
-    /// integrity check reads the whole search index under SQLite's write lock (seconds for a million entries).
+    /// integrity check reads the whole search index under SQLite's write lock (about 2 s for a million entries); the
+    /// comparison of a linked index with its table runs after it, in a snapshot of its own, without the lock. For a linked
+    /// index with triggers, the rows they noted count until <c>ApplyPending()</c> — a health check between two of them
+    /// asks <c>Pending()</c>.
     /// </summary>
     /// <returns>What was found; <see cref="LuiIntegrityReport.IsHealthy"/> when nothing.</returns>
     LuiIntegrityReport Check();

@@ -39,8 +39,10 @@ exception of `Internal_Layering` is gone, and the mutation check proves the rule
   sync runs stays; a key that was there and is not in the source goes, even when the application removed and wrote it
   again meanwhile. By key and not by document id, because SQLite gives a new row the highest id plus one — a removed
   last row's id comes back, and the outcome would depend on it;
-- a cancelled or failing sync keeps the batches it committed and removes nothing. Run again, it finds them unchanged
-  and writes only the rest — the "Wiederaufsetzen" of §14;
+- a sync cancelled or failing **while it reads the source** keeps the batches it committed and removes nothing. One
+  cancelled **during the removal at the end** — itself in batches — leaves the rest of the removal undone, unmerged, and
+  the typo dictionary not rebuilt (review of pull request 18, S1). Either way a second run finds the committed work
+  unchanged and does only the rest — the "Wiederaufsetzen" of §14;
 - each batch is written **in the order of the search index** (priority, then weight descending — a new entry's
   document id grows with the order of the inserts) with FTS5's `automerge` off, set back to its default before the
   commit; the search index is merged (`optimize`) once at the end, when anything changed;
@@ -110,8 +112,12 @@ sync 10.5 s, `UpsertMany` 8.1 s, the same sync again 1.8 s, `Check()` 0.3 s, `Re
 ## Consequences
 
 - **A sync in batches of 10,000 is slower than `UpsertMany` in one transaction** (78 s against 53 s for a million).
-  That is the price of what the batches give: other writers wait at most about 0.7 s, and an aborted sync keeps its
-  work. A first load into a file that no one else writes is about 30 % faster with `BatchSize = 100_000` (about 5 s per
+  That is the price of what the batches give: other writers get a chance between the batches (about 0.7 s each),
+  and an aborted sync keeps its work. A chance, not a bound: SQLite has no queue — a waiting writer polls with a
+  back-off, and the sync takes the lock again right after its commit, so a writer can lose several batches in a row.
+  Measured by the reviewer (300,000 entries, a writer with `busy_timeout = 1000` every 5 ms): one `SQLITE_BUSY` in 15
+  writes (review of pull request 18, S4). Give the application's writers a busy timeout of a few seconds while a sync
+  runs. A first load into a file that no one else writes is about 30 % faster with `BatchSize = 100_000` (about 5 s per
   batch — longer than the default busy timeout of 5 s of another writer); the default stays the specification's.
 - The target of §16 for the build (3 M entries in ≤ 3 min) is not measured here; at a million the sync takes 54–78 s.
   PR-009 measures it at 3 M.
@@ -119,7 +125,19 @@ sync 10.5 s, `UpsertMany` 8.1 s, the same sync again 1.8 s, `Check()` 0.3 s, `Re
   `temp_store` says otherwise (`MEMORY` gave 12.0 → 10.9 s at 200,000 — within the noise of the runs, not taken).
 - A key upserted by the application *during* a sync stays, even when the source does not have it: the sync removes
   what was there when it began. "The source is the truth" holds for the state the sync started from.
-- `Check()` of a large index holds the write lock for the integrity check (2 s for a million entries).
+- `Check()` of a large index holds the write lock for the integrity check (2 s for a million entries). A linked index
+  compares its entries with the table **after** it, in a snapshot of its own, without the lock (review of pull request
+  18, S3; 2.7 s under the lock at 300,000 rows before).
+- **A sync that changes or removes anything rebuilds a typo dictionary that is built**, at its end — SymSpell cannot
+  forget a word. It is a full rebuild: measured by the reviewer, a sync with one change of 300,000 random words took
+  12.1 s with a warm dictionary against 2.3 s without (review of pull request 18, S2). Queries go on with the old
+  dictionary while the new one is built. Marking the dictionary stale instead and rebuilding it lazily or in the
+  background is a follow-up.
+- A sync that runs while its index is dropped (`DropIndex` between two batches) fails with the `SqliteException` of
+  the missing table (review of pull request 18, N7).
+- A linked index whose triggers noted rows that `ApplyPending()` has not brought in yet is not healthy for `Check()`:
+  the rows count as missing or different, with `ApplyPending()` as the repair. For a health check that runs between two
+  `ApplyPending()`, `Pending()` is the value; `Check()` belongs after `ApplyPending()` (review of pull request 18, N4).
 - A text of a linked row that changed behind its first two letters is not found by `Check()` — the contentless search
   index does not store the text to compare. A query never shows such a text (the candidates are read against the row,
   ADR-0015), and `Sync()` repairs it.
@@ -136,9 +154,9 @@ sync 10.5 s, `UpsertMany` 8.1 s, the same sync again 1.8 s, `Check()` 0.3 s, `Re
    and has to reach the new ones too (noted in the outbox, applied after the swap). Not built here: it is a second write
    path for every refresh, and the owner should decide whether a 30-second lock per million rows is a problem worth it.
 
-**Verified by:** `tests/Nordmann.LUI.Tests/SyncCheckRebuildTests.cs` (29 tests: a sync into an empty index, adds,
+**Verified by:** `tests/Nordmann.LUI.Tests/SyncCheckRebuildTests.cs` (30 tests: a sync into an empty index, adds,
 changes, keeps and removes, the same sync again, the payload compared, batches and progress, cancelled and run again,
-a source that fails, a key added and a key written again while the sync runs, the empty text key, a key twice in a
+a source that fails, a key added and a key written again while the sync runs, the empty text key, a key twice in two batches counted as a change, a key twice in a
 batch and across batches, the same answers as single upserts, `automerge` back on,
 an asynchronous source, a text key, the typo dictionary; `Check(source)` with counts and keys, healthy after a sync, the
 last entry of a key, "…" after five keys; `Check()` healthy, a missing trigger and the row it did not carry, a search

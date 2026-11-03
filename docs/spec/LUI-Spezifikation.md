@@ -828,8 +828,10 @@ Thread des Pools.
 
 `Sync` (`Owned`) arbeitet in Stapeln (Standard 10.000) in je einer Transaktion. Zu Beginn merkt er sich die
 Schlüssel des Index, streicht jeden, den die Quelle hat, und entfernt am Ende, was übrig ist: die Schlüssel, die beim
-Start im Index waren und in der Quelle fehlen. Ein Schlüssel, den die Anwendung währenddessen neu schreibt, bleibt. Er ist abbrechbar und wieder aufsetzbar: Ein abgebrochener Sync behält die
-übergebenen Stapel und entfernt nichts; ein zweiter Lauf findet sie unverändert und schreibt nur den Rest. Jeder
+Start im Index waren und in der Quelle fehlen. Ein Schlüssel, den die Anwendung währenddessen neu schreibt, bleibt. Er ist abbrechbar und wieder aufsetzbar: Ein Abbruch während des Lesens der Quelle behält die übergebenen Stapel und
+entfernt nichts; ein Abbruch während der Entfernung am Ende lässt einen Teil davon stehen. Ein zweiter Lauf findet das
+Erledigte unverändert und macht nur den Rest. Zwischen den Stapeln kommen andere Schreiber zum Zug — eine Chance,
+keine Zusage: SQLite hat keine Warteschlange. Jeder
 Stapel wird in der Reihenfolge des Suchindex geschrieben, ohne die laufende Zusammenführung von FTS5; am Ende wird der
 Suchindex einmal zusammengeführt (ADR-0016). Gemessen an 1 Mio. Einträgen: 78 s mit Stapeln zu 10.000, 55 s mit
 100.000; danach p95 der Abfrage 3,9 ms statt 5,4 ms nach `UpsertMany`. `Sync` (`Linked`) baut den Index in **einer**

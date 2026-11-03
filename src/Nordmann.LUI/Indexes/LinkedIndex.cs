@@ -290,13 +290,14 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
     {
         using var scope = _database.Begin();
         List<string> problems = [];
-        LuiIntegrityReport? report = null;
+        var fits = false;
         lock (_database.WriterGate)
         {
             // the integrity check of FTS5 is an insert: it runs on the writer, and the transaction is rolled back
             var writer = _database.Writer;
             using var transaction = writer.BeginTransaction(deferred: false);
-            if (IndexCheck.Definition(writer, transaction, _source, problems) && TableFits(writer, transaction, problems))
+            fits = IndexCheck.Definition(writer, transaction, _source, problems) && TableFits(writer, transaction, problems);
+            if (fits)
             {
                 if (TriggerState(writer, transaction) == LuiTriggerState.Stale)
                 {
@@ -306,13 +307,20 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
                 }
 
                 IndexCheck.SearchIndex(writer, transaction, _source, problems, "Sync() builds the index anew.");
-                report = CompareWithTable(writer, transaction, problems);
             }
 
             transaction.Rollback();
         }
 
-        return report ?? new LuiIntegrityReport { Problems = problems };
+        if (!fits)
+        {
+            return new LuiIntegrityReport { Problems = problems };
+        }
+
+        // the comparison with the table only reads: a snapshot of its own, beside the writers (review of pull request 18, S3)
+        using var connection = _database.OpenConnection();
+        using var snapshot = connection.BeginTransaction(deferred: true);
+        return CompareWithTable(connection, snapshot, problems);
     }
 
     /// <summary>The table still has what the link reads — a finding, not an exception, when it does not.</summary>

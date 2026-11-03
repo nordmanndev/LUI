@@ -77,14 +77,19 @@ public interface ILuiOwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
 
     /// <summary>
     /// Brings the index in step with a source (§12.4, §14, ADR-0016): adds what is missing, changes what differs, leaves
-    /// alone what is the same, and at the end removes the entries the source does not have — <b>the entries that were in
-    /// the index when the sync began</b>: one the application writes while the sync runs stays.
+    /// alone what is the same, and at the end removes the keys the source does not have — <b>the keys that were in the
+    /// index when the sync began</b>: one the application adds while the sync runs stays.
     /// <para>
     /// It works in batches (<see cref="LuiSyncOptions.BatchSize"/>), each in a transaction of its own on the catalog's
-    /// writer, so other writers get their turn between them. Each batch is written in the order of the search index, with
-    /// FTS5's incremental merge off, and the search index is merged once at the end — the bulk path of ADR-0010. A sync
-    /// that is cancelled or fails keeps the batches it committed: run it again, and it skips what is already there. The
-    /// removal at the end happens only when the whole source was read.
+    /// writer, so other writers get a chance between them — SQLite has no queue, give them a busy timeout of a few
+    /// seconds. Each batch is written in the order of the search index, with FTS5's incremental merge off, and the search
+    /// index is merged once at the end — the bulk path of ADR-0010. A sync that is cancelled or fails keeps the batches
+    /// it committed: run it again, and it skips what is already there. The removal at the end happens only when the whole
+    /// source was read; it runs in batches too, and a cancellation during it leaves the rest for the next run.
+    /// </para>
+    /// <para>
+    /// A typo dictionary that is built is <b>built anew</b> at the end when the sync changed or removed anything — a full
+    /// rebuild (seconds for a large index), queries use the old one meanwhile.
     /// </para>
     /// </summary>
     /// <param name="source">The entries; of a key that comes twice the last one stays.</param>

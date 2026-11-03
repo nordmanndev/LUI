@@ -150,6 +150,19 @@ public sealed class SyncCheckRebuildTests
     }
 
     [Fact]
+    public void A_key_twice_in_two_batches_counts_as_a_change_even_in_an_empty_index()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var words = Words(catalog);
+
+        var report = words.Sync([Entry(1, "apfel"), Entry(2, "birne"), Entry(1, "apfelkuchen")], new LuiSyncOptions { BatchSize = 2 });
+
+        (report.Read, report.Added, report.Changed).ShouldBe((3L, 2L, 1L));
+        words.Search("apfelkuchen").Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
+    }
+
+    [Fact]
     public void A_sync_answers_as_the_same_entries_upserted_one_by_one()
     {
         using var database = new TestDatabase();

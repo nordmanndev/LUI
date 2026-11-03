@@ -13,7 +13,10 @@ public sealed record LuiSyncReport
     /// <summary>The entries that were not in the index.</summary>
     public long Added { get; init; }
 
-    /// <summary>The entries whose text, weight, priority or payload was different.</summary>
+    /// <summary>
+    /// The entries whose text, weight, priority or payload was different. A key that comes twice in the source, in two
+    /// batches, counts as a change the second time — the last entry wins, even in an index that was empty.
+    /// </summary>
     public long Changed { get; init; }
 
     /// <summary>The entries that were in the index as they are in the source: not written.</summary>

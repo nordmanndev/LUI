@@ -65,7 +65,7 @@ internal sealed class OwnedSync<TKey, TPayload>(
         }
         finally
         {
-            Write(OwnedSource.DropTempSql(start));
+            Forget(start);
         }
     }
 
@@ -184,6 +184,32 @@ internal sealed class OwnedSync<TKey, TPayload>(
                     return report;
                 }
             }
+        }
+    }
+
+    /// <summary>
+    /// Drops the table of a sync. A temporary table needs no lock on the file, so no transaction is opened, and a failure
+    /// does not cover the exception that ended the sync: the table is the connection's own and has a name of its own, so
+    /// a rest of it is harmless (review of pull request 18, N6).
+    /// </summary>
+    private void Forget(string start)
+    {
+        try
+        {
+            lock (database.WriterGate)
+            {
+                using var drop = database.Writer.CreateCommand();
+                drop.CommandText = OwnedSource.DropTempSql(start);
+                drop.ExecuteNonQuery();
+            }
+        }
+        catch (SqliteException)
+        {
+            // left behind on the writer's connection until it closes
+        }
+        catch (ObjectDisposedException)
+        {
+            // the catalog is gone, and the connection with it
         }
     }
 
