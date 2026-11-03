@@ -55,8 +55,8 @@ internal sealed class OwnedSource : ContentSource
     internal override string PrefixSql(int length) =>
         $"SELECT s_rowid, text FROM {ContentTable} WHERE s_p{length} = $q ORDER BY s_rowid LIMIT $n;";
 
-    internal override string HitsSql(string parameters) =>
-        $"SELECT doc_id, key, payload FROM {ContentTable} WHERE doc_id IN ({parameters});";
+    internal override string HitsSql(string parameters, IReadOnlyList<string> payloadColumns) =>
+        $"SELECT doc_id, key{string.Concat(payloadColumns.Select(column => ", " + column))} FROM {ContentTable} WHERE doc_id IN ({parameters});";
 
     internal override IReadOnlyList<string> CreateStatements()
     {
@@ -112,12 +112,16 @@ internal sealed class OwnedSource : ContentSource
             weight   INTEGER NOT NULL CHECK (weight BETWEEN 0 AND {RowId.MaxWeight}),
             priority INTEGER NOT NULL DEFAULT 3 CHECK (priority BETWEEN 0 AND 3),
             payload  BLOB,
-            s_norm   TEXT GENERATED ALWAYS AS ({SqlNormalizer.Transliteration("text", Definition.GermanTransliteration)}) {Rules.NormStorage}{Rules.CompactColumn},
+            s_norm   TEXT GENERATED ALWAYS AS ({SqlNormalizer.Transliteration("text", Definition.GermanTransliteration)}) {Rules.NormStorage}{CompactColumn(Rules)},
             s_p1     TEXT GENERATED ALWAYS AS (substr(lower({Rules.PrefixSource}), 1, 1)) STORED,
             s_p2     TEXT GENERATED ALWAYS AS (substr(lower({Rules.PrefixSource}), 1, 2)) STORED,
             s_rowid  INTEGER GENERATED ALWAYS AS ((priority << 61) | (({RowId.MaxWeight} - weight) << 32) | doc_id) STORED
         );
         """;
+
+    /// <summary>The compact column of the kind after <c>s_norm</c>, in the layout of the content table.</summary>
+    private static string CompactColumn(IndexKindRules rules) =>
+        rules.CompactColumnDefinition is { } definition ? $",\n    {definition}" : string.Empty;
 
     /// <summary>The triggers; <paramref name="column"/> is the one column the search index holds.</summary>
     private static string[] Triggers(string content, string fts, string column)

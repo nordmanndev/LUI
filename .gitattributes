@@ -1,0 +1,3 @@
+
+# byte-exact golden files: the SQL holds separators such as CR and TAB
+tests/Nordmann.LUI.Tests/Golden/** -text

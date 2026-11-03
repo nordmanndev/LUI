@@ -55,8 +55,12 @@ The standards' five non-negotiable rules, and how they read here:
 - ❌ Never add a NuGet dependency to `Nordmann.LUI` without an ADR — even a
   transitive one.
 - ❌ Never touch `lui_*` tables by hand. They belong to the library; the
-  application writes through the index API, or (in `Linked` mode) through its
-  own table, whose triggers keep the index in step.
+  application writes through the index API, or (in `Linked` mode) to its own
+  table and tells the index with `Refresh`/`Sync` — or through triggers it
+  created on purpose.
+- ❌ Never let the library change the schema of a `Linked` index's host table on
+  its own: no column, no index, no trigger unless the application calls for one
+  (owner's decision, ADR-0015).
 - ❓ Ask before: changing the schema of a `Linked` index's host table, raising
   the candidate budget above 500, changing the normalisation rule, or
   publishing a release.

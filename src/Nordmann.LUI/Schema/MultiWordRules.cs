@@ -36,8 +36,12 @@ internal sealed class MultiWordRules : IndexKindRules
     internal override string PrefixSource => "s_compact";
 
     // the separators stripped from the transliterated text (§6.1); the tokenizer folds it, as it folds s_norm
-    internal override string CompactColumn =>
-        $",\n    s_compact TEXT GENERATED ALWAYS AS ({SqlNormalizer.Compact("s_norm")}) STORED";
+    internal override string? CompactColumnDefinition =>
+        $"s_compact TEXT GENERATED ALWAYS AS ({SqlNormalizer.Compact("s_norm")}) STORED";
+
+    internal override string IndexedValue(string searchForm) => SqlNormalizer.Compact(searchForm);
+
+    internal override string PrefixValue(string searchForm) => SqlNormalizer.Compact(searchForm);
 
     // nothing reads s_norm but s_compact, which derives from it: a stored copy of every title is a tenth of the file
     internal override string NormStorage => "VIRTUAL";
@@ -105,6 +109,43 @@ internal sealed class MultiWordRules : IndexKindRules
         anded.AppendJoin(" AND ", chosen.Select(Quote));
         anded.Append(')');
         return anded.ToString();
+    }
+
+    internal override bool StillMatches(
+        ReadOnlySpan<char> searchForm, bool prefixPath, string prefixKey, string search, string compact, IReadOnlyList<string> words)
+    {
+        // the compact form of the text: its search form without the separators
+        Span<char> buffer = searchForm.Length <= 256 ? stackalloc char[256] : new char[searchForm.Length];
+        var length = 0;
+        foreach (var c in searchForm)
+        {
+            if (!Normalizer.IsSeparator(c))
+            {
+                buffer[length++] = c;
+            }
+        }
+
+        var text = buffer[..length];
+        if (prefixPath)
+        {
+            return text.StartsWith(prefixKey, StringComparison.Ordinal);
+        }
+
+        var terms = ExpressionWords(words);
+        if (terms.Length == 0)
+        {
+            return text.Contains(compact, StringComparison.Ordinal);
+        }
+
+        foreach (var term in terms)
+        {
+            if (!text.Contains(term, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /// <summary>

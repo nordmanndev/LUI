@@ -7,12 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The linked index** ([ADR-0015](docs/adr/0015-the-linked-index-is-loosely-coupled.md)), loosely coupled to a table
+  of the application: `lui.Index(name).SingleWord().LinkTo(table, key, text, weight?, priority?).Ensure()` returns an
+  `ILuiLinkedIndex<TPayload>`. LUI never changes the application's table on its own — no column, no index, no trigger;
+  `Ensure()` checks the table and creates LUI's own tables (a contentless FTS5 table, the text is not stored twice).
+  The application keeps it current: `Sync()`, `Refresh(key, transaction = null)`, `RefreshMany(keys, transaction = null)`,
+  `Optimize()`; triggers only on request: `TriggerScript()`, `CreateTriggers()`, `DropTriggers()` — they only note the
+  key of a changed row in an outbox (plain SQL, any SQLite can write the table); `ApplyPending()` brings the noted rows
+  into the index, `Pending()` counts them. A payload from columns:
+  `WithPayload(columns, row => …)` with `LuiRow`. `LuiLinkedTableException` when the table is not what the link says.
+  `Sync()` returns a `LuiSyncResult` (indexed, without text, key out of range); `Triggers()` returns a
+  `LuiTriggerState` (`None`, `Current`, `Stale`); `DropIndex(name, dropTriggers)` removes the triggers of a linked
+  index only when asked. A candidate whose current text no longer matches is not a hit.
+  200,000 rows: sync 3.5–3.9 s, query p95 1.11–1.17 ms, refresh p95 0.51–0.58 ms.
+
 ### Changed
+
+- **The builder: `Owned<long>` is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;
+  `SingleWord()`/`MultiWord()` return a `LuiIndexBuilder<long, LuiNoPayload>` — an owned index, or with `LinkTo(…)`
+  a linked one (the names were `LuiIndexBuilder` and `LuiOwnedIndexBuilder<TKey, TPayload>`, review of PR #16, N1);
+  `Owned<TKey>()` and `LuiIndexSourceBuilder` are gone, `WithKey<string>()` chooses a text key.
+  `lui.Index("tags").SingleWord().Ensure()` is a whole index.
+- `DropIndex` decides by the stored source and refuses a source it does not know.
 
 - **The API shape before the first release** ([ADR-0013](docs/adr/0013-the-api-shape-before-the-first-release.md)) —
   a break on purpose, while it costs nothing:
-  - A staged builder: `lui.Index(name).SingleWord().Owned<long>().WithPayload(…).TypoTolerance().Ensure()`. An index
-    without a kind or a source does not compile; the key type is checked at `Owned<TKey>()`; a payload is optional
+  - A staged builder: `lui.Index(name).SingleWord().WithPayload(…).TypoTolerance().Ensure()`. An index
+    without a kind does not compile; the key type is checked at `WithKey<TKey>()`; a payload is optional
     (`LuiNoPayload` until `WithPayload`). `TypoTolerance(int maxEdits)` is `TypoTolerance(bool enabled = true)`.
     `Drop()` is `LuiCatalog.DropIndex(name)`.
   - Reading and writing are two interfaces: `ILuiIndex<TKey, TPayload>` (`Query`, `Search`, `Count`, the typo
@@ -52,7 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instances of an index and its build never holds up a write. The dictionary of the whole
   German word list takes 4.2 s and 138 MB.
 
-- **The multi-word index** (`MultiWord`, `Owned`): `catalog.Index(name).MultiWord().Owned<TKey>().Ensure()`
+- **The multi-word index** (`MultiWord`, `Owned`): `catalog.Index(name).MultiWord().Ensure()`
   for names and titles ([ADR-0011](docs/adr/0011-the-multi-word-index.md)). The input is split
   into words that are ANDed and also searched compactly, so `kuchen apfel` and `apfelkuch` both
   find „Apfel Kuchen"; the word start is decided on the compact form; the default similarity is
@@ -69,7 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `LuiCatalog.Open(connectionString, options)` with `LuiCatalogOptions`
     (`CacheSizeMegabytes`, `MemoryMapMegabytes`, `BusyTimeout`, `TimeProvider`), and
     `lui_meta`. `Dispose()` waits for the operations that are running.
-  - `catalog.Index(name).SingleWord().Owned<TKey>().WithPayload(…)
+  - `catalog.Index(name).SingleWord().WithKey<TKey>().WithPayload(…)
     .Similarity(…).GermanTransliteration(…).Ensure()` and `DropIndex(name)`; the
     result is an `ILuiOwnedIndex<TKey, TPayload>`.
   - Writes: `Upsert`, `UpdateWeight`, `UpdatePriority`, `Remove`, `Count` —

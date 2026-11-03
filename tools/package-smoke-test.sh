@@ -112,7 +112,7 @@ try
 {
     using (var catalog = LuiCatalog.Open($"Data Source={path}"))
     {
-        var tags = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        var tags = catalog.Index("tags").SingleWord().Ensure();
         tags.Upsert(1, "Apfelkuchen", weight: 10);
         tags.Upsert(2, "Bratapfelkuchen", weight: 1000);
         tags.Upsert(3, "vegan", weight: 5, priority: LuiPriority.System);
@@ -122,7 +122,7 @@ try
         Console.WriteLine($"apfelkuch -> {first}; gan -> {system}");
 
         // and a multi-word index: the order of the words and the spaces do not matter
-        var titles = catalog.Index("titles").MultiWord().Owned<long>().TypoTolerance().Ensure();
+        var titles = catalog.Index("titles").MultiWord().TypoTolerance().Ensure();
         titles.Upsert(1, "Apfel Kuchen", weight: 10);
         titles.Upsert(2, "Bratapfelkuchen", weight: 1000);
 
@@ -175,7 +175,7 @@ OUTPUT="$(cd "${SMOKE}" && dotnet run --project "${SMOKE}/SmokeTest.csproj" --no
 echo "${OUTPUT}"
 
 # The comments of the quick start say what it prints; they have to stay true.
-for expected in "Gedeckter Apfelkuchen (9000)" "Bratapfelkuchen (800)" "Gedeckter Apfelkuchen" "gedeckter"; do
+for expected in "Gedeckter Apfelkuchen (9000)" "Bratapfelkuchen (800)" "Gedeckter Apfelkuchen" "gedeckter" "vegan"; do
   if ! grep -qxF "${expected}" <<<"${OUTPUT}"; then
     echo "package-smoke-test: the README's quick start did not print '${expected}'" >&2
     exit 1

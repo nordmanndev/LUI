@@ -115,7 +115,7 @@ public sealed class Internal_Layering
             Path.Combine("Schema", "IndexKindRules.cs"),
             Path.Combine("Schema", "SingleWordRules.cs"),
             Path.Combine("Schema", "MultiWordRules.cs"),
-            "LuiIndexBuilder.cs",
+            "LuiIndexKindBuilder.cs",
             "LuiIndexKind.cs",
         ];
 

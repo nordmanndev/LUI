@@ -26,7 +26,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         using var database = new TestDatabase(Environment.GetEnvironmentVariable("LUI_PERF_DB"));
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
         var builder = catalog.Index("tags");
-        var index = (Multi ? builder.MultiWord() : builder.SingleWord()).Owned<long>().Ensure();
+        var index = (Multi ? builder.MultiWord() : builder.SingleWord()).Ensure();
 
         if (string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_OPTIMIZE"), "1", StringComparison.Ordinal))
         {

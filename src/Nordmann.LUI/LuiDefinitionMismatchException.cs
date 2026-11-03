@@ -12,12 +12,22 @@ public sealed class LuiDefinitionMismatchException : InvalidOperationException
     /// <param name="stored">The definition in <c>lui_meta</c>.</param>
     /// <param name="requested">The definition the caller asked for.</param>
     public LuiDefinitionMismatchException(string indexName, string stored, string requested)
+        : this(indexName, stored, requested, linked: false)
+    {
+    }
+
+    /// <summary>Creates the exception, with the way out of a linked index (review of pull request 16, F2).</summary>
+    internal LuiDefinitionMismatchException(string indexName, string stored, string requested, bool linked)
         : base(
             $"The index '{indexName}' exists with another definition.{Environment.NewLine}"
             + $"  stored:    {stored}{Environment.NewLine}"
             + $"  requested: {requested}{Environment.NewLine}"
             + "An index is never rebuilt silently. Ask for the stored definition, "
-            + "or Drop() the index and ensure it again.")
+            + (linked
+                ? "or remove the index with LuiCatalog.DropIndex(name, dropTriggers: true) — its triggers on the table go "
+                  + "with it — and ensure it again: then Sync() it, and create the triggers again if the application "
+                  + "uses them."
+                : "or remove the index with LuiCatalog.DropIndex(name) and ensure it again."))
     {
         IndexName = indexName;
         Stored = stored;

@@ -16,6 +16,8 @@ internal sealed class CandidateReader
     private const int StackTextLength = 256;
 
     private readonly NormalizationOptions _normalization;
+    private readonly IndexKindRules _rules;
+    private readonly bool _verify;
     private readonly string _prefix1Sql;
     private readonly string _prefix2Sql;
     private readonly string _candidatesSql;
@@ -23,6 +25,8 @@ internal sealed class CandidateReader
     internal CandidateReader(ContentSource source)
     {
         _normalization = source.Normalization;
+        _rules = source.Rules;
+        _verify = source.TextCanChangeUnderTheIndex;
         _prefix1Sql = source.PrefixSql(1);
         _prefix2Sql = source.PrefixSql(2);
         _candidatesSql = source.CandidateSql;
@@ -81,7 +85,7 @@ internal sealed class CandidateReader
             }
 
             var text = reader.GetString(1);
-            var start = StartOf(text, query.Compact, seen, out var duplicate, out var key);
+            var start = StartOf(text, query, seen, out var duplicate, out var key);
             if (duplicate)
             {
                 continue;
@@ -105,7 +109,7 @@ internal sealed class CandidateReader
     /// <c>DistinctText</c> — remembers the text. The candidates arrive in the
     /// order of the rowid, so the first one of a text is the best one (§9.2).
     /// </summary>
-    private int StartOf(string text, string compactQuery, HashSet<string>? seen, out bool duplicate, out string? key)
+    private int StartOf(string text, PreparedQuery query, HashSet<string>? seen, out bool duplicate, out string? key)
     {
         duplicate = false;
         key = null;
@@ -125,6 +129,13 @@ internal sealed class CandidateReader
 
             var searchForm = buffer[..written];
 
+            // a text that changed under the index no longer matches what was searched: not a hit (review of PR 16, S1)
+            if (_verify && !_rules.StillMatches(searchForm, query.IsPrefixPath, query.PrefixKey, query.Search, query.Compact, query.Words))
+            {
+                duplicate = true;
+                return -1;
+            }
+
             if (seen is not null)
             {
                 key = new string(searchForm);
@@ -135,7 +146,7 @@ internal sealed class CandidateReader
                 }
             }
 
-            return WordStart.Find(searchForm, compactQuery);
+            return WordStart.Find(searchForm, query.Compact);
         }
         finally
         {

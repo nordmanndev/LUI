@@ -129,24 +129,23 @@ Der Aufrufer muss bei der Abfrage nicht wissen, wie gesucht wird.
 
 ## 5. Inhaltsquellen: eigenständig und verknüpft
 
-Beide Quellen nutzen **denselben** Mechanismus (E3). Sie unterscheiden sich nur
-darin, **wessen Tabelle** die Inhalte liefert.
+Die Quellen unterscheiden sich darin, **wessen Tabelle** die Inhalte liefert — und wer den Index nachführt.
+`Owned` ist der Standard.
 
-| | **`Owned`** (eigenständig) | **`Linked`** (verknüpft) |
+| | **`Owned`** (eigenständig, Standard) | **`Linked`** (verknüpft) |
 |---|---|---|
 | Inhaltstabelle | `lui_<index>` — gehört der Bibliothek | eine Tabelle der Anwendung, z. B. `recipe` |
-| Wer schreibt hinein | die Anwendung über `Upsert` / `Remove` / `Sync` | die Anwendung mit normalem SQL (oder ORM) |
-| Index ↔ Inhaltstabelle | konsistent durch Trigger | konsistent durch Trigger |
+| Wer schreibt hinein | die Anwendung über `Upsert` / `UpsertMany` / `Remove` | die Anwendung mit normalem SQL (oder ORM) |
+| Index ↔ Inhaltstabelle | konsistent durch Trigger auf `lui_<index>` | **Verantwortung der Anwendung**: `Refresh(id)` nach eigenen Schreibvorgängen (auch in ihrer Transaktion), `Sync()` für alles — oder Trigger, die sie **ausdrücklich** anlegt (`TriggerScript()`, `CreateTriggers()`) |
 | Inhaltstabelle ↔ Fachdaten | **Verantwortung der Anwendung**; Werkzeuge: `Sync`, `Check` (§ 14) | entfällt — es ist dieselbe Tabelle |
-| Änderung am Schema der Anwendung | keine | 5 berechnete Spalten + 3 Indizes + 3 Trigger auf der Tabelle |
+| Änderung am Schema der Anwendung | keine | **keine** — keine Spalte, kein Index, kein Trigger, außer die Anwendung verlangt ihn (ADR-0015) |
 | Text doppelt gespeichert | ja | nein |
 | Eigene Datei möglich | ja | nein |
 | Eigenes Gewicht (z. B. Klicks im Autocomplete) | ja | nur über eine Spalte der Tabelle |
-| Filter, was in den Index kommt | ja (die Anwendung entscheidet) | nein (alle Zeilen); optional später per `WHERE` (§ 21, O6) |
+| Filter, was in den Index kommt | ja (die Anwendung entscheidet) | Zeilen mit Text; optional später per `WHERE` (§ 21, O6) |
 
 **Hinzufügen eines Index** ist in beiden Fällen ein Aufruf; die Bibliothek legt
-ihre Tabellen, Spalten, Indizes und Trigger selbst an und vermerkt die
-Definition in `lui_meta` (§ 7.1). Indizes sind voneinander unabhängig.
+**ihre** Tabellen an und vermerkt die Definition in `lui_meta` (§ 7.1). Indizes sind voneinander unabhängig.
 
 ---
 
@@ -252,21 +251,54 @@ Satzzeichen zählen nicht (ADR-0011).
 
 ### 7.3 Inhaltstabelle bei `Linked`
 
-Die Tabelle der Anwendung bekommt dieselben berechneten Spalten (`s_norm`,
-`s_compact`, `s_p1`, `s_p2`, `s_rowid`) und dieselben drei Indizes, abgeleitet
-aus den angegebenen Spalten für Text, Gewicht und — optional — Priorität.
-Voraussetzungen:
+**Die Tabelle der Anwendung bleibt, wie sie ist** (ADR-0015): Die Bibliothek fügt ihr keine Spalte, keinen
+Index und keinen Trigger hinzu, außer die Anwendung verlangt Trigger ausdrücklich. Sie hält zwei eigene Tabellen:
 
-- die Schlüsselspalte ist `INTEGER PRIMARY KEY` (sie dient als `doc_id`,
-  Wertebereich 0 … 4.294.967.295);
-- die Gewichtsspalte ist `INTEGER NOT NULL` im Wertebereich von § 2;
-- die Prioritätsspalte (optional) ist `INTEGER NOT NULL` mit `0 … 3`; fehlt
-  sie, gilt für alle Zeilen `Normal`. Ein Flag wie `is_system` lässt sich als
-  berechnete Spalte der Anwendung abbilden
-  (`GENERATED ALWAYS AS (CASE WHEN is_system THEN 0 ELSE 3 END)`).
+```sql
+-- ohne Text: Dokument-Id, gepackte Rowid, die beiden Präfix-Schlüssel
+CREATE TABLE lui_tags (
+    doc_id  INTEGER PRIMARY KEY CHECK (doc_id BETWEEN 0 AND 4294967295),
+    s_rowid INTEGER NOT NULL UNIQUE,
+    s_p1    TEXT    NOT NULL,
+    s_p2    TEXT    NOT NULL);
+CREATE INDEX lui_tags_p1 ON lui_tags(s_p1, s_rowid);
+CREATE INDEX lui_tags_p2 ON lui_tags(s_p2, s_rowid);
 
-Die Bibliothek ändert das Schema der Anwendung **nur** in `Ensure()` und nur
-nach ausdrücklicher Erlaubnis (`.LinkedTo(…, allowSchemaChange: true)`).
+-- der Suchindex ohne eigenen Inhalt (SQLite ≥ 3.43)
+CREATE VIRTUAL TABLE lui_tags_fts USING fts5(
+    s_norm, content = '', contentless_delete = 1,
+    tokenize = 'trigram remove_diacritics 1');
+```
+
+Die Formen (`s_norm`, `s_compact`, Präfixe, Rowid) berechnen dieselben SQL-Ausdrücke wie die berechneten
+Spalten bei `Owned`, nur in den Statements, die den Index schreiben. Kandidaten und Treffer lesen Text und
+Payload über den Primärschlüssel aus der Tabelle der Anwendung; der Text liegt nicht doppelt in der Datei.
+
+Voraussetzungen, geprüft bei jedem `Ensure()` (sonst `LuiLinkedTableException`, nichts wird geändert):
+
+- die Schlüsselspalte ist der `INTEGER PRIMARY KEY` der Tabelle (die Rowid, keine `WITHOUT ROWID`-Tabelle);
+  sie dient als `doc_id`, Wertebereich 0 … 4.294.967.295;
+- die Spalten für Text, Gewicht (optional), Priorität (optional) und Payload gibt es.
+
+Werte der Anwendung werden in den Bereich gebracht, statt den ganzen Index scheitern zu lassen: ein Gewicht
+außerhalb von 0 … 536.870.911 wird begrenzt, eine Priorität außerhalb von 0 … 3 gilt als `Normal`; eine Zeile
+ohne Text (`NULL` oder leer) und eine Zeile mit einem Schlüssel außerhalb von 0 … 2³²−1 kommen nicht in den
+Index — `Sync` zählt sie (`LuiSyncResult`), ein Trigger lehnt den Schreibvorgang der Anwendung nicht ab.
+Ein Kandidat, dessen **aktueller** Text die Eingabe nicht mehr enthält, ist kein Treffer: Der Index ist so
+aktuell, wie die Anwendung ihn hält, aber er zeigt nie einen Text, der nicht passt. Ein Flag wie `is_system` lässt sich als berechnete
+Spalte der Anwendung abbilden (`GENERATED ALWAYS AS (CASE WHEN is_system THEN 0 ELSE 3 END)`).
+
+**Wer den Index nachführt, ist die Anwendung** — ausdrücklich, nie implizit:
+
+| Weg | Wann |
+|---|---|
+| `Sync()` | Erstaufbau und Reparatur: liest die ganze Tabelle, schreibt den Suchindex in Rowid-Reihenfolge, führt am Ende zusammen; eine Transaktion der Bibliothek |
+| `Refresh(id, transaction?)`, `RefreshMany(ids, transaction?)` | nach eigenen Schreibvorgängen; liest die Zeile selbst, eine fehlende Zeile verlässt den Index. Die Transaktion ist optional: ohne sie eine eigene, mit ihr gehört beides zur Transaktion der Anwendung |
+| `TriggerScript()` | das SQL dreier Trigger für die eigene Migration der Anwendung — ändert nichts. Die Trigger **notieren nur den Schlüssel** einer geänderten Zeile in `lui_<index>_pending` (reines SQL, kein FTS, keine Normalisierung): Jedes Programm mit jedem SQLite kann die Tabelle weiter schreiben, und ein Schreibvorgang der Anwendung scheitert nie am Index |
+| `CreateTriggers()` / `DropTriggers()` | legt die Trigger an bzw. entfernt sie, nur auf Aufruf |
+| `ApplyPending()`, `Pending()` | bringt die notierten Zeilen in den Index (in Stapeln, auf der geprüften Verbindung der Bibliothek) bzw. zählt sie. Eine Abfrage wendet sie **nicht** an — der Index ist so aktuell wie das letzte `ApplyPending()`. Regelmäßig aufrufen: veraltete Einträge verbrauchen das Kandidatenbudget, bis sie angewendet sind; `Pending()` eignet sich als Health-Check |
+| `Triggers()` | `None`, `Current` oder `Stale` (nach einem Update von LUI oder einer Änderung der Tabelle neu anlegen) |
+| `Optimize()` | führt die Segmente zusammen; viele einzelne `Refresh` hinterlassen Löschmarken |
 
 ### 7.4 Suchindex (beide Quellen)
 
@@ -566,7 +598,7 @@ für die Kandidaten berechnet (≤ `Candidates`) und nur in Stufe 2 des Rankings
 ## 12. Öffentliche API
 
 Die Listings in § 12 beschreiben die **Ziel-API**: Was erst mit einem späteren Schritt kommt, ist markiert
-(`Sync` mit Schritt 7, `Highlight` mit Schritt 8, `LinkedTo` mit Schritt 6) und lässt sich bis dahin nicht
+(`Sync` und `Check` bei `Owned` mit Schritt 7, `Highlight` mit Schritt 8) und lässt sich bis dahin nicht
 kompilieren. Was heute gilt, führt der Quick Start des README vor; der Paket-Smoke-Test führt ihn aus.
 
 ### 12.1 Katalog öffnen
@@ -585,42 +617,47 @@ using var lui = LuiCatalog.Open("Data Source=app.db", new LuiCatalogOptions
 Die Optionen sind ein Record mit `init`-Eigenschaften — aus der Konfiguration bindbar — und prüfen jeden Wert,
 wenn er gesetzt wird (ADR-0013).
 
-### 12.2 Index anlegen (fluent, in Stufen)
+### 12.2 Index anlegen (fluent)
 
 ```csharp
-// eigenständig: beliebige Quelle, eigene Inhaltstabelle
+// eigenständig — der Standard: eigene Inhaltstabelle, Schlüssel long
 ILuiOwnedIndex<long, RecipeChip> recipes = lui
-    .Index("recipes")                                    // Stufe 1: die Art
-    .MultiWord()                                         // Stufe 2: die Quelle
-    .Owned<long>()                                       // Stufe 3: Schlüssel long, noch ohne Payload
+    .Index("recipes")                                    // der Name
+    .MultiWord()                                         // die Art; danach: Owned mit long-Schlüssel
     .WithPayload(RecipeJsonContext.Default.RecipeChip)   // System.Text.Json, quellgeneriert (AOT)
     .Similarity(LuiSimilarity.NgramDice)                 // Standard für MultiWord, hier explizit
     .TypoTolerance()
     .Ensure();
 
-// ohne Payload
-ILuiOwnedIndex<long, LuiNoPayload> words = lui.Index("words").SingleWord().Owned<long>().Ensure();
+// ohne Payload, mit einem Text-Schlüssel
+ILuiOwnedIndex<string, LuiNoPayload> words = lui.Index("words").SingleWord().WithKey<string>().Ensure();
 
-// verknüpft: hängt sich an eine Tabelle der Anwendung (Schritt 6)
-ILuiIndex<long, TagChip> tags = lui
+// verknüpft: liest eine Tabelle der Anwendung, ohne sie zu ändern (ADR-0015)
+ILuiLinkedIndex<TagChip> tags = lui
     .Index("tags")
     .SingleWord()
-    .LinkedTo(table: "tag", key: "id", text: "name", weight: "usage_count", priority: "priority", allowSchemaChange: true)
+    .LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count", priority: "priority")
     .WithPayload(["slug", "color"], row => new TagChip(row.GetString("slug"), row.GetString("color")))   // aus Spalten der Tabelle
     .Ensure();
+tags.Sync();                                             // füllt den Index aus der Tabelle
 ```
 
 Regeln:
 
-- **Jede Stufe ist ein eigener Typ** und bietet nur an, was auf sie folgen darf: Ein Index ohne Art oder ohne
-  Quelle lässt sich nicht kompilieren. Der Schlüsseltyp wird mit der Quelle gewählt und dort geprüft.
+- **Jede Stufe ist ein eigener Typ** und bietet nur an, was auf sie folgen darf: Ein Index ohne Art lässt sich
+  nicht kompilieren. Nach der Art ist der Index `Owned` mit einem `long`-Schlüssel; `WithKey<string>()` wählt
+  einen Text-Schlüssel und prüft den Typ dort, wo er gewählt wird (ADR-0015).
 - Ein Index beginnt **ohne Payload** (`LuiNoPayload`); `WithPayload(…)` gibt ihm eine und behält die
   Einstellungen, die davor gemacht wurden.
+- **`LinkTo(…)`** wechselt zu einem verknüpften Index — angeboten nur, solange weder `WithKey` noch `WithPayload`
+  gewählt ist: Ein verknüpfter Index hat den Schlüssel seiner Tabelle und liest seine Payload aus deren Spalten.
+  Der Compiler hält das fest. Gewicht und Priorität sind optional.
 - `Ensure()` ist **idempotent**: Existiert der Index mit gleicher Definition,
   wird er geöffnet; weicht die Definition ab, wird mit einer Meldung abgebrochen,
-  die beide Definitionen nennt.
-- `lui.DropIndex(name)` entfernt einen Index samt Tabellen, Spalten, Indizes und Triggern — gleich, welche
-  Definition gespeichert ist.
+  die beide Definitionen nennt. Bei `Linked` gehören Tabelle und Spalten zur Definition.
+- `lui.DropIndex(name)` entfernt einen Index samt **seinen** Tabellen — gleich, welche Definition gespeichert ist.
+  Die Tabelle der Anwendung und ihre Zeilen bleiben. Hat ein verknüpfter Index Trigger, verlangt das Entfernen
+  `DropIndex(name, dropTriggers: true)`; danach ist er nach `Ensure()` leer und ohne Trigger.
 
 ### 12.3 Schlüssel und Payload
 
@@ -629,7 +666,8 @@ Regeln:
   `JsonTypeInfo<TPayload>` (AOT- und trimmsicher) oder einen eigenen
   `ILuiPayloadSerializer<TPayload>`.
 - **`Linked`**: Die Payload wird aus Spalten der Tabelle gelesen; die API nimmt
-  die Liste der benötigten Spalten und eine Abbildung `Func<LuiRow, TPayload>`.
+  die Liste der benötigten Spalten und eine Abbildung `Func<LuiRow, TPayload>`. Die Spalten werden mit den
+  Treffern gelesen, in dieser Reihenfolge; `LuiRow` kennt nur sie und gilt nur, solange die Abbildung läuft.
 - In beiden Fällen: Payload **nur für die Treffer**, eine Abfrage
   `WHERE key IN (…)` bzw. `WHERE id IN (…)`.
 
@@ -668,8 +706,23 @@ die `UpsertMany` zurückgibt, ist dann die der Einträge, die in sie geschrieben
 Tippfehler-Wörterbuch gehört nicht zur Transaktion: Es lernt die Wörter sofort, auch die eines Rollbacks
 (§ 10.3a).
 
-Bei `Linked` gibt es diese Methoden nicht: Der Index ist nur ein `ILuiIndex`, die Anwendung schreibt in ihre
-Tabelle — auch das Gewicht —, die Trigger erledigen den Rest.
+Bei `Linked` gibt es diese Methoden nicht: Die Anwendung schreibt in ihre Tabelle — auch das Gewicht — und
+führt den Index nach (§ 7.3):
+
+```csharp
+using var tx = connection.BeginTransaction();
+// … eigenes INSERT/UPDATE/DELETE in "tag" …
+tags.Refresh(42, tx);                              // in ihrer Transaktion: atomar mit der Änderung
+tx.Commit();
+
+tags.Refresh(42);                                  // ohne Transaktion: eine eigene
+tags.RefreshMany(changedIds);                      // viele, in einer Transaktion
+tags.Sync();                                       // alles aus der Tabelle
+
+string sql = tags.TriggerScript();                 // oder Trigger — für die eigene Migration
+tags.CreateTriggers();                             // … oder direkt, nur auf Aufruf
+tags.ApplyPending();                               // die notierten Zeilen in den Index bringen
+```
 
 ### 12.5 Abfragen (fluent)
 
@@ -712,8 +765,8 @@ recipes.Optimize();                              // FTS5 'optimize'
 
 ```csharp
 services.AddLui("Data Source=app.db")
-        .AddIndex("recipes", index => index.MultiWord().Owned<long>().WithPayload(RecipeJsonContext.Default.RecipeChip))
-        .AddIndex("tags", index => index.SingleWord().LinkedTo("tag", "id", "name", "usage_count", allowSchemaChange: true));
+        .AddIndex("recipes", index => index.MultiWord().WithPayload(RecipeJsonContext.Default.RecipeChip))
+        .AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
 
 // Verwendung: Keyed Services — der Suggest-Endpunkt braucht nur die Lese-Schnittstelle
 public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<long, RecipeChip> recipes) { … }
@@ -727,9 +780,9 @@ ersten Request.
 | Situation | Ausnahme |
 |---|---|
 | ungültiger Index- oder Spaltenname | `ArgumentException` mit dem erlaubten Muster |
-| Schlüsseltyp weder `long` noch `string` | `NotSupportedException` bei `Owned<TKey>()` |
+| Schlüsseltyp weder `long` noch `string` | `NotSupportedException` bei `WithKey<TKey>()` |
 | Definition weicht von `lui_meta` ab | `LuiDefinitionMismatchException` (nennt beide) |
-| `Linked` ohne `allowSchemaChange` und fehlende Spalten | `LuiSchemaChangeRequiredException` (nennt das nötige SQL) |
+| `Linked`: Tabelle oder Spalte fehlt, Schlüssel ist nicht der `INTEGER PRIMARY KEY`, Schlüssel außerhalb 0 … 2³²−1 beim `Sync` | `LuiLinkedTableException` (nennt, was fehlt; nichts wird geändert) |
 | Gewicht, Priorität oder Option außerhalb des Bereichs | `ArgumentOutOfRangeException`, wenn der Wert gesetzt wird |
 | SQLite meldet `SQLITE_BUSY` nach `busy_timeout` | `SqliteException` wird unverändert weitergereicht |
 
@@ -760,10 +813,10 @@ Thread des Pools.
 
 | Ebene | `Owned` | `Linked` |
 |---|---|---|
-| Suchindex ↔ Inhaltstabelle | Trigger, dieselbe Transaktion | Trigger, dieselbe Transaktion |
+| Suchindex ↔ Inhaltstabelle | Trigger, dieselbe Transaktion | Anwendung: `Refresh` in ihrer Transaktion, sonst `Sync` — oder ihre Trigger (§ 7.3) |
 | Inhaltstabelle ↔ Fachdaten | Anwendung: `Upsert` in ihrer Transaktion, sonst `Sync` | entfällt |
 | Prüfung | `Check(source)`, `Check()` | `Check()` |
-| Reparatur | `Sync(source)`, `Rebuild()` | `Rebuild()` |
+| Reparatur | `Sync(source)`, `Rebuild()` | `Sync()` |
 
 `Sync` arbeitet in Stapeln (Standard 10.000) in je einer Transaktion und
 markiert gesehene Schlüssel; am Ende werden nicht gesehene entfernt. Er ist
@@ -903,7 +956,7 @@ Jeder Schritt ist ein Pull Request mit ADR, Tests und Messung.
 | 3 | `SingleWord` + `Owned`: Schema, Trigger, `Upsert`/`Remove`/`UpdateWeight`/`UpdatePriority`, `rowid` mit Priorität, Kandidaten, Präfix-Pfad, Ranking, Payload | Goldene Abfragen für `SingleWord` (inkl. Systemtag), Plan-Test, Leistungsziele |
 | 4 | `MultiWord`: Zerlegung, `s_compact`, Wortanfang kompakt, N-gram Dice | Goldene Abfragen für `MultiWord` |
 | 5 | Tippfehler-Toleranz | Qualitätsuntergrenzen für Tippfehler, Nebenläufigkeitstest |
-| 6 | `Linked` | Integrationstests mit einer Tabelle der Anwendung, `allowSchemaChange` |
+| 6 | `Linked`, lose gekoppelt (ADR-0015) | Integrationstests mit einer Tabelle der Anwendung: Schema unverändert, `Refresh` mit und ohne Transaktion, `Sync`, Trigger nur auf Aufruf |
 | 7 | `Sync`, `Check`, `Rebuild`, `Optimize` | Abgleich mit 1 Mio. Einträgen, Abbruch und Wiederaufsetzen |
 | 8 | Fluent-Feinschliff, `Highlight`, DI-Paket, README, Beispiele | Paket-Smoke-Test mit README-Code |
 | 9 | Leistungsbudgets und Benchmarks auf 3 Mio. Einträgen | alle Ziele aus § 16 als Tests grün |

@@ -16,7 +16,8 @@ internal sealed record IndexDefinition(
     string KeyType,
     bool GermanTransliteration,
     bool Payload,
-    string FoldTable)
+    string FoldTable,
+    LinkDefinition? Link = null)
 {
     internal string ToJson() => JsonSerializer.Serialize(this, LuiJsonContext.Default.IndexDefinition);
 
