@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Typo tolerance** ([ADR-0012](docs/adr/0012-typo-tolerance.md)): `Builder.TypoTolerance(maxEdits)`
+  (0 or 1; off unless asked for), `LuiQuery.TypoTolerance(bool)` and `LuiQueryOptions.TypoTolerance`.
+  An input without a word start is corrected by one edit with a SymSpell dictionary of the word
+  beginnings (3 … 10 letters) of the index; the three best corrections are searched and united with
+  the candidates of the input. `LuiResult.CorrectedQuery` says what was searched, `LuiTimings.Correction`
+  what it cost, `ILuiIndex.WarmUpTypoDictionary()` builds the dictionary ahead of the first typo,
+  `RebuildTypoDictionary()` builds it anew (both take a `CancellationToken`); the dictionary is shared by all
+  instances of an index and its build never holds up a write. The dictionary of the whole
+  German word list takes 4.2 s and 138 MB.
+
 - **The multi-word index** (`MultiWord`, `Owned`): `catalog.Index<…>(name).MultiWord().Owned().Ensure()`
   for names and titles ([ADR-0011](docs/adr/0011-the-multi-word-index.md)). The input is split
   into words that are ANDed and also searched compactly, so `kuchen apfel` and `apfelkuch` both

@@ -5,6 +5,15 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-03 — PR-005: typo tolerance (issue #9)
+
+- `TypoDictionary` (SymSpell, beginnings 3 … 10, frequency `weight + 1`, lazy, `ReaderWriterLockSlim`), correction when no
+  candidate stands at a word start, up to three corrections searched and united with the input's candidates, each candidate ranked
+  against the input it was found with. ADR-0012; spec §10.3a.
+- Off by default. Limits pinned by tests: nothing after the tenth letter, no deletion/insertion in a word of ten letters or more.
+- Measured on the whole word list: dictionary 4.2 s / 138 MB; corrected query p95 8.7 ms (target 10) at 685 k entries.
+- `TypoQualityTests` pins floors (4 letters 55 % … 8 letters 88 % of the right beginning); `TypoPerformance` is gated.
+
 ## 2026-11-02 — PR-004: the multi-word index (issue #7)
 
 - `MultiWord`: `s_compact` and a search index over it alone (owner's decision: §7.4 and §8.2 corrected, −36 % file,

@@ -23,6 +23,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     private IPayloadSerializer<TPayload>? _payload;
     private ITextSimilarity? _similarity;
     private bool _germanTransliteration = true;
+    private bool _typoTolerance;
 
     internal LuiIndexBuilder(LuiCatalog catalog, string name)
     {
@@ -113,6 +114,38 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     }
 
     /// <summary>
+    /// Typo tolerance (§10): an input without a word start is corrected by one edit, with a dictionary of the
+    /// word beginnings of the index. Off unless it is asked for — the dictionary costs memory (about 140 MB for
+    /// 685,000 words) and is built when the first input needs it (or by <c>WarmUpTypoDictionary</c>). A property
+    /// of <b>this instance</b>, not of the stored index; a query can override it. The dictionary itself belongs
+    /// to the index of the catalog and is shared by all its instances.
+    /// <para>
+    /// The dictionary learns the words that are written through the library (<c>Upsert</c>). Writes past it —
+    /// another process, direct SQL, a transaction that commits after the dictionary was built — reach it with
+    /// <c>RebuildTypoDictionary()</c>.
+    /// </para>
+    /// </summary>
+    /// <param name="maxEdits">0 (off) or 1; more edits are not supported.</param>
+    /// <returns>The builder.</returns>
+    public LuiIndexBuilder<TKey, TPayload> TypoTolerance(int maxEdits)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxEdits);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxEdits, 1);
+
+        _typoTolerance = maxEdits == 1;
+        return this;
+    }
+
+    /// <summary>Turns the typo tolerance on or off — <c>TypoTolerance(1)</c> and <c>TypoTolerance(0)</c> as a switch.</summary>
+    /// <param name="enabled">Whether an input without a word start is corrected.</param>
+    /// <returns>The builder.</returns>
+    public LuiIndexBuilder<TKey, TPayload> TypoTolerance(bool enabled = true)
+    {
+        _typoTolerance = enabled;
+        return this;
+    }
+
+    /// <summary>
     /// Creates the index, or opens it if it exists with the same definition.
     /// </summary>
     /// <returns>The index.</returns>
@@ -150,7 +183,8 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
             _name,
             definition,
             _payload,
-            _similarity ?? Measures.DefaultFor(definition.Kind));
+            _similarity ?? Measures.DefaultFor(definition.Kind),
+            _typoTolerance);
     }
 
     /// <summary>
@@ -186,6 +220,9 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
         }
 
         transaction.Commit();
+
+        // the words of the dropped index are not the words of the next one
+        _catalog.ForgetTypoDictionary(_name);
         return existed;
     }
 

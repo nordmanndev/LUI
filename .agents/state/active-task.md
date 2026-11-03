@@ -5,31 +5,33 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** [#7](https://github.com/nordmanndev/LUI/issues/7) — MultiWord index
-**Branch:** `feat/multi-word-index`
-**State:** PR-004 is implemented and measured; the pull request is open.
+**Issue:** [#9](https://github.com/nordmanndev/LUI/issues/9) — Typo tolerance
+**Branch:** `feat/typo-tolerance`
+**State:** PR-005 is implemented and measured; the pull request is open.
 
 ## Where the work stands
 
-- `MultiWord` + `Owned`: `s_compact`, the search index over `s_compact` alone, the multi-word expression, N-gram
-  Dice (own, allocation-free). ADR-0011; the specification (§7.4, §8.2) was corrected with it.
+- `Typos/TypoDictionary` (SymSpell over the word beginnings, lazy, a lock), the correction in `QueryRunner`
+  (variants, union, per-candidate input), `Builder.TypoTolerance`, `LuiQuery.TypoTolerance`, `CorrectedQuery`.
+  ADR-0012. The specification (§10.3a) was extended with it.
 - Open decision of the owner: ADR-0010 (the §16 query budget at 3 M entries).
 
 ## The next step
 
-PR-005 — typo tolerance: the SymSpell dictionary of word beginnings (3 … 10 characters, one edit, three best
-corrections), corrections only when **no** candidate stands at a word start, `CorrectedQuery` (spec §10).
+PR-006 — `Linked`: an index over a table of the application (spec §5, §7.3, §12.2, §12.8). `LinkedTo(table, key, text, weight,
+priority, allowSchemaChange)`; five generated columns, three indexes and three triggers on the application's table; the payload from
+columns of the table; `LuiSchemaChangeRequiredException`.
 
-**Read first:** `AGENTS.md`, `docs/spec/LUI-Spezifikation.md` §8 (the diagram), §10, §15 (the dictionary's
-locking), `docs/adr/0004` (the `symspell` dependency), `docs/adr/0008`, `0011`.
+**Read first:** `AGENTS.md` (the Ask-before line: the schema of a `Linked` host table), `docs/spec/LUI-Spezifikation.md` §5, §7.3,
+§12.2, §12.3, §12.8, `docs/adr/0006`, `0011`.
 
 **The traps:**
 
-- The condition is "no candidate satisfies *word start*" (`Scored.WordStart < 0` for all), **not** "no hit":
-  34 % of the typos have hits in the middle of other words.
-- `LuiResult.CorrectedQuery` is already in the type and `null`; the builder method `TypoTolerance(maxEdits)` and the
-  query option `TypoTolerance(bool)` do not exist yet.
-- The dictionary is built lazily on the first typo-tolerant query (ADR-0004: 179 MB for 676,000 word beginnings) and
-  extended by `Upsert`; `Remove` leaves entries. SymSpell is not thread-safe for read+write: a lock per index.
-- The candidate search runs again for each of the three corrections and the candidates are united (best value per
-  `doc_id`); the ranking runs with the corrected input.
+- The library changes the application's schema **only** in `Ensure()` and only with `allowSchemaChange: true`; otherwise it throws with
+  the SQL it would run.
+- `TKey` is `long` (the primary key = `doc_id`, 0 … 4,294,967,295). The weight column is `INTEGER NOT NULL` in 0 … 2^29−1; the priority
+  column 0 … 3 or absent.
+- There is no `Upsert` on a linked index — the application writes to its table, the triggers do the rest. `UpdateWeight` is an `UPDATE`.
+- The typo dictionary reads `text` and `weight`; for `Linked` the columns have other names and the new words arrive without `Upsert`.
+  Decide how the dictionary learns them (rebuild on demand is the minimum).
+- `OwnedSchema`/`OwnedSql`/`OwnedIndex` hard-code the content table `lui_<name>` and its columns; `Linked` needs them parameterised.

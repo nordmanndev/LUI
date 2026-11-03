@@ -320,6 +320,16 @@ also changed three things the plan did not foresee:
 | The search index of a multi-word index holds **`s_compact` only** (owner's decision; §7.4 and §8.2 corrected) | −36 % file, −40 % build, −30 % latency on 500 k titles; one more candidate in 190. |
 | The file size target of §16 (1 M `MultiWord` ≤ 300 MB) is **missed**: 445 MB | long titles (36 characters), and the table holds the text plus two generated forms. |
 
+## 6d. PR-005 — what actually happened
+
+| What | Why |
+|---|---|
+| Typo tolerance is **off by default** (`.TypoTolerance(1)` switches it on; a query overrides) ([ADR-0012](../adr/0012-typo-tolerance.md)) | The dictionary costs 138 MB for 685,000 words and a few seconds on first use; an application should decide on that. |
+| Frequency = sum of **`weight + 1`** | SymSpell drops a count of 0, and half of a tag stock has the weight 0. |
+| The candidates of the input **stay** when a correction is searched; each candidate is ranked against the input it was found with | §10.3 says „unite"; the first reading would have lost the mid-word hits and the similarity of the wrong input. |
+| A typo **after the tenth letter** is not corrected; neither is a letter left out or too many in a word of ten letters or more | The dictionary holds the beginnings of 3 … 10 letters (§10.1) — pinned by tests, written down. |
+| The p95 of a corrected query is 8.7 ms at 685 k entries (target 10 ms); at 3 M entries it is untested | up to three more FTS statements on a row-by-row index; the bulk build (PR-007) is the lever. |
+
 ---
 
 ## 7. README outline (the front door)

@@ -104,7 +104,7 @@ try
         Console.WriteLine($"apfelkuch -> {first}; gan -> {system}");
 
         // and a multi-word index: the order of the words and the spaces do not matter
-        var titles = catalog.Index<long, string>("titles").MultiWord().Owned().Ensure();
+        var titles = catalog.Index<long, string>("titles").MultiWord().Owned().TypoTolerance(1).Ensure();
         titles.Upsert(1, "Apfel Kuchen", weight: 10);
         titles.Upsert(2, "Bratapfelkuchen", weight: 1000);
 
@@ -112,7 +112,12 @@ try
         var compact = titles.Query("apfelkuch").Execute().Hits.FirstOrDefault().Text;
         Console.WriteLine($"kuchen apfel -> {reordered}; apfelkuch -> {compact}");
 
-        if (first != "Apfelkuchen" || system != "vegan" || reordered != "Apfel Kuchen" || compact != "Apfel Kuchen")
+        // and a typo
+        var typo = titles.Query("apfle kuchen").Execute();
+        Console.WriteLine($"apfle kuchen -> {typo.CorrectedQuery} ({typo.Hits.Count} hits)");
+
+        if (first != "Apfelkuchen" || system != "vegan" || reordered != "Apfel Kuchen" || compact != "Apfel Kuchen"
+            || typo.CorrectedQuery != "apfel kuchen" || typo.Hits.Count != 2)
         {
             Console.Error.WriteLine("the packed library answered a query wrongly");
             return 1;
