@@ -59,8 +59,10 @@ internal sealed partial class LuiStartup(IServiceProvider services, LuiRegistrat
 
             try
             {
-                index.WarmUp(services, stopping);
-                WarmedUp(index.Name);
+                if (index.WarmUp(services, stopping))
+                {
+                    WarmedUp(index.Name);
+                }
             }
             catch (OperationCanceledException) when (stopping.IsCancellationRequested)
             {

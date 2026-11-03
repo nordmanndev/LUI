@@ -49,10 +49,14 @@ public sealed class LuiServicesBuilder
             WarmUp: (provider, token) =>
             {
                 // only an index that asked for typo tolerance: the dictionary of another one would cost memory for nothing
-                if (provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name) is var built && typos.Wanted)
+                var built = provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name);
+                if (!typos.Wanted)
                 {
-                    built.WarmUpTypoDictionary(token);
+                    return false;
                 }
+
+                built.WarmUpTypoDictionary(token);
+                return true;
             },
             ApplyPending: null,
             ApplyPendingEvery: null));
@@ -104,10 +108,14 @@ public sealed class LuiServicesBuilder
             WarmUp: (provider, token) =>
             {
                 // only an index that asked for typo tolerance: the dictionary of another one would cost memory for nothing
-                if (provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name) is var built && typos.Wanted)
+                var built = provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name);
+                if (!typos.Wanted)
                 {
-                    built.WarmUpTypoDictionary(token);
+                    return false;
                 }
+
+                built.WarmUpTypoDictionary(token);
+                return true;
             },
             ApplyPending: (provider, token) => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name).ApplyPending(token),
             ApplyPendingEvery: applyPendingEvery));

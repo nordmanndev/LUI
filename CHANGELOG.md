@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Dependency injection** ([ADR-0017](docs/adr/0017-dependency-injection-and-hosted-services.md)):
+  `services.AddLui(connectionString, options?)` (or with delegates that read the container) and
+  `.AddIndex(name, index => …)` for an owned or a linked index. Every index is a keyed singleton under its name, as
+  `ILuiIndex<TKey, TPayload>` and as `ILuiOwnedIndex`/`ILuiLinkedIndex`; the catalog is a singleton the container
+  disposes. A hosted service ensures every index when the host starts (`EnsureOnStart(false)` switches it off) and,
+  with `WarmUpTypoDictionariesOnStart()`, builds the typo dictionaries of the indexes with typo tolerance in the
+  background; another one applies the outbox of a linked index on its interval (`applyPendingEvery`). The package
+  references `Microsoft.Extensions.DependencyInjection.Abstractions`, `.Hosting.Abstractions` and
+  `.Logging.Abstractions` (10.0.14) again.
+
 - **Sync, check, rebuild and optimize** ([ADR-0016](docs/adr/0016-sync-check-rebuild.md)). An owned index:
   `Sync(source, options?, cancellationToken)` (and an overload for an `IAsyncEnumerable` source) adds what is missing,
   writes what differs, keeps what is the same and removes the keys that were there when it began and that the source
@@ -39,6 +49,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A candidate of a linked index whose current text no longer matches does not count against the candidate budget any
+  more: the read goes on past it, up to another budget of such rows (review of PR #16, F1).
+- `Highlight` is not part of 0.1 (owner's decision): the front end marks the match; it comes with a later version (#20).
 - `ILuiIndex<TKey, TPayload>` has `Check()`. Inside, the catalog is taken apart (review DevEx D4, D6): no change to
   the public API besides.
 - **The builder: `Owned<long>` is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;

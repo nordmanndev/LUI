@@ -5,6 +5,16 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-03 — PR-008: dependency injection and hosted services (issue #21)
+
+- ADR-0017. `AddLui(…)`, `.AddIndex(name, index => …)` (owned or linked by the lambda's return type), keyed singletons
+  under the name (read and write interface, one instance); `LuiStartup` ensures on start (+ optional warm-up of the
+  indexes with typo tolerance), `LuiPendingApplier` runs `ApplyPending` on `applyPendingEvery`, logs and goes on.
+- `Nordmann.LUI.Hosting` knows only the public API (architecture test + mutation). The three abstractions are back in
+  the package (+5 transitive, 380 KB, MIT); `Microsoft.Extensions.Hosting` is a test package and the smoke app's.
+- F1: an outdated linked candidate does not count against the budget; read on up to a second budget, then `Truncated`.
+- `Highlight` moved to #20 by the owner; the full typo rebuild after a sync is #19.
+
 ## 2026-11-03 — PR-007: sync, check, rebuild, optimize (issue #17)
 
 - ADR-0016. The catalog is a facade: `Storage.Database` (connections, writer, lifetime), `Indexes.IndexStore`

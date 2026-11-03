@@ -7,12 +7,12 @@ namespace Nordmann.LUI.Hosting;
 /// </summary>
 /// <param name="Name">The name of the index — the key of its services.</param>
 /// <param name="Ensure">Resolves the index from the container: the first resolution ensures it.</param>
-/// <param name="WarmUp">Builds the typo dictionary of the index.</param>
+/// <param name="WarmUp">Builds the typo dictionary of an index with typo tolerance; says whether it did.</param>
 /// <param name="ApplyPending">Applies the outbox of a linked index; <see langword="null"/> for an owned one.</param>
 /// <param name="ApplyPendingEvery">How often <paramref name="ApplyPending"/> runs; <see langword="null"/> for never.</param>
 internal sealed record IndexRegistration(
     string Name,
     Action<IServiceProvider> Ensure,
-    Action<IServiceProvider, CancellationToken> WarmUp,
+    Func<IServiceProvider, CancellationToken, bool> WarmUp,
     Func<IServiceProvider, CancellationToken, int>? ApplyPending,
     TimeSpan? ApplyPendingEvery);

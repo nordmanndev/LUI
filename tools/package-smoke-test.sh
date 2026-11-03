@@ -167,6 +167,12 @@ dotnet add "${SMOKE}/SmokeTest.csproj" package Nordmann.LUI \
   --version "${VERSION}" \
   --no-restore >/dev/null
 
+# the README's host block needs a host — the application brings it, the package only its abstractions
+HOSTING_VERSION="$(sed -n 's|.*<PackageVersion Include="Microsoft.Extensions.Hosting" Version="\([^"]*\)".*|\1|p' "${ROOT}/Directory.Packages.props")"
+dotnet add "${SMOKE}/SmokeTest.csproj" package Microsoft.Extensions.Hosting \
+  --version "${HOSTING_VERSION}" \
+  --no-restore >/dev/null
+
 dotnet restore "${SMOKE}/SmokeTest.csproj" --nologo >/dev/null
 
 echo "package-smoke-test: running the smoke application"

@@ -171,6 +171,34 @@ Triggers are opt-in (`tags.TriggerScript()` for your migration, or `tags.CreateT
 a changed row, so any SQLite can still write your table, and `tags.ApplyPending()` brings the noted rows into the
 index — call it regularly; `tags.Pending()` is a good value for a health check.
 
+## In an ASP.NET Core or worker application
+
+`AddLui` registers the catalog, and every index as a keyed service under its
+name — the read interface for a suggest endpoint, the write interface for an
+import. The indexes are ensured when the host starts (a definition that does not
+match stops the start, not the first request); a linked index can have its
+outbox applied on a timer:
+
+```csharp
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+
+var builder = Host.CreateApplicationBuilder();
+builder.Services
+    .AddLui("Data Source=app.db")
+    .AddIndex("recipes", index => index.MultiWord().TypoTolerance())
+    .AddIndex("tags", index => index.SingleWord().LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count"),
+              applyPendingEvery: TimeSpan.FromSeconds(5))
+    .WarmUpTypoDictionariesOnStart();
+
+using var host = builder.Build();
+host.Start();
+
+// in an endpoint: [FromKeyedServices("recipes")] ILuiIndex<long, LuiNoPayload> recipes
+var suggest = host.Services.GetRequiredKeyedService<ILuiIndex<long, LuiNoPayload>>("recipes");
+Console.WriteLine(suggest.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
+```
+
 ---
 
 ## Repository layout

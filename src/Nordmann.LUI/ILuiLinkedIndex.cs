@@ -55,12 +55,14 @@ public interface ILuiLinkedIndex<TPayload> : ILuiIndex<long, TPayload>
     /// Brings the rows the triggers noted in step with the index — in batches of a thousand, each in a transaction of
     /// LUI's own, on its checked connection. The triggers only note the key of a changed row (<see cref="CreateTriggers"/>);
     /// until this runs, the index answers as before the change — a query never applies them, a read stays a read.
-    /// Call it after a burst of writes, on a timer, or before a query that has to see them.
+    /// Call it after a burst of writes, on a timer (<c>AddIndex(…, applyPendingEvery: …)</c> of the dependency injection
+    /// does that), or before a query that has to see them.
     /// <para>
-    /// Run it regularly (review of pull request 16, F1): a row that changed and is not applied yet still stands in the
-    /// index with its old text, and a query reads it as a candidate before it finds that the text no longer matches —
-    /// such candidates use up the budget of <c>Candidates</c>, and with many of them among the best, an entry that does
-    /// match can be missed. <see cref="Pending"/> tells how far behind the index is; it is a value for a health check.
+    /// Run it regularly: a row that changed and is not applied yet still stands in the index with its old text, and a query
+    /// reads it as a candidate before it finds that the text no longer matches. Such a row does not count against the
+    /// budget of <c>Candidates</c> — the read goes on past it, up to another budget of them (ADR-0017); with more of them
+    /// among the best, the answer is truncated and an entry that does match can be missed. <see cref="Pending"/> tells how
+    /// far behind the index is; it is a value for a health check.
     /// </para>
     /// </summary>
     /// <param name="cancellationToken">Checked between the rows; the batch that is running is rolled back.</param>
