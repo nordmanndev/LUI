@@ -54,17 +54,18 @@ the search form and the similarity measures — on 200,000 entries of the same c
 ## What was measured
 
 The measurement machine of `docs/benchmarks.md` (Intel Xeon 2.1 GHz, 4 cores, 15 GB, Ubuntu 24.04, .NET 10.0.14), the
-whole German word list, no other load. Two runs of the single-word scenario, a third for the batch size of the build.
+whole German word list, no other load. Two runs of the single-word scenario, a third for the batch size of the build,
+a fourth with the test as it is committed (the waivers in place, batches of 1,000,000): it passes.
 
 | Target of §16 | Scenario | Measured | Limit | Verdict |
 |---|---|---:|---:|---|
-| query p50 | 3 M entries, inputs of 1–8 characters | 1.61 / 1.71 / 1.67 ms | ≤ 2 ms | **met** |
-| query p95 | the same | 9.64 / 10.25 / 9.93 ms | ≤ 5 ms | **waived** → ADR-0010 |
+| query p50 | 3 M entries, inputs of 1–8 characters | 1.61 / 1.71 / 1.67 / 1.34 ms | ≤ 2 ms | **met** |
+| query p95 | the same | 9.64 / 10.25 / 9.93 / 10.22 ms | ≤ 5 ms | **waived** → ADR-0010 |
 | allocation p95 | per query | 298 KB | ≤ 250 KB | **waived** → below |
-| query with correction p95 | 3 M entries, a beginning with one typo | 28.5 / 29.0 ms | ≤ 10 ms | **waived** → ADR-0010, ADR-0012 |
-| single write p95 | `Upsert` / `UpdateWeight` / `Remove`, own transaction | 0.57 / 0.51 ms | ≤ 1 ms | **met** |
-| build | 3 M entries, `Owned`, `Sync` | **172.5 s** with batches of 1,000,000; 180.3 / 189.8 s with 100,000 | ≤ 180 s | **met** |
-| typo dictionary | 685,829 distinct words | 138 MB, 4.4–4.8 s | ≤ 200 MB, ≤ 10 s | **met** |
+| query with correction p95 | 3 M entries, a beginning with one typo | 28.5 / 29.0 / — / 27.9 ms | ≤ 10 ms | **waived** → ADR-0010, ADR-0012 |
+| single write p95 | `Upsert` / `UpdateWeight` / `Remove`, own transaction | 0.57 / 0.51 / — / 0.57 ms | ≤ 1 ms | **met** |
+| build | 3 M entries, `Owned`, `Sync` | **172.5 / 174.2 s** with batches of 1,000,000; 180.3 / 189.8 s with 100,000 | ≤ 180 s | **met** |
+| typo dictionary | 685,829 distinct words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s | **met** |
 | file size | 1 M titles, `MultiWord` | 457 MB | ≤ 300 MB | **waived** → ADR-0011 |
 
 **Against the row-by-row build of PR-003** (ADR-0010: p50 3.57 ms, p95 26.5 ms, build 334 s, a write at p95 2.6 ms) the

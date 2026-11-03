@@ -15,13 +15,13 @@ benchmark project (`benchmarks/Nordmann.LUI.Benchmarks/`) measures the code on t
 
 | Target | Measured at the scenario | Verdict |
 |---|---:|---|
-| query p50 | 1.61–1.71 ms | met |
+| query p50 | 1.34–1.71 ms | met |
 | query p95 | 9.6–10.3 ms (≤ 4 characters: ≤ 3.1 ms) | waived → ADR-0010 |
 | allocation p95 | 298 KB (budget not spent: 173 KB) | waived → ADR-0020 |
 | query with correction p95 | 28.5–29.0 ms | waived → ADR-0010, ADR-0012 |
 | single write p95 | 0.51–0.57 ms | met |
-| build of 3 M | 172.5 s (`Sync`, batches of 1,000,000) | met |
-| typo dictionary of 685,829 words | 138 MB, 4.4–4.8 s | met |
+| build of 3 M | 172.5–174.2 s (`Sync`, batches of 1,000,000) | met |
+| typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | met |
 | file of 1 M titles | 457 MB | waived → ADR-0011 |
 
 ## The targets
@@ -331,14 +331,14 @@ other load; two runs, a third for the batch size of the build.
 LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests --filter PerformanceBudgets --logger "console;verbosity=detailed"
 ```
 
-| Target | Run 1 | Run 2 | Run 3 (batches of 1,000,000) | Limit |
-|---|---:|---:|---:|---:|
-| build of 3 M by `Sync` | 180.3 s (100,000) | 189.8 s (100,000) | **172.5 s** | ≤ 180 s |
-| query p50 | 1.71 ms | 1.61 ms | 1.67 ms | ≤ 2 ms |
-| query p95 | 10.25 ms | 9.64 ms | 9.93 ms | ≤ 5 ms |
-| allocation p50 / p95 | 83 / 298 KB | 83 / 298 KB | — | ≤ 250 KB |
-| corrected query p50 / p95 | 6.92 / 28.49 ms | 6.93 / 28.98 ms | — | p95 ≤ 10 ms |
-| single write p95 | 0.57 ms | 0.51 ms | — | ≤ 1 ms |
+| Target | Run 1 | Run 2 | Run 3 (batches of 1,000,000) | Run 4 (as committed) | Limit |
+|---|---:|---:|---:|---:|---:|
+| build of 3 M by `Sync` | 180.3 s (100,000) | 189.8 s (100,000) | **172.5 s** | **174.2 s** | ≤ 180 s |
+| query p50 | 1.71 ms | 1.61 ms | 1.67 ms | 1.34 ms | ≤ 2 ms |
+| query p95 | 10.25 ms | 9.64 ms | 9.93 ms | 10.22 ms | ≤ 5 ms |
+| allocation p50 / p95 | 83 / 298 KB | 83 / 298 KB | — | — / 298 KB | ≤ 250 KB |
+| corrected query p50 / p95 | 6.92 / 28.49 ms | 6.93 / 28.98 ms | — | — / 27.89 ms | p95 ≤ 10 ms |
+| single write p95 | 0.57 ms | 0.51 ms | — | 0.57 ms | ≤ 1 ms |
 | file of the 3 M entries | 925 MB | 925 MB | 925 MB | — |
 | typo dictionary of 3 M entries (built for the corrected queries) | 29.8 s | 26.3 s | — | — |
 
@@ -350,7 +350,7 @@ The two scenarios of their own:
 
 | Target | Measured | Limit |
 |---|---:|---:|
-| typo dictionary of 685,829 distinct words | 138 MB, 4.4 s (dry run: 4.8 s) | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of 685,829 distinct words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
 | file of 1,000,000 titles, `MultiWord`, built by `Sync` in 88.1 s | 457 MB | ≤ 300 MB |
 
 ### The benchmarks
