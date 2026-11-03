@@ -24,8 +24,8 @@ readonly WORK="$(mktemp -d)"
 cleanup() { rm -rf "${WORK}"; }
 trap cleanup EXIT
 
-export DOTNET_CLI_HOME="${DOTNET_CLI_HOME:-/workspace/.dotnet-home}"
 export HOME="${HOME:-/root}"
+export DOTNET_CLI_HOME="${DOTNET_CLI_HOME:-${HOME}/.dotnet-home}"
 export DOTNET_NOLOGO=1
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 
@@ -91,6 +91,16 @@ expect_pass() {
 
 echo "=== mutation check ==="
 
+# 0. Pre-flight: the guards are green on the clean tree. When they are not, every mutation below would "fail" for
+#    the same reason — an environment that cannot run dotnet test — and the report would be ten false alarms.
+preflight="$(prepare_copy "preflight")"
+if ! ( cd "${preflight}" && dotnet test tests/Nordmann.LUI.Architecture.Tests/Nordmann.LUI.Architecture.Tests.csproj \
+    --filter "FullyQualifiedName~Repository_Layout" --nologo 2>&1 ) | grep -q "Passed!"; then
+  echo "ABORT the architecture tests do not pass on the clean tree — fix the environment first"
+  echo "      (dotnet on the PATH, a writable DOTNET_CLI_HOME: ${DOTNET_CLI_HOME}, packages restorable)"
+  exit 2
+fi
+
 # 1. A package version sneaks into a project file.
 expect_caught "package-version-in-csproj" \
   "No_PackageReference_carries_a_Version" \
@@ -130,7 +140,17 @@ expect_caught "package-readme-missing" \
   "The_library_ships_the_readme_and_the_mit_license" \
   "sed -i 's|<PackageReadmeFile>README.md</PackageReadmeFile>|<PackageReadmeFile>Handbook.md</PackageReadmeFile>|' src/Nordmann.LUI/Nordmann.LUI.csproj"
 
-# 8. The clean tree stays green.
+# 8. The query path reaches up to the catalog — the named exception of ADR-0014 is gone (review DevEx D4, PR-007).
+expect_caught "query-path-uses-the-catalog" \
+  "No_layer_goes_up_through_the_facade" \
+  "printf 'namespace Nordmann.LUI.Querying;\n\ninternal static class Probe\n{\n    internal static string Name(LuiCatalog catalog) => catalog.ConnectionString;\n}\n' > src/Nordmann.LUI/Querying/Probe.cs"
+
+# 9. The connections reach up to the schema: Storage is the bottom layer.
+expect_caught "storage-knows-the-schema" \
+  "A_namespace_knows_only_the_ones_below_it" \
+  "printf 'namespace Nordmann.LUI.Storage;\n\ninternal static class Probe\n{\n    internal static System.Type Type => typeof(Nordmann.LUI.Schema.RowId);\n}\n' > src/Nordmann.LUI/Storage/Probe.cs"
+
+# 10. The clean tree stays green.
 expect_pass "clean-tree" "FullyQualifiedName~Repository_Layout"
 
 echo "=== ${failures} failure(s) ==="

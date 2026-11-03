@@ -5,6 +5,17 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-03 — PR-007: sync, check, rebuild, optimize (issue #17)
+
+- ADR-0016. The catalog is a facade: `Storage.Database` (connections, writer, lifetime), `Indexes.IndexStore`
+  (lui_meta, DDL), `Typos.TypoDictionaries`; the `LuiCatalog` exception of `Internal_Layering` is gone, two new mutations.
+- Owned `Sync` in batches (default 10,000), sorted by rowid, `automerge` off, one `optimize` at the end; removal by a
+  snapshot of the keys at the start, crossed off — a key added meanwhile stays. `Check(source)`, `Check()` (on
+  `ILuiIndex`, also Linked), `Rebuild()`, `Optimize()`. 30 tests in `SyncCheckRebuildTests`; review of PR #18 worked in (S1–S4 docs, S3 and N6 in code, N3–N5, N7).
+- Measured at 1 M: sync 77.8 s (batch 10 k) / 54.9 s (100 k), UpsertMany 52.5 s; query p95 after sync 3.9 ms vs 5.4 ms.
+  The number of commits costs more than the order; the merge decides the query.
+- Open for the owner: the default batch size; a shadow build for `Linked.Sync()` (S2; 26.7 s lock per million rows).
+
 ## 2026-11-03 — PR-006: the linked index, loosely coupled (issue #15)
 
 - Owner's decisions: no column/index/implicit trigger on the application's table; the application keeps the index current

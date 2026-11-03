@@ -336,6 +336,16 @@ also changed three things the plan did not foresee:
 | A typo **after the tenth letter** is not corrected; neither is a letter left out or too many in a word of ten letters or more | The dictionary holds the beginnings of 3 … 10 letters (§10.1) — pinned by tests, written down. |
 | The p95 of a corrected query is 8.7 ms at 685 k entries (target 10 ms); at 3 M entries it is untested | up to three more FTS statements on a row-by-row index; the bulk build (PR-007) is the lever. |
 
+## 6e. PR-007 — what actually happened
+
+| What | Why |
+|---|---|
+| The catalog is a facade over `Storage.Database`, `Indexes.IndexStore`, `Typos.TypoDictionaries` (review DevEx D4, D6) | `Sync`, `Check`, `Rebuild` need connections in `Indexes`; no layer knows the catalog any more, the exception of ADR-0014 is gone ([ADR-0016](../adr/0016-sync-check-rebuild.md)) |
+| `Sync` crosses off a snapshot of the keys there at its start, instead of marking the keys it sees | removed is exactly what was there and is not in the source; a key the application adds meanwhile stays |
+| The bulk path is sorted batches with `automerge` off and one merge — not "content first, then `rebuild`" | measured: the merge decides the query (p95 5.7 → 3.0 ms at 1 M); `rebuild` is not faster than large batches and cannot be run again |
+| The default batch stays at 10,000; 100,000 is about 30 % faster for a first load | the number of commits costs more than the order; the default is the owner's call (ADR-0016) |
+| No shadow build for `Linked.Sync()` (S2) | measured: one transaction of 26.7 s per million rows; a shadow build needs a second write path for every refresh — the owner decides |
+
 ---
 
 ## 7. README outline (the front door)

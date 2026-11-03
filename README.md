@@ -107,6 +107,19 @@ var result = recipes.Query("rezept")
 Console.WriteLine($"{result.Hits.Count} of {result.CandidatesConsidered} candidates in {result.Timings!.Total.TotalMilliseconds:F1} ms");
 ```
 
+Keep an index in step with your own data with `Sync`: what the source has is
+added or written, what it lacks is removed — in batches, merged at the end, and
+a sync that was cancelled can simply run again. `Check()` says whether an index
+is sound and what repairs it:
+
+```csharp
+var report = recipes.Sync(new[] { "Gedeckter Apfelkuchen", "Apfelstrudel", "Bratapfelkuchen" }
+    .Select((title, i) => new LuiEntry<long, LuiNoPayload>(i + 1, title) { Weight = 1000 * (3 - i) }));
+
+Console.WriteLine($"{report.Changed} changed, {report.Removed} removed");   // 3 changed, 10000 removed
+Console.WriteLine(recipes.Check().IsHealthy);                                // True
+```
+
 ---
 
 ## The two index kinds

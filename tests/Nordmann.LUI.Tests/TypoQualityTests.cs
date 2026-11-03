@@ -66,7 +66,7 @@ public sealed class TypoQualityTests(ITestOutputHelper output)
     private static void Load(LuiCatalog catalog, ILuiOwnedIndex<long, LuiNoPayload> index, List<string> words)
     {
         var random = new Random(77);
-        using var connection = catalog.OpenConnection();
+        using var connection = catalog.Database.OpenConnection();
         using var transaction = connection.BeginTransaction();
         for (var i = 0; i < words.Count; i++)
         {

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using Nordmann.LUI.Schema;
+using Nordmann.LUI.Storage;
 using Nordmann.LUI.Typos;
 
 namespace Nordmann.LUI.Querying;
@@ -13,7 +14,7 @@ namespace Nordmann.LUI.Querying;
 /// </summary>
 internal sealed class QueryRunner<TKey, TPayload>
 {
-    private readonly LuiCatalog _catalog;
+    private readonly Database _database;
     private readonly ContentSource _source;
     private readonly ILuiSimilarity _defaultSimilarity;
     private readonly bool _typoDefault;
@@ -22,14 +23,14 @@ internal sealed class QueryRunner<TKey, TPayload>
     private readonly HitReader<TKey, TPayload> _hits;
 
     internal QueryRunner(
-        LuiCatalog catalog,
+        Database database,
         ContentSource source,
         PayloadReader<TPayload> payload,
         ILuiSimilarity defaultSimilarity,
         TypoDictionary typos,
         bool typoDefault)
     {
-        _catalog = catalog;
+        _database = database;
         _source = source;
         _defaultSimilarity = defaultSimilarity;
         _typoDefault = typoDefault;
@@ -44,7 +45,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         ArgumentNullException.ThrowIfNull(options);
 
         var started = Stopwatch.GetTimestamp();
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
 
         var query = PreparedQuery.Create(input, _source.Normalization, _source.Rules);
         if (query.IsEmpty)
@@ -52,7 +53,7 @@ internal sealed class QueryRunner<TKey, TPayload>
             return new LuiResult<TKey, TPayload> { Query = input, Hits = [], Timings = Timings(options, started, started, started, started, started) };
         }
 
-        using var connection = _catalog.OpenConnection();
+        using var connection = _database.OpenConnection();
 
         // One snapshot for the candidates and for the hits. A deferred transaction pins the WAL snapshot
         // at its first read; without it a writer can commit between the two statements, and a freed

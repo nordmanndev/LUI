@@ -1,8 +1,8 @@
-using System.Globalization;
 using Microsoft.Data.Sqlite;
-using Nordmann.LUI.Schema;
-using System.Collections.Concurrent;
+using Nordmann.LUI.Indexes;
 using Nordmann.LUI.Normalization;
+using Nordmann.LUI.Schema;
+using Nordmann.LUI.Storage;
 using Nordmann.LUI.Typos;
 
 namespace Nordmann.LUI;
@@ -16,6 +16,11 @@ namespace Nordmann.LUI;
 /// <c>Microsoft.Data.Sqlite</c>, so reads run in parallel (§15).
 /// <see cref="Dispose"/> waits for the operations that are running.
 /// </para>
+/// <para>
+/// The catalog is a facade (review DevEx D4): the connections, the writer and the lifetime are its
+/// <see cref="Storage.Database"/>, the stored definitions and their statements <see cref="IndexStore"/>, the typo
+/// dictionaries <see cref="Typos.TypoDictionaries"/>. No layer below the public API knows the catalog.
+/// </para>
 /// </summary>
 public sealed class LuiCatalog : IDisposable
 {
@@ -23,25 +28,23 @@ public sealed class LuiCatalog : IDisposable
     internal static readonly Version MinimumSqliteVersion = new(3, 45, 0);
 
     private readonly LuiCatalogOptions _options;
-    private readonly object _lifetime = new();
-
-    // One typo dictionary per index of the catalog, however many times the index is ensured (review of pull
-    // request 10, S1): two instances would build 138 MB each and not see each other's writes.
-    private readonly ConcurrentDictionary<string, TypoDictionary> _typoDictionaries = new(StringComparer.Ordinal);
-    private int _running;
-    private bool _disposed;
-    private SqliteConnection? _writer;
 
     private LuiCatalog(string connectionString, LuiCatalogOptions options)
     {
-        ConnectionString = connectionString;
         _options = options;
+        Database = new Database(this, connectionString, options);
     }
 
     /// <summary>The connection string the catalog was opened with.</summary>
-    public string ConnectionString { get; }
+    public string ConnectionString => Database.ConnectionString;
 
     internal TimeProvider TimeProvider => _options.TimeProvider;
+
+    /// <summary>The database: connections, the writer, the operations that are running.</summary>
+    internal Database Database { get; }
+
+    /// <summary>The typo dictionaries of the indexes, one per index.</summary>
+    internal TypoDictionaries TypoDictionaries { get; } = new();
 
     /// <summary>
     /// Opens a catalog: checks the SQLite that is loaded, sets the pragmas
@@ -72,7 +75,7 @@ public sealed class LuiCatalog : IDisposable
         var catalog = new LuiCatalog(connectionString, options);
         try
         {
-            catalog.Initialize();
+            IndexStore.Initialize(catalog.Database);
             return catalog;
         }
         catch
@@ -83,14 +86,14 @@ public sealed class LuiCatalog : IDisposable
     }
 
     /// <summary>
-    /// Starts describing an index: <c>Index("tags").SingleWord().Owned&lt;long&gt;().Ensure()</c>. Each step
-    /// offers only what may follow it, so an index without a kind or a source does not compile.
+    /// Starts describing an index: <c>Index("tags").SingleWord().Ensure()</c>. Each step offers only what may
+    /// follow it, so an index without a kind does not compile.
     /// </summary>
     /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
     /// <returns>The first step: the kind of the index.</returns>
     public LuiIndexKindBuilder Index(string name)
     {
-        ObjectDisposedException.ThrowIf(_disposed, this);
+        Database.ThrowIfDisposed();
         return new LuiIndexKindBuilder(this, Identifier.ValidateIndexName(name, nameof(name)));
     }
 
@@ -113,96 +116,11 @@ public sealed class LuiCatalog : IDisposable
     public bool DropIndex(string name, bool dropTriggers = false)
     {
         Identifier.ValidateIndexName(name, nameof(name));
-
-        using var scope = Begin();
-        using var connection = OpenConnection();
-        using var transaction = connection.BeginTransaction(deferred: false);
-
-        var stored = ReadDefinition(connection, transaction, name);
-        var existed = stored is not null;
-
-        if (!dropTriggers && stored?.Link is { } link && HasTriggers(connection, transaction, name))
-        {
-            throw new InvalidOperationException(
-                $"The linked index '{name}' has triggers on the table '{link.Table}'. They write into the tables of the index "
-                + "and go with it: call DropIndex(name, dropTriggers: true), and take them out of the application's migration "
-                + "too. After a new Ensure() the index is empty and has no triggers — Sync() it and create them again.");
-        }
-
-        foreach (var statement in ContentSources.DropStatements(name, stored))
-        {
-            Execute(connection, transaction, statement);
-        }
-
-        using (var meta = connection.CreateCommand())
-        {
-            meta.Transaction = transaction;
-            meta.CommandText = "DELETE FROM lui_meta WHERE index_name = $name;";
-            meta.Parameters.AddWithValue("$name", name);
-            meta.ExecuteNonQuery();
-        }
-
-        transaction.Commit();
+        var existed = IndexStore.Drop(Database, name, dropTriggers);
 
         // the words of the dropped index are not the words of the next one
-        ForgetTypoDictionary(name);
+        TypoDictionaries.Forget(name);
         return existed;
-    }
-
-    /// <summary>
-    /// Creates an index from its statements, or checks that the stored definition is the same — in one
-    /// transaction, so that two processes cannot both create it.
-    /// </summary>
-    /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
-    /// <param name="name">The name of the index.</param>
-    /// <param name="definition">The definition that is asked for.</param>
-    /// <param name="createStatements">The statements that create the index, when it is not there.</param>
-    /// <param name="verify">A check of the environment of the index in the same transaction — for <c>Linked</c>, the
-    /// application's table — that runs every time, not only when the index is created.</param>
-    internal void EnsureIndex(
-        string name,
-        IndexDefinition definition,
-        IEnumerable<string> createStatements,
-        Action<SqliteConnection, SqliteTransaction>? verify = null)
-    {
-        using var scope = Begin();
-        using var connection = OpenConnection();
-        using var transaction = connection.BeginTransaction(deferred: false);
-
-        verify?.Invoke(connection, transaction);
-
-        var stored = ReadDefinition(connection, transaction, name);
-        if (stored is null)
-        {
-            foreach (var statement in createStatements)
-            {
-                Execute(connection, transaction, statement);
-            }
-
-            WriteDefinition(connection, transaction, name, definition);
-        }
-        else if (stored != definition)
-        {
-            throw new LuiDefinitionMismatchException(name, stored.ToJson(), definition.ToJson(), linked: stored.Link is not null);
-        }
-
-        transaction.Commit();
-    }
-
-    private static bool HasTriggers(SqliteConnection connection, SqliteTransaction transaction, string indexName)
-    {
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = LinkedSource.TriggerCountSql(indexName);
-        return (long)command.ExecuteScalar()! > 0;
-    }
-
-    private static void Execute(SqliteConnection connection, SqliteTransaction transaction, string statement)
-    {
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = statement;
-        command.ExecuteNonQuery();
     }
 
     /// <summary>
@@ -217,132 +135,7 @@ public sealed class LuiCatalog : IDisposable
     /// LUI its own connection string (for instance another <c>Default Timeout</c>).
     /// </para>
     /// </summary>
-    public void Dispose()
-    {
-        lock (_lifetime)
-        {
-            if (_disposed)
-            {
-                return;
-            }
-
-            _disposed = true;
-
-            while (_running > 0)
-            {
-                Monitor.Wait(_lifetime);
-            }
-        }
-
-        _writer?.Dispose();
-
-        // The pool belongs to the connection string; a file that stays locked
-        // by a pooled connection cannot be deleted.
-        using var connection = new SqliteConnection(ConnectionString);
-        SqliteConnection.ClearPool(connection);
-    }
-
-    /// <summary>The typo dictionary of an index — the same object for every instance of that index.</summary>
-    /// <param name="indexName">The name of the index.</param>
-    /// <param name="normalization">The normalisation of the index.</param>
-    /// <param name="texts">Reads <c>(text, weight)</c> of every entry, when the dictionary is built.</param>
-    internal TypoDictionary TypoDictionaryFor(
-        string indexName,
-        NormalizationOptions normalization,
-        Func<IEnumerable<(string Text, int Weight)>> texts) =>
-        _typoDictionaries.GetOrAdd(
-            indexName,
-            static (_, state) => new TypoDictionary(state.Normalization, state.Texts),
-            (Normalization: normalization, Texts: texts));
-
-    /// <summary>Forgets the typo dictionary of an index that was dropped: the next index of that name starts empty.</summary>
-    internal void ForgetTypoDictionary(string indexName) => _typoDictionaries.TryRemove(indexName, out _);
-
-    /// <summary>The lock that serialises the statements on <see cref="Writer"/>.</summary>
-    internal Lock WriterGate { get; } = new();
-
-    /// <summary>
-    /// The connection of the catalog's own writes. SQLite has one writer per
-    /// file (§15), so one long-lived connection serves them all — and keeps
-    /// the prepared statements (see <see cref="Writing.WriteStatements"/>).
-    /// </summary>
-    internal SqliteConnection Writer
-    {
-        get
-        {
-            lock (_lifetime)
-            {
-                ObjectDisposedException.ThrowIf(_disposed, this);
-                return _writer ??= OpenConnection();
-            }
-        }
-    }
-
-    /// <summary>
-    /// Marks the start of an operation. The returned scope has to be
-    /// disposed when the operation ends.
-    /// </summary>
-    internal OperationScope Begin()
-    {
-        lock (_lifetime)
-        {
-            ObjectDisposedException.ThrowIf(_disposed, this);
-            _running++;
-        }
-
-        return new OperationScope(this);
-    }
-
-    /// <summary>Opens a connection with the pragmas of the catalog applied.</summary>
-    internal SqliteConnection OpenConnection()
-    {
-        var connection = new SqliteConnection(ConnectionString);
-        try
-        {
-            connection.Open();
-            using var command = connection.CreateCommand();
-            command.CommandText = Pragmas();
-            command.ExecuteNonQuery();
-            return connection;
-        }
-        catch
-        {
-            connection.Dispose();
-            throw;
-        }
-    }
-
-    internal static IndexDefinition? ReadDefinition(SqliteConnection connection, SqliteTransaction? transaction, string indexName)
-    {
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText = "SELECT definition FROM lui_meta WHERE index_name = $name;";
-        command.Parameters.AddWithValue("$name", indexName);
-
-        return command.ExecuteScalar() is string json ? IndexDefinition.FromJson(json) : null;
-    }
-
-    private void WriteDefinition(
-        SqliteConnection connection,
-        SqliteTransaction transaction,
-        string indexName,
-        IndexDefinition definition)
-    {
-        using var command = connection.CreateCommand();
-        command.Transaction = transaction;
-        command.CommandText =
-            "INSERT INTO lui_meta(index_name, kind, source, definition, schema_version, created_at) "
-            + "VALUES ($name, $kind, $source, $definition, $version, $created);";
-        command.Parameters.AddWithValue("$name", indexName);
-        command.Parameters.AddWithValue("$kind", definition.Kind.ToString());
-        command.Parameters.AddWithValue("$source", definition.Source);
-        command.Parameters.AddWithValue("$definition", definition.ToJson());
-        command.Parameters.AddWithValue("$version", Meta.SchemaVersion);
-        command.Parameters.AddWithValue(
-            "$created",
-            TimeProvider.GetUtcNow().ToString("O", CultureInfo.InvariantCulture));
-        command.ExecuteNonQuery();
-    }
+    public void Dispose() => Database.Dispose();
 
     /// <summary>The version of the SQLite library of this process — the same for every connection.</summary>
     private static string LoadedSqliteVersion()
@@ -363,61 +156,5 @@ public sealed class LuiCatalog : IDisposable
                 $"LUI needs SQLite {MinimumSqliteVersion} or newer (the trigram tokenizer with "
                 + $"remove_diacritics); the loaded SQLite is {loaded}.");
         }
-    }
-
-    private string Pragmas()
-    {
-        var timeout = (long)_options.BusyTimeout.TotalMilliseconds;
-        var pragmas = string.Create(CultureInfo.InvariantCulture, $"PRAGMA busy_timeout = {timeout}; PRAGMA synchronous = NORMAL;");
-
-        if (_options.CacheSizeMegabytes is { } cache)
-        {
-            // a negative cache_size is a size in KiB
-            pragmas += string.Create(CultureInfo.InvariantCulture, $" PRAGMA cache_size = -{cache * 1024L};");
-        }
-
-        if (_options.MemoryMapMegabytes is { } map)
-        {
-            pragmas += string.Create(CultureInfo.InvariantCulture, $" PRAGMA mmap_size = {map * 1024L * 1024L};");
-        }
-
-        return pragmas;
-    }
-
-    private void Initialize()
-    {
-        using var connection = OpenConnection();
-
-        if (_options.WriteAheadLog)
-        {
-            using var wal = connection.CreateCommand();
-
-            // WAL lets many readers run beside one writer (§7.5). It is a property of the
-            // file; for a database that cannot have it (in memory) SQLite keeps its mode.
-            wal.CommandText = "PRAGMA journal_mode = WAL;";
-            wal.ExecuteNonQuery();
-        }
-
-        using var meta = connection.CreateCommand();
-        meta.CommandText = Meta.CreateTable;
-        meta.ExecuteNonQuery();
-    }
-
-    private void End()
-    {
-        lock (_lifetime)
-        {
-            _running--;
-            if (_running == 0)
-            {
-                Monitor.PulseAll(_lifetime);
-            }
-        }
-    }
-
-    /// <summary>One running operation; disposing it lets <see cref="Dispose"/> proceed.</summary>
-    internal readonly struct OperationScope(LuiCatalog catalog) : IDisposable
-    {
-        public void Dispose() => catalog.End();
     }
 }

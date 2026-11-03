@@ -25,7 +25,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
         var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
 
         var random = new Random(5);
-        using (var connection = catalog.OpenConnection())
+        using (var connection = catalog.Database.OpenConnection())
         {
             using var transaction = connection.BeginTransaction();
             for (var i = 0; i < words.Count; i++)

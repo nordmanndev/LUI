@@ -122,8 +122,8 @@ gives — the bulk path for `Owned` stays in PR-007.
   the last `ApplyPending()` — not as the write. A hosted service that applies them on a timer comes with the dependency
   injection (PR-008). Verified: the trigger script holds no FTS5 and no normalisation (a test); a second SQLite (Python's
   3.45.1, not the one LUI bundles) writes, changes and deletes through the triggers. A SQLite below 3.43 could not be
-  built in this environment (sqlite.org is not reachable), so that the old version writes is argued from the script,
-  not measured.
+  built in this environment (sqlite.org is not reachable); the reviewer of pull request 16 **measured** it with SQLite
+  3.40.1 — the application writes, changes and deletes through the triggers (follow-up review; noted in ADR-0016).
 - **A sync is one write transaction** (S2): other writers of the file wait up to their busy timeout — a million rows take
   about half a minute, so a writer with a shorter timeout gets `SQLITE_BUSY`. A shadow build in chunks with a short swap
   belongs to PR-007, measured first.

@@ -30,7 +30,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
 
         if (string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_OPTIMIZE"), "1", StringComparison.Ordinal))
         {
-            using var optimize = catalog.OpenConnection();
+            using var optimize = catalog.Database.OpenConnection();
             using var command = optimize.CreateCommand();
             command.CommandText = "INSERT INTO lui_tags_fts(lui_tags_fts) VALUES ('optimize');";
             var merged = Stopwatch.StartNew();
@@ -151,7 +151,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         var random = new Random(42);
         var texts = new List<string>(entries);
         // the build runs on a connection with the catalog's cache, as an application would set it up
-        using var connection = catalog.OpenConnection();
+        using var connection = catalog.Database.OpenConnection();
         using var transaction = connection.BeginTransaction();
 
         for (var i = 1; i <= entries; i++)

@@ -110,7 +110,31 @@ internal sealed class LinkedSource : ContentSource
     /// <summary>Indexes the rows with a key in <c>($from, $to]</c> — the search index in the order of the rowid.</summary>
     internal string SyncChunkSql => Insert($"{_key} > $from AND {_key} <= $to", "s.doc_id > $from AND s.doc_id <= $to");
 
-    internal string OptimizeSql => $"INSERT INTO {FtsTable}({FtsTable}) VALUES ('optimize');";
+    // ---- the check (§12.6, §14): the entries against the table -------------------------------------
+
+    /// <summary>The rows of the table the index should hold and does not: their count, or their first <c>$n</c> keys.</summary>
+    internal string MissingSql(bool count) =>
+        $"SELECT {(count ? "count(*)" : _key)} FROM {ContentTable} h WHERE {Indexable} "
+        + $"AND NOT EXISTS (SELECT 1 FROM {EntryTable} s WHERE s.doc_id = {_key}){(count ? ";" : $" ORDER BY {_key} LIMIT $n;")}";
+
+    /// <summary>The entries whose row is gone or would not be indexed any more.</summary>
+    internal string ExtraSql(bool count) =>
+        $"SELECT {(count ? "count(*)" : "s.doc_id")} FROM {EntryTable} s WHERE NOT EXISTS "
+        + $"(SELECT 1 FROM {ContentTable} h WHERE {_key} = s.doc_id AND {Indexable}){(count ? ";" : " ORDER BY s.doc_id LIMIT $n;")}";
+
+    /// <summary>
+    /// The entries whose row has another weight, priority or beginning now: the stored rowid and prefix keys against the
+    /// ones the row gives. A change of the text behind its first two letters is not seen here — a query never shows such
+    /// a text (it is checked against the row), and <c>Sync()</c> repairs it.
+    /// </summary>
+    internal string DifferentSql(bool count)
+    {
+        var prefix = $"lower({Rules.PrefixValue(_norm)})";
+        return
+            $"SELECT {(count ? "count(*)" : "s.doc_id")} FROM {EntryTable} s JOIN {ContentTable} h ON {_key} = s.doc_id "
+            + $"WHERE {Indexable} AND (s.s_rowid IS NOT {RowIdValue} OR s.s_p1 IS NOT substr({prefix}, 1, 1) "
+            + $"OR s.s_p2 IS NOT substr({prefix}, 1, 2)){(count ? ";" : " ORDER BY s.doc_id LIMIT $n;")}";
+    }
 
     internal override string PrefixSql(int length) =>
         $"SELECT s.s_rowid, {_text} FROM {EntryTable} s JOIN {ContentTable} h ON {_key} = s.doc_id "
@@ -233,13 +257,16 @@ internal sealed class LinkedSource : ContentSource
     /// </summary>
     private string Indexable => $"{HasText} AND {KeyInRange}";
 
+    /// <summary>The packed rowid of a row (§7.2) — the same expression as the generated column of <c>Owned</c>.</summary>
+    private string RowIdValue => $"({_priority} << 61) | (({RowId.MaxWeight} - {_weight}) << 32) | {_key}";
+
     /// <summary>The two inserts that index the rows of a condition: the entry with its keys, then the search form.</summary>
     private string Insert(string rows, string entries)
     {
         var prefix = $"lower({Rules.PrefixValue(_norm)})";
         return
             $"INSERT INTO {EntryTable}(doc_id, s_rowid, s_p1, s_p2) "
-            + $"SELECT {_key}, ({_priority} << 61) | (({RowId.MaxWeight} - {_weight}) << 32) | {_key}, "
+            + $"SELECT {_key}, {RowIdValue}, "
             + $"substr({prefix}, 1, 1), substr({prefix}, 1, 2) "
             + $"FROM {ContentTable} h WHERE {rows} AND {Indexable}; "
             + $"INSERT INTO {FtsTable}(rowid, {Rules.IndexedColumn}) "

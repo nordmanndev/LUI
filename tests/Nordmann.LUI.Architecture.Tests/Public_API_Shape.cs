@@ -81,7 +81,11 @@ public sealed class Public_API_Shape
     {
         // A positional record breaks every caller when a field is added — and two fields of the same type
         // that swap places do not even fail to compile (ADR-0013).
-        string[] named = ["LuiHit`2", "LuiResult`2", "LuiTimings", "LuiQueryOptions", "LuiCatalogOptions"];
+        string[] named =
+        [
+            "LuiHit`2", "LuiResult`2", "LuiTimings", "LuiQueryOptions", "LuiCatalogOptions",
+            "LuiSyncResult", "LuiSyncOptions", "LuiSyncReport", "LuiIntegrityReport",
+        ];
 
         var offenders = LibraryAssembly
             .GetExportedTypes()

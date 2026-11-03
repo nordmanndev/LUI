@@ -2,6 +2,7 @@ using System.Runtime.CompilerServices;
 using Microsoft.Data.Sqlite;
 using Nordmann.LUI.Querying;
 using Nordmann.LUI.Schema;
+using Nordmann.LUI.Storage;
 using Nordmann.LUI.Typos;
 using Nordmann.LUI.Writing;
 
@@ -17,8 +18,9 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
 #pragma warning restore CA1001
 {
     private static readonly LuiQueryOptions DefaultOptions = new();
+    private static readonly LuiSyncOptions DefaultSyncOptions = new();
 
-    private readonly LuiCatalog _catalog;
+    private readonly Database _database;
     private readonly ILuiPayloadSerializer<TPayload>? _payload;
     private readonly QueryRunner<TKey, TPayload> _runner;
     /// <summary><c>SQLITE_CONSTRAINT_CHECK</c>.</summary>
@@ -26,6 +28,8 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
 
     private readonly OwnedSource _source;
     private readonly TypoDictionary _typos;
+    private readonly OwnedSync<TKey, TPayload> _sync;
+    private readonly OwnedCheck<TKey, TPayload> _check;
 
     // The statements of the application's own connections, one set per connection.
     private readonly ConditionalWeakTable<SqliteConnection, WriteStatements> _applicationStatements = [];
@@ -33,20 +37,23 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
     private WriteStatements? _ownStatements;
 
     internal OwnedIndex(
-        LuiCatalog catalog,
+        Database database,
+        TypoDictionaries typoDictionaries,
         OwnedSource source,
         ILuiPayloadSerializer<TPayload>? payload,
         ILuiSimilarity similarity,
         bool typoTolerance)
     {
-        _catalog = catalog;
+        _database = database;
         _payload = payload;
         _source = source;
         Name = source.IndexName;
         Kind = source.Rules.Kind;
-        _typos = catalog.TypoDictionaryFor(Name, source.Normalization, () => TypoSource.Read(catalog, source.TextsSql));
+        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql));
         _runner = new QueryRunner<TKey, TPayload>(
-            catalog, source, new SerializedPayload<TPayload>(payload), similarity, _typos, typoTolerance);
+            database, source, new SerializedPayload<TPayload>(payload), similarity, _typos, typoTolerance);
+        _sync = new OwnedSync<TKey, TPayload>(database, source, PayloadBytes, _typos);
+        _check = new OwnedCheck<TKey, TPayload>(database, source, PayloadBytes);
     }
 
     public string Name { get; }
@@ -59,7 +66,7 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
         var keyText = KeyCodec<TKey>.ToText(entry.Key);
         var bytes = PayloadBytes(entry.Payload);
 
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         try
         {
             StatementsFor(transaction).Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, bytes, transaction);
@@ -88,7 +95,7 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
     {
         ArgumentNullException.ThrowIfNull(entries);
 
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         var written = new List<(string Text, int Weight)>();
         try
         {
@@ -122,9 +129,9 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
         CancellationToken cancellationToken)
     {
         var statements = Volatile.Read(ref _ownStatements) ?? CreateOwnStatements();
-        lock (_catalog.WriterGate)
+        lock (_database.WriterGate)
         {
-            using var transaction = _catalog.Writer.BeginTransaction(deferred: false);
+            using var transaction = _database.Writer.BeginTransaction(deferred: false);
             WriteBatch(statements, entries, transaction, written, cancellationToken);
             transaction.Commit();
         }
@@ -175,12 +182,48 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
         exception.SqliteExtendedErrorCode == SqliteCheckConstraintFailed
         && exception.Message.Contains("doc_id", StringComparison.Ordinal);
 
+    public LuiSyncReport Sync(
+        IEnumerable<LuiEntry<TKey, TPayload>> source,
+        LuiSyncOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var scope = _database.Begin();
+        try
+        {
+            return _sync.Run(source, options ?? DefaultSyncOptions, cancellationToken);
+        }
+        catch (SqliteException exception) when (IsDocIdExhausted(exception))
+        {
+            throw DocIdsExhausted(exception);
+        }
+    }
+
+    public LuiSyncReport Sync(
+        IAsyncEnumerable<LuiEntry<TKey, TPayload>> source,
+        LuiSyncOptions? options = null,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(source);
+
+        // the source may be asynchronous, the writes to SQLite are not (§13): the entries are awaited one by one
+        return Sync(source.ToBlockingEnumerable(cancellationToken), options, cancellationToken);
+    }
+
+    public LuiIntegrityReport Check(IEnumerable<LuiEntry<TKey, TPayload>> source, CancellationToken cancellationToken = default) =>
+        _check.Against(source, cancellationToken);
+
+    public LuiIntegrityReport Check() => _check.Itself();
+
+    public void Rebuild() => _check.Rebuild();
+
+    public void Optimize() => _check.Optimize();
+
     public bool UpdateWeight(TKey key, int weight, SqliteTransaction? transaction = null)
     {
         var keyText = KeyCodec<TKey>.ToText(key);
         RowId.ValidateWeight(weight);
 
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         return StatementsFor(transaction).UpdateWeight(keyText, weight, transaction);
     }
 
@@ -189,7 +232,7 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
         var keyText = KeyCodec<TKey>.ToText(key);
         RowId.ValidatePriority(priority);
 
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         return StatementsFor(transaction).UpdatePriority(keyText, (int)priority, transaction);
     }
 
@@ -197,26 +240,26 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
     {
         var keyText = KeyCodec<TKey>.ToText(key);
 
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         return StatementsFor(transaction).Remove(keyText, transaction);
     }
 
     public void RebuildTypoDictionary(CancellationToken cancellationToken = default)
     {
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         _typos.Rebuild(cancellationToken);
     }
 
     public void WarmUpTypoDictionary(CancellationToken cancellationToken = default)
     {
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         _typos.EnsureBuilt(cancellationToken);
     }
 
     public long Count()
     {
-        using var scope = _catalog.Begin();
-        using var connection = _catalog.OpenConnection();
+        using var scope = _database.Begin();
+        using var connection = _database.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = _source.CountSql;
         return (long)command.ExecuteScalar()!;
@@ -277,7 +320,7 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
     {
         lock (_ownGate)
         {
-            return _ownStatements ??= new WriteStatements(_catalog.Writer, _source, _catalog.WriterGate);
+            return _ownStatements ??= new WriteStatements(_database.Writer, _source, _database.WriterGate);
         }
     }
 }

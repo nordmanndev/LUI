@@ -52,6 +52,95 @@ internal sealed class OwnedSource : ContentSource
 
     internal string Remove => $"DELETE FROM {ContentTable} WHERE key = $key;";
 
+    // ---- the sync and the check (§12.4, §12.6, §14) -------------------------------------------------
+
+    /// <summary>
+    /// The stored entry of <c>$key</c>: <c>(doc_id, same)</c>, <c>same</c> being 1 when text, weight, priority and payload
+    /// are those of the parameters — a sync writes only what differs, so a sync that runs again after an abort skips what
+    /// the first one committed.
+    /// </summary>
+    internal string CompareSql =>
+        $"SELECT doc_id, text IS $text AND weight IS $weight AND priority IS $priority AND payload IS $payload "
+        + $"FROM {ContentTable} WHERE key = $key;";
+
+    /// <summary>
+    /// The table of a sync, on the writer's connection: the keys that were in the index when the sync began, and that it
+    /// has not found in the source yet. What is left at the end is removed — by key, so the outcome does not depend on
+    /// the document ids: a key the application adds meanwhile stays, a key that was there and is not in the source goes.
+    /// </summary>
+    internal static string CreateStartSql(string start) => $"CREATE TEMP TABLE {start} (key TEXT PRIMARY KEY);";
+
+    /// <summary>Notes every key of the index in the table of a sync.</summary>
+    internal string SnapshotSql(string start) => $"INSERT INTO {start}(key) SELECT key FROM {ContentTable};";
+
+    /// <summary>Crosses the key <c>$key</c> off the table of a sync: the source has it.</summary>
+    internal static string FoundInSourceSql(string start) => $"DELETE FROM {start} WHERE key = $key;";
+
+    internal static string DropTempSql(string table) => $"DROP TABLE IF EXISTS temp.{table};";
+
+    /// <summary>
+    /// The next <c>$n</c> keys the source did not have, after the row <c>$after</c> of the table: <c>(rowid, key)</c> — by
+    /// the rowid of the table, not by the key, so that the empty text key is not passed over.
+    /// </summary>
+    internal static string NotFoundSql(string start) => $"SELECT rowid, key FROM {start} WHERE rowid > $after ORDER BY rowid LIMIT $n;";
+
+    /// <summary>Removes the entry of the key <c>$key</c>, if it is still there.</summary>
+    internal string RemoveNotFoundSql => $"DELETE FROM {ContentTable} WHERE key = $key;";
+
+    /// <summary>The entries whose key a check did not find in the source: their count, or the keys of the first <c>$n</c>.</summary>
+    internal string NotInSourceSql(string found, bool count) =>
+        count
+            ? $"SELECT count(*) FROM {ContentTable} WHERE key NOT IN (SELECT key FROM {found});"
+            : $"SELECT key FROM {ContentTable} WHERE key NOT IN (SELECT key FROM {found}) ORDER BY doc_id LIMIT $n;";
+
+    /// <summary>A key of the source that is not in the index.</summary>
+    internal const int FoundMissing = 0;
+
+    /// <summary>A key of the source whose entry is as in the source.</summary>
+    internal const int FoundSame = 1;
+
+    /// <summary>A key of the source whose entry differs.</summary>
+    internal const int FoundDifferent = 2;
+
+    /// <summary>The table of a check: every key of the source, with what it found (<see cref="FoundMissing"/> …).</summary>
+    internal static string CreateFoundSql(string found) => $"CREATE TEMP TABLE {found} (key TEXT PRIMARY KEY, state INTEGER NOT NULL);";
+
+    /// <summary>Notes what <c>$key</c> found; a later entry of the same key replaces it.</summary>
+    internal static string FoundSql(string found) => $"INSERT OR REPLACE INTO {found}(key, state) VALUES ($key, $state);";
+
+    /// <summary>The first <c>$n</c> keys with a state, each with the count of all of them: <c>(key, count)</c>.</summary>
+    internal static string FoundKeysSql(string found, int state) =>
+        $"SELECT key, count(*) OVER () FROM {found} WHERE state = {state.ToString(System.Globalization.CultureInfo.InvariantCulture)} ORDER BY key LIMIT $n;";
+
+    /// <summary>Builds the search index anew from the content table — FTS5 reads it in the order of the rowid.</summary>
+    internal string RebuildSql => $"INSERT INTO {FtsTable}({FtsTable}) VALUES ('rebuild');";
+
+    /// <summary>
+    /// The integrity check of the search index <b>against the content table</b> (<c>rank = 1</c>): a row the triggers
+    /// did not carry into the search index is found too.
+    /// </summary>
+    internal override string IntegrityCheckSql => $"INSERT INTO {FtsTable}({FtsTable}, rank) VALUES ('integrity-check', 1);";
+
+    /// <summary>The three triggers that keep the search index in step: <c>(name, sql)</c> as SQLite stores them.</summary>
+    internal IReadOnlyList<(string Name, string Sql)> TriggerStatements()
+    {
+        var content = ContentTable;
+        return
+        [
+            .. Triggers(content, FtsTable, Rules.IndexedColumn)
+                .Select(sql => (Name: sql.Split(' ', 4)[2], Sql: sql.Trim().TrimEnd(';'))),
+        ];
+    }
+
+    /// <summary>The statements that read the triggers as SQLite stores them: <c>(name, sql)</c>.</summary>
+    internal string StoredTriggersSql =>
+        $"SELECT name, sql FROM sqlite_master WHERE type = 'trigger' AND tbl_name = '{ContentTable}' "
+        + $"AND name IN ('{ContentTable}_ai', '{ContentTable}_ad', '{ContentTable}_au');";
+
+    /// <summary>Removes the three triggers, if they are there.</summary>
+    internal string DropTriggersSql =>
+        $"DROP TRIGGER IF EXISTS {ContentTable}_ai; DROP TRIGGER IF EXISTS {ContentTable}_ad; DROP TRIGGER IF EXISTS {ContentTable}_au;";
+
     internal override string PrefixSql(int length) =>
         $"SELECT s_rowid, text FROM {ContentTable} WHERE s_p{length} = $q ORDER BY s_rowid LIMIT $n;";
 

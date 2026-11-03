@@ -200,7 +200,41 @@ on a connection with a 512 MB cache. What moved it:
 
 The rest is the search index, whose segments are merged as it grows. The bulk
 path — rowid-ordered loading, one merge at the end — belongs to `Sync` and
-`Rebuild` (PR-007) and is measured there.
+`Rebuild` (PR-007) and is measured below.
+
+### The sync, the check and the rebuild (PR-007)
+
+[ADR-0016](./adr/0016-sync-check-rebuild.md). Single-word, the whole word list, 1,000,000 entries in random order,
+cache 512 MB. First the experiment that decided the bulk path (`OwnedBulkExperiment`, batches of 10,000 unless said):
+
+| Load | Time | query p95 before / after the merge |
+|---|---:|---:|
+| row order | 73.4 s | 5.73 / 2.91 ms |
+| each batch sorted by its rowid | 64.2 s | 4.47 / 3.04 ms |
+| sorted, `automerge` off | 61.9 s | 5.83 / 3.19 ms |
+| sorted, `automerge` off, batches of 100,000 | **42.9 s** | — / 1.00 ms p50 |
+| content table without triggers, then FTS5 `rebuild` | 48.3 s | 5.22 / 3.24 ms |
+
+The merge decides the query; the number of commits decides the load more than the order does. Then the
+implementation (`SyncPerformance`):
+
+| | batch 10,000 | batch 100,000 |
+|---|---:|---:|
+| `Sync` into an empty index | 77.8 s | 54.9 s |
+| the same `Sync` again (nothing changes) | 15.2 s | 13.2 s |
+| a `Sync` that changes half, cancelled halfway · run again | 44.3 · 54.7 s | 27.5 · 35.2 s |
+| a `Sync` of 100 changes and 100 removals | 15.8 s | 14.5 s |
+| `Check(source)` · `Check()` · `Rebuild()` | 10.0 · 2.4 · 16.2 s | 10.4 · 1.7 · 16.2 s |
+| `UpsertMany` of the same entries, one transaction | 52.5 s | 53.8 s |
+| query p50 / p95 after `Sync` · after `UpsertMany` | 1.22 / 3.86 · 1.68 / 5.39 ms | 1.11 / 3.36 · 1.73 / 5.55 ms |
+
+The §16 build target (3 M in ≤ 3 min) is measured with the benchmarks (PR-009).
+
+```text
+LUI_PERF=1 LUI_PERF_ENTRIES=1000000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"
+LUI_PERF=1 LUI_PERF_ENTRIES=1000000 LUI_PERF_BATCH=100000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"
+LUI_PERF=1 LUI_PERF_ENTRIES=1000000 dotnet test --filter OwnedBulkExperiment --logger "console;verbosity=detailed"
+```
 
 ### Opening a catalog
 

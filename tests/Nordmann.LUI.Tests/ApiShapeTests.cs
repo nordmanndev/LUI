@@ -253,7 +253,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 3, BusyTimeout = TimeSpan.FromMilliseconds(1234) });
-        using var connection = catalog.OpenConnection();
+        using var connection = catalog.Database.OpenConnection();
         using var command = connection.CreateCommand();
 
         command.CommandText = "PRAGMA cache_size;";
