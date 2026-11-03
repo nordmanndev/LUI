@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Rebuild()` creates the triggers and the search index anew; `Optimize()` merges. Every index has `Check()` (on
   `ILuiIndex`): the definition, the triggers, FTS5's integrity check — for a linked index also the table and the
   entries against its rows. It returns a `LuiIntegrityReport` (`Problems`, `IsHealthy`, `Missing`, `Extra`,
-  `Different`). 1,000,000 entries: sync 73 s (batches of 10,000) or 54 s (100,000), query p95 afterwards 3.6 ms
+  `Different`). 1,000,000 entries: sync 78 s (batches of 10,000) or 54 s (100,000), query p95 afterwards 3.6 ms
   (5.4 ms after `UpsertMany`).
 
 - **The linked index** ([ADR-0015](docs/adr/0015-the-linked-index-is-loosely-coupled.md)), loosely coupled to a table

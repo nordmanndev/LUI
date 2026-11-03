@@ -12,7 +12,7 @@ the scratchpad here at the end of a session.
 - Owned `Sync` in batches (default 10,000), sorted by rowid, `automerge` off, one `optimize` at the end; removal by a
   snapshot of the keys at the start, crossed off — a key added meanwhile stays. `Check(source)`, `Check()` (on
   `ILuiIndex`, also Linked), `Rebuild()`, `Optimize()`. 29 tests in `SyncCheckRebuildTests`.
-- Measured at 1 M: sync 72.7 s (batch 10 k) / 53.6 s (100 k), UpsertMany 56 s; query p95 after sync 3.6 ms vs 5.4 ms.
+- Measured at 1 M: sync 77.8 s (batch 10 k) / 53.6 s (100 k), UpsertMany 56 s; query p95 after sync 3.6 ms vs 5.4 ms.
   The number of commits costs more than the order; the merge decides the query.
 - Open for the owner: the default batch size; a shadow build for `Linked.Sync()` (S2; 26.7 s lock per million rows).
 
