@@ -88,10 +88,10 @@ public sealed class LuiCatalog : IDisposable
     /// </summary>
     /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
     /// <returns>The first step: the kind of the index.</returns>
-    public LuiIndexBuilder Index(string name)
+    public LuiIndexKindBuilder Index(string name)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        return new LuiIndexBuilder(this, Identifier.ValidateIndexName(name, nameof(name)));
+        return new LuiIndexKindBuilder(this, Identifier.ValidateIndexName(name, nameof(name)));
     }
 
     /// <summary>

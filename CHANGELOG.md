@@ -23,7 +23,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The builder: `Owned<long>` is the default** (ADR-0015). `SingleWord()`/`MultiWord()` return the owned builder;
+- **The builder: `Owned<long>` is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;
+  `SingleWord()`/`MultiWord()` return a `LuiIndexBuilder<long, LuiNoPayload>` — an owned index, or with `LinkTo(…)`
+  a linked one (the names were `LuiIndexBuilder` and `LuiOwnedIndexBuilder<TKey, TPayload>`, review of PR #16, N1);
   `Owned<TKey>()` and `LuiIndexSourceBuilder` are gone, `WithKey<string>()` chooses a text key.
   `lui.Index("tags").SingleWord().Ensure()` is a whole index.
 - `DropIndex` decides by the stored source and refuses a source it does not know.

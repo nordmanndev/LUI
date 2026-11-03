@@ -25,7 +25,7 @@ public static class LuiIndexBuilderExtensions
     /// <returns>The builder of the linked index, with the settings made so far.</returns>
     /// <exception cref="ArgumentException">A name is not a name of the pattern <c>^[A-Za-z_][A-Za-z0-9_]{0,63}$</c>.</exception>
     public static LuiLinkedIndexBuilder<LuiNoPayload> LinkTo(
-        this LuiOwnedIndexBuilder<long, LuiNoPayload> builder,
+        this LuiIndexBuilder<long, LuiNoPayload> builder,
         string table,
         string key,
         string text,

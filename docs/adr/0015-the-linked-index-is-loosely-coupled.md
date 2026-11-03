@@ -6,8 +6,8 @@
   triggers on the application's table behind `allowSchemaChange`); the source step of the builder in ADR-0013
 - **Affects:** `src/Nordmann.LUI/Schema/LinkedSource.cs`, `Schema/ContentSources.cs`, `Schema/LinkDefinition.cs`,
   `Indexes/LinkedIndex.cs`, `Indexes/LinkedTable.cs`, `Querying/ColumnPayload.cs`, `LuiLinkedIndexBuilder.cs`,
-  `LuiIndexBuilderExtensions.cs`, `ILuiLinkedIndex.cs`, `LuiRow.cs`, `LuiLinkedTableException.cs`, `LuiIndexBuilder.cs`,
-  `LuiOwnedIndexBuilder.cs`; `docs/spec/LUI-Spezifikation.md` §5, §7.3, §12, §14, §20; `AGENTS.md`; `README.md`
+  `LuiIndexBuilderExtensions.cs`, `ILuiLinkedIndex.cs`, `LuiRow.cs`, `LuiLinkedTableException.cs`, `LuiIndexKindBuilder.cs`,
+  `LuiIndexBuilder.cs`; `docs/spec/LUI-Spezifikation.md` §5, §7.3, §12, §14, §20; `AGENTS.md`; `README.md`
 
 ## Context
 
@@ -72,7 +72,7 @@ its columns and the hits statement is built from that list (review of pull reque
 
 **The builder** (owner's decision): `Owned<long>` is the default — `SingleWord()`/`MultiWord()` return the owned builder,
 the source step of ADR-0013 is gone; `WithKey<string>()` chooses a text key. `LinkTo(table, key, text, weight?,
-priority?)` is an extension method on `LuiOwnedIndexBuilder<long, LuiNoPayload>` only: it is offered as long as no key
+priority?)` is an extension method on `LuiIndexBuilder<long, LuiNoPayload>` only: it is offered as long as no key
 and no payload are chosen, and the settings made before it (similarity, transliteration, typo tolerance) carry over.
 Names of the application match `^[A-Za-z_][A-Za-z0-9_]{0,63}$` — `Tags` and `UsageCount` as an ORM names them — and
 are always quoted.
