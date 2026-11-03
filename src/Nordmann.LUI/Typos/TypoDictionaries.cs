@@ -24,6 +24,9 @@ internal sealed class TypoDictionaries
             static (_, state) => new TypoDictionary(state.Normalization, state.Texts),
             (Normalization: normalization, Texts: texts));
 
+    /// <summary>Whether the typo dictionary of an index exists and is built.</summary>
+    internal bool IsBuilt(string indexName) => _byIndex.TryGetValue(indexName, out var dictionary) && dictionary.IsBuilt;
+
     /// <summary>Forgets the typo dictionary of an index that was dropped: the next index of that name starts empty.</summary>
     internal void Forget(string indexName) => _byIndex.TryRemove(indexName, out _);
 }

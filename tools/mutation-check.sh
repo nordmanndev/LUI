@@ -150,7 +150,12 @@ expect_caught "storage-knows-the-schema" \
   "A_namespace_knows_only_the_ones_below_it" \
   "printf 'namespace Nordmann.LUI.Storage;\n\ninternal static class Probe\n{\n    internal static System.Type Type => typeof(Nordmann.LUI.Schema.RowId);\n}\n' > src/Nordmann.LUI/Storage/Probe.cs"
 
-# 10. The clean tree stays green.
+# 10. The hosting reaches below the public API (ADR-0017).
+expect_caught "hosting-knows-the-storage" \
+  "The_hosting_knows_only_the_public_api" \
+  "printf 'namespace Nordmann.LUI.Hosting;\n\ninternal static class Probe\n{\n    internal static System.Type Type => typeof(Nordmann.LUI.Storage.Database);\n}\n' > src/Nordmann.LUI/Hosting/Probe.cs"
+
+# 11. The clean tree stays green.
 expect_pass "clean-tree" "FullyQualifiedName~Repository_Layout"
 
 echo "=== ${failures} failure(s) ==="

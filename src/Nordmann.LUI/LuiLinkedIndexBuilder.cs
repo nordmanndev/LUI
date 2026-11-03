@@ -107,6 +107,9 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
         return this;
     }
 
+    /// <summary>The typo tolerance set so far.</summary>
+    internal bool TypoToleranceSetting => _typoTolerance;
+
     internal LuiLinkedIndexBuilder<TPayload> WithSettings(ILuiSimilarity? similarity, bool germanTransliteration, bool typoTolerance)
     {
         _similarity = similarity;
