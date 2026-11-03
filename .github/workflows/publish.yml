@@ -51,13 +51,8 @@ jobs:
           dotnet build Lui.sln --configuration Release --no-restore
           dotnet test Lui.sln --configuration Release --no-build
 
-      - name: Pack
-        # the two packages, released together with one version (ADR-0018)
-        run: |
-          for project in Nordmann.LUI Nordmann.LUI.Hosting; do
-            dotnet pack "src/${project}/${project}.csproj" --configuration Release --no-build --output artifacts/nuget
-          done
-
+      # No separate pack: the smoke test packs both packages (ADR-0018) into artifacts/nuget, installs and runs
+      # exactly those, and they are what is pushed (review of main after #23, finding 7).
       - name: Smoke test the package
         run: bash tools/package-smoke-test.sh "${{ steps.version.outputs.tag }}"
 

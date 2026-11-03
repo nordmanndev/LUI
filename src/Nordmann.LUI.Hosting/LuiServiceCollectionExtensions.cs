@@ -55,10 +55,21 @@ public static class LuiServiceCollectionExtensions
         services.AddSingleton(registrations);
         services.AddSingleton(provider => new CatalogSettings(options?.Invoke(provider) ?? new LuiCatalogOptions()));
         services.AddSingleton(provider => LuiCatalog.Open(connectionString(provider), provider.GetRequiredService<CatalogSettings>().Options));
+        // The hosted services resolve the catalog before they are built: the container disposes in the reverse order of
+        // creation, so it disposes them — and cancels what runs in their background — before the catalog, which waits
+        // for running operations. A catalog created after them would wait for a warm-up that nothing cancels when the
+        // host is disposed without a stop (review of main after #23, findings 1 and 3).
         services.AddHostedService(provider =>
-            new LuiStartup(provider, registrations, Logger<LuiStartup>(provider)));
-        services.AddHostedService(provider => new LuiPendingApplier(
-            provider, registrations, provider.GetRequiredService<CatalogSettings>().Options.TimeProvider, Logger<LuiPendingApplier>(provider)));
+        {
+            provider.GetRequiredService<LuiCatalog>();
+            return new LuiStartup(provider, registrations, Logger<LuiStartup>(provider));
+        });
+        services.AddHostedService(provider =>
+        {
+            provider.GetRequiredService<LuiCatalog>();
+            return new LuiPendingApplier(
+                provider, registrations, provider.GetRequiredService<CatalogSettings>().Options.TimeProvider, Logger<LuiPendingApplier>(provider));
+        });
 
         return new LuiServicesBuilder(services, registrations);
     }

@@ -90,6 +90,9 @@ A host-free `ApplyPendingEvery(…)` in the core would bring back exactly the ba
   `Microsoft.Extensions` dependency, and the architecture tests check the projects and the assembly the compiler bound.
 - `ILuiIndex.TypoTolerance` is an addition to the public API. An application's own implementation of `ILuiIndex` (a test
   double) adds a property.
+- `Directory.Packages.props` pins `Microsoft.Extensions.Hosting` 10.0.14 as a **test** package: the tests of the hosting
+  and the package smoke test need a real host (`Host.CreateApplicationBuilder`). It is not shipped — an application
+  brings its own host (review of `main` after pull request 23, finding 6).
 - The tests of the hosting stay in `Nordmann.LUI.Tests`, which references both projects. Like every test, they see the
   internals of the core. The hosting package does not.
 

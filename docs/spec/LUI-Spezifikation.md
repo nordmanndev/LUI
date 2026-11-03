@@ -792,7 +792,9 @@ public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<lon
   Schreibschnittstelle (`ILuiOwnedIndex` bzw. `ILuiLinkedIndex`) — dieselbe Instanz. Der Rückgabetyp der
   Beschreibung wählt die Art: `LuiIndexBuilder` = `Owned`, `LuiLinkedIndexBuilder` = `Linked`.
 - `Ensure()` läuft beim Start (als `IHostedService`, abschaltbar mit `EnsureOnStart(false)`), nicht beim ersten
-  Request: Eine abweichende Definition stoppt den Start.
+  Request: Eine abweichende Definition stoppt den Start. Gehostete Dienste starten in der Reihenfolge ihrer
+  Registrierung: Eine Migration, die die Tabelle eines verknüpften Index anlegt, wird vor `AddLui` registriert oder vor
+  `host.Run()` ausgeführt — sonst `EnsureOnStart(false)`.
 - `WarmUpTypoDictionariesOnStart()` baut die Wörterbücher der Indizes mit Tippfehler-Toleranz nach dem Start im
   Hintergrund. Abfragen ohne Korrektur warten nicht darauf; eine Abfrage, die korrigieren muss, wartet, bis das
   Wörterbuch gebaut ist — wie beim ersten Tippfehler ohne Warm-up —, und ihr Token unterbricht dieses Warten nicht

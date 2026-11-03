@@ -46,7 +46,15 @@ internal sealed partial class LuiStartup(IServiceProvider services, LuiRegistrat
         }
     }
 
-    public void Dispose() => _stopping.Dispose();
+    /// <summary>
+    /// Cancels a warm-up that still runs — a host disposed without a stop never called <see cref="StopAsync"/> — so that the
+    /// catalog, disposed after this service, does not wait for the whole build.
+    /// </summary>
+    public void Dispose()
+    {
+        _stopping.Cancel();
+        _stopping.Dispose();
+    }
 
     private void WarmUp(CancellationToken stopping)
     {

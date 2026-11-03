@@ -10,7 +10,11 @@
     <CentralPackageTransitivePinningEnabled>true</CentralPackageTransitivePinningEnabled>
   </PropertyGroup>
 
-  <ItemGroup Label="Runtime — shipped inside the Nordmann.LUI package">
+  <!--
+    The runtime of the two packages (ADR-0018): Microsoft.Data.Sqlite, symspell and F23.StringSimilarity are the core's
+    (Nordmann.LUI); the three Microsoft.Extensions abstractions are the hosting package's (Nordmann.LUI.Hosting) only.
+  -->
+  <ItemGroup Label="Runtime — shipped inside Nordmann.LUI and Nordmann.LUI.Hosting">
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.14" />
     <PackageVersion Include="symspell" Version="6.7.3" />
     <PackageVersion Include="F23.StringSimilarity" Version="7.0.1" />
@@ -31,6 +35,7 @@
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />
     <PackageVersion Include="Microsoft.Extensions.TimeProvider.Testing" Version="10.0.0" />
+    <!-- a real host for the tests of Nordmann.LUI.Hosting and the package smoke test; not shipped (ADR-0018) -->
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
   </ItemGroup>
 

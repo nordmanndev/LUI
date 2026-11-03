@@ -737,6 +737,24 @@ public sealed class LinkedIndexTests
     }
 
     [Fact]
+    public void An_outdated_row_after_the_budget_does_not_make_the_answer_truncated()
+    {
+        // review of main after #23, finding 4: the budget was checked before the row was known to be outdated
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Run(database, "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 11) INSERT INTO tag(id, name, usage_count) SELECT i, 'vegan' || i, 100 - i FROM n;");
+        using var catalog = database.Open();
+        var tags = Tags(catalog);
+        tags.Sync();
+        Run(database, "UPDATE tag SET name = 'zucker' WHERE id = 11;");
+
+        var result = tags.Search("vegan", new LuiQueryOptions { Candidates = 10 });
+
+        result.Hits.Count.ShouldBe(10);
+        result.Truncated.ShouldBeFalse("the row after the budget is outdated: there was nothing more");
+    }
+
+    [Fact]
     public void Without_stale_candidates_the_budget_is_what_it_was()
     {
         using var database = new TestDatabase();
