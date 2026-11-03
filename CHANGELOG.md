@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Sync, check, rebuild and optimize** ([ADR-0016](docs/adr/0016-sync-check-rebuild.md)). An owned index:
+  `Sync(source, options?, cancellationToken)` (and an overload for an `IAsyncEnumerable` source) adds what is missing,
+  writes what differs, keeps what is the same and removes the keys that were there when it began and that the source
+  does not have — in batches of
+  `LuiSyncOptions.BatchSize` (default 10,000), each in a transaction of its own, written in the order of the search
+  index and merged once at the end. A cancelled sync keeps its committed batches and removes nothing; run again, it
+  skips them. It returns a `LuiSyncReport` (`Read`, `Added`, `Changed`, `Unchanged`, `Removed`, `Batches`, `Merged`) and
+  reports the same after every batch to `LuiSyncOptions.Progress`. `Check(source)` compares and changes nothing;
+  `Rebuild()` creates the triggers and the search index anew; `Optimize()` merges. Every index has `Check()` (on
+  `ILuiIndex`): the definition, the triggers, FTS5's integrity check — for a linked index also the table and the
+  entries against its rows. It returns a `LuiIntegrityReport` (`Problems`, `IsHealthy`, `Missing`, `Extra`,
+  `Different`). 1,000,000 entries: sync 73 s (batches of 10,000) or 54 s (100,000), query p95 afterwards 3.6 ms
+  (5.4 ms after `UpsertMany`).
+
 - **The linked index** ([ADR-0015](docs/adr/0015-the-linked-index-is-loosely-coupled.md)), loosely coupled to a table
   of the application: `lui.Index(name).SingleWord().LinkTo(table, key, text, weight?, priority?).Ensure()` returns an
   `ILuiLinkedIndex<TPayload>`. LUI never changes the application's table on its own — no column, no index, no trigger;
@@ -25,6 +39,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- `ILuiIndex<TKey, TPayload>` has `Check()`. Inside, the catalog is taken apart (review DevEx D4, D6): no change to
+  the public API besides.
 - **The builder: `Owned<long>` is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;
   `SingleWord()`/`MultiWord()` return a `LuiIndexBuilder<long, LuiNoPayload>` — an owned index, or with `LinkTo(…)`
   a linked one (the names were `LuiIndexBuilder` and `LuiOwnedIndexBuilder<TKey, TPayload>`, review of PR #16, N1);

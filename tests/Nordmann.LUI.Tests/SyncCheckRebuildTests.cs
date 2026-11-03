@@ -216,6 +216,54 @@ public sealed class SyncCheckRebuildTests
     }
 
     [Fact]
+    public void A_key_the_application_adds_during_a_sync_stays_and_a_key_that_was_there_goes_even_when_written_again()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var words = Words(catalog);
+        words.UpsertMany([Entry(1, "apfel"), Entry(2, "birne")]);
+        var once = false;
+
+        // between the batches — the progress is told outside the write lock — the application writes
+        var report = words.Sync(
+            [Entry(1, "apfel"), Entry(3, "kirsche"), Entry(4, "pflaume")],
+            new LuiSyncOptions
+            {
+                BatchSize = 1,
+                Progress = new Synchronous<LuiSyncReport>(_ =>
+                {
+                    if (!once)
+                    {
+                        once = true;
+                        words.Upsert(50, "neu");
+                        words.Remove(2);
+                        words.Upsert(2, "birne wieder");
+                    }
+                }),
+            });
+
+        words.Search("neu").Hits.ShouldHaveSingleItem();
+        words.Search("birne").Hits.ShouldBeEmpty();
+        report.Removed.ShouldBe(1);
+        words.Count().ShouldBe(4);
+    }
+
+    [Fact]
+    public void The_empty_text_key_is_synced_and_removed_like_any_other()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var slugs = catalog.Index("slugs").SingleWord().WithKey<string>().Ensure();
+        slugs.Upsert(string.Empty, "leer");
+        slugs.Upsert("a", "voll");
+
+        slugs.Sync([new LuiEntry<string, LuiNoPayload>("a", "voll")]).Removed.ShouldBe(1);
+
+        slugs.Search("leer").Hits.ShouldBeEmpty();
+        slugs.Count().ShouldBe(1);
+    }
+
+    [Fact]
     public void A_built_typo_dictionary_follows_the_sync()
     {
         using var database = new TestDatabase();

@@ -19,6 +19,9 @@ public sealed record LuiIntegrityReport
     /// <summary>The entries the index holds and should not.</summary>
     public long Extra { get; init; }
 
-    /// <summary>The entries the index holds with another text, weight, priority or payload.</summary>
+    /// <summary>
+    /// The entries the index holds, and with something else than they should: another text, weight, priority or payload
+    /// (<c>Owned</c>, against the source); another weight, priority or beginning of the text (<c>Linked</c>, against the row).
+    /// </summary>
     public long Different { get; init; }
 }

@@ -7,10 +7,9 @@ namespace Nordmann.LUI.Indexes;
 
 /// <summary>
 /// The sync of an <c>Owned</c> index with a source (LUI-Spezifikation §12.4, §14, ADR-0016): batches of entries, each in a
-/// transaction of its own on the catalog's writer. A table of the writer's connection holds the entries that were in the
+/// transaction of its own on the catalog's writer. A table of the writer's connection holds the keys that were in the
 /// index when the sync began; each one the source has is crossed off, and what is left at the end is removed. Then the
-/// search index is merged. An entry the sync adds costs no bookkeeping, and one the application writes meanwhile is
-/// never removed.
+/// search index is merged. A key the application adds while the sync runs is never removed.
 /// <para>
 /// The bulk path (ADR-0010, option 5, measured in <c>OwnedBulkExperiment</c>): FTS5 starts a new segment whenever a
 /// rowid is smaller than the last one it was given, so each batch is written in the order of the search index —
@@ -88,12 +87,8 @@ internal sealed class OwnedSync<TKey, TPayload>(
             {
                 cancellationToken.ThrowIfCancellationRequested();
                 var stored = statements.Compare(key, entry, payload);
-                if (stored is { } found)
-                {
-                    statements.FoundInSource(found.DocId);
-                }
-
-                if (stored is { Same: true })
+                statements.FoundInSource(key);
+                if (stored is true)
                 {
                     unchanged++;
                     continue;
@@ -149,19 +144,18 @@ internal sealed class OwnedSync<TKey, TPayload>(
         ];
     }
 
-    /// <summary>Removes the entries the source did not have, a batch at a time, the smallest document id first.</summary>
+    /// <summary>Removes the keys the source did not have, a batch at a time, in their order.</summary>
     private LuiSyncReport RemoveNotFound(string start, int batchSize, LuiSyncReport report, CancellationToken cancellationToken)
     {
-        var after = -1L;
+        var after = 0L;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var removed = 0;
             lock (database.WriterGate)
             {
                 var writer = database.Writer;
                 using var transaction = writer.BeginTransaction(deferred: false);
-                var rows = new List<(long DocId, string Key)>(batchSize);
+                var keys = new List<(long Row, string Key)>(batchSize);
                 using (var notFound = Command(writer, transaction, OwnedSource.NotFoundSql(start)))
                 {
                     notFound.Parameters.AddWithValue("$after", after);
@@ -169,24 +163,23 @@ internal sealed class OwnedSync<TKey, TPayload>(
                     using var reader = notFound.ExecuteReader();
                     while (reader.Read())
                     {
-                        rows.Add((reader.GetInt64(0), reader.GetString(1)));
+                        keys.Add((reader.GetInt64(0), reader.GetString(1)));
                     }
                 }
 
+                var removed = 0;
                 using var remove = Command(writer, transaction, source.RemoveNotFoundSql);
-                var id = remove.Parameters.Add("$id", SqliteType.Integer);
-                var key = remove.Parameters.Add("$key", SqliteType.Text);
-                foreach (var (docId, keyText) in rows)
+                var parameter = remove.Parameters.Add("$key", SqliteType.Text);
+                foreach (var (row, key) in keys)
                 {
-                    id.Value = docId;
-                    key.Value = keyText;
+                    parameter.Value = key;
                     removed += remove.ExecuteNonQuery();
-                    after = docId;
+                    after = row;
                 }
 
                 transaction.Commit();
                 report = report with { Removed = report.Removed + removed };
-                if (rows.Count < batchSize)
+                if (keys.Count < batchSize)
                 {
                     return report;
                 }
@@ -245,15 +238,15 @@ internal sealed class OwnedSync<TKey, TPayload>(
                 command.Parameters.Add("$payload", SqliteType.Blob);
             }
 
-            _found.Parameters.Add("$id", SqliteType.Integer);
+            _found.Parameters.Add("$key", SqliteType.Text);
         }
 
-        /// <summary>The stored entry of the key: its document id, and whether it is the same; <see langword="null"/> when there is none.</summary>
-        internal (long DocId, bool Same)? Compare(string key, LuiEntry<TKey, TPayload> entry, byte[]? payload)
+        /// <summary>Whether the stored entry of the key is the same; <see langword="null"/> when there is none.</summary>
+        internal bool? Compare(string key, LuiEntry<TKey, TPayload> entry, byte[]? payload)
         {
             Bind(_compare, key, entry, payload);
             using var reader = _compare.ExecuteReader();
-            return reader.Read() ? (reader.GetInt64(0), reader.GetInt64(1) == 1) : null;
+            return reader.Read() ? reader.GetInt64(1) == 1 : null;
         }
 
         /// <summary>Writes the entry.</summary>
@@ -263,9 +256,9 @@ internal sealed class OwnedSync<TKey, TPayload>(
             _upsert.ExecuteNonQuery();
         }
 
-        internal void FoundInSource(long docId)
+        internal void FoundInSource(string key)
         {
-            _found.Parameters[0].Value = docId;
+            _found.Parameters[0].Value = key;
             _found.ExecuteNonQuery();
         }
 

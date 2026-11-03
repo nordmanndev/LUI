@@ -64,25 +64,28 @@ internal sealed class OwnedSource : ContentSource
         + $"FROM {ContentTable} WHERE key = $key;";
 
     /// <summary>
-    /// The table of a sync, on the writer's connection: the entries that were in the index when the sync began, and that
-    /// it has not found in the source yet. What is left at the end is removed — with its key, so that an entry the
-    /// application removed and wrote again meanwhile (a new document id, or the old one again) is not.
+    /// The table of a sync, on the writer's connection: the keys that were in the index when the sync began, and that it
+    /// has not found in the source yet. What is left at the end is removed — by key, so the outcome does not depend on
+    /// the document ids: a key the application adds meanwhile stays, a key that was there and is not in the source goes.
     /// </summary>
-    internal static string CreateStartSql(string start) => $"CREATE TEMP TABLE {start} (doc_id INTEGER PRIMARY KEY, key TEXT NOT NULL);";
+    internal static string CreateStartSql(string start) => $"CREATE TEMP TABLE {start} (key TEXT PRIMARY KEY);";
 
-    /// <summary>Notes every entry of the index in the table of a sync.</summary>
-    internal string SnapshotSql(string start) => $"INSERT INTO {start}(doc_id, key) SELECT doc_id, key FROM {ContentTable};";
+    /// <summary>Notes every key of the index in the table of a sync.</summary>
+    internal string SnapshotSql(string start) => $"INSERT INTO {start}(key) SELECT key FROM {ContentTable};";
 
-    /// <summary>Crosses the entry <c>$id</c> off the table of a sync: the source has it.</summary>
-    internal static string FoundInSourceSql(string start) => $"DELETE FROM {start} WHERE doc_id = $id;";
+    /// <summary>Crosses the key <c>$key</c> off the table of a sync: the source has it.</summary>
+    internal static string FoundInSourceSql(string start) => $"DELETE FROM {start} WHERE key = $key;";
 
     internal static string DropTempSql(string table) => $"DROP TABLE IF EXISTS temp.{table};";
 
-    /// <summary>The next <c>$n</c> entries after <c>$after</c> the source did not have: <c>(doc_id, key)</c>, the smallest first.</summary>
-    internal static string NotFoundSql(string start) => $"SELECT doc_id, key FROM {start} WHERE doc_id > $after ORDER BY doc_id LIMIT $n;";
+    /// <summary>
+    /// The next <c>$n</c> keys the source did not have, after the row <c>$after</c> of the table: <c>(rowid, key)</c> — by
+    /// the rowid of the table, not by the key, so that the empty text key is not passed over.
+    /// </summary>
+    internal static string NotFoundSql(string start) => $"SELECT rowid, key FROM {start} WHERE rowid > $after ORDER BY rowid LIMIT $n;";
 
-    /// <summary>Removes the entry <c>$id</c> if it still has the key <c>$key</c>.</summary>
-    internal string RemoveNotFoundSql => $"DELETE FROM {ContentTable} WHERE doc_id = $id AND key = $key;";
+    /// <summary>Removes the entry of the key <c>$key</c>, if it is still there.</summary>
+    internal string RemoveNotFoundSql => $"DELETE FROM {ContentTable} WHERE key = $key;";
 
     /// <summary>The entries whose key a check did not find in the source: their count, or the keys of the first <c>$n</c>.</summary>
     internal string NotInSourceSql(string found, bool count) =>

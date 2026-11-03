@@ -77,8 +77,8 @@ public interface ILuiOwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
 
     /// <summary>
     /// Brings the index in step with a source (§12.4, §14, ADR-0016): adds what is missing, changes what differs, leaves
-    /// alone what is the same, and at the end removes every entry the source does not have — <b>the source is the
-    /// truth</b>, an entry upserted meanwhile and not in the source is removed too.
+    /// alone what is the same, and at the end removes the entries the source does not have — <b>the entries that were in
+    /// the index when the sync began</b>: one the application writes while the sync runs stays.
     /// <para>
     /// It works in batches (<see cref="LuiSyncOptions.BatchSize"/>), each in a transaction of its own on the catalog's
     /// writer, so other writers get their turn between them. Each batch is written in the order of the search index, with
@@ -87,7 +87,7 @@ public interface ILuiOwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// removal at the end happens only when the whole source was read.
     /// </para>
     /// </summary>
-    /// <param name="source">The entries; a key that comes twice is written twice, and the last one stays.</param>
+    /// <param name="source">The entries; of a key that comes twice the last one stays.</param>
     /// <param name="options">Batch size and progress; <see langword="null"/> takes the defaults.</param>
     /// <param name="cancellationToken">Checked between the entries; the batch that is running is rolled back.</param>
     /// <returns>What was added, changed, kept and removed.</returns>

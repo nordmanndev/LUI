@@ -598,8 +598,7 @@ für die Kandidaten berechnet (≤ `Candidates`) und nur in Stufe 2 des Rankings
 ## 12. Öffentliche API
 
 Die Listings in § 12 beschreiben die **Ziel-API**: Was erst mit einem späteren Schritt kommt, ist markiert
-(`Sync` und `Check` bei `Owned` mit Schritt 7, `Highlight` mit Schritt 8) und lässt sich bis dahin nicht
-kompilieren. Was heute gilt, führt der Quick Start des README vor; der Paket-Smoke-Test führt ihn aus.
+(`Highlight` und die Dependency Injection mit Schritt 8) und lässt sich bis dahin nicht kompilieren. Was heute gilt, führt der Quick Start des README vor; der Paket-Smoke-Test führt ihn aus.
 
 ### 12.1 Katalog öffnen
 
@@ -696,8 +695,9 @@ tx.Commit();
 // viele Einträge in einer Transaktion — so wird ein Index gefüllt, nie Zeile für Zeile
 recipes.UpsertMany(rows.Select(r => new LuiEntry<long, RecipeChip>(r.Id, r.Title) { Weight = r.Views }));
 
-// Abgleich mit einer Quelle: ergänzt, ändert, entfernt, was fehlt (Schritt 7)
-SyncReport report = recipes.Sync(source, new LuiSyncOptions { BatchSize = 10_000, Progress = progress }, cancellationToken);
+// Abgleich mit einer Quelle: ergänzt, was fehlt, ändert, was abweicht, entfernt, was die Quelle nicht hat (ADR-0016)
+LuiSyncReport report = recipes.Sync(source, new LuiSyncOptions { BatchSize = 10_000, Progress = progress }, cancellationToken);
+// report.Added, .Changed, .Unchanged, .Removed, .Batches, .Merged
 ```
 
 `UpsertMany` schreibt ohne Transaktion der Anwendung in **einer eigenen**: alle Einträge oder — bei einem
@@ -755,11 +755,19 @@ wird (ganz / in Wörtern / kompakt), der Präfix-Pfad, die Regel *Wortanfang*.
 ### 12.6 Prüfen und reparieren
 
 ```csharp
-IntegrityReport check = recipes.Check(source);   // Owned: Abweichungen zur Quelle (fehlt / überzählig / anders)
-IntegrityReport fts   = recipes.Check();         // beide: FTS5 integrity-check, Trigger vorhanden, Definition = lui_meta
-recipes.Rebuild();                               // FTS5 'rebuild' aus der Inhaltstabelle
-recipes.Optimize();                              // FTS5 'optimize'
+LuiIntegrityReport check = recipes.Check(source);   // Owned: Abweichungen zur Quelle (fehlt / überzählig / anders)
+LuiIntegrityReport self  = recipes.Check();         // beide: Definition = lui_meta, Trigger, FTS5 integrity-check
+LuiIntegrityReport tags  = tagIndex.Check();        // Linked: dazu die Einträge gegen die Zeilen der Tabelle
+recipes.Rebuild();                                  // Owned: Trigger und Suchindex neu aus der Inhaltstabelle, zusammengeführt
+recipes.Optimize();                                 // FTS5 'optimize'
 ```
+
+Ein Bericht nennt jeden Befund in einem Satz mit der Reparatur (`Sync(source)`, `Rebuild()`, `Sync()`, `ApplyPending()`,
+`CreateTriggers()`) und zählt bei einem Vergleich fehlende, überzählige und abweichende Einträge, mit bis zu fünf
+Schlüsseln. `IsHealthy` heißt: nichts gefunden. `Check(source)` liest in einem eigenen Snapshot und ändert nichts;
+`Check()` führt die Integritätsprüfung von FTS5 unter der Schreibsperre aus (ein `INSERT`, das zurückgerollt wird).
+Bei `Linked` sieht `Check()` keinen Text, der sich hinter den ersten beiden Buchstaben geändert hat — der Suchindex
+speichert ihn nicht; eine Abfrage zeigt ihn trotzdem nie (§ 7.3), und `Sync()` repariert ihn.
 
 ### 12.7 Dependency Injection
 
@@ -818,9 +826,14 @@ Thread des Pools.
 | Prüfung | `Check(source)`, `Check()` | `Check()` |
 | Reparatur | `Sync(source)`, `Rebuild()` | `Sync()` |
 
-`Sync` arbeitet in Stapeln (Standard 10.000) in je einer Transaktion und
-markiert gesehene Schlüssel; am Ende werden nicht gesehene entfernt. Er ist
-abbrechbar und wieder aufsetzbar.
+`Sync` (`Owned`) arbeitet in Stapeln (Standard 10.000) in je einer Transaktion. Zu Beginn merkt er sich die
+Schlüssel des Index, streicht jeden, den die Quelle hat, und entfernt am Ende, was übrig ist: die Schlüssel, die beim
+Start im Index waren und in der Quelle fehlen. Ein Schlüssel, den die Anwendung währenddessen neu schreibt, bleibt. Er ist abbrechbar und wieder aufsetzbar: Ein abgebrochener Sync behält die
+übergebenen Stapel und entfernt nichts; ein zweiter Lauf findet sie unverändert und schreibt nur den Rest. Jeder
+Stapel wird in der Reihenfolge des Suchindex geschrieben, ohne die laufende Zusammenführung von FTS5; am Ende wird der
+Suchindex einmal zusammengeführt (ADR-0016). Gemessen an 1 Mio. Einträgen: 73 s mit Stapeln zu 10.000, 54 s mit
+100.000; danach p95 der Abfrage 3,6 ms statt 5,4 ms nach `UpsertMany`. `Sync` (`Linked`) baut den Index in **einer**
+Transaktion neu.
 
 ---
 
@@ -880,16 +893,18 @@ bzw. `ILui` (ein Architekturtest hält das fest, ADR-0013). Die übrigen Namespa
 | Namespace | Inhalt | sichtbar |
 |---|---|---|
 | `Nordmann.LUI` | `LuiCatalog`, die Builder-Stufen, `ILuiIndex`, `ILuiOwnedIndex`, `LuiEntry`, Abfrage, Optionen, Ergebnisse, `ILuiSimilarity`/`LuiSimilarity`, `ILuiPayloadSerializer`, Ausnahmen | öffentlich |
-| `Nordmann.LUI.Indexes` | ein Index: setzt Inhaltsquelle, Schreibzugriffe und Abfrage zusammen (`Owned`, `Linked`); führt `Sync`, `Check`, `Rebuild` aus | intern |
+| `Nordmann.LUI.Indexes` | ein Index: setzt Inhaltsquelle, Schreibzugriffe und Abfrage zusammen (`Owned`, `Linked`); führt `Sync`, `Check`, `Rebuild` aus; die gespeicherten Definitionen (`IndexStore`) | intern |
 | `Nordmann.LUI.Querying` | Abfrage-Ablauf als Pipeline: Kandidaten, Korrektur, Ranking, Treffer | intern |
 | `Nordmann.LUI.Writing` | Schreibzugriffe (vorbereitete Statements) | intern |
 | `Nordmann.LUI.Schema` | Definition, Rowid, Regeln der Art, Inhaltsquellen mit ihrem SQL — auch dem von `Sync` und `Check`, nicht deren Ausführung | intern |
 | `Nordmann.LUI.Typos` | Wörterbuch der Wortanfänge | intern |
 | `Nordmann.LUI.Normalization` | `Normalizer`, SQL-Ausdrücke, Zuordnung für Highlight | intern |
+| `Nordmann.LUI.Storage` | die Datenbank des Katalogs: Verbindungen mit den Pragmas, der Schreiber und seine Sperre, die laufenden Vorgänge | intern |
 
 Die internen Namespaces haben eine Richtung: Jeder kennt nur die unter ihm (in der Tabelle von oben nach unten;
-`Typos` und `Normalization` kennen keinen anderen). Keiner kennt die Builder; den Katalog kennen nur `Querying` und
-`Indexes`, bis er zerlegt ist (Schritt 7). Was schreibt und Verbindungen braucht — `Sync`, `Check`, `Rebuild` —,
+`Typos`, `Normalization` und `Storage` kennen keinen anderen). Keiner kennt die Builder oder den Katalog: Der Katalog ist
+eine Fassade über `Storage.Database`, `Indexes.IndexStore` (die gespeicherten Definitionen und ihr DDL) und
+`Typos.TypoDictionaries` (ADR-0016). Was schreibt und Verbindungen braucht — `Sync`, `Check`, `Rebuild` —,
 wird in `Indexes` ausgeführt; `Schema` liefert nur das SQL dazu. Die Regeln der Art (`SingleWord`, `MultiWord`) stehen an
 **einer** Stelle, die Inhaltsquelle (`Owned`, `Linked`) ist eine Nahtstelle; die Abfrage kennt keinen
 Tabellennamen. Architekturtests halten das fest (ADR-0014).
@@ -957,7 +972,7 @@ Jeder Schritt ist ein Pull Request mit ADR, Tests und Messung.
 | 4 | `MultiWord`: Zerlegung, `s_compact`, Wortanfang kompakt, N-gram Dice | Goldene Abfragen für `MultiWord` |
 | 5 | Tippfehler-Toleranz | Qualitätsuntergrenzen für Tippfehler, Nebenläufigkeitstest |
 | 6 | `Linked`, lose gekoppelt (ADR-0015) | Integrationstests mit einer Tabelle der Anwendung: Schema unverändert, `Refresh` mit und ohne Transaktion, `Sync`, Trigger nur auf Aufruf |
-| 7 | `Sync`, `Check`, `Rebuild`, `Optimize` | Abgleich mit 1 Mio. Einträgen, Abbruch und Wiederaufsetzen |
+| 7 | `Sync`, `Check`, `Rebuild`, `Optimize`; der Katalog zerlegt (ADR-0016) | Abgleich mit 1 Mio. Einträgen, Abbruch und Wiederaufsetzen |
 | 8 | Fluent-Feinschliff, `Highlight`, DI-Paket, README, Beispiele | Paket-Smoke-Test mit README-Code |
 | 9 | Leistungsbudgets und Benchmarks auf 3 Mio. Einträgen | alle Ziele aus § 16 als Tests grün |
 

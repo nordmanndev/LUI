@@ -47,3 +47,4 @@ here — in the **same pull request** as the change it describes.
 | [0013](./0013-the-api-shape-before-the-first-release.md) | The API shape before the first release: steps, one namespace, entries, named results | Accepted |
 | [0014](./0014-seams-for-the-second-content-source.md) | Seams for the second content source: the kind and the source as strategies, one direction inside | Accepted |
 | [0015](./0015-the-linked-index-is-loosely-coupled.md) | The linked index is loosely coupled: LUI never changes the application's table on its own | Accepted |
+| [0016](./0016-sync-check-rebuild.md) | Sync, check and rebuild: batches that can be run again, a merge at the end, a catalog taken apart | Accepted |

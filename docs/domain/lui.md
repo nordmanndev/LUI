@@ -100,12 +100,16 @@ index: `Refresh(key)` after a write (in its transaction, if it likes),
 API for the content of a linked index, on purpose: the table is the content.
 
 **The reconciliation.** `Sync` compares the content table with a source in
-batches, adds what is missing, changes what differs, removes what is gone.
-It is cancellable and resumable.
+batches, adds what is missing, changes what differs, removes the keys that
+were in the index when the sync began and that the source does not have — a
+key the application adds meanwhile stays. It is cancellable and resumable: a second run
+skips what the first committed (ADR-0016).
 
-**The repair.** `Check` compares the content table with a source, `Check()`
-verifies the FTS5 index and the triggers, `Rebuild` rebuilds the search index
-from the content table, `Optimize` compacts it.
+**The repair.** `Check(source)` compares the content table with a source,
+`Check()` verifies the definition, the triggers and the FTS5 index (for a
+linked index also the entries against the table's rows), `Rebuild` rebuilds the
+triggers and the search index from the content table, `Optimize` merges it.
+Each finding of a check names its repair.
 
 ## 6. The extension points
 
