@@ -5,17 +5,25 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** [#13](https://github.com/nordmanndev/LUI/issues/13) — Seams for Linked (PR-005b)
-**Branch:** `refactor/linked-seams`
-**State:** implemented, measured and verified; the pull request is opened when the owner asks.
+**Issue:** [#15](https://github.com/nordmanndev/LUI/issues/15) — Linked index, loosely coupled (PR-006)
+**Branch:** `feat/linked-index`
+**State:** the spike is done and passed; the implementation is next.
 
 ## Where the work stands
 
-- ADR-0014: `Schema/IndexKindRules` (+ `SingleWordRules`, `MultiWordRules`), `Schema/ContentSource` (+ `OwnedSource`),
-  `Querying` as a pipeline (`CandidateReader`, `TypoCorrection`, `HitReader`, `PayloadReader`), namespaces `Indexes` /
-  `Querying` / `Writing` / `Schema` / `Typos` / `Normalization` with one direction (NetArchTest).
-- Open decisions of the owner: ADR-0010 (the §16 query budget at 3 M entries); whether the typo dictionary should learn
-  only committed writes (commit hooks, review of PR #12).
+- **The owner's decisions (2026-11-03):** no column, no index, no implicit trigger on the application's table — `Ensure()`
+  creates `lui_*` tables only; the application keeps the index current with `Sync`, `Refresh(id, transaction = null)`,
+  `RefreshMany(ids, transaction = null)` (the transaction is always optional: without one LUI opens its own, reads the row
+  and writes the index in it); triggers only on request: `TriggerScript()`, `CreateTriggers()`, `DropTriggers()`.
+  `allowSchemaChange` goes away. Builder: `Owned<long>` default, `WithKey<string>()`, `LinkTo(…)` only before a key or a
+  payload.
+- **The spike** (`LinkedLayoutExperiment`, gated, 200,000 entries, the whole word list): a contentless FTS5 table
+  (`content=''`, `contentless_delete=1`) + `lui_<name>(doc_id, s_rowid, s_p1, s_p2)` without text; text from the
+  application's table by primary key. Same candidates as `Owned` for all 2,000 inputs, fresh and after 2,000 removals and
+  1,000 weight changes; plan `VIRTUAL TABLE INDEX 64` + `INTEGER PRIMARY KEY`, the prefix path on a covering index;
+  integrity-check and optimize pass. File: index 36 MB against 45 MB (−20 %). Query p95: fresh 1.45 vs 1.15 ms, after the
+  writes 1.78 vs 1.05 ms (the tombstones of contentless_delete), **after optimize 0.82–0.84 vs 0.92 ms**.
+- Open decisions of the owner: ADR-0010; commit hooks for the typo dictionary.
 
 ## The next step
 
