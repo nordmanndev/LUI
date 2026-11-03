@@ -130,12 +130,19 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         Console.Error.WriteLine("[perf] " + line);
     }
 
-    private static List<string> Words()
+    /// <summary>
+    /// The words of the corpus: the whole German word list when <c>tools/fetch-wordlist.sh</c> fetched it, otherwise
+    /// the sample in the repository. Which one it was is reported — a worktree has no <c>artifacts/</c>, and two
+    /// measurements on two corpora are not a comparison (review of pull request 14, N5).
+    /// </summary>
+    private List<string> Words()
     {
         var root = Testing.Repository.RootPath;
         var full = Path.Combine(root, "artifacts", "wordlist", "german-words.txt");
         var path = File.Exists(full) ? full : Path.Combine(root, "tests", "Nordmann.LUI.TestData", "wordlist", "german-words.sample.txt");
-        return [.. File.ReadLines(path).Where(w => w.Length >= 3)];
+        List<string> words = [.. File.ReadLines(path).Where(w => w.Length >= 3)];
+        Report($"corpus: {Path.GetRelativePath(root, path)} ({words.Count:N0} words)");
+        return words;
     }
 
     /// <summary>The words first, then compounds of two words — German is full of them.</summary>

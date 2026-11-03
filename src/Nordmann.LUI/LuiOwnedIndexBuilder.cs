@@ -126,7 +126,7 @@ public sealed class LuiOwnedIndexBuilder<TKey, TPayload>
             _catalog,
             source,
             _payload,
-            _similarity ?? source.Kind.DefaultSimilarity,
+            _similarity ?? source.Rules.DefaultSimilarity,
             _typoTolerance);
     }
 }

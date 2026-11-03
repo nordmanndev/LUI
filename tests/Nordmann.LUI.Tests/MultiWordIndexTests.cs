@@ -1,3 +1,4 @@
+using Nordmann.LUI.Schema;
 using Microsoft.Data.Sqlite;
 using Nordmann.LUI.Normalization;
 using Shouldly;
@@ -347,7 +348,7 @@ public sealed class MultiWordIndexTests
         for (var i = 0; i < 600; i++)
         {
             var query = RandomQuery(titles, random);
-            var prepared = Querying.PreparedQuery.Create(query, NormalizationOptions.Default, LuiIndexKind.MultiWord);
+            var prepared = Querying.PreparedQuery.Create(query, NormalizationOptions.Default, MultiWordRules.Instance);
             var longWords = prepared.Words.Where(w => w.Length >= 3).ToArray();
             if (prepared.IsPrefixPath || longWords.Length == 0)
             {

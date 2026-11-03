@@ -62,7 +62,7 @@ internal sealed class OwnedSource : ContentSource
     {
         var content = ContentTable;
         var fts = FtsTable;
-        var column = Kind.IndexedColumn;
+        var column = Rules.IndexedColumn;
 
         return
         [
@@ -112,9 +112,9 @@ internal sealed class OwnedSource : ContentSource
             weight   INTEGER NOT NULL CHECK (weight BETWEEN 0 AND {RowId.MaxWeight}),
             priority INTEGER NOT NULL DEFAULT 3 CHECK (priority BETWEEN 0 AND 3),
             payload  BLOB,
-            s_norm   TEXT GENERATED ALWAYS AS ({SqlNormalizer.Transliteration("text", Definition.GermanTransliteration)}) {Kind.NormStorage}{Kind.CompactColumn},
-            s_p1     TEXT GENERATED ALWAYS AS (substr(lower({Kind.PrefixSource}), 1, 1)) STORED,
-            s_p2     TEXT GENERATED ALWAYS AS (substr(lower({Kind.PrefixSource}), 1, 2)) STORED,
+            s_norm   TEXT GENERATED ALWAYS AS ({SqlNormalizer.Transliteration("text", Definition.GermanTransliteration)}) {Rules.NormStorage}{Rules.CompactColumn},
+            s_p1     TEXT GENERATED ALWAYS AS (substr(lower({Rules.PrefixSource}), 1, 1)) STORED,
+            s_p2     TEXT GENERATED ALWAYS AS (substr(lower({Rules.PrefixSource}), 1, 2)) STORED,
             s_rowid  INTEGER GENERATED ALWAYS AS ((priority << 61) | (({RowId.MaxWeight} - weight) << 32) | doc_id) STORED
         );
         """;

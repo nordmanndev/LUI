@@ -46,7 +46,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         var started = Stopwatch.GetTimestamp();
         using var scope = _catalog.Begin();
 
-        var query = PreparedQuery.Create(input, _source.Normalization, _source.Kind);
+        var query = PreparedQuery.Create(input, _source.Normalization, _source.Rules);
         if (query.IsEmpty)
         {
             return new LuiResult<TKey, TPayload> { Query = input, Hits = [], Timings = Timings(options, started, started, started, started, started) };

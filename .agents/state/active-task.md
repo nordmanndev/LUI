@@ -30,6 +30,16 @@ weight, priority, allowSchemaChange)` (the name replaces the spec's `LinkedTo`) 
 offered only on `LuiOwnedIndexBuilder<long, LuiNoPayload>` (an extension method: the compiler refuses it after `WithKey` or
 `WithPayload`). Spec §12.2, ADR-0013 and the README quick start follow; an ADR records the change.
 
+**From the review of PR #14, for PR-006:** S3 — the hits SQL and its `PayloadReader` come from the source together (the
+columns of the payload and the order they are read in must not be decided in two places); N2 — `ContentSource.DropStatements`
+decides by the stored source (a test that fails for an unknown one); N3 — `CompactColumn` returns the column definition only,
+the source adds comma and layout (`ALTER TABLE … ADD COLUMN` for `Linked`); N6 — a `long` key near 2³²−1 read back through
+`HitReader` (the key is read as text today). For PR-007 (D4): remove the named `LuiCatalog` exception of
+`Internal_Layering.No_layer_goes_up_through_the_facade`.
+
+**Measuring against `main`:** a worktree has no `artifacts/` — copy `artifacts/wordlist/german-words.txt` into it, or
+`QueryPerformance` silently measures the sample list (review of PR #14, N5).
+
 PR-006 — `Linked`: an index over a table of the application (spec §5, §7.3, §12.2, §12.8). `LinkedTo(table, key, text, weight,
 priority, allowSchemaChange)`; five generated columns, three indexes and three triggers on the application's table; the payload from
 columns of the table; `LuiSchemaChangeRequiredException`.

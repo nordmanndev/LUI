@@ -20,7 +20,7 @@ internal abstract class ContentSource
     {
         IndexName = indexName;
         Definition = definition;
-        Kind = IndexKindRules.For(definition.Kind);
+        Rules = IndexKindRules.For(definition.Kind);
         Normalization = new NormalizationOptions { GermanTransliteration = definition.GermanTransliteration };
     }
 
@@ -30,8 +30,8 @@ internal abstract class ContentSource
     /// <summary>The stored definition of the index.</summary>
     internal IndexDefinition Definition { get; }
 
-    /// <summary>The rules of the kind of the index.</summary>
-    internal IndexKindRules Kind { get; }
+    /// <summary>The rules of the kind of the index — everything that follows from the kind.</summary>
+    internal IndexKindRules Rules { get; }
 
     /// <summary>The normalisation the content was stored with — the one every input is read with.</summary>
     internal NormalizationOptions Normalization { get; }

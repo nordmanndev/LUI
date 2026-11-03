@@ -43,7 +43,7 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
         _payload = payload;
         _source = source;
         Name = source.IndexName;
-        Kind = source.Kind.Kind;
+        Kind = source.Rules.Kind;
         _typos = catalog.TypoDictionaryFor(Name, source.Normalization, () => TypoSource.Read(catalog, source.TextsSql));
         _runner = new QueryRunner<TKey, TPayload>(
             catalog, source, new SerializedPayload<TPayload>(payload), similarity, _typos, typoTolerance);

@@ -64,9 +64,6 @@ internal sealed class PreparedQuery
     /// <summary>The FTS5 expression for the candidates (§8.2).</summary>
     internal string Expression => _kind.Expression(Search, Compact, Words);
 
-    internal static PreparedQuery Create(string input, NormalizationOptions options, LuiIndexKind kind) =>
-        Create(input, options, IndexKindRules.For(kind));
-
     internal static PreparedQuery Create(string input, NormalizationOptions options, IndexKindRules kind)
     {
         ArgumentNullException.ThrowIfNull(input);
@@ -83,7 +80,4 @@ internal sealed class PreparedQuery
             Normalizer.ToCompactForm(text, options),
             kind);
     }
-
-    /// <summary>A term as an FTS5 string (<see cref="IndexKindRules.Quote"/>).</summary>
-    internal static string Quote(string term) => IndexKindRules.Quote(term);
 }

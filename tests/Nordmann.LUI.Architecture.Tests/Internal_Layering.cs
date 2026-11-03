@@ -17,7 +17,10 @@ namespace Nordmann.LUI.Architecture.Tests;
 ///       Schema            definitions, the rules of a kind, the content sources and their SQL
 ///         Typos  Normalization
 /// </code>
-/// The root namespace is outside the rule: it holds the public types every layer speaks in.
+/// The root namespace holds the public types every layer speaks in, and the facade above all of them: the
+/// builders and the catalog. A layer may use the public types, never the builders — that would be a way up
+/// past the rule (review of pull request 14, S1). The catalog is the one named exception, for the query path
+/// and the indexes, until it is taken apart (D4, PR-007): they need its operation scope and its connections.
 /// </summary>
 public sealed class Internal_Layering
 {
@@ -46,6 +49,61 @@ public sealed class Internal_Layering
             + string.Join(", ", result.FailingTypeNames ?? []));
     }
 
+    [Theory]
+    [InlineData("Normalization", false)]
+    [InlineData("Typos", false)]
+    [InlineData("Schema", false)]
+    [InlineData("Writing", false)]
+    [InlineData("Querying", true)]
+    [InlineData("Indexes", true)]
+    public void No_layer_goes_up_through_the_facade(string layer, bool mayUseTheCatalog)
+    {
+        // every builder of the public API, the ones to come included
+        var facade = LibraryAssembly
+            .GetExportedTypes()
+            .Where(type => string.Equals(type.Namespace, Root, StringComparison.Ordinal)
+                        && type.Name.Contains("Builder", StringComparison.Ordinal))
+            .Select(type => type.FullName!)
+            .ToList();
+        facade.ShouldNotBeEmpty();
+
+        // the named exception (D4, PR-007)
+        if (!mayUseTheCatalog)
+        {
+            facade.Add($"{Root}.LuiCatalog");
+        }
+
+        var result = Types
+            .InAssembly(LibraryAssembly)
+            .That()
+            .ResideInNamespace($"{Root}.{layer}")
+            .ShouldNot()
+            .HaveDependencyOnAny([.. facade])
+            .GetResult();
+
+        result.IsSuccessful.ShouldBeTrue(
+            $"{Root}.{layer} must not depend on {string.Join(", ", facade)}. Failing types: "
+            + string.Join(", ", result.FailingTypeNames ?? []));
+    }
+
+    [Fact]
+    public void Only_the_rules_know_the_rules_of_a_kind()
+    {
+        // The kind is asked through the rules, never by testing which rules they are:
+        // `source.Rules is MultiWordRules` is the comparison of the kind under another name (review of pull request 14, S2).
+        var result = Types
+            .InAssembly(LibraryAssembly)
+            .That()
+            .DoNotHaveName("IndexKindRules", "SingleWordRules", "MultiWordRules")
+            .ShouldNot()
+            .HaveDependencyOnAny($"{Root}.Schema.SingleWordRules", $"{Root}.Schema.MultiWordRules")
+            .GetResult();
+
+        result.IsSuccessful.ShouldBeTrue(
+            "Only IndexKindRules.For knows the classes of the rules. Failing types: "
+            + string.Join(", ", result.FailingTypeNames ?? []));
+    }
+
     [Fact]
     public void Only_the_rules_of_a_kind_ask_which_kind_an_index_is()
     {
@@ -61,7 +119,8 @@ public sealed class Internal_Layering
             "LuiIndexKind.cs",
         ];
 
-        var kind = new Regex(@"\bLuiIndexKind\.(SingleWord|MultiWord)\b", RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
+        // the name of a kind, with or without its enum: `using static` makes `kind == MultiWord` possible too
+        var kind = new Regex(@"\b(SingleWord|MultiWord)\b", RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1));
 
         var offenders = Repository
             .SourceFiles(Repository.LibraryDirectory)

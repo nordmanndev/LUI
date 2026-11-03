@@ -46,7 +46,7 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
 
         foreach (var text in typos.Corrections(query.Search))
         {
-            var variant = PreparedQuery.Create(text, source.Normalization, source.Kind);
+            var variant = PreparedQuery.Create(text, source.Normalization, source.Rules);
             if (variant.IsPrefixPath || variant.IsEmpty)
             {
                 continue;
