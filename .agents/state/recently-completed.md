@@ -12,6 +12,24 @@ the scratchpad here at the end of a session.
   are untangled. Docs: the F1 edge is 501 (not 1,001), the test package `Microsoft.Extensions.Hosting` is named, the
   order of hosted services is documented (+ a test with a migration registered before `AddLui`).
 
+## 2026-11-03 — #22 → PR #25: the test tree (branch `feat/test-landscape`)
+
+- ADR-0019. The one test project becomes three — `Nordmann.LUI.Unit.Tests` (no SQLite at all),
+  `Nordmann.LUI.Integration.Tests`, `Nordmann.LUI.Architecture.Tests` — plus `Nordmann.LUI.Testing`, a
+  library with the shared setup. The unit lane: 134 tests in 1.0 s; the whole suite 495 → 509 tests,
+  37 s → 34 s.
+- `docs/testing.md` is the map of the tests, and `Test_Landscape` is its guard: the map and the tree
+  must agree, in both directions. The unit of the map is the *file* — parsing class names out of the
+  source found the words "at", "that" and "holds" in the comments.
+- The silent green is gone: the full-word-list parity reported *Passed* in 1 ms when the list was
+  missing. Now it is skipped with the reason, and it fails under `LUI_REQUIRE_FULL_WORDLIST=1`.
+- The gaps closed: `LuiJsonPayloadSerializer` (public, untested), the lazy similarity of ADR-0008
+  (a promise about work — provable only by counting the calls of the measure), the ranking orders.
+  The measurement asserted nothing below 3 M entries; the allocation budget holds at every size now.
+- `Alba` was a dead pin; the guard checks version → reference now, with the three
+  `Microsoft.Extensions.*` pins of ADR-0013 as the only named exception.
+- CI runs the three lanes, the parity over the whole word list and the mutation check. The script
+  itself grew a rule: a filter that matches no test is a broken script, not a caught mutation.
 ## 2026-11-03 — PR-008: dependency injection and hosted services (issue #21)
 
 - ADR-0017. `AddLui(…)`, `.AddIndex(name, index => …)` (owned or linked by the lambda's return type), keyed singletons

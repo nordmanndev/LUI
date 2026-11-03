@@ -47,6 +47,39 @@ public sealed class Repository_Layout
     }
 
     [Fact]
+    public void Every_Central_PackageVersion_is_referenced_somewhere()
+    {
+        // The other direction of the rule above. A pinned version that no
+        // project references is a version nobody uses — and nobody notices,
+        // because it looks like a dependency. Alba was pinned for a test
+        // framework that was never taken; the pin survived the test.
+        //
+        // There is no exception any more. The three abstractions that ADR-0013
+        // kept on purpose — "they come back with the dependency injection
+        // (PR-008)" — are referenced by the hosting package now (ADR-0018).
+        var central = Repository
+            .Elements(Repository.LoadXml(Path.Combine(Repository.RootPath, "Directory.Packages.props")), "PackageVersion")
+            .Select(version => version.Attribute("Include")?.Value)
+            .Where(name => name is not null)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var referenced = Repository
+            .ProjectFiles()
+            .SelectMany(file => Repository.Elements(Repository.LoadXml(file), "PackageReference")
+                .Select(reference => reference.Attribute("Include")?.Value)
+                .Where(name => name is not null))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var unused = central
+            .Where(name => !referenced.Contains(name))
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        unused.ShouldBeEmpty(
+            "Every pinned version is used by a project. A pin nobody references is a dependency that does not exist.");
+    }
+
+    [Fact]
     public void Only_the_library_project_is_packable()
     {
         var packable = Repository

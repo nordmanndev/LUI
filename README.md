@@ -215,6 +215,7 @@ and `ApplyPending()` after your writes or in a `PeriodicTimer` loop.
 src/Nordmann.LUI/            ← the library (package Nordmann.LUI)
 src/Nordmann.LUI.Hosting/    ← the dependency injection (package Nordmann.LUI.Hosting, same version)
 tests/                       ← unit, architecture and integration tests
+                              (and the map of them: docs/testing.md)
 benchmarks/                  ← BenchmarkDotNet + the corpus generator
 samples/Lui.Sample/          ← ASP.NET Core API + the inline static site
 docs/adr/                    ← the decisions, and why

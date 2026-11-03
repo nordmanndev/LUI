@@ -91,7 +91,11 @@ nordmanndev/LUI/
 │       ├── Payloads/            ← serialization, column mapping
 │       └── DependencyInjection/ ← AddLui(), keyed services, hosted ensure
 ├── tests/
-│   ├── Nordmann.LUI.Tests/            ← unit + integration (xUnit · Shouldly · Alba)
+│   ├── Nordmann.LUI.Unit.Tests/       ← the rules, without a database (xUnit · Shouldly)
+│   ├── Nordmann.LUI.Integration.Tests/← the library against SQLite
+│   ├── Nordmann.LUI.Architecture.Tests/← the shape of the repository
+│   ├── Nordmann.LUI.Testing/          ← the shared setup (a library, no tests)
+│   ├── Nordmann.LUI.TestData/         ← the corpora (no project)
 │   ├── Nordmann.LUI.Architecture.Tests/← NetArchTest rules (standards mandate)
 │   └── Nordmann.LUI.TestData/         ← corpus + fixtures shared by tests & benchmarks
 ├── benchmarks/

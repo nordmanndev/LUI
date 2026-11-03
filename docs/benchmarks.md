@@ -79,7 +79,7 @@ candidates, `WordStartThenSimilarity`, Jaro-Winkler. One query is
 ```bash
 tools/fetch-wordlist.sh
 LUI_PERF=1 LUI_PERF_ENTRIES=3000000 \
-  dotnet test tests/Nordmann.LUI.Tests -c Release --filter QueryPerformance \
+  dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter QueryPerformance \
   --logger "console;verbosity=detailed"
 # LUI_PERF_DB=<path> keeps the database, so that the next run skips the build
 ```
@@ -254,7 +254,7 @@ each, in either order. Row-by-row build through the triggers.
 
 ```bash
 LUI_PERF=1 LUI_PERF_KIND=multi LUI_PERF_ENTRIES=1000000 \
-  dotnet test tests/Nordmann.LUI.Tests -c Release --filter QueryPerformance \
+  dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter QueryPerformance \
   --logger "console;verbosity=detailed"
 ```
 
@@ -285,7 +285,7 @@ kinds (a letter left out, one too many, one wrong, two swapped) after the first 
 
 ```bash
 tools/fetch-wordlist.sh
-LUI_PERF=1 dotnet test tests/Nordmann.LUI.Tests -c Release --filter TypoPerformance --logger "console;verbosity=detailed"
+LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter TypoPerformance --logger "console;verbosity=detailed"
 ```
 
 | | Result | Target (§16) |

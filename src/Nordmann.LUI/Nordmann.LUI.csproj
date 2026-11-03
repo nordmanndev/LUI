@@ -23,9 +23,12 @@
     <PackageOutputPath>$(MSBuildThisFileDirectory)../../artifacts/nuget</PackageOutputPath>
   </PropertyGroup>
 
-  <!-- Test projects may see internals; nothing else may. -->
+  <!-- Test projects may see internals; nothing else may. The unit tests read
+       the rules of the library (the normaliser, the word start, the ranking)
+       directly, and the integration tests read the schema and the query path. -->
   <ItemGroup>
-    <InternalsVisibleTo Include="Nordmann.LUI.Tests" />
+    <InternalsVisibleTo Include="Nordmann.LUI.Unit.Tests" />
+    <InternalsVisibleTo Include="Nordmann.LUI.Integration.Tests" />
     <InternalsVisibleTo Include="Nordmann.LUI.Architecture.Tests" />
     <InternalsVisibleTo Include="Nordmann.LUI.Benchmarks" />
   </ItemGroup>

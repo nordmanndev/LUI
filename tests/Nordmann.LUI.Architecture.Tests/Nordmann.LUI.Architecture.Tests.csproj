@@ -17,12 +17,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Include="../Shared/Repository.cs" Link="Shared/Repository.cs" />
-  </ItemGroup>
-
-  <ItemGroup>
     <ProjectReference Include="../../src/Nordmann.LUI/Nordmann.LUI.csproj" />
     <ProjectReference Include="../../src/Nordmann.LUI.Hosting/Nordmann.LUI.Hosting.csproj" />
+    <ProjectReference Include="../Nordmann.LUI.Testing/Nordmann.LUI.Testing.csproj" />
   </ItemGroup>
 
   <ItemGroup>

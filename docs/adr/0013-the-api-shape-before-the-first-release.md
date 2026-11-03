@@ -122,7 +122,7 @@ triggers and building the search index sorted — stays in PR-007 (ADR-0010).
   one per index) and an `IHostedService` that warms the dictionary — both with the dependency injection (PR-008);
   `Suggest(text, take)` as a shortcut — `Search(text)` covers the default case.
 
-**Verified by:** `tests/Nordmann.LUI.Tests/ApiShapeTests.cs` (the entry, the batch: all or nothing, cancellation, the
+**Verified by:** `tests/Nordmann.LUI.Integration.Tests/ApiShapeTests.cs` (the entry, the batch: all or nothing, cancellation, the
 application's transaction, the typo dictionary — and what a rollback leaves in it —, beside other writers; the options and the parameter names of their errors; the key type; the read interface;
 `DropIndex`), `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs`
 (`A_consumer_needs_one_using_and_every_public_type_says_it_is_lui`,

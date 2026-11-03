@@ -27,7 +27,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="Nordmann.LUI.Tests" />
+    <InternalsVisibleTo Include="Nordmann.LUI.Unit.Tests" />
+    <InternalsVisibleTo Include="Nordmann.LUI.Integration.Tests" />
     <InternalsVisibleTo Include="Nordmann.LUI.Architecture.Tests" />
   </ItemGroup>
 

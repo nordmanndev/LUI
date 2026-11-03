@@ -154,7 +154,7 @@ sync 10.5 s, `UpsertMany` 8.1 s, the same sync again 1.8 s, `Check()` 0.3 s, `Re
    and has to reach the new ones too (noted in the outbox, applied after the swap). Not built here: it is a second write
    path for every refresh, and the owner should decide whether a 30-second lock per million rows is a problem worth it.
 
-**Verified by:** `tests/Nordmann.LUI.Tests/SyncCheckRebuildTests.cs` (30 tests: a sync into an empty index, adds,
+**Verified by:** `tests/Nordmann.LUI.Integration.Tests/SyncCheckRebuildTests.cs` (30 tests: a sync into an empty index, adds,
 changes, keeps and removes, the same sync again, the payload compared, batches and progress, cancelled and run again,
 a source that fails, a key added and a key written again while the sync runs, the empty text key, a key twice in two batches counted as a change, a key twice in a
 batch and across batches, the same answers as single upserts, `automerge` back on,

@@ -136,7 +136,7 @@ gives — the bulk path for `Owned` stays in PR-007.
   with `WithKey<string>()`.
 - `Check()` for `Linked` comes with PR-007, as for `Owned`.
 
-**Verified by:** `tests/Nordmann.LUI.Tests/LinkedIndexTests.cs` (43 tests; from the review of pull request 16: the outbox — noted, applied, out of the outbox after a refresh and a sync, more than one batch, a script without FTS5 —, a key out of
+**Verified by:** `tests/Nordmann.LUI.Integration.Tests/LinkedIndexTests.cs` (43 tests; from the review of pull request 16: the outbox — noted, applied, out of the outbox after a refresh and a sync, more than one batch, a script without FTS5 —, a key out of
 range in a sync and through a trigger, a drop refused with triggers and done with `dropTriggers`, the trigger states, a
 stale text in a single- and a multi-word index, a renamed column, a key twice in a refresh, a transaction of another
 database, a payload column named twice, `INTEGER PRIMARY KEY DESC`; and before: the schema of the application's table
