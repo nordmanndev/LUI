@@ -32,7 +32,7 @@ The standards' five non-negotiable rules, and how they read here:
 | Standards rule | In LUI |
 |---|---|
 | DDD + CQS + multi-tenant + SQLite | **SQLite yes.** DDD, CQS and multi-tenancy do not apply — a library has no aggregates and no tenants. LUI opens *one* database per catalog; the application owns its tenancy. |
-| Test pyramid: unit + architecture + integration | **Applies in full.** xUnit + Shouldly + NetArchTest, three test projects (`Nordmann.LUI.Unit.Tests`, `Nordmann.LUI.Architecture.Tests`, `Nordmann.LUI.Integration.Tests`) plus the shared `Nordmann.LUI.Testing`. The map of the tests is [`docs/testing.md`](./docs/testing.md) — and it is a guard, not a document (ADR-0017). |
+| Test pyramid: unit + architecture + integration | **Applies in full.** xUnit + Shouldly + NetArchTest, three test projects (`Nordmann.LUI.Unit.Tests`, `Nordmann.LUI.Architecture.Tests`, `Nordmann.LUI.Integration.Tests`) plus the shared `Nordmann.LUI.Testing`. The map of the tests is [`docs/testing.md`](./docs/testing.md) — and it is a guard, not a document (ADR-0019). |
 | Optimistic concurrency on every aggregate | **Does not apply.** LUI has no aggregates. The concurrency that matters here is SQLite's: one writer per file, WAL for parallel readers. |
 | Outbox dispatch atomicity | **Does not apply.** LUI has no events. Its one atomicity rule is the opposite direction: content and search index change in **one SQLite transaction** (external content + triggers). |
 | Static types for tag/header names | **Does not apply.** LUI speaks no protocol tags; it speaks SQLite column names, and those are validated against a pattern before they reach SQL. |
@@ -52,8 +52,9 @@ The standards' five non-negotiable rules, and how they read here:
   *is* the package's contract).
 - ❌ Never let the README show an API the code does not have. Every C# block
   in the README is compiled and executed by the package smoke test.
-- ❌ Never add a NuGet dependency to `Nordmann.LUI` without an ADR — even a
-  transitive one.
+- ❌ Never add a NuGet dependency to `Nordmann.LUI` or `Nordmann.LUI.Hosting`
+  without an ADR — even a transitive one. The core takes no `Microsoft.Extensions.*`
+  package: that is the hosting package's (ADR-0018).
 - ❌ Never touch `lui_*` tables by hand. They belong to the library; the
   application writes through the index API, or (in `Linked` mode) to its own
   table and tells the index with `Refresh`/`Sync` — or through triggers it

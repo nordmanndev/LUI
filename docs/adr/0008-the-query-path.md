@@ -4,7 +4,7 @@
 - **Date:** 2026-11-02
 - **Supersedes:** —
 - **Amended by:** [0013](./0013-the-api-shape-before-the-first-release.md) — the result types have named
-  properties, so nothing is reserved any more (`Highlight` comes back with PR-008), and the measures are
+  properties, so nothing is reserved any more (`Highlight` comes back with a later version, #20), and the measures are
   `LuiSimilarity.*` in the root namespace (no type named like its namespace, no suppressed rule)
 - **Affects:** `src/Nordmann.LUI/Querying/`, `src/Nordmann.LUI/LuiQuery.cs`,
   `src/Nordmann.LUI/LuiQueryOptions.cs`, `src/Nordmann.LUI/Similarity/`

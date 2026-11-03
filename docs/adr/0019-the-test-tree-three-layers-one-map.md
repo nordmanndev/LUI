@@ -1,11 +1,11 @@
-# 0017 — The test tree: three layers, one shared infrastructure, one map that is a guard
+# 0019 — The test tree: three layers, one shared infrastructure, one map that is a guard
 
 - **Status:** Accepted
 - **Date:** 2026-11-04
 - **Affects:** `tests/` (the whole tree), `Directory.Packages.props`, `Lui.sln`,
-  `src/Nordmann.LUI/Nordmann.LUI.csproj` (`InternalsVisibleTo`), `docs/testing.md`,
-  `docs/architecture/alignment.md`, `AGENTS.md`, `tools/mutation-check.sh`,
-  `.github/workflows/ci.yml`
+  `src/Nordmann.LUI/Nordmann.LUI.csproj` and `src/Nordmann.LUI.Hosting/Nordmann.LUI.Hosting.csproj`
+  (`InternalsVisibleTo`), `docs/testing.md`, `docs/architecture/alignment.md`, `AGENTS.md`,
+  `tools/mutation-check.sh`, `.github/workflows/ci.yml`
 - **Builds on:** [0004](./0004-dependencies.md) (the dependency set — a test project is not a runtime dependency),
   [0013](./0013-the-api-shape-before-the-first-release.md) (the API the tests hold up),
   [0014](./0014-seams-for-the-second-content-source.md) (the architecture rules the tests read)
@@ -51,8 +51,12 @@ The flat tree had the consequences one expects:
 that were copied, pasted or linked before. It depends on the **public** API of the library only, so it needs no
 `InternalsVisibleTo`; the test projects keep theirs.
 
-**The unit layer needs no SQLite.** It does not reference `Microsoft.Data.Sqlite` at all. The unit lane is ~10
-seconds; the integration lane ~40; the architecture lane ~1.
+**The unit layer needs no SQLite.** It does not reference `Microsoft.Data.Sqlite` at all. The unit lane is ~1
+second; the integration lane ~33; the architecture lane ~0.6.
+
+**The tree has two packages since ADR-0018** — the core and the hosting. The test tree does not care: the
+integration layer references both, the unit layer only the core, and the architecture layer reads both from
+disk. The `InternalsVisibleTo` of both packages name the new projects.
 
 **The cut is by file, not by test method.** A file goes to the layer it belongs to. `RowIdTests` needs a database
 for one of its tests, so it stays in the integration layer — a file was not split to make a number look better.
@@ -79,11 +83,11 @@ result after it. The times are what the test runner reports — the test run its
 
 | | before | after |
 |---|---:|---:|
-| unit layer (the rules, no database) | — (mixed into the 36 s below) | **134 tests in 1.0 s** |
-| integration layer (SQLite) | — | 340 tests in 32 s (10 skipped) |
-| architecture layer | 29 tests in 1.0 s | 35 tests in 0.5 s |
-| the whole suite | 495 tests in 37 s | **509 tests in 34 s** |
-| test files | 35 in one folder | 8 unit · 30 integration · 6 architecture · 7 shared · 0 linked |
+| unit layer (the rules, no database) | — (mixed into the 36 s below) | **139 tests in 1.0 s** |
+| integration layer (SQLite) | — | 352 tests in 33 s (10 skipped) |
+| architecture layer | 29 tests in 1.0 s | 39 tests in 0.6 s |
+| the whole suite | 495 tests in 37 s | **530 tests in 35 s** |
+| test files | 35 in one folder | 8 unit · 31 integration · 6 architecture · 7 shared · 0 linked |
 | `[Trait]` attributes | 0 | 0 — the layer *is* the project |
 
 The suite grew, because the gaps were filled: the JSON payload serialiser (a public type without a test), the

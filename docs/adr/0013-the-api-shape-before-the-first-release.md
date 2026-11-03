@@ -71,7 +71,7 @@ is held for the batch) or the application's. The typo dictionary takes its write
 **Named results.** `LuiHit` (still a `readonly record struct`, for the allocation), `LuiResult` and `LuiTimings` have
 `init` properties and no positional constructor; `Key`, `Text`, `Query` and `Hits` are `required`. A new field is an
 addition, not a break, and a test of the application can build a result. `Highlight` is gone until the highlighting is
-built (PR-008); it comes back as an addition.
+built; it comes back as an addition — no longer with PR-008 but a later version (owner's decision, ADR-0017, #20).
 
 **One rule for names, one namespace.** Every public type lives in `Nordmann.LUI` and starts with `Lui` (`ILui` for an
 interface): `LuiPriority`, `LuiIndexKind`, `LuiRankingOrder`, `LuiPriorityRanking`, `ILuiSimilarity` with

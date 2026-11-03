@@ -169,35 +169,40 @@ expect_caught "storage-knows-the-schema" "${ARCHITECTURE_PROJECT}" \
   "A_namespace_knows_only_the_ones_below_it" \
   "printf 'namespace Nordmann.LUI.Storage;\n\ninternal static class Probe\n{\n    internal static System.Type Type => typeof(Nordmann.LUI.Schema.RowId);\n}\n' > src/Nordmann.LUI/Storage/Probe.cs"
 
-# 10. A pinned version nobody references (ADR-0017) — the pin that Alba was.
+# 10. The core takes a dependency of the hosting (ADR-0018): the console application would carry it.
+expect_caught "core-references-the-hosting-abstractions" "${ARCHITECTURE_PROJECT}" \
+  "The_library_ships_only_the_documented_runtime_dependencies" \
+  "sed -i 's|<PackageReference Include=\"symspell\" />|<PackageReference Include=\"symspell\" /><PackageReference Include=\"Microsoft.Extensions.DependencyInjection.Abstractions\" />|' src/Nordmann.LUI/Nordmann.LUI.csproj"
+
+# 11. A pinned version nobody references (ADR-0019) — the pin that Alba was.
 expect_caught "unused-central-package-version" "${ARCHITECTURE_PROJECT}" \
   "Every_Central_PackageVersion_is_referenced_somewhere" \
   "sed -i 's|<PackageVersion Include=\"symspell\" Version=\"6.7.3\" />|<PackageVersion Include=\"symspell\" Version=\"6.7.3\" /><PackageVersion Include=\"Alba\" Version=\"8.5.3\" />|' Directory.Packages.props"
 
-# 11. A test class that the map of the tests does not list (ADR-0017).
+# 12. A test file that the map of the tests does not list (ADR-0019).
 expect_caught "test-file-missing-from-the-map" "${ARCHITECTURE_PROJECT}" \
   "Every_test_file_is_listed_in_the_map" \
   "printf 'namespace Nordmann.LUI.Unit.Tests;\n\npublic sealed class UnlistedTests\n{\n    [Fact]\n    public void A_test() => true;\n}\n' > tests/Nordmann.LUI.Unit.Tests/UnlistedTests.cs"
 
-# 12. A row of the map that points at a file which does not exist (ADR-0017).
+# 13. A row of the map that points at a file which does not exist (ADR-0019).
 expect_caught "map-row-without-a-file" "${ARCHITECTURE_PROJECT}" \
   "Every_file_the_map_lists_exists" \
   "sed -i 's|SimilarityTests\.cs)|SimilarityTestsGone.cs)|' docs/testing.md"
 
-# 13. The lazy similarity of ADR-0008 — the ranking measures every candidate
+# 14. The lazy similarity of ADR-0008 — the ranking measures every candidate
 #     again, and the promise that a group that cannot reach the hits costs
 #     nothing is gone.
 expect_caught "the-lazy-similarity-is-gone" "${UNIT_PROJECT}" \
   "A_group_that_cannot_reach_the_hits_never_has_its_similarity_computed" \
   "sed -i 's|for (var g = 0; g < GroupCount \&\& result.Count < take; g++)|for (var g = 0; g < GroupCount; g++)|' src/Nordmann.LUI/Querying/Ranker.cs"
 
-# 14. The German transliteration of §6.1 changes — "ä" becomes "a" instead of
+# 15. The German transliteration of §6.1 changes — "ä" becomes "a" instead of
 #     "ae" — and the unit layer is the one that has to notice.
 expect_caught "the-transliteration-is-gone" "${UNIT_PROJECT}" \
   "FullyQualifiedName~NormalizerTests" \
   "sed -i \"s|\\['ä'\\] = \\\"ae\\\";|['ä'] = \\\"a\\\";|\" src/Nordmann.LUI/Normalization/Normalizer.cs"
 
-# 15. The clean trees stay green.
+# 16. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

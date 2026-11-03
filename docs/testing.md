@@ -69,6 +69,7 @@ the test fails with the reason instead of skipping.
 
 | Test file | Layer | Proves | The rule |
 |---|---|---|
+| [`DependencyInjectionTests`](../tests/Nordmann.LUI.Integration.Tests/DependencyInjectionTests.cs) | Integration | LUI in a host: the catalog and the indexes as keyed services, ensured on start, the outbox applied on a timer | spec §12.7, ADR-0017, ADR-0018 |
 | [`CatalogTests`](../tests/Nordmann.LUI.Integration.Tests/CatalogTests.cs) | Integration | opening a catalog, the meta table, the lifetime, the clock, the disposal while a query runs | spec §12.1, §12.8 |
 | [`OwnedIndexTests`](../tests/Nordmann.LUI.Integration.Tests/OwnedIndexTests.cs) | Integration | the schema and the write API of an owned index: `Ensure`, the writes, the payload, the transaction of the application | spec §7.2, §12.4 |
 | [`LinkedIndexTests`](../tests/Nordmann.LUI.Integration.Tests/LinkedIndexTests.cs) | Integration | a linked index over the table of the application: the table is not touched, the sync, the refresh, the triggers, the outbox | spec §5, §7.3, ADR-0015 |
