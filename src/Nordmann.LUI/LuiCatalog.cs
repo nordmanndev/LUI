@@ -1,6 +1,6 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
-using Nordmann.LUI.Indexing;
+using Nordmann.LUI.Schema;
 using System.Collections.Concurrent;
 using Nordmann.LUI.Normalization;
 using Nordmann.LUI.Typos;
@@ -111,7 +111,7 @@ public sealed class LuiCatalog : IDisposable
 
         var existed = ReadDefinition(connection, transaction, name) is not null;
 
-        foreach (var statement in OwnedSchema.Drop(name))
+        foreach (var statement in ContentSource.DropStatements(name))
         {
             Execute(connection, transaction, statement);
         }
@@ -206,11 +206,17 @@ public sealed class LuiCatalog : IDisposable
     }
 
     /// <summary>The typo dictionary of an index — the same object for every instance of that index.</summary>
-    internal TypoDictionary TypoDictionaryFor(string indexName, NormalizationOptions normalization) =>
+    /// <param name="indexName">The name of the index.</param>
+    /// <param name="normalization">The normalisation of the index.</param>
+    /// <param name="texts">Reads <c>(text, weight)</c> of every entry, when the dictionary is built.</param>
+    internal TypoDictionary TypoDictionaryFor(
+        string indexName,
+        NormalizationOptions normalization,
+        Func<IEnumerable<(string Text, int Weight)>> texts) =>
         _typoDictionaries.GetOrAdd(
             indexName,
-            static (name, state) => new TypoDictionary(state.Normalization, () => TypoSource.Read(state.Catalog, name)),
-            (Catalog: this, Normalization: normalization));
+            static (_, state) => new TypoDictionary(state.Normalization, state.Texts),
+            (Normalization: normalization, Texts: texts));
 
     /// <summary>Forgets the typo dictionary of an index that was dropped: the next index of that name starts empty.</summary>
     internal void ForgetTypoDictionary(string indexName) => _typoDictionaries.TryRemove(indexName, out _);
@@ -221,7 +227,7 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>
     /// The connection of the catalog's own writes. SQLite has one writer per
     /// file (§15), so one long-lived connection serves them all — and keeps
-    /// the prepared statements (see <see cref="Indexing.WriteStatements"/>).
+    /// the prepared statements (see <see cref="Writing.WriteStatements"/>).
     /// </summary>
     internal SqliteConnection Writer
     {
@@ -294,7 +300,7 @@ public sealed class LuiCatalog : IDisposable
         command.Parameters.AddWithValue("$kind", definition.Kind.ToString());
         command.Parameters.AddWithValue("$source", definition.Source);
         command.Parameters.AddWithValue("$definition", definition.ToJson());
-        command.Parameters.AddWithValue("$version", OwnedSchema.SchemaVersion);
+        command.Parameters.AddWithValue("$version", Meta.SchemaVersion);
         command.Parameters.AddWithValue(
             "$created",
             TimeProvider.GetUtcNow().ToString("O", CultureInfo.InvariantCulture));
@@ -356,7 +362,7 @@ public sealed class LuiCatalog : IDisposable
         }
 
         using var meta = connection.CreateCommand();
-        meta.CommandText = OwnedSchema.MetaTable;
+        meta.CommandText = Meta.CreateTable;
         meta.ExecuteNonQuery();
     }
 

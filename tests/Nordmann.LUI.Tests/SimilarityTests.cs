@@ -1,3 +1,4 @@
+using Nordmann.LUI.Schema;
 using Shouldly;
 
 namespace Nordmann.LUI.Tests;
@@ -65,8 +66,8 @@ public sealed class SimilarityTests
     public void Each_kind_has_the_default_the_specification_names()
     {
         // §4: Jaro-Winkler for single words, N-gram Dice for several
-        ReferenceEquals(LuiSimilarity.DefaultFor(LuiIndexKind.SingleWord), LuiSimilarity.JaroWinkler).ShouldBeTrue();
-        ReferenceEquals(LuiSimilarity.DefaultFor(LuiIndexKind.MultiWord), LuiSimilarity.NgramDice).ShouldBeTrue();
+        ReferenceEquals(IndexKindRules.For(LuiIndexKind.SingleWord).DefaultSimilarity, LuiSimilarity.JaroWinkler).ShouldBeTrue();
+        ReferenceEquals(IndexKindRules.For(LuiIndexKind.MultiWord).DefaultSimilarity, LuiSimilarity.NgramDice).ShouldBeTrue();
     }
 
     private static ILuiSimilarity Get(string name) => name switch

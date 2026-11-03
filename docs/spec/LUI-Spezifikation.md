@@ -827,10 +827,17 @@ bzw. `ILui` (ein Architekturtest hält das fest, ADR-0013). Die übrigen Namespa
 | Namespace | Inhalt | sichtbar |
 |---|---|---|
 | `Nordmann.LUI` | `LuiCatalog`, die Builder-Stufen, `ILuiIndex`, `ILuiOwnedIndex`, `LuiEntry`, Abfrage, Optionen, Ergebnisse, `ILuiSimilarity`/`LuiSimilarity`, `ILuiPayloadSerializer`, Ausnahmen | öffentlich |
-| `Nordmann.LUI.Indexing` | Schema, Trigger, Schreibzugriffe, `Sync`, `Check` | intern |
-| `Nordmann.LUI.Querying` | Abfrage-Ablauf, Kandidaten, Ranking | intern |
-| `Nordmann.LUI.Normalization` | `Normalizer`, SQL-Ausdrücke, Zuordnung für Highlight | intern |
+| `Nordmann.LUI.Indexes` | ein Index: setzt Inhaltsquelle, Schreibzugriffe und Abfrage zusammen (`Owned`, `Linked`) | intern |
+| `Nordmann.LUI.Querying` | Abfrage-Ablauf als Pipeline: Kandidaten, Korrektur, Ranking, Treffer | intern |
+| `Nordmann.LUI.Writing` | Schreibzugriffe (vorbereitete Statements) | intern |
+| `Nordmann.LUI.Schema` | Definition, Rowid, Regeln der Art, Inhaltsquellen mit ihrem SQL, `Sync`, `Check` | intern |
 | `Nordmann.LUI.Typos` | Wörterbuch der Wortanfänge | intern |
+| `Nordmann.LUI.Normalization` | `Normalizer`, SQL-Ausdrücke, Zuordnung für Highlight | intern |
+
+Die internen Namespaces haben eine Richtung: Jeder kennt nur die unter ihm (in der Tabelle von oben nach unten;
+`Typos` und `Normalization` kennen keinen anderen). Die Regeln der Art (`SingleWord`, `MultiWord`) stehen an
+**einer** Stelle, die Inhaltsquelle (`Owned`, `Linked`) ist eine Nahtstelle; die Abfrage kennt keinen
+Tabellennamen. Architekturtests halten das fest (ADR-0014).
 
 ### 17.3 Abhängigkeiten
 

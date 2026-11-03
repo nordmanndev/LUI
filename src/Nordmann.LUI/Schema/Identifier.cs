@@ -1,4 +1,4 @@
-namespace Nordmann.LUI.Indexing;
+namespace Nordmann.LUI.Schema;
 
 /// <summary>
 /// The names that reach SQL. They are checked against

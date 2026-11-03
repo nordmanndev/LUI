@@ -1,6 +1,6 @@
 using System.Text.Json;
 
-namespace Nordmann.LUI.Indexing;
+namespace Nordmann.LUI.Schema;
 
 /// <summary>
 /// What defines an index: everything that decides what its tables hold. It is

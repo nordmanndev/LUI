@@ -1,7 +1,7 @@
 #pragma warning disable MA0051, CA1861, MA0004, MA0002, CA1845, MA0074, MA0006, CA1305, CA2100, MA0011, CA1307, CA1866
 using System.Diagnostics;
 using Microsoft.Data.Sqlite;
-using Nordmann.LUI.Indexing;
+using Nordmann.LUI.Schema;
 using Nordmann.LUI.Normalization;
 using Nordmann.LUI.Querying;
 using Xunit.Abstractions;

@@ -1,4 +1,4 @@
-namespace Nordmann.LUI.Indexing;
+namespace Nordmann.LUI.Schema;
 
 /// <summary>
 /// The <c>rowid</c> of the search index: priority and weight live in it, so

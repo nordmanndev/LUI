@@ -1,4 +1,5 @@
-using Nordmann.LUI.Querying;
+using Nordmann.LUI.Normalization;
+using Nordmann.LUI.Schema;
 using Shouldly;
 
 namespace Nordmann.LUI.Tests;
@@ -16,7 +17,7 @@ public sealed class QueryPlanTests
         using var catalog = database.Open();
         catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
-        var plan = Plan(database, QueryRunner<long, Chip>.CandidateSql("lui_tags_fts", "lui_tags"), "$expr", "s_norm : \"gan\"");
+        var plan = Plan(database, Tags(LuiIndexKind.SingleWord).CandidateSql, "$expr", "s_norm : \"gan\"");
 
         plan.ShouldContain(line => line.Contains("VIRTUAL TABLE INDEX 64", StringComparison.Ordinal), customMessage: Describe(plan));
         plan.ShouldContain(line => line.Contains("USING INTEGER PRIMARY KEY", StringComparison.Ordinal), customMessage: Describe(plan));
@@ -33,7 +34,7 @@ public sealed class QueryPlanTests
         using var catalog = database.Open();
         catalog.Index("tags").MultiWord().Owned<long>().Ensure();
 
-        var plan = Plan(database, QueryRunner<long, Chip>.CandidateSql("lui_tags_fts", "lui_tags"), "$expr", expression);
+        var plan = Plan(database, Tags(LuiIndexKind.MultiWord).CandidateSql, "$expr", expression);
 
         plan.ShouldContain(line => line.Contains("VIRTUAL TABLE INDEX 64", StringComparison.Ordinal), customMessage: Describe(plan));
         plan.ShouldContain(line => line.Contains("USING INTEGER PRIMARY KEY", StringComparison.Ordinal), customMessage: Describe(plan));
@@ -49,7 +50,7 @@ public sealed class QueryPlanTests
         using var catalog = database.Open();
         catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
-        var plan = Plan(database, QueryRunner<long, Chip>.PrefixSql("lui_tags", length), "$q", "a");
+        var plan = Plan(database, Tags(LuiIndexKind.SingleWord).PrefixSql(length), "$q", "a");
 
         plan.ShouldContain(line => line.Contains($"USING INDEX {expectedIndex}", StringComparison.Ordinal), customMessage: Describe(plan));
         plan.ShouldNotContain(line => line.Contains("TEMP B-TREE", StringComparison.Ordinal), Describe(plan));
@@ -86,4 +87,8 @@ public sealed class QueryPlanTests
     }
 
     private static string Describe(string[] plan) => "plan: " + string.Join(" | ", plan);
+
+    /// <summary>The statements of the index <c>tags</c>, as the query path gets them from its content source.</summary>
+    private static OwnedSource Tags(LuiIndexKind kind) =>
+        new("tags", new IndexDefinition(kind, OwnedSource.SourceName, "long", GermanTransliteration: true, Payload: false, TokenizerFold.Version));
 }

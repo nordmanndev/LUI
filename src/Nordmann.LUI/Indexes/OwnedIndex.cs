@@ -1,10 +1,11 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Data.Sqlite;
-using Nordmann.LUI.Normalization;
 using Nordmann.LUI.Querying;
+using Nordmann.LUI.Schema;
 using Nordmann.LUI.Typos;
+using Nordmann.LUI.Writing;
 
-namespace Nordmann.LUI.Indexing;
+namespace Nordmann.LUI.Indexes;
 
 /// <summary>
 /// An index whose content lives in a table of the library (LUI-Spezifikation
@@ -23,7 +24,7 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
     /// <summary><c>SQLITE_CONSTRAINT_CHECK</c>.</summary>
     private const int SqliteCheckConstraintFailed = 275;
 
-    private readonly OwnedSql _sql;
+    private readonly OwnedSource _source;
     private readonly TypoDictionary _typos;
 
     // The statements of the application's own connections, one set per connection.
@@ -33,21 +34,19 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
 
     internal OwnedIndex(
         LuiCatalog catalog,
-        string name,
-        IndexDefinition definition,
+        OwnedSource source,
         ILuiPayloadSerializer<TPayload>? payload,
         ILuiSimilarity similarity,
         bool typoTolerance)
     {
         _catalog = catalog;
         _payload = payload;
-        Name = name;
-        Kind = definition.Kind;
-        _sql = new OwnedSql(name);
-        _typos = catalog.TypoDictionaryFor(
-            name,
-            new NormalizationOptions { GermanTransliteration = definition.GermanTransliteration });
-        _runner = new QueryRunner<TKey, TPayload>(catalog, name, definition, payload, similarity, _typos, typoTolerance);
+        _source = source;
+        Name = source.IndexName;
+        Kind = source.Kind.Kind;
+        _typos = catalog.TypoDictionaryFor(Name, source.Normalization, () => TypoSource.Read(catalog, source.TextsSql));
+        _runner = new QueryRunner<TKey, TPayload>(
+            catalog, source, new SerializedPayload<TPayload>(payload), similarity, _typos, typoTolerance);
     }
 
     public string Name { get; }
@@ -219,7 +218,7 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
         using var scope = _catalog.Begin();
         using var connection = _catalog.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = _sql.Count;
+        command.CommandText = _source.CountSql;
         return (long)command.ExecuteScalar()!;
     }
 
@@ -261,24 +260,24 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
         using var check = connection.CreateCommand();
         check.Transaction = transaction;
         check.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = $name;";
-        check.Parameters.AddWithValue("$name", OwnedSchema.Content(Name));
+        check.Parameters.AddWithValue("$name", _source.ContentTable);
 
         if ((long)check.ExecuteScalar()! == 0)
         {
             throw new ArgumentException(
-                $"The transaction belongs to another database: the table '{OwnedSchema.Content(Name)}' of the "
+                $"The transaction belongs to another database: the table '{_source.ContentTable}' of the "
                 + $"index '{Name}' is not there.",
                 nameof(transaction));
         }
 
-        return new WriteStatements(connection, _sql, new Lock());
+        return new WriteStatements(connection, _source, new Lock());
     }
 
     private WriteStatements CreateOwnStatements()
     {
         lock (_ownGate)
         {
-            return _ownStatements ??= new WriteStatements(_catalog.Writer, _sql, _catalog.WriterGate);
+            return _ownStatements ??= new WriteStatements(_catalog.Writer, _source, _catalog.WriterGate);
         }
     }
 }

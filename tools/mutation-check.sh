@@ -123,7 +123,7 @@ expect_caught "undocumented-dependency" \
 # 6. A source file in the wrong namespace.
 expect_caught "namespace-folder-mismatch" \
   "Every_source_file_declares_the_namespace_of_its_folder" \
-  "mkdir -p src/Nordmann.LUI/Indexing && printf 'namespace Nordmann.LUI.Wrong;\n\ninternal static class Probe\n{\n}\n' > src/Nordmann.LUI/Indexing/Probe.cs"
+  "mkdir -p src/Nordmann.LUI/Schema && printf 'namespace Nordmann.LUI.Wrong;\n\ninternal static class Probe\n{\n}\n' > src/Nordmann.LUI/Schema/Probe.cs"
 
 # 7. The licence or the readme of the package changes.
 expect_caught "package-readme-missing" \

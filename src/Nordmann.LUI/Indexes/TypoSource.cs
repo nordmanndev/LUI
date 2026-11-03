@@ -1,16 +1,17 @@
-using Nordmann.LUI.Indexing;
+namespace Nordmann.LUI.Indexes;
 
-namespace Nordmann.LUI.Typos;
-
-/// <summary>Where the typo dictionary of an <c>Owned</c> index reads its words from: the content table.</summary>
+/// <summary>
+/// Where the typo dictionary of an index reads its words from: the statement its content source gives
+/// (<c>ContentSource.TextsSql</c>, <c>(text, weight)</c>).
+/// </summary>
 internal static class TypoSource
 {
     /// <summary>The texts and weights of the index, one row at a time, on a connection of their own.</summary>
-    internal static IEnumerable<(string Text, int Weight)> Read(LuiCatalog catalog, string indexName)
+    internal static IEnumerable<(string Text, int Weight)> Read(LuiCatalog catalog, string sql)
     {
         using var connection = catalog.OpenConnection();
         using var command = connection.CreateCommand();
-        command.CommandText = $"SELECT text, weight FROM {OwnedSchema.Content(indexName)};";
+        command.CommandText = sql;
 
         using var reader = command.ExecuteReader();
         while (reader.Read())

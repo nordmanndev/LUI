@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Nordmann.LUI.Indexing;
+namespace Nordmann.LUI.Schema;
 
 /// <summary>Source-generated JSON for the definition stored in <c>lui_meta</c>: no reflection.</summary>
 [JsonSourceGenerationOptions(

@@ -5,24 +5,24 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** [#11](https://github.com/nordmanndev/LUI/issues/11) — API shape before 0.1.0 (DevEx review)
-**Branch:** `feat/api-shape`
+**Issue:** [#13](https://github.com/nordmanndev/LUI/issues/13) — Seams for Linked (PR-005b)
+**Branch:** `refactor/linked-seams`
 **State:** implemented, measured and verified; the pull request is opened when the owner asks.
 
 ## Where the work stands
 
-- The public API has its pre-release shape (ADR-0013). Open decision of the owner: ADR-0010 (the §16 query budget at
-  3 M entries).
+- ADR-0014: `Schema/IndexKindRules` (+ `SingleWordRules`, `MultiWordRules`), `Schema/ContentSource` (+ `OwnedSource`),
+  `Querying` as a pipeline (`CandidateReader`, `TypoCorrection`, `HitReader`, `PayloadReader`), namespaces `Indexes` /
+  `Querying` / `Writing` / `Schema` / `Typos` / `Normalization` with one direction (NetArchTest).
+- Open decisions of the owner: ADR-0010 (the §16 query budget at 3 M entries); whether the typo dictionary should learn
+  only committed writes (commit hooks, review of PR #12).
 
 ## The next step
 
-**PR-005b — the seams for `Linked`** (refactoring, no behaviour change): the index kind as one strategy (`IndexKindRules`:
-indexed column, prefix source, norm storage, default similarity, prefix path, expression) instead of `kind ==` in four files;
-the content source as a strategy (`IContentSource`: DDL, candidate/prefix/hit SQL, payload reader, typo source) designed
-against the `Linked` list below; the namespace direction fixed by NetArchTest; `QueryRunner` split into stages. The golden,
-plan and performance numbers must stay the same.
-
-**Then PR-006 — `Linked`:**
+**PR-006 — `Linked`** — with the seams of ADR-0014: a `LinkedSource : ContentSource` (the host table's names, the five
+generated columns, three indexes, three triggers; `TextsSql` from the host columns), a column `PayloadReader`
+(`WithPayload(columns, row => …)`), `LinkedIndex : ILuiIndex` in `Indexes`, `LuiIndexSourceBuilder.LinkedTo(…)` and
+`ContentSource.DropStatements` by the stored source.
 
 PR-006 — `Linked`: an index over a table of the application (spec §5, §7.3, §12.2, §12.8). `LinkedTo(table, key, text, weight,
 priority, allowSchemaChange)`; five generated columns, three indexes and three triggers on the application's table; the payload from
@@ -38,6 +38,6 @@ columns of the table; `LuiSchemaChangeRequiredException`.
 - `TKey` is `long` (the primary key = `doc_id`, 0 … 4,294,967,295). The weight column is `INTEGER NOT NULL` in 0 … 2^29−1; the priority
   column 0 … 3 or absent.
 - There is no `Upsert` on a linked index — the application writes to its table, the triggers do the rest. `UpdateWeight` is an `UPDATE`.
-- The typo dictionary reads `text` and `weight`; for `Linked` the columns have other names and the new words arrive without `Upsert`.
+- The typo dictionary reads `ContentSource.TextsSql` (`text`, `weight`); for `Linked` the columns have other names and the new words arrive without `Upsert`.
   Decide how the dictionary learns them (rebuild on demand is the minimum).
-- `OwnedSchema`/`OwnedSql`/`OwnedIndex` hard-code the content table `lui_<name>` and its columns; `Linked` needs them parameterised.
+- Solved by ADR-0014: the content table and its columns come from `ContentSource`; `Linked` is a second subclass, not a parameter.

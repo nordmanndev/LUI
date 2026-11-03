@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
+using Nordmann.LUI.Schema;
 
-namespace Nordmann.LUI.Indexing;
+namespace Nordmann.LUI.Writing;
 
 /// <summary>
 /// The write statements of one index, prepared once on one connection and
@@ -14,7 +15,7 @@ namespace Nordmann.LUI.Indexing;
 /// every index that shares a connection share its lock.
 /// </para>
 /// </summary>
-internal sealed class WriteStatements(SqliteConnection connection, OwnedSql sql, Lock gate)
+internal sealed class WriteStatements(SqliteConnection connection, OwnedSource sql, Lock gate)
 {
     private Prepared? _upsert;
     private Prepared? _updateWeight;

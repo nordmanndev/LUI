@@ -5,6 +5,13 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-03 — PR-005b: seams for Linked (issue #13)
+
+- ADR-0014: the kind as rules (one place, an architecture test forbids kind comparisons elsewhere), the content source as
+  `ContentSource`/`OwnedSource`, the query as a pipeline of stages, one direction between the internal namespaces.
+- Proven unchanged: `sqlite_master` byte-identical for both kinds against `main`; tests unchanged in their assertions;
+  query latency equal (five alternating runs); multi-word alloc p50 51 KB vs 82 KB on `main`, cause not established.
+
 ## 2026-11-03 — PR-005a: the API shape before 0.1.0 (issue #11)
 
 - From the owner's DevEx/architecture review: staged builder (`Index(name).SingleWord().Owned<long>().WithPayload(…)`),

@@ -1,4 +1,4 @@
-using Nordmann.LUI.Indexing;
+using Nordmann.LUI.Schema;
 
 namespace Nordmann.LUI;
 
