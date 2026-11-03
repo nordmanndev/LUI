@@ -149,6 +149,23 @@ bulk path exists.
    index: 1 M entries p50 2.02 → **1.39 ms**, p95 7.4 → **6.1 ms**; 200 k
    entries p50 0.86 → 0.82 ms, p95 2.2 → 1.8 ms.
 
+## Measured again after the bulk path (PR-009, ADR-0020)
+
+Option 5 is built (`Sync`, PR-007, ADR-0016) and measured in the scenario, on the generated corpus of ADR-0020 (the
+word list, then compounds, three million entries, weights with a long tail):
+
+| | row by row (PR-003) | `Sync`, merged (PR-009) | target |
+|---|---:|---:|---:|
+| query p50 | 3.57 ms | **1.61–1.71 ms** | ≤ 2 ms ✓ |
+| query p95 | 26.5 ms | **9.6–10.3 ms** | ≤ 5 ms ✗ |
+| build | 334 s | **172.5 s** (batches of 1,000,000) | ≤ 3 min ✓ |
+| single write p95 | 2.6 ms | **0.51–0.57 ms** | ≤ 1 ms ✓ |
+
+The p95 by the length of the input: **≤ 3.1 ms up to four characters**, 6.9 ms at five, 17.5 ms at eight. What is left
+is FTS5's own cost of a long trigram expression over three million entries — option 2 (a budget per input length) and
+option 3 (a word-start structure for 5–8 characters) are the choices that remain, and option 1 (a real stock) the way to
+know whether the synthetic corpus is the adversary. The corrected query (p95 29 ms, ADR-0012) follows the same cost.
+
 ## Decision
 
 **Proposed — the owner decides.** Options 1 and 5 are cheap and should come first (the original probe of the specification would settle both at once); if

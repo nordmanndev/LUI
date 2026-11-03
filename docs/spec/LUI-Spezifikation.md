@@ -899,6 +899,13 @@ veröffentlicht.
 | Tippfehler-Wörterbuch | 700.000 verschiedene Wörter | ≤ 200 MB, Aufbau ≤ 10 s |
 | Dateigröße | 1 Mio. Einträge, `MultiWord` | ≤ 300 MB inkl. Inhaltstabelle |
 
+Gemessen im Szenario (Schritt 9, ADR-0020, `PerformanceBudgets`): **erfüllt** sind der Median der Abfrage (1,6–1,7 ms),
+der einzelne Schreibvorgang (p95 0,5–0,6 ms), der Aufbau (172,5 s mit `Sync` und Stapeln zu 1.000.000) und das
+Wörterbuch (138 MB, 4,4 s); **ausgenommen mit Begründung** sind das p95 der Abfrage (9,6–10,3 ms; bis vier Zeichen
+≤ 3,1 ms — ADR-0010), die Allokation (p95 298 KB, sie folgt dem Kandidatenbudget — ADR-0020), die korrigierte Abfrage
+(p95 29 ms — ADR-0010, ADR-0012) und die Dateigröße (457 MB — ADR-0011). Kein Ziel ist gesenkt; die Entscheidungen
+liegen beim Eigentümer.
+
 ---
 
 ## 17. Pakete, Namespaces, Abhängigkeiten

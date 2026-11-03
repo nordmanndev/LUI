@@ -1,0 +1,112 @@
+# 0020 — The performance budgets of §16, measured: a corpus, a test per target, waivers with reasons
+
+- **Status:** Accepted — the four waivers below are open for the owner (ADR-0010 among them)
+- **Date:** 2026-11-03
+- **Builds on:** [0010](./0010-the-query-budget-at-three-million-entries.md) (the query budget at 3 M, Proposed),
+  [0011](./0011-the-multi-word-index.md) (the file size), [0012](./0012-typo-tolerance.md) (the correction),
+  [0016](./0016-sync-check-rebuild.md) (the bulk path), [0019](./0019-the-test-tree-three-layers-one-map.md) (the test tree)
+- **Affects:**
+  - `tests/Nordmann.LUI.Testing/Corpus.cs` (+ `CorpusKind`, `WeightDistribution`), `TestDatabase.FileMegabytes()`
+  - `tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs`
+  - `benchmarks/Nordmann.LUI.Benchmarks/`
+  - `docs/benchmarks.md`, `docs/testing.md`, spec §16
+
+## Context
+
+Step 9 of the plan: the targets of §16 as tests, a benchmark project, and the scenario of three million entries. Until
+now the targets were measured piecemeal — `QueryPerformance` asserted its latency only at three million and was run
+with the row-by-row build of PR-003, `TypoPerformance` the dictionary, ADR-0011 the file size. The bulk path of PR-007
+(`Sync`: batches in the order of the search index, one merge) had not been measured at three million at all.
+
+## Decision
+
+**One corpus for every measurement.** `Corpus.Generate(words, entries, kind, weights, seed)` in `Nordmann.LUI.Testing`:
+
+- **single words** — the German word list first (685,829 words), then compounds of two of them;
+- **titles** — two to four words of the list;
+- **weights** — a long tail (nearly every weight distinct, the harder case for the rowid) or sparse (half of them 0, as
+  in Anhang A1);
+- **inputs** of 1 … 8 characters as users type them — a beginning, a piece out of the middle, two words of a title;
+- **typos** — a beginning of 5 … 9 letters with one edit after the first letter.
+
+The same seed gives the same corpus, so the budget test and the benchmarks measure the same thing, and a run can be
+repeated.
+
+**A test per target, in the scenario of §16** (`PerformanceBudgets`, gated behind `LUI_PERF=1`):
+
+- `The_single_word_index_at_three_million_entries` — the build by `Sync`, the query without and with a correction, the
+  allocation, the single writes;
+- `The_typo_dictionary_of_the_whole_word_list` — memory and build of the dictionary of 685,829 words;
+- `The_file_of_a_million_titles` — the file size of one million titles.
+
+Each target is **met** — then it is asserted — or **waived**: a waiver names its reason and the record that holds it,
+and a waived target is still measured and printed. A target that is missed and not waived fails the test. A waiver
+that is met is printed as "the waiver can go". Below the scenario (`LUI_PERF_ENTRIES` smaller) nothing is asserted: a
+budget of three million is not a claim about 200,000.
+
+**The build is the first load of a file no other process writes:** `Sync` with `BatchSize = 1_000_000` — the fewest
+commits, which ADR-0016 measured to matter more than the order of the rows.
+
+**The benchmark project** (`benchmarks/Nordmann.LUI.Benchmarks`, BenchmarkDotNet, `[MemoryDiagnoser]`) measures the code,
+not the scenario: a query (single-word and multi-word, the prefix path and FTS5), a corrected query, the single writes,
+the search form and the similarity measures — on 200,000 entries of the same corpus.
+
+## What was measured
+
+The measurement machine of `docs/benchmarks.md` (Intel Xeon 2.1 GHz, 4 cores, 15 GB, Ubuntu 24.04, .NET 10.0.14), the
+whole German word list, no other load. Two runs of the single-word scenario, a third for the batch size of the build.
+
+| Target of §16 | Scenario | Measured | Limit | Verdict |
+|---|---|---:|---:|---|
+| query p50 | 3 M entries, inputs of 1–8 characters | 1.61 / 1.71 / 1.67 ms | ≤ 2 ms | **met** |
+| query p95 | the same | 9.64 / 10.25 / 9.93 ms | ≤ 5 ms | **waived** → ADR-0010 |
+| allocation p95 | per query | 298 KB | ≤ 250 KB | **waived** → below |
+| query with correction p95 | 3 M entries, a beginning with one typo | 28.5 / 29.0 ms | ≤ 10 ms | **waived** → ADR-0010, ADR-0012 |
+| single write p95 | `Upsert` / `UpdateWeight` / `Remove`, own transaction | 0.57 / 0.51 ms | ≤ 1 ms | **met** |
+| build | 3 M entries, `Owned`, `Sync` | **172.5 s** with batches of 1,000,000; 180.3 / 189.8 s with 100,000 | ≤ 180 s | **met** |
+| typo dictionary | 685,829 distinct words | 138 MB, 4.4–4.8 s | ≤ 200 MB, ≤ 10 s | **met** |
+| file size | 1 M titles, `MultiWord` | 457 MB | ≤ 300 MB | **waived** → ADR-0011 |
+
+**Against the row-by-row build of PR-003** (ADR-0010: p50 3.57 ms, p95 26.5 ms, build 334 s, a write at p95 2.6 ms) the
+bulk path and its merge took the median under its target, the p95 from 26.5 to 10 ms, the build from 334 to 172 s, and
+the single write under its millisecond.
+
+**The query p95 is the length of the input.** p95 per length at 3 M: 1 character 1.2 ms, 2 → 1.5, 3 → 2.0, 4 → 3.1,
+5 → 6.9, 6 → 10.1, 7 → 13.3, 8 → 17.5 ms. Up to four characters the budget holds; beyond it is FTS5's own cost of a
+longer trigram expression over three million entries — the trigram-dense corpus of ADR-0010.
+
+**The allocation follows the candidates read.** A query that spends the budget of 500 candidates allocates p50 124 KB,
+p95 306 KB; one that does not, p50 62 KB, p95 173 KB. At three million entries 60 % of the inputs spend it (at 200,000
+the p95 was 244–249 KB). It is not a leak of the scale but the budget: 500 texts read, normalised and ranked.
+
+**The corrected query** reads up to three corrections more, each one FTS5 statement of the cost above: p50 6.9 ms, p95
+29 ms (ADR-0012: 8.7 ms at 685,000 entries).
+
+**The benchmarks** (BenchmarkDotNet, `ShortRun`, 200,000 entries; mean, allocated):
+
+| Benchmark | Mean | Allocated |
+|---|---:|---:|
+| query, single-word: `b` · `ka` · `haus` · `apfelkuc` | 398 · 22 · 688 · 92 µs | 63 · 25 · 143 · 27 KB |
+| query, multi-word: the same inputs | 520 · 539 · 1,002 · 158 µs | 86 · 87 · 185 · 25 KB |
+| corrected query: `kartofel` · `bahmhof` · `fusbal` · `strasee` | 97 · 257 · 481 · 117 µs | 27 · 100 · 80 · 27 KB |
+| write: `UpdateWeight` · the same upsert · an upsert with another text | 279 · 79 · 226 µs | 0.4 · 0.8 · 0.8 KB |
+| search form · Jaro-Winkler · N-gram Dice, per text | 48–131 · 90–158 · 119–262 ns | 144–320 · 200–232 · 0 B |
+
+## Consequences
+
+- **Four targets are waived, not met, and not lowered.** Each waiver is a sentence in `PerformanceBudgets.Waivers` and a
+  row here; the test measures them on every run and says when one is met.
+- **Open for the owner** — none of them is decided here:
+  1. **Query p95 and the corrected query** — ADR-0010 (Proposed) has the options: measure on a real stock, restate the
+     budget per input length (it holds up to four characters), or a word-start structure for longer inputs.
+  2. **The allocation** — the lever is `Candidates` (500): a smaller budget allocates less and ranks fewer; or the
+     target becomes a budget per candidate.
+  3. **The file size** — ADR-0011: titles of 36 characters, the table holds the text and two generated forms.
+- The build meets its target only with the largest batch. With the default of 10,000 it does not (ADR-0016: 78 s for a
+  million); a first load is told to use the large batch (`LuiSyncOptions.BatchSize`).
+- The budget test runs for about ten minutes; it is not part of CI — a budget on a shared runner is a coin toss
+  (`PerformanceFactAttribute`). It is run on purpose, on the measurement machine, and its output goes here.
+
+**Verified by:** `tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs` (gated; the table above is its output),
+`benchmarks/Nordmann.LUI.Benchmarks` (`dotnet run -c Release --project benchmarks/Nordmann.LUI.Benchmarks -- --filter '*'`),
+and the test map (`Test_Landscape`), which lists the budget test.

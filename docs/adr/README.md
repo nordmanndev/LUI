@@ -51,3 +51,4 @@ here — in the **same pull request** as the change it describes.
 | [0017](./0017-dependency-injection-and-hosted-services.md) | Dependency injection and hosted services, in the package; stale candidates past the budget | Accepted |
 | [0018](./0018-two-packages-core-and-hosting.md) | Two packages: the core and the hosting, released together | Accepted |
 | [0019](./0019-the-test-tree-three-layers-one-map.md) | The test tree: three layers, one shared infrastructure, one map that is a guard | Accepted |
+| [0020](./0020-the-performance-budgets-measured.md) | The performance budgets of §16, measured: a corpus, a test per target, waivers with reasons | Accepted |
