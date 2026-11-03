@@ -136,10 +136,10 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
             _link);
 
         var source = new LinkedSource(_name, definition);
-        _catalog.EnsureIndex(
-            _name,
-            definition,
-            source.CreateStatements(),
+        IndexStore.Ensure(
+            _catalog.Database,
+            source,
+            _catalog.TimeProvider.GetUtcNow(),
             (connection, transaction) => LinkedTable.Verify(connection, transaction, _link, _payloadColumns));
 
         PayloadReader<TPayload> payload = _payload is null
@@ -147,7 +147,8 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
             : new ColumnPayload<TPayload>(_payloadColumns, _payload);
 
         return new LinkedIndex<TPayload>(
-            _catalog,
+            _catalog.Database,
+            _catalog.TypoDictionaries,
             source,
             payload,
             _similarity ?? source.Rules.DefaultSimilarity,

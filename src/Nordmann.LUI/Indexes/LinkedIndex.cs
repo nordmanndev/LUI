@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Nordmann.LUI.Querying;
 using Nordmann.LUI.Schema;
+using Nordmann.LUI.Storage;
 using Nordmann.LUI.Typos;
 
 namespace Nordmann.LUI.Indexes;
@@ -25,24 +26,25 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
 
     private static readonly LuiQueryOptions DefaultOptions = new();
 
-    private readonly LuiCatalog _catalog;
+    private readonly Database _database;
     private readonly LinkedSource _source;
     private readonly TypoDictionary _typos;
     private readonly QueryRunner<long, TPayload> _runner;
 
     internal LinkedIndex(
-        LuiCatalog catalog,
+        Database database,
+        TypoDictionaries typoDictionaries,
         LinkedSource source,
         PayloadReader<TPayload> payload,
         ILuiSimilarity similarity,
         bool typoTolerance)
     {
-        _catalog = catalog;
+        _database = database;
         _source = source;
         Name = source.IndexName;
         Kind = source.Rules.Kind;
-        _typos = catalog.TypoDictionaryFor(Name, source.Normalization, () => TypoSource.Read(catalog, source.TextsSql));
-        _runner = new QueryRunner<long, TPayload>(catalog, source, payload, similarity, _typos, typoTolerance);
+        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql));
+        _runner = new QueryRunner<long, TPayload>(database, source, payload, similarity, _typos, typoTolerance);
     }
 
     public string Name { get; }
@@ -51,15 +53,15 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
 
     public long Count()
     {
-        using var scope = _catalog.Begin();
-        using var connection = _catalog.OpenConnection();
+        using var scope = _database.Begin();
+        using var connection = _database.OpenConnection();
         return Scalar(connection, null, _source.CountSql);
     }
 
     public LuiTriggerState Triggers()
     {
-        using var scope = _catalog.Begin();
-        using var connection = _catalog.OpenConnection();
+        using var scope = _database.Begin();
+        using var connection = _database.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = _source.StoredTriggersSql;
 
@@ -94,13 +96,13 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
 
     public void WarmUpTypoDictionary(CancellationToken cancellationToken = default)
     {
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         _typos.EnsureBuilt(cancellationToken);
     }
 
     public void RebuildTypoDictionary(CancellationToken cancellationToken = default)
     {
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         _typos.Rebuild(cancellationToken);
     }
 
@@ -114,7 +116,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         // a key that comes twice is refreshed once and counted once (review of pull request 16, N2)
         var distinct = keys.Distinct();
 
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         var learned = new List<(string Text, int Weight)>();
         Guarded(() => Write(transaction, (connection, inTransaction) => RefreshAll(connection, inTransaction, distinct, learned, cancellationToken)));
 
@@ -146,7 +148,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
 
     public int ApplyPending(CancellationToken cancellationToken = default)
     {
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         var applied = 0;
         var learned = new List<(string Text, int Weight)>();
         while (true)
@@ -168,8 +170,8 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
 
     public long Pending()
     {
-        using var scope = _catalog.Begin();
-        using var connection = _catalog.OpenConnection();
+        using var scope = _database.Begin();
+        using var connection = _database.OpenConnection();
         return Guarded(() => Scalar(connection, null, _source.PendingCountSql));
     }
 
@@ -212,7 +214,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
 
     public LuiSyncResult Sync(CancellationToken cancellationToken = default)
     {
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         LuiSyncResult? result = null;
         Guarded(() => Write(null, (connection, transaction) => result = SyncAll(connection, transaction, cancellationToken)));
 
@@ -272,7 +274,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
 
     public void Optimize()
     {
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         Write(null, (connection, transaction) => Execute(connection, transaction, _source.OptimizeSql));
     }
 
@@ -280,7 +282,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
 
     public void CreateTriggers()
     {
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         Write(null, (connection, transaction) =>
         {
             // a second call replaces them: the definition of the index may have changed the expressions
@@ -291,7 +293,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
 
     public void DropTriggers()
     {
-        using var scope = _catalog.Begin();
+        using var scope = _database.Begin();
         Write(null, (connection, transaction) => Execute(connection, transaction, LinkedSource.DropTriggersSql(Name)));
     }
 
@@ -311,10 +313,10 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
             return;
         }
 
-        lock (_catalog.WriterGate)
+        lock (_database.WriterGate)
         {
-            using var own = _catalog.Writer.BeginTransaction(deferred: false);
-            write(_catalog.Writer, own);
+            using var own = _database.Writer.BeginTransaction(deferred: false);
+            write(_database.Writer, own);
             own.Commit();
         }
     }

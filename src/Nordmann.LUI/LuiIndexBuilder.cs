@@ -158,10 +158,11 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
             TokenizerFold.Version);
 
         var source = new OwnedSource(_name, definition);
-        _catalog.EnsureIndex(_name, definition, source.CreateStatements());
+        IndexStore.Ensure(_catalog.Database, source, _catalog.TimeProvider.GetUtcNow());
 
         return new OwnedIndex<TKey, TPayload>(
-            _catalog,
+            _catalog.Database,
+            _catalog.TypoDictionaries,
             source,
             _payload,
             _similarity ?? source.Rules.DefaultSimilarity,

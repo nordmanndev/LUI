@@ -428,7 +428,7 @@ public sealed class MultiWordIndexTests
 
     private static void Load(LuiCatalog catalog, ILuiOwnedIndex<long, LuiNoPayload> index, List<string> titles)
     {
-        using var connection = catalog.OpenConnection();
+        using var connection = catalog.Database.OpenConnection();
         using var transaction = connection.BeginTransaction();
         for (var i = 0; i < titles.Count; i++)
         {

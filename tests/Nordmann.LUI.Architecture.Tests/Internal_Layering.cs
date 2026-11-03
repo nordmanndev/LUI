@@ -12,15 +12,15 @@ namespace Nordmann.LUI.Architecture.Tests;
 /// knows only the ones below it.
 /// <code>
 /// Nordmann.LUI            the public types and the facade (LuiCatalog, the builders)
-///   Indexes               an index: puts a content source, the writes and the query path together
+///   Indexes               an index: puts a content source, the writes and the query path together; the stored definitions
 ///     Querying  Writing   the query path · the write statements
 ///       Schema            definitions, the rules of a kind, the content sources and their SQL
-///         Typos  Normalization
+///         Typos  Normalization  Storage   … · … · the connections, the writer, the lifetime
 /// </code>
 /// The root namespace holds the public types every layer speaks in, and the facade above all of them: the
-/// builders and the catalog. A layer may use the public types, never the builders — that would be a way up
-/// past the rule (review of pull request 14, S1). The catalog is the one named exception, for the query path
-/// and the indexes, until it is taken apart (D4, PR-007): they need its operation scope and its connections.
+/// builders and the catalog. A layer may use the public types, never the facade — that would be a way up
+/// past the rule (review of pull request 14, S1). The catalog has no exception any more: its connections and its
+/// lifetime are <c>Storage.Database</c>, its definitions <c>Indexes.IndexStore</c> (review DevEx D4, D6; PR-007).
 /// </summary>
 public sealed class Internal_Layering
 {
@@ -29,9 +29,10 @@ public sealed class Internal_Layering
     private static Assembly LibraryAssembly => Assembly.Load(Root);
 
     [Theory]
-    [InlineData("Normalization", new[] { "Typos", "Schema", "Querying", "Writing", "Indexes" })]
-    [InlineData("Typos", new[] { "Schema", "Querying", "Writing", "Indexes" })]
-    [InlineData("Schema", new[] { "Typos", "Querying", "Writing", "Indexes" })]
+    [InlineData("Normalization", new[] { "Typos", "Storage", "Schema", "Querying", "Writing", "Indexes" })]
+    [InlineData("Typos", new[] { "Storage", "Schema", "Querying", "Writing", "Indexes" })]
+    [InlineData("Storage", new[] { "Normalization", "Typos", "Schema", "Querying", "Writing", "Indexes" })]
+    [InlineData("Schema", new[] { "Typos", "Storage", "Querying", "Writing", "Indexes" })]
     [InlineData("Writing", new[] { "Typos", "Querying", "Indexes" })]
     [InlineData("Querying", new[] { "Writing", "Indexes" })]
     public void A_namespace_knows_only_the_ones_below_it(string layer, string[] above)
@@ -50,13 +51,14 @@ public sealed class Internal_Layering
     }
 
     [Theory]
-    [InlineData("Normalization", false)]
-    [InlineData("Typos", false)]
-    [InlineData("Schema", false)]
-    [InlineData("Writing", false)]
-    [InlineData("Querying", true)]
-    [InlineData("Indexes", true)]
-    public void No_layer_goes_up_through_the_facade(string layer, bool mayUseTheCatalog)
+    [InlineData("Normalization")]
+    [InlineData("Typos")]
+    [InlineData("Storage")]
+    [InlineData("Schema")]
+    [InlineData("Writing")]
+    [InlineData("Querying")]
+    [InlineData("Indexes")]
+    public void No_layer_goes_up_through_the_facade(string layer)
     {
         // every builder of the public API, the ones to come included
         var facade = LibraryAssembly
@@ -66,12 +68,7 @@ public sealed class Internal_Layering
             .Select(type => type.FullName!)
             .ToList();
         facade.ShouldNotBeEmpty();
-
-        // the named exception (D4, PR-007)
-        if (!mayUseTheCatalog)
-        {
-            facade.Add($"{Root}.LuiCatalog");
-        }
+        facade.Add($"{Root}.LuiCatalog");
 
         var result = Types
             .InAssembly(LibraryAssembly)
