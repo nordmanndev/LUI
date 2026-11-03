@@ -18,4 +18,10 @@ internal struct Scored
 
     /// <summary>The similarity; only valid when it was computed.</summary>
     internal double Similarity;
+
+    /// <summary>
+    /// Which input the candidate was found with: 0 the input as it was typed, 1 … the corrections (§10.3). The
+    /// word start and the similarity are those of that input.
+    /// </summary>
+    internal byte Variant;
 }

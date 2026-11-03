@@ -64,6 +64,13 @@ public interface ILuiIndex<TKey, TPayload>
     /// <returns><see langword="true"/> when the entry existed.</returns>
     bool Remove(TKey key, SqliteTransaction? transaction = null);
 
+    /// <summary>
+    /// Builds the typo dictionary anew from the entries (§10.1). The dictionary is built on first use and
+    /// grows with <see cref="Upsert"/>; <see cref="Remove"/> does not shrink it, because SymSpell cannot
+    /// forget — a correction towards a removed word finds nothing. Call this after many removals.
+    /// </summary>
+    void RebuildTypoDictionary();
+
     /// <summary>The number of entries.</summary>
     /// <returns>The count.</returns>
     long Count();

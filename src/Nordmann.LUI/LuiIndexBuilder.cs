@@ -23,6 +23,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     private IPayloadSerializer<TPayload>? _payload;
     private ITextSimilarity? _similarity;
     private bool _germanTransliteration = true;
+    private bool _typoTolerance;
 
     internal LuiIndexBuilder(LuiCatalog catalog, string name)
     {
@@ -113,6 +114,23 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     }
 
     /// <summary>
+    /// Typo tolerance (§10): an input without a word start is corrected by one edit, with a dictionary of the
+    /// word beginnings of the index. Off unless it is asked for — the dictionary costs memory (about 180 MB for
+    /// 676,000 words) and is built when the first input needs it. A property of <b>this instance</b>, not of the
+    /// stored index; a query can override it.
+    /// </summary>
+    /// <param name="maxEdits">0 (off) or 1; more edits are not supported.</param>
+    /// <returns>The builder.</returns>
+    public LuiIndexBuilder<TKey, TPayload> TypoTolerance(int maxEdits)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegative(maxEdits);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(maxEdits, 1);
+
+        _typoTolerance = maxEdits == 1;
+        return this;
+    }
+
+    /// <summary>
     /// Creates the index, or opens it if it exists with the same definition.
     /// </summary>
     /// <returns>The index.</returns>
@@ -150,7 +168,8 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
             _name,
             definition,
             _payload,
-            _similarity ?? Measures.DefaultFor(definition.Kind));
+            _similarity ?? Measures.DefaultFor(definition.Kind),
+            _typoTolerance);
     }
 
     /// <summary>

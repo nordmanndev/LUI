@@ -5,6 +5,7 @@ using Nordmann.LUI.Indexing;
 using Nordmann.LUI.Normalization;
 using Nordmann.LUI.Payloads;
 using Nordmann.LUI.Similarity;
+using Nordmann.LUI.Typos;
 
 namespace Nordmann.LUI.Querying;
 
@@ -24,6 +25,8 @@ internal sealed class QueryRunner<TKey, TPayload>
     private readonly NormalizationOptions _normalization;
     private readonly IPayloadSerializer<TPayload>? _payload;
     private readonly ITextSimilarity _defaultSimilarity;
+    private readonly TypoDictionary _typos;
+    private readonly bool _typoDefault;
     private readonly string _prefix1Sql;
     private readonly string _prefix2Sql;
     private readonly string _candidatesSql;
@@ -34,7 +37,9 @@ internal sealed class QueryRunner<TKey, TPayload>
         string indexName,
         IndexDefinition definition,
         IPayloadSerializer<TPayload>? payload,
-        ITextSimilarity defaultSimilarity)
+        ITextSimilarity defaultSimilarity,
+        TypoDictionary typos,
+        bool typoDefault)
     {
         _catalog = catalog;
         _content = OwnedSchema.Content(indexName);
@@ -42,6 +47,8 @@ internal sealed class QueryRunner<TKey, TPayload>
         _normalization = new NormalizationOptions { GermanTransliteration = definition.GermanTransliteration };
         _payload = payload;
         _defaultSimilarity = defaultSimilarity;
+        _typos = typos;
+        _typoDefault = typoDefault;
 
         // the prefix path (§8.1) and the candidate query (§8.2)
         _prefix1Sql = PrefixSql(_content, 1);
@@ -74,7 +81,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         var query = PreparedQuery.Create(input, _normalization, _kind);
         if (query.IsEmpty)
         {
-            return new LuiResult<TKey, TPayload>(input, [], 0, false, null, Timings(options, started, started, started, started));
+            return new LuiResult<TKey, TPayload>(input, [], 0, false, null, Timings(options, started, started, started, started, started));
         }
 
         using var connection = _catalog.OpenConnection();
@@ -86,28 +93,148 @@ internal sealed class QueryRunner<TKey, TPayload>
         using var snapshot = connection.BeginTransaction(deferred: true);
 
         var similarity = options.Similarity ?? _defaultSimilarity;
-        var candidates = ReadCandidates(connection, snapshot, query, options, cancellationToken, out var count, out var truncated);
+        var seen = options.DistinctText ? new HashSet<string>(StringComparer.Ordinal) : null;
+        var candidates = ReadCandidates(connection, snapshot, query, options, seen, variant: 0, cancellationToken, out var count, out var truncated);
         var read = Stopwatch.GetTimestamp();
+
+        // An input without a word start may be a typo (§10.2) — not only an input without hits.
+        IReadOnlyList<string> queries = [query.Search];
+        string? corrected = null;
+        var corrections = read;
+        if ((options.TypoTolerance ?? _typoDefault) && !query.IsPrefixPath && NoWordStart(candidates, count))
+        {
+            (candidates, count, truncated, queries, corrected) =
+                Correct(connection, snapshot, query, options, seen, candidates, count, truncated, cancellationToken);
+            corrections = Stopwatch.GetTimestamp();
+        }
 
         // A one- or two-character input carries no similarity worth ranking by: the
         // candidates all begin with it, and "the most popular first" is the answer (Anhang B).
         var order = query.IsPrefixPath ? RankingOrder.WeightOnly : options.Rank;
         var ranked = Ranker.Rank(
-            candidates, count, query.Search, order, options.Priorities, similarity, _normalization, options.MaxResults, cancellationToken);
+            candidates, count, queries, order, options.Priorities, similarity, _normalization, options.MaxResults, cancellationToken);
         var rankedAt = Stopwatch.GetTimestamp();
 
-        var hits = ReadHits(connection, snapshot, ranked, query.Search, similarity, order);
+        var hits = ReadHits(connection, snapshot, ranked, queries, similarity, order);
         var done = Stopwatch.GetTimestamp();
 
         return new LuiResult<TKey, TPayload>(
-            input, hits, count, truncated, null, Timings(options, started, read, rankedAt, done));
+            input, hits, count, truncated, corrected, Timings(options, started, read, corrections, rankedAt, done));
     }
 
-    private static LuiTimings? Timings(LuiQueryOptions options, long started, long read, long ranked, long done) =>
+    private static bool NoWordStart(Scored[] candidates, int count)
+    {
+        for (var i = 0; i < count; i++)
+        {
+            if (candidates[i].WordStart >= 0)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// The typo correction (§10.3): the corrections of the input are searched like the input itself, and
+    /// the candidates are united with those of the input. The ranking then measures each candidate against
+    /// the input it was found with.
+    /// </summary>
+    private (Scored[] Candidates, int Count, bool Truncated, IReadOnlyList<string> Queries, string? Corrected) Correct(
+        SqliteConnection connection,
+        SqliteTransaction snapshot,
+        PreparedQuery query,
+        LuiQueryOptions options,
+        HashSet<string>? seen,
+        Scored[] candidates,
+        int count,
+        bool truncated,
+        CancellationToken cancellationToken)
+    {
+        _typos.EnsureBuilt(cancellationToken);
+
+        var queries = new List<string> { query.Search };
+        var parts = new List<(Scored[] Items, int Count)> { (candidates, count) };
+        string? corrected = null;
+
+        foreach (var text in _typos.Corrections(query.Search))
+        {
+            var variant = PreparedQuery.Create(text, _normalization, _kind);
+            if (variant.IsPrefixPath || variant.IsEmpty)
+            {
+                continue;
+            }
+
+            queries.Add(variant.Search);
+            var items = ReadCandidates(
+                connection, snapshot, variant, options, seen, (byte)(queries.Count - 1), cancellationToken, out var found, out var more);
+
+            truncated |= more;
+            if (found > 0)
+            {
+                parts.Add((items, found));
+                corrected ??= variant.Search;
+            }
+        }
+
+        if (parts.Count == 1)
+        {
+            return (candidates, count, truncated, queries, null);
+        }
+
+        var united = Union(parts, options.Candidates, out var total, out var cut);
+        return (united, total, truncated | cut, queries, corrected);
+    }
+
+    /// <summary>
+    /// The candidates of several inputs as one list in the order of the rowid; a document found with more than
+    /// one input keeps the version that stands at a word start (§10.3: the best value per <c>doc_id</c>).
+    /// At most <paramref name="limit"/> remain.
+    /// </summary>
+    private static Scored[] Union(List<(Scored[] Items, int Count)> parts, int limit, out int count, out bool cut)
+    {
+        var all = new List<Scored>();
+        foreach (var (items, found) in parts)
+        {
+            all.AddRange(items.AsSpan(0, found));
+        }
+
+        all.Sort(static (a, b) =>
+        {
+            var byRowId = a.RowId.CompareTo(b.RowId);
+            if (byRowId != 0)
+            {
+                return byRowId;
+            }
+
+            // the same document: a word start first, then the earlier input
+            var byStart = (b.WordStart >= 0).CompareTo(a.WordStart >= 0);
+            return byStart != 0 ? byStart : a.Variant.CompareTo(b.Variant);
+        });
+
+        var united = new List<Scored>(Math.Min(all.Count, limit));
+        foreach (var candidate in all)
+        {
+            if (united.Count > 0 && united[^1].RowId == candidate.RowId)
+            {
+                continue;
+            }
+
+            united.Add(candidate);
+        }
+
+        cut = united.Count > limit;
+        count = Math.Min(united.Count, limit);
+        return [.. united.Take(count)];
+    }
+
+    private static LuiTimings? Timings(
+        LuiQueryOptions options, long started, long read, long corrected, long ranked, long done) =>
         options.TrackTimings
             ? new LuiTimings(
                 Stopwatch.GetElapsedTime(started, read),
-                Stopwatch.GetElapsedTime(read, ranked),
+                Stopwatch.GetElapsedTime(read, corrected),
+                Stopwatch.GetElapsedTime(corrected, ranked),
                 Stopwatch.GetElapsedTime(ranked, done),
                 Stopwatch.GetElapsedTime(started, done))
             : null;
@@ -142,6 +269,8 @@ internal sealed class QueryRunner<TKey, TPayload>
         SqliteTransaction snapshot,
         PreparedQuery query,
         LuiQueryOptions options,
+        HashSet<string>? seen,
+        byte variant,
         CancellationToken cancellationToken,
         out int count,
         out bool truncated)
@@ -165,7 +294,6 @@ internal sealed class QueryRunner<TKey, TPayload>
         command.Parameters.AddWithValue("$n", limit);
 
         var candidates = new Scored[Math.Min(limit, 512)];
-        var seen = options.DistinctText ? new HashSet<string>(StringComparer.Ordinal) : null;
         var rows = 0;
         count = 0;
 
@@ -194,7 +322,7 @@ internal sealed class QueryRunner<TKey, TPayload>
                 Array.Resize(ref candidates, Math.Min(limit, candidates.Length * 2));
             }
 
-            candidates[count++] = new Scored { RowId = reader.GetInt64(0), Text = text, WordStart = start };
+            candidates[count++] = new Scored { RowId = reader.GetInt64(0), Text = text, WordStart = start, Variant = variant };
         }
 
         // the LIMIT stops the statement one row after the budget
@@ -248,7 +376,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         SqliteConnection connection,
         SqliteTransaction snapshot,
         Scored[] ranked,
-        string query,
+        IReadOnlyList<string> queries,
         ITextSimilarity similarity,
         RankingOrder order)
     {
@@ -285,7 +413,7 @@ internal sealed class QueryRunner<TKey, TPayload>
 
             ref var entry = ref ranked[i];
             var measured = order == RankingOrder.WeightOnly
-                ? Ranker.Measure(entry, query, similarity, _normalization)
+                ? Ranker.Measure(entry, queries, similarity, _normalization)
                 : entry.Similarity;
 
             hits.Add(new LuiHit<TKey, TPayload>(

@@ -1,8 +1,10 @@
 using System.Runtime.CompilerServices;
 using Microsoft.Data.Sqlite;
+using Nordmann.LUI.Normalization;
 using Nordmann.LUI.Payloads;
 using Nordmann.LUI.Querying;
 using Nordmann.LUI.Similarity;
+using Nordmann.LUI.Typos;
 
 namespace Nordmann.LUI.Indexing;
 
@@ -11,7 +13,9 @@ namespace Nordmann.LUI.Indexing;
 /// §5). The writes are plain statements: the generated columns compute the
 /// forms, the triggers keep the search index in step (E3).
 /// </summary>
+#pragma warning disable CA1001 // see TypoDictionary: the lock of the dictionary needs no disposal, and an index lives as long as its catalog
 internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
+#pragma warning restore CA1001
 {
     private readonly LuiCatalog _catalog;
     private readonly IPayloadSerializer<TPayload>? _payload;
@@ -20,6 +24,7 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     private const int SqliteCheckConstraintFailed = 275;
 
     private readonly OwnedSql _sql;
+    private readonly TypoDictionary _typos;
 
     // The statements of the application's own connections, one set per connection.
     private readonly ConditionalWeakTable<SqliteConnection, WriteStatements> _applicationStatements = [];
@@ -31,14 +36,18 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
         string name,
         IndexDefinition definition,
         IPayloadSerializer<TPayload>? payload,
-        ITextSimilarity similarity)
+        ITextSimilarity similarity,
+        bool typoTolerance)
     {
         _catalog = catalog;
         _payload = payload;
         Name = name;
         Kind = definition.Kind;
         _sql = new OwnedSql(name);
-        _runner = new QueryRunner<TKey, TPayload>(catalog, name, definition, payload, similarity);
+        _typos = new TypoDictionary(
+            new NormalizationOptions { GermanTransliteration = definition.GermanTransliteration },
+            () => ReadTexts(name));
+        _runner = new QueryRunner<TKey, TPayload>(catalog, name, definition, payload, similarity, _typos, typoTolerance);
     }
 
     public string Name { get; }
@@ -72,6 +81,9 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
         try
         {
             StatementsFor(transaction).Upsert(keyText, text, weight, (int)priority, bytes, transaction);
+
+            // the new word beginnings join the typo dictionary, if it is built (§10.1)
+            _typos.Add(text, weight);
         }
         catch (SqliteException exception) when (IsDocIdExhausted(exception))
         {
@@ -111,6 +123,12 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
 
         using var scope = _catalog.Begin();
         return StatementsFor(transaction).Remove(keyText, transaction);
+    }
+
+    public void RebuildTypoDictionary()
+    {
+        using var scope = _catalog.Begin();
+        _typos.Rebuild();
     }
 
     public long Count()
@@ -171,6 +189,20 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
         }
 
         return new WriteStatements(connection, _sql, new Lock());
+    }
+
+    /// <summary>The texts and weights of the index — the source of the typo dictionary.</summary>
+    private IEnumerable<(string Text, int Weight)> ReadTexts(string name)
+    {
+        using var connection = _catalog.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = $"SELECT text, weight FROM {OwnedSchema.Content(name)};";
+
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            yield return (reader.GetString(0), reader.GetInt32(1));
+        }
     }
 
     private WriteStatements CreateOwnStatements()

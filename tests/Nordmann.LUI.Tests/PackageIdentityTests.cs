@@ -41,7 +41,7 @@ public class PackageIdentityTests
             "SQLitePCLRaw.core",
             "SQLitePCLRaw.provider.e_sqlite3",
             "SQLitePCLRaw.lib.e_sqlite3",
-            "symspell",
+            "SymSpell",   // the assembly of the package `symspell` (ADR-0004)
             "F23.StringSimilarity"
         };
 

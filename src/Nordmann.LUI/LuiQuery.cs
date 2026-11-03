@@ -76,6 +76,18 @@ public sealed class LuiQuery<TKey, TPayload>
         return this;
     }
 
+    /// <summary>
+    /// Corrects an input without a word start by one edit (§10). Overrides the setting of the index; the
+    /// dictionary is built on the first use.
+    /// </summary>
+    /// <param name="enabled">Whether to correct.</param>
+    /// <returns>The query.</returns>
+    public LuiQuery<TKey, TPayload> TypoTolerance(bool enabled = true)
+    {
+        _options = _options with { TypoTolerance = enabled };
+        return this;
+    }
+
     /// <summary>Measures where the time of the query goes.</summary>
     /// <param name="track">Whether to measure.</param>
     /// <returns>The query.</returns>

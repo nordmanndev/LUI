@@ -40,6 +40,12 @@ public sealed record LuiQueryOptions
     /// <summary>The similarity measure; <see langword="null"/> takes the default of the index.</summary>
     public ITextSimilarity? Similarity { get; init; }
 
+    /// <summary>
+    /// Whether an input without a word start is corrected (§10). <see langword="null"/> takes the setting of
+    /// the index (<c>TypoTolerance</c> on the builder; off unless it was asked for).
+    /// </summary>
+    public bool? TypoTolerance { get; init; }
+
     /// <summary>Measures where the time of the query goes. Default: off.</summary>
     public bool TrackTimings { get; init; }
 }

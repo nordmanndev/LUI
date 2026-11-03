@@ -25,7 +25,7 @@ internal static class Ranker
     internal static Scored[] Rank(
         Scored[] candidates,
         int count,
-        string query,
+        IReadOnlyList<string> queries,
         RankingOrder order,
         PriorityRanking priorities,
         ITextSimilarity similarity,
@@ -67,7 +67,7 @@ internal static class Ranker
                         cancellationToken.ThrowIfCancellationRequested();
                     }
 
-                    grouped[i].Similarity = Measure(grouped[i], query, similarity, normalization);
+                    grouped[i].Similarity = Measure(grouped[i], queries, similarity, normalization);
                 }
             }
 
@@ -117,13 +117,13 @@ internal static class Ranker
     /// </summary>
     internal static double Measure(
         in Scored candidate,
-        string query,
+        IReadOnlyList<string> queries,
         ITextSimilarity similarity,
         NormalizationOptions normalization)
     {
         var text = Normalizer.ToSearchForm(candidate.Text, normalization);
         var from = candidate.WordStart > 0 && candidate.WordStart < text.Length ? text[candidate.WordStart..] : text;
-        return similarity.Similarity(query, from);
+        return similarity.Similarity(queries[candidate.Variant], from);
     }
 
     private static int GroupOf(in Scored candidate, bool priorityFirst, bool wordStartStage)
