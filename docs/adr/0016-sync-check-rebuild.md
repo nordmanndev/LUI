@@ -90,30 +90,28 @@ stays the repair (`Rebuild()`), not the load.
 
 | | batch 10,000 | batch 100,000 |
 |---|---:|---:|
-| sync into an empty index | 77.8 s | 53.6 s ¹ |
-| the same sync again (nothing changes) | 15.2 s | 8.4 s ¹ |
-| a sync that changes half of the entries, cancelled halfway | 44.3 s | 23.9 s ¹ |
-| … run again (250,000 changes left) | 54.7 s | 29.6 s ¹ |
-| a sync of 100 changes and 100 removals (with the merge) | 15.8 s | 9.4 s ¹ |
-| `Check(source)` / `Check()` / `Rebuild()` | 10.0 / 2.4 / 16.2 s | 10.4 / 1.9 / 16.2 s |
-| `UpsertMany` of the same entries (one transaction, no merge) | 52.5 s | 55.3 s |
-| query p50/p95 after the sync · after `UpsertMany` | 1.22/3.86 · 1.68/5.39 ms | 1.22/3.88 · 1.62/5.18 ms |
-
-¹ measured with the first bookkeeping (crossed off by document id); the column is measured again with the keys.
+| sync into an empty index | 77.8 s | 54.9 s |
+| the same sync again (nothing changes) | 15.2 s | 13.2 s |
+| a sync that changes half of the entries, cancelled halfway | 44.3 s | 27.5 s |
+| … run again (250,000 changes left) | 54.7 s | 35.2 s |
+| a sync of 100 changes and 100 removals (with the merge) | 15.8 s | 14.5 s |
+| `Check(source)` / `Check()` / `Rebuild()` | 10.0 / 2.4 / 16.2 s | 10.4 / 1.7 / 16.2 s |
+| `UpsertMany` of the same entries (one transaction, no merge) | 52.5 s | 53.8 s |
+| query p50/p95 after the sync · after `UpsertMany` | 1.22/3.86 · 1.68/5.39 ms | 1.11/3.36 · 1.73/5.55 ms |
 
 Crossing off by key costs more than by document id when the index is full: the same sync again took 8.3 s by document
 id, 15.2 s by key — a text key deleted from a temporary B-tree per entry. It buys an outcome that does not depend on
 which document id SQLite gives a row written again (see the decision).
 
-The sync costs about a second per 100,000 entries more than the same batches would without the comparison (the lookup
+The sync costs about one and a half seconds per 100,000 entries more than the same batches would without the comparison (the lookup
 of each key); its answers are the merged index's — p95 a third lower than after `UpsertMany`. At 200,000 entries:
-sync 9.1–12.0 s, `UpsertMany` 8.3–9.3 s, the same sync again 1.2–1.5 s, `Check()` 0.3 s, `Rebuild()` 2.4 s.
+sync 10.5 s, `UpsertMany` 8.1 s, the same sync again 1.8 s, `Check()` 0.3 s, `Rebuild()` 2.3 s.
 
 ## Consequences
 
 - **A sync in batches of 10,000 is slower than `UpsertMany` in one transaction** (78 s against 53 s for a million).
   That is the price of what the batches give: other writers wait at most about 0.7 s, and an aborted sync keeps its
-  work. A first load into a file that no one else writes is a third faster with `BatchSize = 100_000` (about 5 s per
+  work. A first load into a file that no one else writes is about 30 % faster with `BatchSize = 100_000` (about 5 s per
   batch — longer than the default busy timeout of 5 s of another writer); the default stays the specification's.
 - The target of §16 for the build (3 M entries in ≤ 3 min) is not measured here; at a million the sync takes 54–78 s.
   PR-009 measures it at 3 M.
@@ -131,7 +129,7 @@ sync 9.1–12.0 s, `UpsertMany` 8.3–9.3 s, the same sync again 1.2–1.5 s, `C
 ## Open for the owner
 
 1. **The default batch size.** 10,000 (the specification) keeps other writers waiting under a second; 50,000 would be
-   about 20 % faster and hold the lock 2–3 s; 100,000 about 26 % faster and longer than a default busy timeout.
+   about 20 % faster and hold the lock 2–3 s; 100,000 about 30 % faster and longer than a default busy timeout.
 2. **A shadow build for `Linked.Sync()`** (review of pull request 16, S2). It is one transaction: 26.7 s for a million
    rows (ADR-0015), and other writers of the file wait that long. A build in chunks into shadow tables with a short swap
    would hold the lock per chunk only — but a `Refresh` or an `ApplyPending` that runs meanwhile writes the old tables,

@@ -220,15 +220,13 @@ implementation (`SyncPerformance`):
 
 | | batch 10,000 | batch 100,000 |
 |---|---:|---:|
-| `Sync` into an empty index | 77.8 s | 53.6 s ¹ |
-| the same `Sync` again (nothing changes) | 15.2 s | 8.4 s ¹ |
-| a `Sync` that changes half, cancelled halfway · run again | 44.3 · 54.7 s | 23.9 · 29.6 s ¹ |
-| a `Sync` of 100 changes and 100 removals | 15.8 s | 9.4 s ¹ |
-| `Check(source)` · `Check()` · `Rebuild()` | 10.0 · 2.4 · 16.2 s | 10.4 · 1.9 · 16.2 s |
-| `UpsertMany` of the same entries, one transaction | 52.5 s | 55.3 s |
-| query p50 / p95 after `Sync` · after `UpsertMany` | 1.22 / 3.86 · 1.68 / 5.39 ms | 1.22 / 3.88 · 1.62 / 5.18 ms |
-
-¹ measured with the first bookkeeping (crossed off by document id); the column is measured again with the keys.
+| `Sync` into an empty index | 77.8 s | 54.9 s |
+| the same `Sync` again (nothing changes) | 15.2 s | 13.2 s |
+| a `Sync` that changes half, cancelled halfway · run again | 44.3 · 54.7 s | 27.5 · 35.2 s |
+| a `Sync` of 100 changes and 100 removals | 15.8 s | 14.5 s |
+| `Check(source)` · `Check()` · `Rebuild()` | 10.0 · 2.4 · 16.2 s | 10.4 · 1.7 · 16.2 s |
+| `UpsertMany` of the same entries, one transaction | 52.5 s | 53.8 s |
+| query p50 / p95 after `Sync` · after `UpsertMany` | 1.22 / 3.86 · 1.68 / 5.39 ms | 1.11 / 3.36 · 1.73 / 5.55 ms |
 
 The §16 build target (3 M in ≤ 3 min) is measured with the benchmarks (PR-009).
 

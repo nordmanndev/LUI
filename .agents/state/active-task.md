@@ -11,7 +11,7 @@ describes it. Link the issue; do not repeat the whole plan here.
 
 ## Open for the owner
 
-- The default `LuiSyncOptions.BatchSize`: 10,000 (spec, lock < 1 s) vs 50,000 / 100,000 (20–26 % faster, lock 2–5 s).
+- The default `LuiSyncOptions.BatchSize`: 10,000 (spec, lock < 1 s) vs 50,000 / 100,000 (20–30 % faster, lock 2–5 s).
 - A shadow build for `Linked.Sync()` (review of PR #16, S2): one transaction of 26.7 s per million rows today.
 - ADR-0010 (the query budget at 3 M) — measure again after this bulk path, with PR-009.
 
