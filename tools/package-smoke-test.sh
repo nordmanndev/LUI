@@ -1,7 +1,11 @@
 #!/usr/bin/env bash
 #
-# package-smoke-test.sh — pack Nordmann.LUI, install the .nupkg into a
-# throwaway console application from a local feed, and run it.
+# package-smoke-test.sh — pack Nordmann.LUI and Nordmann.LUI.Hosting, install
+# the .nupkgs into a throwaway console application from a local feed, and run it.
+#
+# The two packages are released together, with one version (ADR-0018): the
+# hosting package must depend on the core of the same version, and the core
+# must not carry the Microsoft.Extensions abstractions of the hosting.
 #
 # A package that cannot be consumed is not a package. This is the test that
 # catches the three classic failures:
@@ -30,17 +34,30 @@ readonly SMOKE="${WORK}/SmokeTest"
 cleanup() { rm -rf "${WORK}"; }
 trap cleanup EXIT
 
-echo "package-smoke-test: packing Nordmann.LUI ${VERSION}"
+echo "package-smoke-test: packing Nordmann.LUI and Nordmann.LUI.Hosting ${VERSION}"
 rm -rf "${FEED}"
-dotnet pack "${ROOT}/src/Nordmann.LUI/Nordmann.LUI.csproj" \
-  --configuration Release \
-  --output "${FEED}" \
-  --nologo \
-  -p:PackageVersion="${VERSION}"
+for project in Nordmann.LUI Nordmann.LUI.Hosting; do
+  dotnet pack "${ROOT}/src/${project}/${project}.csproj" \
+    --configuration Release \
+    --output "${FEED}" \
+    --nologo \
+    -p:PackageVersion="${VERSION}"
 
-readonly NUPKG="${FEED}/Nordmann.LUI.${VERSION}.nupkg"
-if [ ! -f "${NUPKG}" ]; then
-  echo "package-smoke-test: ${NUPKG} was not produced" >&2
+  if [ ! -f "${FEED}/${project}.${VERSION}.nupkg" ]; then
+    echo "package-smoke-test: ${FEED}/${project}.${VERSION}.nupkg was not produced" >&2
+    exit 1
+  fi
+done
+
+# the dependencies of the two packages, as a consumer's restore sees them
+readonly CORE_NUSPEC="$(unzip -p "${FEED}/Nordmann.LUI.${VERSION}.nupkg" Nordmann.LUI.nuspec)"
+readonly HOSTING_NUSPEC="$(unzip -p "${FEED}/Nordmann.LUI.Hosting.${VERSION}.nupkg" Nordmann.LUI.Hosting.nuspec)"
+if grep -q 'id="Microsoft.Extensions' <<<"${CORE_NUSPEC}"; then
+  echo "package-smoke-test: the core package depends on Microsoft.Extensions — that belongs to Nordmann.LUI.Hosting" >&2
+  exit 1
+fi
+if ! grep -q "id=\"Nordmann.LUI\" version=\"${VERSION}\"" <<<"${HOSTING_NUSPEC}"; then
+  echo "package-smoke-test: Nordmann.LUI.Hosting does not depend on Nordmann.LUI ${VERSION}" >&2
   exit 1
 fi
 
@@ -162,9 +179,17 @@ CS
   echo "}"
 } > "${SMOKE}/Program.cs"
 
-echo "package-smoke-test: installing the package from the local feed"
-dotnet add "${SMOKE}/SmokeTest.csproj" package Nordmann.LUI \
-  --version "${VERSION}" \
+echo "package-smoke-test: installing the packages from the local feed"
+for package in Nordmann.LUI Nordmann.LUI.Hosting; do
+  dotnet add "${SMOKE}/SmokeTest.csproj" package "${package}" \
+    --version "${VERSION}" \
+    --no-restore >/dev/null
+done
+
+# the README's host block needs a host — the application brings it, the package only its abstractions
+HOSTING_VERSION="$(sed -n 's|.*<PackageVersion Include="Microsoft.Extensions.Hosting" Version="\([^"]*\)".*|\1|p' "${ROOT}/Directory.Packages.props")"
+dotnet add "${SMOKE}/SmokeTest.csproj" package Microsoft.Extensions.Hosting \
+  --version "${HOSTING_VERSION}" \
   --no-restore >/dev/null
 
 dotnet restore "${SMOKE}/SmokeTest.csproj" --nologo >/dev/null

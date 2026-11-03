@@ -237,7 +237,7 @@ The spec §20 gives nine steps; I add a repo foundation and the sample, and spli
 | **005b** `refactor: seams for linked` | the kind as a strategy, the content source as a strategy, the direction of the namespaces, a smaller `QueryRunner` — no behaviour change | ADR-0014 · schema byte-identical · tests unchanged · measurements unchanged — **inserted before PR-006** |
 | **006** `feat: linked index` | `LinkTo`, **loosely coupled** (owner's decision, ADR-0015): no column, index or implicit trigger on the app table; `Sync`, `Refresh`, optional triggers; `Owned<long>` as the builder's default | integration tests against an app table green |
 | **007** `feat: sync / check / rebuild / optimize` | `Sync` (batched, resumable), `Check(source)`, `Check()`, `Rebuild()`, `Optimize()` | 1M-entry sync · abort + resume green |
-| **008** `feat: DI and query polish` | `AddLui`, keyed services, ensure-on-start, `Highlight`, `.SuggestWhenEmpty` → *no* (D5), remaining fluent surface | DI smoke test green |
+| **008** `feat: DI and query polish` | `AddLui`, keyed services, ensure-on-start, hosted `ApplyPending`, stale candidates past the budget; `Highlight` → later version (#20, owner's decision); `.SuggestWhenEmpty` → *no* (D5) | DI smoke test green |
 | **009** `feat: performance budgets` | BenchmarkDotNet project, 3M-corpus generator, §16 targets as tests | every §16 target green or explicitly waived with a reason |
 | **010** `docs: readme, changelog, benchmarks` | the README (§7), `docs/benchmarks.md`, `CHANGELOG.md`, package smoke test with the README code | smoke test green on the packed `.nupkg` |
 | **011** `feat(sample): the inline static site` | `samples/Lui.Sample` — API + page, seeded corpus, control panel, result panel, index panel | `dotnet run` → the page works; every API knob reachable from the UI |
@@ -345,6 +345,17 @@ also changed three things the plan did not foresee:
 | The bulk path is sorted batches with `automerge` off and one merge — not "content first, then `rebuild`" | measured: the merge decides the query (p95 5.7 → 3.0 ms at 1 M); `rebuild` is not faster than large batches and cannot be run again |
 | The default batch stays at 10,000; 100,000 is about 30 % faster for a first load | the number of commits costs more than the order; the default is the owner's call (ADR-0016) |
 | No shadow build for `Linked.Sync()` (S2) | measured: one transaction of 26.7 s per million rows; a shadow build needs a second write path for every refresh — the owner decides |
+
+## 6f. PR-008 — what actually happened
+
+| What | Why |
+|---|---|
+| The DI is a second package, `Nordmann.LUI.Hosting`, released with the core under one version; only it references the DependencyInjection, Hosting and Logging abstractions | owner's decision after a discussion ([ADR-0018](../adr/0018-two-packages-core-and-hosting.md)): a console application carries no host; the core runs no thread of its own |
+| Two hosted services: ensure on start (+ optional warm-up), `ApplyPending` on an interval | the warm-up of ADR-0013 and the timer of ADR-0015 |
+| `Nordmann.LUI.Hosting` knows only the public API | another assembly, no `InternalsVisibleTo`: the compiler pins it; `ILuiIndex.TypoTolerance` is new for the warm-up |
+| An outdated linked candidate does not count against the budget (F1) | many of them among the best crowded out a match; the read goes on up to a second budget |
+| `Highlight` is not built | owner's decision: the front end marks the match; issue #20 for a later version |
+| The sample does not use LUI yet | on purpose: the sample comes with PR-011 and will use `Nordmann.LUI.Hosting` there (review of PR #23, N6) |
 
 ---
 

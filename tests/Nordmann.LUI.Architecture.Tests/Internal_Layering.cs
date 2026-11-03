@@ -20,7 +20,9 @@ namespace Nordmann.LUI.Architecture.Tests;
 /// The root namespace holds the public types every layer speaks in, and the facade above all of them: the
 /// builders and the catalog. A layer may use the public types, never the facade — that would be a way up
 /// past the rule (review of pull request 14, S1). The catalog has no exception any more: its connections and its
-/// lifetime are <c>Storage.Database</c>, its definitions <c>Indexes.IndexStore</c> (review DevEx D4, D6; PR-007).
+/// lifetime are <c>Storage.Database</c>, its definitions <c>Indexes.IndexStore</c> (review DevEx D4, D6; PR-007). The
+/// dependency injection is a package of its own above all of it, <c>Nordmann.LUI.Hosting</c> (ADR-0018): the compiler
+/// keeps it on the public API.
 /// </summary>
 public sealed class Internal_Layering
 {

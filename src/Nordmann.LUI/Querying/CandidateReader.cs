@@ -35,6 +35,12 @@ internal sealed class CandidateReader
     /// <summary>
     /// The candidates of <paramref name="query"/>: at most <c>Candidates</c>, with <c>DistinctText</c> one per
     /// normalised text. <paramref name="truncated"/> says whether there were more.
+    /// <para>
+    /// A row whose text changed under the index and no longer matches (<c>Linked</c>, a row not refreshed yet) is not a
+    /// candidate and does not use up the budget: the read goes on past it — at most another <c>Candidates</c> such rows,
+    /// then the answer is truncated (review of pull request 16, F1). Without such rows nothing changes: the read stops
+    /// one row after the budget, as before.
+    /// </para>
     /// </summary>
     internal Scored[] Read(
         SqliteConnection connection,
@@ -46,35 +52,23 @@ internal sealed class CandidateReader
         out int count,
         out bool truncated)
     {
-        using var command = connection.CreateCommand();
-        command.Transaction = snapshot;
-
         // one more than asked for tells whether there were more candidates (Truncated)
         var limit = options.Candidates + 1;
-        if (query.IsPrefixPath)
-        {
-            command.CommandText = query.PrefixLength == 1 ? _prefix1Sql : _prefix2Sql;
-            command.Parameters.AddWithValue("$q", query.PrefixKey);
-        }
-        else
-        {
-            command.CommandText = _candidatesSql;
-            command.Parameters.AddWithValue("$expr", query.Expression);
-        }
-
-        command.Parameters.AddWithValue("$n", limit);
+        using var command = Command(connection, snapshot, query, options);
 
         var candidates = new Scored[Math.Min(limit, 512)];
 
         // one entry per text within this input; across the inputs it is decided after the union
         var seen = options.DistinctText ? new HashSet<string>(StringComparer.Ordinal) : null;
         var rows = 0;
+        var stale = 0;
+        var staleBudgetSpent = false;
         count = 0;
 
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
-            if ((rows++ & 63) == 0)
+            if (((rows++ + stale) & 63) == 0)
             {
                 cancellationToken.ThrowIfCancellationRequested();
             }
@@ -85,7 +79,20 @@ internal sealed class CandidateReader
             }
 
             var text = reader.GetString(1);
-            var start = StartOf(text, query, seen, out var duplicate, out var key);
+            var start = StartOf(text, query, seen, out var duplicate, out var outdated, out var key);
+            if (outdated)
+            {
+                // not a candidate: it does not count against the budget
+                rows--;
+                if (++stale > options.Candidates)
+                {
+                    staleBudgetSpent = true;
+                    break;
+                }
+
+                continue;
+            }
+
             if (duplicate)
             {
                 continue;
@@ -99,9 +106,33 @@ internal sealed class CandidateReader
             candidates[count++] = new Scored { RowId = reader.GetInt64(0), Text = text, Key = key, WordStart = start, Variant = variant };
         }
 
-        // the LIMIT stops the statement one row after the budget
-        truncated = rows > options.Candidates;
+        // the LIMIT stops the statement one row after the budget; a spent budget of outdated rows may hide more
+        truncated = rows > options.Candidates || staleBudgetSpent;
         return candidates;
+    }
+
+    /// <summary>
+    /// The statement of the candidates: the prefix path or FTS5. Its limit is one row after the budget — and, for a source
+    /// whose texts can change under the index, another budget of rows that no longer match.
+    /// </summary>
+    private SqliteCommand Command(SqliteConnection connection, SqliteTransaction snapshot, PreparedQuery query, LuiQueryOptions options)
+    {
+        var command = connection.CreateCommand();
+        command.Transaction = snapshot;
+        if (query.IsPrefixPath)
+        {
+            command.CommandText = query.PrefixLength == 1 ? _prefix1Sql : _prefix2Sql;
+            command.Parameters.AddWithValue("$q", query.PrefixKey);
+        }
+        else
+        {
+            command.CommandText = _candidatesSql;
+            command.Parameters.AddWithValue("$expr", query.Expression);
+        }
+
+        var limit = options.Candidates + 1;
+        command.Parameters.AddWithValue("$n", _verify ? limit + options.Candidates : limit);
+        return command;
     }
 
     /// <summary>
@@ -109,9 +140,10 @@ internal sealed class CandidateReader
     /// <c>DistinctText</c> — remembers the text. The candidates arrive in the
     /// order of the rowid, so the first one of a text is the best one (§9.2).
     /// </summary>
-    private int StartOf(string text, PreparedQuery query, HashSet<string>? seen, out bool duplicate, out string? key)
+    private int StartOf(string text, PreparedQuery query, HashSet<string>? seen, out bool duplicate, out bool outdated, out string? key)
     {
         duplicate = false;
+        outdated = false;
         key = null;
 
         char[]? rented = null;
@@ -132,7 +164,7 @@ internal sealed class CandidateReader
             // a text that changed under the index no longer matches what was searched: not a hit (review of PR 16, S1)
             if (_verify && !_rules.StillMatches(searchForm, query.IsPrefixPath, query.PrefixKey, query.Search, query.Compact, query.Words))
             {
-                duplicate = true;
+                outdated = true;
                 return -1;
             }
 

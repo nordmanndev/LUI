@@ -6,8 +6,8 @@ namespace Nordmann.LUI.Architecture.Tests;
 
 /// <summary>
 /// The repository's build wiring is part of the contract: one place for
-/// versions, one packable project, no project that reaches into a project it
-/// should not know.
+/// versions, two packages released together — the core and the hosting
+/// (ADR-0018) —, no project that reaches into a project it should not know.
 /// </summary>
 public sealed class Repository_Layout
 {
@@ -57,7 +57,38 @@ public sealed class Repository_Layout
             .ToArray();
 
         packable.ShouldBeEmpty(
-            "The sample, the benchmarks and the tests are not shipped (ADR-0001: exactly one package).");
+            "The sample, the benchmarks and the tests are not shipped (ADR-0001, ADR-0018: the core and the hosting).");
+    }
+
+    [Fact]
+    public void The_two_packages_are_the_core_and_the_hosting_and_share_one_version()
+    {
+        Repository
+            .ProjectFiles()
+            .Where(file => file.Contains($"{Path.DirectorySeparatorChar}src{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Select(Path.GetFileName)
+            .ShouldBe(["Nordmann.LUI.Hosting.csproj", "Nordmann.LUI.csproj"], ignoreOrder: true);
+
+        // released together, with one version: it lives in Directory.Build.props, never in a project (ADR-0018)
+        foreach (var project in new[] { LibraryProject(), HostingProject() })
+        {
+            Repository.Elements(Repository.LoadXml(project), "Version").ShouldBeEmpty(project);
+            Repository.Elements(Repository.LoadXml(project), "VersionPrefix").ShouldBeEmpty(project);
+            Repository.Elements(Repository.LoadXml(project), "PackageVersion").ShouldBeEmpty(project);
+        }
+
+        Repository
+            .Elements(Repository.LoadXml(Path.Combine(Repository.RootPath, "Directory.Build.props")), "VersionPrefix")
+            .ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    public void The_hosting_references_the_core_and_nothing_else_of_the_repository()
+    {
+        Repository
+            .Elements(Repository.LoadXml(HostingProject()), "ProjectReference")
+            .Select(reference => reference.Attribute("Include")?.Value)
+            .ShouldBe(["../Nordmann.LUI/Nordmann.LUI.csproj"]);
     }
 
     [Fact]
@@ -75,12 +106,13 @@ public sealed class Repository_Layout
     [Fact]
     public void The_library_ships_the_readme_and_the_mit_license()
     {
-        var libraryProject = Repository.LoadXml(Path.Combine(Repository.LibraryDirectory, "Nordmann.LUI.csproj"));
-
-        Repository
-            .Elements(libraryProject, "PackageReadmeFile")
-            .Select(element => element.Value)
-            .ShouldBe(["README.md"]);
+        foreach (var project in new[] { LibraryProject(), HostingProject() })
+        {
+            Repository
+                .Elements(Repository.LoadXml(project), "PackageReadmeFile")
+                .Select(element => element.Value)
+                .ShouldBe(["README.md"], project);
+        }
 
         var license = Repository
             .Elements(Repository.LoadXml(Path.Combine(Repository.RootPath, "Directory.Build.props")), "PackageLicenseExpression")
@@ -100,9 +132,6 @@ public sealed class Repository_Layout
             "F23.StringSimilarity",
             "Meziantou.Analyzer",
             "Microsoft.Data.Sqlite",
-            "Microsoft.Extensions.DependencyInjection.Abstractions",
-            "Microsoft.Extensions.Hosting.Abstractions",
-            "Microsoft.Extensions.Logging.Abstractions",
             "Microsoft.SourceLink.GitHub",
             "symspell"
         };
@@ -124,10 +153,9 @@ public sealed class Repository_Layout
     [Fact]
     public void The_library_ships_only_the_documented_runtime_dependencies()
     {
-        // What a consumer gets when they install the package: exactly these (LUI-Spezifikation §17.3).
-        // The Microsoft.Extensions abstractions come back with the dependency injection (PR-008), not before:
-        // a console application without a host should not carry them (ADR-0013).
-        // Build-time packages carry PrivateAssets="all" and stay out.
+        // What a consumer gets when they install the core: exactly these (LUI-Spezifikation §17.3). The
+        // Microsoft.Extensions abstractions belong to the hosting package (ADR-0018): a console application without a
+        // host does not carry them. Build-time packages carry PrivateAssets="all" and stay out.
         var runtime = Repository
             .Elements(Repository.LoadXml(LibraryProject()), "PackageReference")
             .Where(reference => reference.Attribute("PrivateAssets") is null)
@@ -144,8 +172,41 @@ public sealed class Repository_Layout
         ]);
     }
 
+    [Fact]
+    public void The_hosting_ships_the_core_and_the_three_abstractions()
+    {
+        var runtime = Repository
+            .Elements(Repository.LoadXml(HostingProject()), "PackageReference")
+            .Where(reference => reference.Attribute("PrivateAssets") is null)
+            .Select(reference => reference.Attribute("Include")?.Value)
+            .Where(name => name is not null)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        runtime.ShouldBe(
+        [
+            "Microsoft.Extensions.DependencyInjection.Abstractions",
+            "Microsoft.Extensions.Hosting.Abstractions",
+            "Microsoft.Extensions.Logging.Abstractions"
+        ]);
+    }
+
+    [Fact]
+    public void The_core_assembly_knows_no_microsoft_extensions()
+    {
+        // what the compiler really bound, not only what the project lists
+        System.Reflection.Assembly.Load("Nordmann.LUI")
+            .GetReferencedAssemblies()
+            .Select(reference => reference.Name!)
+            .Where(name => name.StartsWith("Microsoft.Extensions", StringComparison.Ordinal))
+            .ShouldBeEmpty("The core does not depend on the dependency injection (ADR-0018).");
+    }
+
     private static string LibraryProject() =>
         Path.Combine(Repository.LibraryDirectory, "Nordmann.LUI.csproj");
+
+    private static string HostingProject() =>
+        Path.Combine(Repository.HostingDirectory, "Nordmann.LUI.Hosting.csproj");
 
     private static bool IsPackable(string projectFile)
     {

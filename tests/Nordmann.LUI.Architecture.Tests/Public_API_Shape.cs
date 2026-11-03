@@ -15,11 +15,14 @@ public sealed class Public_API_Shape
 {
     private static Assembly LibraryAssembly => Assembly.Load("Nordmann.LUI");
 
+    /// <summary>Both packages: the core and the hosting (ADR-0018) — they share the rules of the public API.</summary>
+    private static Assembly[] PackageAssemblies => [LibraryAssembly, Assembly.Load("Nordmann.LUI.Hosting")];
+
     [Fact]
     public void The_library_does_not_depend_on_the_web_stack()
     {
         var result = Types
-            .InAssembly(LibraryAssembly)
+            .InAssemblies(PackageAssemblies)
             .That()
             .ArePublic()
             .ShouldNot()
@@ -35,8 +38,8 @@ public sealed class Public_API_Shape
     {
         // Microsoft.Data.Sqlite has no async I/O; a Task-returning API would be
         // a lie about latency (LUI-Spezifikation §13).
-        var offenders = LibraryAssembly
-            .GetExportedTypes()
+        var offenders = PackageAssemblies
+            .SelectMany(assembly => assembly.GetExportedTypes())
             .SelectMany(type => type.GetMethods(
                 BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
             .Where(method => typeof(Task).IsAssignableFrom(method.ReturnType))
@@ -50,8 +53,8 @@ public sealed class Public_API_Shape
     [Fact]
     public void The_library_exposes_no_web_or_hosting_types()
     {
-        var offenders = LibraryAssembly
-            .GetExportedTypes()
+        var offenders = PackageAssemblies
+            .SelectMany(assembly => assembly.GetExportedTypes())
             .Where(type => type.Namespace?.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal) == true
                         || type.Namespace?.StartsWith("Microsoft.Extensions.Hosting", StringComparison.Ordinal) == true)
             .Select(type => type.FullName!)
@@ -65,8 +68,8 @@ public sealed class Public_API_Shape
     {
         // One namespace for the consumer (`using Nordmann.LUI;`), and a prefix that does not collide with the
         // types of an application — `Priority` would, in almost every one of them (ADR-0013).
-        var offenders = LibraryAssembly
-            .GetExportedTypes()
+        var offenders = PackageAssemblies
+            .SelectMany(assembly => assembly.GetExportedTypes())
             .Where(type => !string.Equals(type.Namespace, "Nordmann.LUI", StringComparison.Ordinal)
                         || !(type.Name.StartsWith("Lui", StringComparison.Ordinal) || type.Name.StartsWith("ILui", StringComparison.Ordinal)))
             .Select(type => type.FullName!)

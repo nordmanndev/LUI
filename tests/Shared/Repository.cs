@@ -18,6 +18,12 @@ public static class Repository
 
     public static string LibraryDirectory => Path.Combine(SourceDirectory, "Nordmann.LUI");
 
+    /// <summary>The second package: LUI in a .NET host (ADR-0018).</summary>
+    public static string HostingDirectory => Path.Combine(SourceDirectory, "Nordmann.LUI.Hosting");
+
+    /// <summary>The directories of the two packages, whose sources share the root namespace <c>Nordmann.LUI</c>.</summary>
+    public static IReadOnlyList<string> PackageDirectories => [LibraryDirectory, HostingDirectory];
+
     /// <summary>All project files, excluding build output.</summary>
     public static IReadOnlyList<string> ProjectFiles() =>
         Directory

@@ -5,17 +5,17 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** [#17](https://github.com/nordmanndev/LUI/issues/17) — Sync, Check, Rebuild, Optimize (PR-007)
-**Branch:** `feat/sync-check-rebuild`
-**State:** implemented, measured, documented (ADR-0016); waiting for the owner's go to open the pull request.
+**Issue:** [#21](https://github.com/nordmanndev/LUI/issues/21) — dependency injection, hosted services, stale candidates (PR-008)
+**Branch:** `feat/dependency-injection`
+**State:** implemented, tested, documented (ADR-0017); waiting for the owner's go to open the pull request.
 
-## Open for the owner
+## Open
 
-- The default `LuiSyncOptions.BatchSize`: 10,000 (spec, lock < 1 s) vs 50,000 / 100,000 (20–30 % faster, lock 2–5 s).
-- A shadow build for `Linked.Sync()` (review of PR #16, S2): one transaction of 26.7 s per million rows today.
-- ADR-0010 (the query budget at 3 M) — measure again after this bulk path, with PR-009.
+- `Highlight` → #20 (a later version, owner's decision: the front end marks the match).
+- The typo dictionary is rebuilt in full at the end of a sync with changes → #19 (a lazy or background rebuild; the
+  hosted services of PR-008 are the place).
+- Owner's decisions still open: the default `LuiSyncOptions.BatchSize`, a shadow build for `Linked.Sync()`, ADR-0010.
 
 ## The next step
 
-**PR-008 — DI and query polish:** `AddLui`, keyed services, ensure on start; a hosted service for `ApplyPending`;
-reading on past the LIMIT when stale candidates use up the budget (F1 of the review of PR #16); `Highlight`.
+**PR-009 — performance budgets:** BenchmarkDotNet project, 3 M corpus generator, the §16 targets as tests (with ADR-0010).

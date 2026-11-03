@@ -296,7 +296,7 @@ Spalte der Anwendung abbilden (`GENERATED ALWAYS AS (CASE WHEN is_system THEN 0 
 | `Refresh(id, transaction?)`, `RefreshMany(ids, transaction?)` | nach eigenen Schreibvorgängen; liest die Zeile selbst, eine fehlende Zeile verlässt den Index. Die Transaktion ist optional: ohne sie eine eigene, mit ihr gehört beides zur Transaktion der Anwendung |
 | `TriggerScript()` | das SQL dreier Trigger für die eigene Migration der Anwendung — ändert nichts. Die Trigger **notieren nur den Schlüssel** einer geänderten Zeile in `lui_<index>_pending` (reines SQL, kein FTS, keine Normalisierung): Jedes Programm mit jedem SQLite kann die Tabelle weiter schreiben, und ein Schreibvorgang der Anwendung scheitert nie am Index |
 | `CreateTriggers()` / `DropTriggers()` | legt die Trigger an bzw. entfernt sie, nur auf Aufruf |
-| `ApplyPending()`, `Pending()` | bringt die notierten Zeilen in den Index (in Stapeln, auf der geprüften Verbindung der Bibliothek) bzw. zählt sie. Eine Abfrage wendet sie **nicht** an — der Index ist so aktuell wie das letzte `ApplyPending()`. Regelmäßig aufrufen: veraltete Einträge verbrauchen das Kandidatenbudget, bis sie angewendet sind; `Pending()` eignet sich als Health-Check |
+| `ApplyPending()`, `Pending()` | bringt die notierten Zeilen in den Index (in Stapeln, auf der geprüften Verbindung der Bibliothek) bzw. zählt sie. Eine Abfrage wendet sie **nicht** an — der Index ist so aktuell wie das letzte `ApplyPending()`. Regelmäßig aufrufen: Ein veralteter Eintrag wird als Kandidat gelesen und verworfen — er zählt nicht gegen das Kandidatenbudget, gelesen wird darüber hinaus bis zu einem zweiten Budget solcher Einträge (ADR-0017); `Pending()` eignet sich als Health-Check |
 | `Triggers()` | `None`, `Current` oder `Stale` (nach einem Update von LUI oder einer Änderung der Tabelle neu anlegen) |
 | `Optimize()` | führt die Segmente zusammen; viele einzelne `Refresh` hinterlassen Löschmarken |
 
@@ -435,7 +435,7 @@ public readonly record struct LuiHit<TKey, TPayload>
 
 Die Ergebnistypen haben **benannte Eigenschaften, keine Positionen** (ADR-0013): Ein neues Feld ist eine
 Ergänzung, kein Bruch, und zwei Felder gleichen Typs können nicht still die Plätze tauschen. Die Markierung
-der Fundstelle (§ 9.3) kommt als weiteres Feld `Highlight` mit Schritt 8 dazu.
+der Fundstelle (§ 9.3) kommt als weiteres Feld `Highlight` in einer späteren Version dazu (Issue #20).
 
 ---
 
@@ -493,7 +493,10 @@ gemessen.
 Bei Gleichstand auf allen Stufen entscheidet die `rowid` (also Gewicht, dann
 `doc_id`); das Ergebnis ist damit deterministisch.
 
-### 9.3 Markierung der Fundstelle (optional)
+### 9.3 Markierung der Fundstelle (optional, spätere Version)
+
+**Nicht in 0.1** (Entscheidung des Eigentümers, ADR-0017): Die JavaScript-Bibliothek des Frontends markiert die
+Fundstelle selbst; die Markierung durch LUI kommt mit einer späteren Version (Issue #20).
 
 Weil die Normalisierung die Länge ändert (ü → ue), liefert LUI die Fundstelle
 **im Originaltext** zurück (`Highlight(Start, Length)`). Dafür bildet der
@@ -598,7 +601,7 @@ für die Kandidaten berechnet (≤ `Candidates`) und nur in Stufe 2 des Rankings
 ## 12. Öffentliche API
 
 Die Listings in § 12 beschreiben die **Ziel-API**: Was erst mit einem späteren Schritt kommt, ist markiert
-(`Highlight` und die Dependency Injection mit Schritt 8) und lässt sich bis dahin nicht kompilieren. Was heute gilt, führt der Quick Start des README vor; der Paket-Smoke-Test führt ihn aus.
+(`Highlight` mit einer späteren Version, Issue #20) und lässt sich bis dahin nicht kompilieren. Was heute gilt, führt der Quick Start des README vor; der Paket-Smoke-Test führt ihn aus.
 
 ### 12.1 Katalog öffnen
 
@@ -736,7 +739,7 @@ LuiResult<long, RecipeChip> result = recipes
     .DistinctText(false)                             // Standard
     .Similarity(LuiSimilarity.JaroWinkler)           // überschreibt den Standard der Art
     .TypoTolerance(true)                             // Standard: wie beim Index festgelegt
-    .Highlight(true)                                 // Standard: false (Schritt 8)
+    .Highlight(true)                                 // Standard: false (spätere Version, Issue #20)
     .TrackTimings(false)
     .Execute(cancellationToken);
 
@@ -772,16 +775,33 @@ speichert ihn nicht; eine Abfrage zeigt ihn trotzdem nie (§ 7.3), und `Sync()` 
 ### 12.7 Dependency Injection
 
 ```csharp
-services.AddLui("Data Source=app.db")
+services.AddLui("Data Source=app.db")                   // oder AddLui(sp => …Verbindungszeichenfolge aus der Konfiguration…)
         .AddIndex("recipes", index => index.MultiWord().WithPayload(RecipeJsonContext.Default.RecipeChip))
-        .AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
+        .AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"),
+                  applyPendingEvery: TimeSpan.FromSeconds(5))   // die Outbox der Trigger, auf einem Timer
+        .EnsureOnStart()                                  // Standard
+        .WarmUpTypoDictionariesOnStart();                 // optional, im Hintergrund
 
 // Verwendung: Keyed Services — der Suggest-Endpunkt braucht nur die Lese-Schnittstelle
 public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<long, RecipeChip> recipes) { … }
 ```
 
-`Ensure()` läuft beim Start (als `IHostedService`, abschaltbar), nicht beim
-ersten Request.
+- Der Katalog ist ein Singleton, das der Container beim ersten Bedarf öffnet und mit sich entsorgt; `AddLui` einmal
+  pro Container.
+- Jeder Index ist ein **Keyed Singleton unter seinem Namen**, als Lese- (`ILuiIndex<TKey, TPayload>`) und als
+  Schreibschnittstelle (`ILuiOwnedIndex` bzw. `ILuiLinkedIndex`) — dieselbe Instanz. Der Rückgabetyp der
+  Beschreibung wählt die Art: `LuiIndexBuilder` = `Owned`, `LuiLinkedIndexBuilder` = `Linked`.
+- `Ensure()` läuft beim Start (als `IHostedService`, abschaltbar mit `EnsureOnStart(false)`), nicht beim ersten
+  Request: Eine abweichende Definition stoppt den Start.
+- `WarmUpTypoDictionariesOnStart()` baut die Wörterbücher der Indizes mit Tippfehler-Toleranz nach dem Start im
+  Hintergrund. Abfragen ohne Korrektur warten nicht darauf; eine Abfrage, die korrigieren muss, wartet, bis das
+  Wörterbuch gebaut ist — wie beim ersten Tippfehler ohne Warm-up —, und ihr Token unterbricht dieses Warten nicht
+  (ADR-0017; eine Abfrage, die währenddessen ohne Korrektur antwortet, ist Issue #19).
+- `applyPendingEvery` lässt einen gehosteten Dienst `ApplyPending()` eines verknüpften Index im Takt aufrufen; ein
+  fehlgeschlagener Durchlauf wird geloggt, der nächste versucht es wieder. Die Trigger legt er nicht an (ADR-0015).
+- Das alles liefert das Paket `Nordmann.LUI.Hosting` (§ 17.1, ADR-0018); den Host bringt die Anwendung mit. Ohne
+  Host — in einer Konsolenanwendung — ruft die Anwendung `Ensure()`, `WarmUpTypoDictionary()` und `ApplyPending()`
+  selbst auf.
 
 ### 12.8 Fehler
 
@@ -883,13 +903,19 @@ veröffentlicht.
 
 ### 17.1 Pakete
 
-**Ein Paket**, `Nordmann.LUI`, eine Assembly (ADR-0001). Es hängt von `Microsoft.Data.Sqlite`, `symspell` und
-`F23.StringSimilarity` ab — und von nichts, was es nicht verwendet: Die `Microsoft.Extensions.*`-Abstraktionen
-kommen erst mit der Dependency Injection (Schritt 8), in derselben Assembly (ADR-0013).
+**Zwei Pakete, gemeinsam versioniert** (ADR-0001, ADR-0018):
+
+| Paket | Inhalt | Abhängigkeiten |
+|---|---|---|
+| `Nordmann.LUI` | alles, was keinen Host braucht — eine Konsolenanwendung braucht nur dieses | `Microsoft.Data.Sqlite`, `symspell`, `F23.StringSimilarity` |
+| `Nordmann.LUI.Hosting` | `AddLui`, Keyed Services, die gehosteten Dienste (§ 12.7) | `Nordmann.LUI` derselben Version, die `Microsoft.Extensions.*`-Abstraktionen von `DependencyInjection`, `Hosting`, `Logging` |
+
+Der Kern startet keinen Thread und keinen Timer: Was im Hintergrund läuft, gehört dem Host. Das Hosting-Paket kennt nur
+die öffentliche API des Kerns.
 
 ### 17.2 Namespaces (Ordner = Namespace)
 
-Ein Konsument braucht **ein** `using Nordmann.LUI;`: Jeder öffentliche Typ liegt dort und beginnt mit `Lui`
+Ein Konsument braucht **ein** `using Nordmann.LUI;`: Jeder öffentliche Typ beider Pakete liegt dort und beginnt mit `Lui`
 bzw. `ILui` (ein Architekturtest hält das fest, ADR-0013). Die übrigen Namespaces sind intern.
 
 | Namespace | Inhalt | sichtbar |
@@ -900,7 +926,8 @@ bzw. `ILui` (ein Architekturtest hält das fest, ADR-0013). Die übrigen Namespa
 | `Nordmann.LUI.Writing` | Schreibzugriffe (vorbereitete Statements) | intern |
 | `Nordmann.LUI.Schema` | Definition, Rowid, Regeln der Art, Inhaltsquellen mit ihrem SQL — auch dem von `Sync` und `Check`, nicht deren Ausführung | intern |
 | `Nordmann.LUI.Typos` | Wörterbuch der Wortanfänge | intern |
-| `Nordmann.LUI.Normalization` | `Normalizer`, SQL-Ausdrücke, Zuordnung für Highlight | intern |
+| `Nordmann.LUI.Normalization` | `Normalizer`, SQL-Ausdrücke | intern |
+| `Nordmann.LUI.Hosting` | im Paket `Nordmann.LUI.Hosting`: die Registrierungen und die gehosteten Dienste | intern |
 | `Nordmann.LUI.Storage` | die Datenbank des Katalogs: Verbindungen mit den Pragmas, der Schreiber und seine Sperre, die laufenden Vorgänge | intern |
 
 Die internen Namespaces haben eine Richtung: Jeder kennt nur die unter ihm (in der Tabelle von oben nach unten;
@@ -918,6 +945,15 @@ Tabellennamen. Architekturtests halten das fest (ADR-0014).
 | `Microsoft.Data.Sqlite` | 10.0.14 | MIT (natives SQLite über `SQLitePCLRaw.bundle_e_sqlite3`, Apache-2.0) |
 | `symspell` | 6.7.3 | MIT |
 | `F23.StringSimilarity` | 7.0.1 | MIT |
+
+`Nordmann.LUI.Hosting` dazu (ADR-0017, ADR-0018):
+
+| Paket | Version | Lizenz |
+|---|---|---|
+| `Nordmann.LUI` | dieselbe | MIT |
+| `Microsoft.Extensions.DependencyInjection.Abstractions` | 10.0.14 | MIT |
+| `Microsoft.Extensions.Hosting.Abstractions` | 10.0.14 | MIT (bringt `Configuration`-, `Diagnostics`-, `FileProviders.Abstractions`, `Options`, `Primitives` mit) |
+| `Microsoft.Extensions.Logging.Abstractions` | 10.0.14 | MIT |
 
 Mindestversion von SQLite: **3.45** (`remove_diacritics` für den
 Trigram-Tokenizer); getestet mit 3.53.3. Die Bibliothek prüft die Version beim
@@ -975,7 +1011,7 @@ Jeder Schritt ist ein Pull Request mit ADR, Tests und Messung.
 | 5 | Tippfehler-Toleranz | Qualitätsuntergrenzen für Tippfehler, Nebenläufigkeitstest |
 | 6 | `Linked`, lose gekoppelt (ADR-0015) | Integrationstests mit einer Tabelle der Anwendung: Schema unverändert, `Refresh` mit und ohne Transaktion, `Sync`, Trigger nur auf Aufruf |
 | 7 | `Sync`, `Check`, `Rebuild`, `Optimize`; der Katalog zerlegt (ADR-0016) | Abgleich mit 1 Mio. Einträgen, Abbruch und Wiederaufsetzen |
-| 8 | Fluent-Feinschliff, `Highlight`, DI-Paket, README, Beispiele | Paket-Smoke-Test mit README-Code |
+| 8 | Dependency Injection und gehostete Dienste (ADR-0017); veraltete Kandidaten jenseits des Budgets; `Highlight` verschoben (#20) | Paket-Smoke-Test mit README-Code, DI-Tests gegen einen echten Host |
 | 9 | Leistungsbudgets und Benchmarks auf 3 Mio. Einträgen | alle Ziele aus § 16 als Tests grün |
 
 ---

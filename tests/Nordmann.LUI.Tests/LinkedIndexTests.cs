@@ -705,27 +705,51 @@ public sealed class LinkedIndexTests
     // ---- the re-review of pull request 16 ------------------------------------------------------------------------------
 
     [Fact]
-    public void Stale_candidates_use_up_the_budget_until_the_outbox_is_applied()
+    public void Stale_candidates_do_not_use_up_the_budget_up_to_a_second_budget_of_them()
     {
-        // F1, pinned: a changed row that is not applied yet is still a candidate of its old text; the check against its
-        // new text comes after the LIMIT, so many of them among the best can crowd out an entry that does match
+        // F1 (PR-008): a changed row that is not applied yet is read as a candidate of its old text and then found not to
+        // match; it no longer counts against the budget, the read goes on past it — up to another budget of such rows
         using var database = new TestDatabase();
         Run(database, Table);
-        Run(database, "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 600) INSERT INTO tag(id, name, usage_count) SELECT i, 'vegan' || i, i FROM n;");
+        Run(database, "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 1200) INSERT INTO tag(id, name, usage_count) SELECT i, 'vegan' || i, i FROM n;");
         using var catalog = database.Open();
         var tags = Tags(catalog);
         tags.Sync();
         tags.CreateTriggers();
 
-        // the 550 most popular change their text
+        // the 450 most popular change their text: fewer than the budget of 500
+        Run(database, "UPDATE tag SET name = 'zucker' || id WHERE id > 750;");
+        var found = tags.Search("vegan");
+        found.Hits.Count.ShouldBe(20);
+        found.Hits.ShouldAllBe(hit => hit.Key <= 750);
+        found.Hits[0].Key.ShouldBe(750);
+
+        // 1,150 among the best: more than a second budget — the answer is empty and says it was cut off
         Run(database, "UPDATE tag SET name = 'zucker' || id WHERE id > 50;");
+        var crowded = tags.Search("vegan");
+        crowded.Hits.ShouldBeEmpty();
+        crowded.Truncated.ShouldBeTrue();
+        tags.Search("vegan", new LuiQueryOptions { Candidates = 1_150 }).Hits.Count.ShouldBe(20);
 
-        tags.Search("vegan").Hits.ShouldBeEmpty("500 candidates, all of them stale");
-        tags.Search("vegan", new LuiQueryOptions { Candidates = 1_000 }).Hits.Count.ShouldBe(20);
-
-        tags.ApplyPending().ShouldBe(550);
+        tags.ApplyPending().ShouldBe(1_150);
         tags.Search("vegan").Hits.Count.ShouldBe(20);
         tags.Search("zucker").Hits.Count.ShouldBe(20);
+    }
+
+    [Fact]
+    public void Without_stale_candidates_the_budget_is_what_it_was()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Run(database, "WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < 30) INSERT INTO tag(id, name, usage_count) SELECT i, 'vegan' || i, i FROM n;");
+        using var catalog = database.Open();
+        var tags = Tags(catalog);
+        tags.Sync();
+
+        var result = tags.Search("vegan", new LuiQueryOptions { Candidates = 10 });
+
+        result.CandidatesConsidered.ShouldBe(10);
+        result.Truncated.ShouldBeTrue();
     }
 
     [Fact]

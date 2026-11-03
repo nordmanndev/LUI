@@ -52,8 +52,9 @@ The standards' five non-negotiable rules, and how they read here:
   *is* the package's contract).
 - ❌ Never let the README show an API the code does not have. Every C# block
   in the README is compiled and executed by the package smoke test.
-- ❌ Never add a NuGet dependency to `Nordmann.LUI` without an ADR — even a
-  transitive one.
+- ❌ Never add a NuGet dependency to `Nordmann.LUI` or `Nordmann.LUI.Hosting`
+  without an ADR — even a transitive one. The core takes no `Microsoft.Extensions.*`
+  package: that is the hosting package's (ADR-0018).
 - ❌ Never touch `lui_*` tables by hand. They belong to the library; the
   application writes through the index API, or (in `Linked` mode) to its own
   table and tells the index with `Refresh`/`Sync` — or through triggers it
