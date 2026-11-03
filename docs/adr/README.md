@@ -49,3 +49,4 @@ here — in the **same pull request** as the change it describes.
 | [0015](./0015-the-linked-index-is-loosely-coupled.md) | The linked index is loosely coupled: LUI never changes the application's table on its own | Accepted |
 | [0016](./0016-sync-check-rebuild.md) | Sync, check and rebuild: batches that can be run again, a merge at the end, a catalog taken apart | Accepted |
 | [0017](./0017-dependency-injection-and-hosted-services.md) | Dependency injection and hosted services, in the package; stale candidates past the budget | Accepted |
+| [0018](./0018-two-packages-core-and-hosting.md) | Two packages: the core and the hosting, released together | Accepted |

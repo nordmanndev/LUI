@@ -6,7 +6,8 @@ using Nordmann.LUI.Hosting;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// LUI in a container of <c>Microsoft.Extensions.DependencyInjection</c> (LUI-Spezifikation §12.7, ADR-0017): one catalog
+/// LUI in a container of <c>Microsoft.Extensions.DependencyInjection</c> (LUI-Spezifikation §12.7, ADR-0017, package
+/// <c>Nordmann.LUI.Hosting</c>, ADR-0018): one catalog
 /// as a singleton, every index as a keyed singleton under its name, and two hosted services — one ensures the indexes when
 /// the host starts, one applies the outbox of the linked indexes that ask for it.
 /// </summary>
@@ -44,7 +45,7 @@ public static class LuiServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(connectionString);
 
-        if (services.Any(service => service.ServiceType == typeof(LuiCatalog)))
+        if (services.Any(service => service.ServiceType == typeof(LuiRegistrations)))
         {
             throw new InvalidOperationException(
                 "LUI is registered already: AddLui is called once per container, and every index is added to its builder.");
@@ -52,11 +53,12 @@ public static class LuiServiceCollectionExtensions
 
         var registrations = new LuiRegistrations();
         services.AddSingleton(registrations);
-        services.AddSingleton(provider => LuiCatalog.Open(connectionString(provider), options?.Invoke(provider)));
+        services.AddSingleton(provider => options?.Invoke(provider) ?? new LuiCatalogOptions());
+        services.AddSingleton(provider => LuiCatalog.Open(connectionString(provider), provider.GetRequiredService<LuiCatalogOptions>()));
         services.AddHostedService(provider =>
             new LuiStartup(provider, registrations, Logger<LuiStartup>(provider)));
-        services.AddHostedService(provider =>
-            new LuiPendingApplier(provider, registrations, provider.GetRequiredService<LuiCatalog>(), Logger<LuiPendingApplier>(provider)));
+        services.AddHostedService(provider => new LuiPendingApplier(
+            provider, registrations, provider.GetRequiredService<LuiCatalogOptions>().TimeProvider, Logger<LuiPendingApplier>(provider)));
 
         return new LuiServicesBuilder(services, registrations);
     }

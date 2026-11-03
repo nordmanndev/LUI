@@ -11,7 +11,6 @@ namespace Nordmann.LUI.Architecture.Tests;
 /// The inside of the library has a direction (ADR-0014): it is read from the bottom up, and a namespace
 /// knows only the ones below it.
 /// <code>
-/// Nordmann.LUI.Hosting    the hosted services of the dependency injection — the public API only
 /// Nordmann.LUI            the public types and the facade (LuiCatalog, the builders)
 ///   Indexes               an index: puts a content source, the writes and the query path together; the stored definitions
 ///     Querying  Writing   the query path · the write statements
@@ -21,7 +20,9 @@ namespace Nordmann.LUI.Architecture.Tests;
 /// The root namespace holds the public types every layer speaks in, and the facade above all of them: the
 /// builders and the catalog. A layer may use the public types, never the facade — that would be a way up
 /// past the rule (review of pull request 14, S1). The catalog has no exception any more: its connections and its
-/// lifetime are <c>Storage.Database</c>, its definitions <c>Indexes.IndexStore</c> (review DevEx D4, D6; PR-007).
+/// lifetime are <c>Storage.Database</c>, its definitions <c>Indexes.IndexStore</c> (review DevEx D4, D6; PR-007). The
+/// dependency injection is a package of its own above all of it, <c>Nordmann.LUI.Hosting</c> (ADR-0018): the compiler
+/// keeps it on the public API.
 /// </summary>
 public sealed class Internal_Layering
 {
@@ -82,25 +83,6 @@ public sealed class Internal_Layering
         result.IsSuccessful.ShouldBeTrue(
             $"{Root}.{layer} must not depend on {string.Join(", ", facade)}. Failing types: "
             + string.Join(", ", result.FailingTypeNames ?? []));
-    }
-
-    [Fact]
-    public void The_hosting_knows_only_the_public_api()
-    {
-        // The hosted services and the registrations sit beside the facade: they ask the indexes what an application
-        // could ask them, through the public interfaces — nothing below (ADR-0017).
-        string[] inside = ["Indexes", "Querying", "Writing", "Schema", "Storage", "Typos", "Normalization"];
-
-        var result = Types
-            .InAssembly(LibraryAssembly)
-            .That()
-            .ResideInNamespace($"{Root}.Hosting")
-            .ShouldNot()
-            .HaveDependencyOnAny([.. inside.Select(name => $"{Root}.{name}")])
-            .GetResult();
-
-        result.IsSuccessful.ShouldBeTrue(
-            "Nordmann.LUI.Hosting uses the public API only. Failing types: " + string.Join(", ", result.FailingTypeNames ?? []));
     }
 
     [Fact]

@@ -11,7 +11,7 @@ namespace Nordmann.LUI.Hosting;
 internal sealed partial class LuiPendingApplier(
     IServiceProvider services,
     LuiRegistrations registrations,
-    LuiCatalog catalog,
+    TimeProvider timeProvider,
     ILogger<LuiPendingApplier> logger) : BackgroundService
 {
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
@@ -26,7 +26,7 @@ internal sealed partial class LuiPendingApplier(
         {
             try
             {
-                await Task.Delay(every, catalog.TimeProvider, stopping).ConfigureAwait(false);
+                await Task.Delay(every, timeProvider, stopping).ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {

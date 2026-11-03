@@ -53,6 +53,8 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
 
     public LuiIndexKind Kind { get; }
 
+    public bool TypoTolerance => _runner.TypoTolerance;
+
     public long Count()
     {
         using var scope = _database.Begin();

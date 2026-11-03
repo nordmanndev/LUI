@@ -60,6 +60,8 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
 
     public LuiIndexKind Kind { get; }
 
+    public bool TypoTolerance => _runner.TypoTolerance;
+
     public void Upsert(LuiEntry<TKey, TPayload> entry, SqliteTransaction? transaction = null)
     {
         ArgumentNullException.ThrowIfNull(entry);

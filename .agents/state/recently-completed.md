@@ -10,8 +10,9 @@ the scratchpad here at the end of a session.
 - ADR-0017. `AddLui(…)`, `.AddIndex(name, index => …)` (owned or linked by the lambda's return type), keyed singletons
   under the name (read and write interface, one instance); `LuiStartup` ensures on start (+ optional warm-up of the
   indexes with typo tolerance), `LuiPendingApplier` runs `ApplyPending` on `applyPendingEvery`, logs and goes on.
-- `Nordmann.LUI.Hosting` knows only the public API (architecture test + mutation). The three abstractions are back in
-  the package (+5 transitive, 380 KB, MIT); `Microsoft.Extensions.Hosting` is a test package and the smoke app's.
+- Owner's decision (ADR-0018): the DI is a second package, `Nordmann.LUI.Hosting`, one version with the core; only it
+  references the three abstractions (+5 transitive). It sees no internals; `ILuiIndex.TypoTolerance` is new for the
+  warm-up, the options are a registered singleton for the `TimeProvider`, the name is checked on start.
 - F1: an outdated linked candidate does not count against the budget; read on up to a second budget, then `Truncated`.
 - `Highlight` moved to #20 by the owner; the full typo rebuild after a sync is #19.
 

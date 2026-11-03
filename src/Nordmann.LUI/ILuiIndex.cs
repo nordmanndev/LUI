@@ -17,6 +17,12 @@ public interface ILuiIndex<TKey, TPayload>
     /// <summary>How the index is searched.</summary>
     LuiIndexKind Kind { get; }
 
+    /// <summary>
+    /// Whether a query of this instance corrects a typo unless it says otherwise (<c>TypoTolerance()</c> of the builder,
+    /// overridden by <c>Query(text).TypoTolerance(…)</c>). A property of the instance, not of the stored index.
+    /// </summary>
+    bool TypoTolerance { get; }
+
     /// <summary>The number of entries.</summary>
     /// <returns>The count.</returns>
     long Count();

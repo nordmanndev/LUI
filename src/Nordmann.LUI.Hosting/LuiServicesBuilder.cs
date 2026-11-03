@@ -1,6 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
 using Nordmann.LUI.Hosting;
-using Nordmann.LUI.Schema;
 
 namespace Nordmann.LUI;
 
@@ -36,12 +35,12 @@ public sealed class LuiServicesBuilder
     /// <param name="name">The name of the index — and the key of its services.</param>
     /// <param name="index">Describes the index, from its kind on.</param>
     /// <returns>The builder.</returns>
-    /// <exception cref="ArgumentException">The name is not a valid index name, or it is registered already.</exception>
+    /// <exception cref="ArgumentException">The name is empty, or it is registered already. A name that is not a valid index
+    /// name (<c>^[a-z][a-z0-9_]{0,40}$</c>) fails when the index is ensured — on start.</exception>
     public LuiServicesBuilder AddIndex<TKey, TPayload>(string name, Func<LuiIndexKindBuilder, LuiIndexBuilder<TKey, TPayload>> index)
     {
-        Identifier.ValidateIndexName(name, nameof(name));
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(index);
-        var typos = new TypoWish();
 
         _registrations.Add(new IndexRegistration(
             name,
@@ -50,7 +49,7 @@ public sealed class LuiServicesBuilder
             {
                 // only an index that asked for typo tolerance: the dictionary of another one would cost memory for nothing
                 var built = provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name);
-                if (!typos.Wanted)
+                if (!built.TypoTolerance)
                 {
                     return false;
                 }
@@ -61,12 +60,8 @@ public sealed class LuiServicesBuilder
             ApplyPending: null,
             ApplyPendingEvery: null));
 
-        Services.AddKeyedSingleton<ILuiOwnedIndex<TKey, TPayload>>(name, (provider, _) =>
-        {
-            var described = index(provider.GetRequiredService<LuiCatalog>().Index(name));
-            typos.Wanted = described.TypoToleranceSetting;
-            return described.Ensure();
-        });
+        Services.AddKeyedSingleton<ILuiOwnedIndex<TKey, TPayload>>(
+            name, (provider, _) => index(provider.GetRequiredService<LuiCatalog>().Index(name)).Ensure());
         Services.AddKeyedSingleton<ILuiIndex<TKey, TPayload>>(
             name, (provider, _) => provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name));
         return this;
@@ -87,21 +82,21 @@ public sealed class LuiServicesBuilder
     /// not created here; that stays the application's call (ADR-0015).
     /// </param>
     /// <returns>The builder.</returns>
-    /// <exception cref="ArgumentException">The name is not a valid index name, or it is registered already.</exception>
+    /// <exception cref="ArgumentException">The name is empty, or it is registered already. A name that is not a valid index
+    /// name (<c>^[a-z][a-z0-9_]{0,40}$</c>) fails when the index is ensured — on start.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="applyPendingEvery"/> is not positive.</exception>
     public LuiServicesBuilder AddIndex<TPayload>(
         string name,
         Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>> index,
         TimeSpan? applyPendingEvery = null)
     {
-        Identifier.ValidateIndexName(name, nameof(name));
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(index);
         if (applyPendingEvery is { } every && every <= TimeSpan.Zero)
         {
             throw new ArgumentOutOfRangeException(nameof(applyPendingEvery), every, "The interval of ApplyPending is positive.");
         }
 
-        var typos = new TypoWish();
         _registrations.Add(new IndexRegistration(
             name,
             Ensure: provider => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name),
@@ -109,7 +104,7 @@ public sealed class LuiServicesBuilder
             {
                 // only an index that asked for typo tolerance: the dictionary of another one would cost memory for nothing
                 var built = provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name);
-                if (!typos.Wanted)
+                if (!built.TypoTolerance)
                 {
                     return false;
                 }
@@ -120,12 +115,8 @@ public sealed class LuiServicesBuilder
             ApplyPending: (provider, token) => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name).ApplyPending(token),
             ApplyPendingEvery: applyPendingEvery));
 
-        Services.AddKeyedSingleton<ILuiLinkedIndex<TPayload>>(name, (provider, _) =>
-        {
-            var described = index(provider.GetRequiredService<LuiCatalog>().Index(name));
-            typos.Wanted = described.TypoToleranceSetting;
-            return described.Ensure();
-        });
+        Services.AddKeyedSingleton<ILuiLinkedIndex<TPayload>>(
+            name, (provider, _) => index(provider.GetRequiredService<LuiCatalog>().Index(name)).Ensure());
         Services.AddKeyedSingleton<ILuiIndex<long, TPayload>>(
             name, (provider, _) => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name));
         return this;
@@ -154,11 +145,5 @@ public sealed class LuiServicesBuilder
     {
         _registrations.WarmUpTypoDictionariesOnStart = enabled;
         return this;
-    }
-
-    /// <summary>Whether the description of an index asked for typo tolerance — known once it was described.</summary>
-    private sealed class TypoWish
-    {
-        internal bool Wanted { get; set; }
     }
 }

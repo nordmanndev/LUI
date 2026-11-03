@@ -797,8 +797,9 @@ public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<lon
   Hintergrund.
 - `applyPendingEvery` lässt einen gehosteten Dienst `ApplyPending()` eines verknüpften Index im Takt aufrufen; ein
   fehlgeschlagener Durchlauf wird geloggt, der nächste versucht es wieder. Die Trigger legt er nicht an (ADR-0015).
-- Die Pakete: die Abstraktionen von `DependencyInjection`, `Hosting` und `Logging` (§ 17.3); den Host bringt die
-  Anwendung mit (ADR-0017).
+- Das alles liefert das Paket `Nordmann.LUI.Hosting` (§ 17.1, ADR-0018); den Host bringt die Anwendung mit. Ohne
+  Host — in einer Konsolenanwendung — ruft die Anwendung `Ensure()`, `WarmUpTypoDictionary()` und `ApplyPending()`
+  selbst auf.
 
 ### 12.8 Fehler
 
@@ -900,25 +901,31 @@ veröffentlicht.
 
 ### 17.1 Pakete
 
-**Ein Paket**, `Nordmann.LUI`, eine Assembly (ADR-0001). Es hängt von `Microsoft.Data.Sqlite`, `symspell` und
-`F23.StringSimilarity` ab — und von nichts, was es nicht verwendet: Die `Microsoft.Extensions.*`-Abstraktionen
-kommen mit der Dependency Injection, in derselben Assembly (ADR-0013, ADR-0017).
+**Zwei Pakete, gemeinsam versioniert** (ADR-0001, ADR-0018):
+
+| Paket | Inhalt | Abhängigkeiten |
+|---|---|---|
+| `Nordmann.LUI` | alles, was keinen Host braucht — eine Konsolenanwendung braucht nur dieses | `Microsoft.Data.Sqlite`, `symspell`, `F23.StringSimilarity` |
+| `Nordmann.LUI.Hosting` | `AddLui`, Keyed Services, die gehosteten Dienste (§ 12.7) | `Nordmann.LUI` derselben Version, die `Microsoft.Extensions.*`-Abstraktionen von `DependencyInjection`, `Hosting`, `Logging` |
+
+Der Kern startet keinen Thread und keinen Timer: Was im Hintergrund läuft, gehört dem Host. Das Hosting-Paket kennt nur
+die öffentliche API des Kerns.
 
 ### 17.2 Namespaces (Ordner = Namespace)
 
-Ein Konsument braucht **ein** `using Nordmann.LUI;`: Jeder öffentliche Typ liegt dort und beginnt mit `Lui`
+Ein Konsument braucht **ein** `using Nordmann.LUI;`: Jeder öffentliche Typ beider Pakete liegt dort und beginnt mit `Lui`
 bzw. `ILui` (ein Architekturtest hält das fest, ADR-0013). Die übrigen Namespaces sind intern.
 
 | Namespace | Inhalt | sichtbar |
 |---|---|---|
 | `Nordmann.LUI` | `LuiCatalog`, die Builder-Stufen, `ILuiIndex`, `ILuiOwnedIndex`, `LuiEntry`, Abfrage, Optionen, Ergebnisse, `ILuiSimilarity`/`LuiSimilarity`, `ILuiPayloadSerializer`, Ausnahmen | öffentlich |
-| `Nordmann.LUI.Hosting` | die Registrierungen und die gehosteten Dienste der Dependency Injection — kennt nur die öffentliche API (ADR-0017) | intern |
 | `Nordmann.LUI.Indexes` | ein Index: setzt Inhaltsquelle, Schreibzugriffe und Abfrage zusammen (`Owned`, `Linked`); führt `Sync`, `Check`, `Rebuild` aus; die gespeicherten Definitionen (`IndexStore`) | intern |
 | `Nordmann.LUI.Querying` | Abfrage-Ablauf als Pipeline: Kandidaten, Korrektur, Ranking, Treffer | intern |
 | `Nordmann.LUI.Writing` | Schreibzugriffe (vorbereitete Statements) | intern |
 | `Nordmann.LUI.Schema` | Definition, Rowid, Regeln der Art, Inhaltsquellen mit ihrem SQL — auch dem von `Sync` und `Check`, nicht deren Ausführung | intern |
 | `Nordmann.LUI.Typos` | Wörterbuch der Wortanfänge | intern |
 | `Nordmann.LUI.Normalization` | `Normalizer`, SQL-Ausdrücke | intern |
+| `Nordmann.LUI.Hosting` | im Paket `Nordmann.LUI.Hosting`: die Registrierungen und die gehosteten Dienste | intern |
 | `Nordmann.LUI.Storage` | die Datenbank des Katalogs: Verbindungen mit den Pragmas, der Schreiber und seine Sperre, die laufenden Vorgänge | intern |
 
 Die internen Namespaces haben eine Richtung: Jeder kennt nur die unter ihm (in der Tabelle von oben nach unten;
@@ -936,6 +943,12 @@ Tabellennamen. Architekturtests halten das fest (ADR-0014).
 | `Microsoft.Data.Sqlite` | 10.0.14 | MIT (natives SQLite über `SQLitePCLRaw.bundle_e_sqlite3`, Apache-2.0) |
 | `symspell` | 6.7.3 | MIT |
 | `F23.StringSimilarity` | 7.0.1 | MIT |
+
+`Nordmann.LUI.Hosting` dazu (ADR-0017, ADR-0018):
+
+| Paket | Version | Lizenz |
+|---|---|---|
+| `Nordmann.LUI` | dieselbe | MIT |
 | `Microsoft.Extensions.DependencyInjection.Abstractions` | 10.0.14 | MIT |
 | `Microsoft.Extensions.Hosting.Abstractions` | 10.0.14 | MIT (bringt `Configuration`-, `Diagnostics`-, `FileProviders.Abstractions`, `Options`, `Primitives` mit) |
 | `Microsoft.Extensions.Logging.Abstractions` | 10.0.14 | MIT |

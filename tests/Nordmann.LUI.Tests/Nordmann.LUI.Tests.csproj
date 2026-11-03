@@ -23,6 +23,7 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Nordmann.LUI/Nordmann.LUI.csproj" />
+    <ProjectReference Include="../../src/Nordmann.LUI.Hosting/Nordmann.LUI.Hosting.csproj" />
   </ItemGroup>
 
   <ItemGroup>

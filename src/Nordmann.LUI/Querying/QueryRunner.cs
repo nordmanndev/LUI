@@ -39,6 +39,9 @@ internal sealed class QueryRunner<TKey, TPayload>
         _hits = new HitReader<TKey, TPayload>(source, payload);
     }
 
+    /// <summary>Whether a query corrects a typo unless its options say otherwise.</summary>
+    internal bool TypoTolerance => _typoDefault;
+
     internal LuiResult<TKey, TPayload> Execute(string input, LuiQueryOptions options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);

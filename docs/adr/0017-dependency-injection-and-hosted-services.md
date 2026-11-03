@@ -1,6 +1,8 @@
 # 0017 — Dependency injection and hosted services, in the package; stale candidates past the budget
 
-- **Status:** Accepted
+- **Status:** Accepted — **amended by [0018](./0018-two-packages-core-and-hosting.md)**: the DI is not in the package but
+  in a second one, `Nordmann.LUI.Hosting`, released with the core; what follows on the registration, the hosted services
+  and F1 holds, the dependencies are the hosting package's
 - **Date:** 2026-11-03
 - **Builds on:** [0001](./0001-single-package.md) (one package), [0013](./0013-the-api-shape-before-the-first-release.md)
   (the abstractions come back with the DI, this step decides which), [0015](./0015-the-linked-index-is-loosely-coupled.md)

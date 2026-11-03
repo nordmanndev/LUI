@@ -150,10 +150,10 @@ expect_caught "storage-knows-the-schema" \
   "A_namespace_knows_only_the_ones_below_it" \
   "printf 'namespace Nordmann.LUI.Storage;\n\ninternal static class Probe\n{\n    internal static System.Type Type => typeof(Nordmann.LUI.Schema.RowId);\n}\n' > src/Nordmann.LUI/Storage/Probe.cs"
 
-# 10. The hosting reaches below the public API (ADR-0017).
-expect_caught "hosting-knows-the-storage" \
-  "The_hosting_knows_only_the_public_api" \
-  "printf 'namespace Nordmann.LUI.Hosting;\n\ninternal static class Probe\n{\n    internal static System.Type Type => typeof(Nordmann.LUI.Storage.Database);\n}\n' > src/Nordmann.LUI/Hosting/Probe.cs"
+# 10. The core takes a dependency of the hosting (ADR-0018): the console application would carry it.
+expect_caught "core-references-the-hosting-abstractions" \
+  "The_library_ships_only_the_documented_runtime_dependencies" \
+  "sed -i 's|<PackageReference Include=\"symspell\" />|<PackageReference Include=\"symspell\" /><PackageReference Include=\"Microsoft.Extensions.DependencyInjection.Abstractions\" />|' src/Nordmann.LUI/Nordmann.LUI.csproj"
 
 # 11. The clean tree stays green.
 expect_pass "clean-tree" "FullyQualifiedName~Repository_Layout"

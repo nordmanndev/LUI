@@ -57,8 +57,12 @@ never drift from the code.
 ## Install
 
 ```text
-dotnet add package Nordmann.LUI
+dotnet add package Nordmann.LUI            # the library — all a console application needs
+dotnet add package Nordmann.LUI.Hosting    # AddLui and the hosted services, for ASP.NET Core or a worker
 ```
+
+The two packages are released together, with one version. The core starts no
+thread of its own; whatever runs in the background belongs to the host.
 
 The package is not on nuget.org yet. The publish pipeline is in place and
 waits for its tag.
@@ -173,7 +177,7 @@ index — call it regularly; `tags.Pending()` is a good value for a health check
 
 ## In an ASP.NET Core or worker application
 
-`AddLui` registers the catalog, and every index as a keyed service under its
+`Nordmann.LUI.Hosting` brings the dependency injection: `AddLui` registers the catalog, and every index as a keyed service under its
 name — the read interface for a suggest endpoint, the write interface for an
 import. The indexes are ensured when the host starts (a definition that does not
 match stops the start, not the first request); a linked index can have its
@@ -199,12 +203,17 @@ var suggest = host.Services.GetRequiredKeyedService<ILuiIndex<long, LuiNoPayload
 Console.WriteLine(suggest.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
 ```
 
+Without a host — in a console application — the same is three calls of your
+own: `Ensure()` where you open an index, `WarmUpTypoDictionary()` at the start,
+and `ApplyPending()` after your writes or in a `PeriodicTimer` loop.
+
 ---
 
 ## Repository layout
 
 ```text
-src/Nordmann.LUI/            ← the package (one assembly, one package)
+src/Nordmann.LUI/            ← the library (package Nordmann.LUI)
+src/Nordmann.LUI.Hosting/    ← the dependency injection (package Nordmann.LUI.Hosting, same version)
 tests/                       ← unit, architecture and integration tests
 benchmarks/                  ← BenchmarkDotNet + the corpus generator
 samples/Lui.Sample/          ← ASP.NET Core API + the inline static site

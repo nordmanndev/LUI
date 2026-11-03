@@ -164,9 +164,29 @@ public sealed class DependencyInjectionTests
         Should.Throw<InvalidOperationException>(() => services.AddLui("Data Source=other.db"));
         lui.AddIndex("words", index => index.SingleWord());
         Should.Throw<ArgumentException>(() => lui.AddIndex("words", index => index.MultiWord()));
-        Should.Throw<ArgumentException>(() => lui.AddIndex("Not A Name", index => index.SingleWord()));
+        Should.Throw<ArgumentException>(() => lui.AddIndex(" ", index => index.SingleWord()));
         Should.Throw<ArgumentOutOfRangeException>(() =>
             lui.AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.Zero));
+    }
+
+    [Fact]
+    public void A_name_that_is_not_an_index_name_stops_the_start()
+    {
+        // the rule of the name is the core's (LuiCatalog.Index); the hosting package knows the public API only (ADR-0018)
+        using var database = new TestDatabase();
+        using var host = Host(database, lui => lui.AddIndex("Not A Name", index => index.SingleWord()));
+
+        Should.Throw<ArgumentException>(host.Start).Message.ShouldContain("[a-z]");
+    }
+
+    [Fact]
+    public void An_index_says_whether_it_corrects_typos()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+
+        catalog.Index("plain").SingleWord().Ensure().TypoTolerance.ShouldBeFalse();
+        catalog.Index("typos").SingleWord().TypoTolerance().Ensure().TypoTolerance.ShouldBeTrue();
     }
 
     private static IHost Host(TestDatabase database, Action<LuiServicesBuilder> indexes, LuiCatalogOptions? options = null)

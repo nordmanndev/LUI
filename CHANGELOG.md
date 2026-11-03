@@ -9,15 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Dependency injection** ([ADR-0017](docs/adr/0017-dependency-injection-and-hosted-services.md)):
+- **Dependency injection, in a second package `Nordmann.LUI.Hosting`** ([ADR-0017](docs/adr/0017-dependency-injection-and-hosted-services.md),
+  [ADR-0018](docs/adr/0018-two-packages-core-and-hosting.md)), released with `Nordmann.LUI` under the same version:
   `services.AddLui(connectionString, options?)` (or with delegates that read the container) and
   `.AddIndex(name, index => …)` for an owned or a linked index. Every index is a keyed singleton under its name, as
   `ILuiIndex<TKey, TPayload>` and as `ILuiOwnedIndex`/`ILuiLinkedIndex`; the catalog is a singleton the container
   disposes. A hosted service ensures every index when the host starts (`EnsureOnStart(false)` switches it off) and,
   with `WarmUpTypoDictionariesOnStart()`, builds the typo dictionaries of the indexes with typo tolerance in the
-  background; another one applies the outbox of a linked index on its interval (`applyPendingEvery`). The package
-  references `Microsoft.Extensions.DependencyInjection.Abstractions`, `.Hosting.Abstractions` and
-  `.Logging.Abstractions` (10.0.14) again.
+  background; another one applies the outbox of a linked index on its interval (`applyPendingEvery`). The hosting
+  package references `Microsoft.Extensions.DependencyInjection.Abstractions`, `.Hosting.Abstractions` and
+  `.Logging.Abstractions` (10.0.14); the core `Nordmann.LUI` does not — a console application carries none of them.
+- `ILuiIndex.TypoTolerance`: whether a query of the instance corrects typos unless it says otherwise.
 
 - **Sync, check, rebuild and optimize** ([ADR-0016](docs/adr/0016-sync-check-rebuild.md)). An owned index:
   `Sync(source, options?, cancellationToken)` (and an overload for an `IAsyncEnumerable` source) adds what is missing,

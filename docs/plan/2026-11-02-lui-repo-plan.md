@@ -350,9 +350,9 @@ also changed three things the plan did not foresee:
 
 | What | Why |
 |---|---|
-| The DI is in the package; it references the DependencyInjection, Hosting and Logging abstractions (+5 transitive, 380 KB, MIT) | one package (ADR-0001); the choice ADR-0013 left to this step ([ADR-0017](../adr/0017-dependency-injection-and-hosted-services.md)) |
+| The DI is a second package, `Nordmann.LUI.Hosting`, released with the core under one version; only it references the DependencyInjection, Hosting and Logging abstractions | owner's decision after a discussion ([ADR-0018](../adr/0018-two-packages-core-and-hosting.md)): a console application carries no host; the core runs no thread of its own |
 | Two hosted services: ensure on start (+ optional warm-up), `ApplyPending` on an interval | the warm-up of ADR-0013 and the timer of ADR-0015 |
-| `Nordmann.LUI.Hosting` knows only the public API | an architecture test and a mutation pin it |
+| `Nordmann.LUI.Hosting` knows only the public API | another assembly, no `InternalsVisibleTo`: the compiler pins it; `ILuiIndex.TypoTolerance` is new for the warm-up |
 | An outdated linked candidate does not count against the budget (F1) | many of them among the best crowded out a match; the read goes on up to a second budget |
 | `Highlight` is not built | owner's decision: the front end marks the match; issue #20 for a later version |
 

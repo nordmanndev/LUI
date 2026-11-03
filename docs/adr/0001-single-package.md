@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
-- **Amended by:** [0013](./0013-the-api-shape-before-the-first-release.md) — the namespace layout below; [0014](./0014-seams-for-the-second-content-source.md) — the internal namespaces
+- **Amended by:** [0013](./0013-the-api-shape-before-the-first-release.md) — the namespace layout below; [0014](./0014-seams-for-the-second-content-source.md) — the internal namespaces; [0018](./0018-two-packages-core-and-hosting.md) — the dependency injection is a second package, `Nordmann.LUI.Hosting`, released with the core
 - **Affects:** `src/Nordmann.LUI/Nordmann.LUI.csproj`, `Directory.Packages.props`,
   `docs/spec/LUI-Spezifikation.md` §17.1, `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs`
 
@@ -39,8 +39,8 @@ Nordmann.LUI.Normalization      Normalizer, SQL expressions, the fold table    (
 ```
 
 The dependency injection (PR-008) lands in the same assembly; whether it gets a namespace of its own is that
-pull request's decision. *(PR-008, ADR-0017: the public types stay in `Nordmann.LUI`; the hosted services are internal, in
-`Nordmann.LUI.Hosting`.)*
+pull request's decision. *(PR-008, ADR-0018: by the owner's decision the dependency injection is a package of its own, `Nordmann.LUI.Hosting`,
+with the same version; its public types stay in `Nordmann.LUI`.)*
 
 ## Consequences
 

@@ -18,9 +18,9 @@ public sealed class Namespace_Convention
     {
         var offenders = new List<string>();
 
-        foreach (var file in Repository.SourceFiles(Repository.LibraryDirectory))
+        foreach (var (directory, file) in Repository.PackageDirectories.SelectMany(directory => Repository.SourceFiles(directory).Select(file => (directory, file))))
         {
-            var relative = Path.GetRelativePath(Repository.LibraryDirectory, file);
+            var relative = Path.GetRelativePath(directory, file);
             var folder = Path.GetDirectoryName(relative) ?? string.Empty;
             var segments = folder.Split(Path.DirectorySeparatorChar, StringSplitOptions.RemoveEmptyEntries);
             var expected = segments.Length == 0
@@ -41,8 +41,9 @@ public sealed class Namespace_Convention
     public void Every_namespace_lives_below_the_root_namespace()
     {
         var offenders = Repository
-            .SourceFiles(Repository.LibraryDirectory)
-            .Select(file => (File: Path.GetRelativePath(Repository.LibraryDirectory, file), Namespace: Repository.DeclaredNamespace(file)))
+            .PackageDirectories
+            .SelectMany(directory => Repository.SourceFiles(directory))
+            .Select(file => (File: Path.GetRelativePath(Repository.SourceDirectory, file), Namespace: Repository.DeclaredNamespace(file)))
             .Where(entry => entry.Namespace is null || !entry.Namespace.StartsWith(RootNamespace, StringComparison.Ordinal))
             .Select(entry => $"{entry.File}: '{entry.Namespace ?? "<none>"}'")
             .ToArray();
