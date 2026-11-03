@@ -90,6 +90,18 @@ The suite grew, because the gaps were filled: the JSON payload serialiser (a pub
 lazy similarity of ADR-0008 (a promise about work, provable only by counting the calls of the measure), the
 ranking orders, the quality floors of §19.
 
+**One gap was found by the mutation check itself.** It changed the lower-case "ä" of the German
+transliteration to "a" instead of "ae", and the suite stayed green. The table has seven entries — "ä" "Ä"
+"ö" "Ö" "ü" "Ü" "ß" — and the suite used the upper-case "Ä" ("Äpfeln"), the lower-case "ö" ("Größe") and the
+lower-case "ü" ("müller"), but never the lower-case "ä" and never the upper-case "Ö". Two of the seven
+entries of the table could have been wrong, and nothing would have said so. Both cases are in now, with the
+other letters in both cases as well.
+
+**A mutation that changes nothing is a green that proves nothing.** The mutation of the transliteration was
+itself wrong: its pattern, `replacements['ä']`, is a bracket expression in a regular expression and matched
+no file — the script read the untouched build as a refusal by the compiler. The script now fails when a
+filter matches no test, and the pattern escapes its brackets.
+
 ## Consequences
 
 - **The suite is three commands instead of one.** `dotnet test Lui.sln` still runs everything; but the fast lane

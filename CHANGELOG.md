@@ -48,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The map of the tests** is [`docs/testing.md`](docs/testing.md): which test holds which rule of the
   specification up. It is a guard, not a document — `Test_Landscape` fails when the map and the tree disagree.
 - The pin of `Alba` is gone: no project referenced it.
+- Two letters of the German transliteration had no test — the lower-case "ä" and the upper-case "Ö". The
+  mutation check found them: it changed the "ä" to "a" instead of "ae" and the suite stayed green.
 
 - `ILuiIndex<TKey, TPayload>` has `Check()`. Inside, the catalog is taken apart (review DevEx D4, D6): no change to
   the public API besides.
