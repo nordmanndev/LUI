@@ -175,7 +175,7 @@ expect_caught "unused-central-package-version" "${ARCHITECTURE_PROJECT}" \
   "sed -i 's|<PackageVersion Include=\"symspell\" Version=\"6.7.3\" />|<PackageVersion Include=\"symspell\" Version=\"6.7.3\" /><PackageVersion Include=\"Alba\" Version=\"8.5.3\" />|' Directory.Packages.props"
 
 # 11. A test class that the map of the tests does not list (ADR-0017).
-expect_caught "test-class-missing-from-the-map" "${ARCHITECTURE_PROJECT}" \
+expect_caught "test-file-missing-from-the-map" "${ARCHITECTURE_PROJECT}" \
   "Every_test_file_is_listed_in_the_map" \
   "printf 'namespace Nordmann.LUI.Unit.Tests;\n\npublic sealed class UnlistedTests\n{\n    [Fact]\n    public void A_test() => true;\n}\n' > tests/Nordmann.LUI.Unit.Tests/UnlistedTests.cs"
 
@@ -195,7 +195,7 @@ expect_caught "the-lazy-similarity-is-gone" "${UNIT_PROJECT}" \
 #     "ae" — and the unit layer is the one that has to notice.
 expect_caught "the-transliteration-is-gone" "${UNIT_PROJECT}" \
   "FullyQualifiedName~NormalizerTests" \
-  "sed -i 's|replacements\[.ä.\] = \"ae\";|replacements['"'"'ä'"'"'] = \"a\";|' src/Nordmann.LUI/Normalization/Normalizer.cs"
+  "sed -i \"s|\\['ä'\\] = \\\"ae\\\";|['ä'] = \\\"a\\\";|\" src/Nordmann.LUI/Normalization/Normalizer.cs"
 
 # 15. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"

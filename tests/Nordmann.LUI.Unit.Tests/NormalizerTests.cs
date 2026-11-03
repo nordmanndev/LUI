@@ -32,6 +32,14 @@ public sealed class NormalizerTests
     [InlineData("Gebrüht", "gebrueht")]
     [InlineData("Größe", "groesse")]
     [InlineData("ẞ", "ss")]
+    // Every letter of the table, in both cases — the mutation check found the
+    // two that were missing: a lower-case "ä" and an upper-case "Ö" changed
+    // nothing in the suite.
+    [InlineData("Bäcker", "baecker")]
+    [InlineData("BÄCKER", "baecker")]
+    [InlineData("Öl", "oel")]
+    [InlineData("ÖL", "oel")]
+    [InlineData("Löffel", "loeffel")]
     public void The_german_transliteration_applies_to_both_cases(string text, string expected)
     {
         Normalizer.ToSearchForm(text).ShouldBe(expected);
