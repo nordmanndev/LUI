@@ -1,5 +1,4 @@
 using Microsoft.Data.Sqlite;
-using Nordmann.LUI.Payloads;
 using Shouldly;
 
 namespace Nordmann.LUI.Tests;
@@ -16,7 +15,7 @@ public sealed class OwnedIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Index<long, Chip>("recipes").SingleWord().Owned().Ensure();
+        catalog.Index("recipes").SingleWord().Owned<long>().Ensure();
 
         var tables = Names(database, "type = 'table'");
         tables.Contains("lui_recipes", StringComparer.Ordinal).ShouldBeTrue();
@@ -32,7 +31,7 @@ public sealed class OwnedIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Index<long, Chip>("recipes").SingleWord().Owned().Ensure();
+        catalog.Index("recipes").SingleWord().Owned<long>().Ensure();
 
         database.Scalar<string>("SELECT kind FROM lui_meta WHERE index_name = 'recipes'").ShouldBe("SingleWord");
         database.Scalar<string>("SELECT source FROM lui_meta WHERE index_name = 'recipes'").ShouldBe("Owned");
@@ -45,10 +44,10 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var first = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var first = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         first.Upsert(1, "vegan", 5);
 
-        var second = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var second = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         second.Count().ShouldBe(1);
         database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(1);
@@ -59,10 +58,10 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         var exception = Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index<long, Chip>("tags").SingleWord().Owned().GermanTransliteration(false).Ensure());
+            () => catalog.Index("tags").SingleWord().Owned<long>().GermanTransliteration(false).Ensure());
 
         exception.IndexName.ShouldBe("tags");
         exception.Stored.ShouldContain("\"germanTransliteration\":true");
@@ -76,10 +75,10 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index<long, Chip>("tags").SingleWord().Owned().Payload(ChipJsonContext.Default.Chip).Ensure());
+            () => catalog.Index("tags").SingleWord().Owned<long>().WithPayload(ChipJsonContext.Default.Chip).Ensure());
     }
 
     [Fact]
@@ -87,10 +86,10 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index<string, Chip>("tags").SingleWord().Owned().Ensure());
+            () => catalog.Index("tags").SingleWord().Owned<string>().Ensure());
     }
 
     [Fact]
@@ -98,7 +97,7 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         using (var connection = database.Connect())
         {
@@ -108,20 +107,8 @@ public sealed class OwnedIndexTests
         }
 
         var exception = Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure());
+            () => catalog.Index("tags").SingleWord().Owned<long>().Ensure());
         exception.Stored.ShouldContain("old-");
-    }
-
-    [Fact]
-    public void Ensure_without_a_kind_or_a_source_says_what_is_missing()
-    {
-        using var database = new TestDatabase();
-        using var catalog = database.Open();
-
-        Should.Throw<InvalidOperationException>(() => catalog.Index<long, Chip>("a").Owned().Ensure())
-            .Message.ShouldContain("SingleWord()");
-        Should.Throw<InvalidOperationException>(() => catalog.Index<long, Chip>("a").SingleWord().Ensure())
-            .Message.ShouldContain("Owned()");
     }
 
     [Fact]
@@ -129,16 +116,16 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure().Upsert(1, "vegan", 5);
+        catalog.Index("tags").SingleWord().Owned<long>().Ensure().Upsert(1, "vegan", 5);
 
-        catalog.Index<long, Chip>("tags").Drop().ShouldBeTrue();
+        catalog.DropIndex("tags").ShouldBeTrue();
 
         database.Scalar<long>("SELECT count(*) FROM sqlite_master WHERE name LIKE 'lui_tags%'").ShouldBe(0);
         database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(0);
-        catalog.Index<long, Chip>("tags").Drop().ShouldBeFalse();
+        catalog.DropIndex("tags").ShouldBeFalse();
 
         // and the index can be ensured again, with another definition
-        Should.NotThrow(() => catalog.Index<long, Chip>("tags").SingleWord().Owned().GermanTransliteration(false).Ensure());
+        Should.NotThrow(() => catalog.Index("tags").SingleWord().Owned<long>().GermanTransliteration(false).Ensure());
     }
 
     [Fact]
@@ -146,8 +133,8 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
-        var words = catalog.Index<long, Chip>("words").SingleWord().Owned().Ensure();
+        var tags = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        var words = catalog.Index("words").SingleWord().Owned<long>().Ensure();
 
         tags.Upsert(1, "vegan", 5);
         words.Upsert(1, "apfelkuchen", 5);
@@ -162,7 +149,7 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         index.Upsert(7, "apfelkuchen", 10);
         index.Upsert(7, "birnenkuchen", 20);
@@ -180,7 +167,7 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         index.Upsert(1, "#Äpfel", 1);
 
@@ -194,14 +181,14 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "kuchen a", 10);
         index.Upsert(2, "kuchen b", 20);
-        index.Query("kuchen").Rank(RankingOrder.WeightOnly).Execute().Hits[0].Key.ShouldBe(2);
+        index.Query("kuchen").Rank(LuiRankingOrder.WeightOnly).Execute().Hits[0].Key.ShouldBe(2);
 
         index.UpdateWeight(1, 500).ShouldBeTrue();
 
-        index.Query("kuchen").Rank(RankingOrder.WeightOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1, 2]);
+        index.Query("kuchen").Rank(LuiRankingOrder.WeightOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1, 2]);
         index.Query("kuchen").Execute().Hits.Single(h => h.Key == 1).Weight.ShouldBe(500);
     }
 
@@ -210,15 +197,15 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "kuchen a", 10);
         index.Upsert(2, "kuchen b", 20);
 
-        index.UpdatePriority(1, Priority.System).ShouldBeTrue();
+        index.UpdatePriority(1, LuiPriority.System).ShouldBeTrue();
 
-        var hits = index.Query("kuchen").Rank(RankingOrder.WeightOnly).Execute().Hits;
+        var hits = index.Query("kuchen").Rank(LuiRankingOrder.WeightOnly).Execute().Hits;
         hits.Select(h => h.Key).ShouldBe([1, 2]);
-        hits[0].Priority.ShouldBe(Priority.System);
+        hits[0].Priority.ShouldBe(LuiPriority.System);
     }
 
     [Fact]
@@ -226,10 +213,10 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         index.UpdateWeight(99, 1).ShouldBeFalse();
-        index.UpdatePriority(99, Priority.High).ShouldBeFalse();
+        index.UpdatePriority(99, LuiPriority.High).ShouldBeFalse();
         index.Remove(99).ShouldBeFalse();
     }
 
@@ -238,7 +225,7 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "apfelkuchen", 10);
 
         index.Remove(1).ShouldBeTrue();
@@ -253,7 +240,7 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         for (var i = 1; i <= 50; i++)
         {
@@ -263,7 +250,7 @@ public sealed class OwnedIndexTests
         for (var i = 1; i <= 50; i += 2)
         {
             index.UpdateWeight(i, 1000 - i);
-            index.UpdatePriority(i + 1, Priority.High);
+            index.UpdatePriority(i + 1, LuiPriority.High);
         }
 
         for (var i = 1; i <= 50; i += 3)
@@ -285,13 +272,13 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         Should.Throw<ArgumentOutOfRangeException>(() => index.Upsert(1, "a", -1));
         Should.Throw<ArgumentOutOfRangeException>(() => index.Upsert(1, "a", 536_870_912));
         Should.Throw<ArgumentOutOfRangeException>(() => index.UpdateWeight(1, -1));
-        Should.Throw<ArgumentOutOfRangeException>(() => index.Upsert(1, "a", 1, priority: (Priority)7));
-        Should.Throw<ArgumentOutOfRangeException>(() => index.UpdatePriority(1, (Priority)(-1)));
+        Should.Throw<ArgumentOutOfRangeException>(() => index.Upsert(1, "a", 1, priority: (LuiPriority)7));
+        Should.Throw<ArgumentOutOfRangeException>(() => index.UpdatePriority(1, (LuiPriority)(-1)));
         index.Count().ShouldBe(0);
     }
 
@@ -300,7 +287,7 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         index.Upsert(1, "vegan", 536_870_911);
 
@@ -312,7 +299,7 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         Should.Throw<ArgumentException>(() => index.Upsert(1, string.Empty, 1));
         Should.Throw<ArgumentNullException>(() => index.Upsert(1, null!, 1));
@@ -323,7 +310,7 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<string, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<string>().Ensure();
 
         index.Upsert("rezept-42", "apfelkuchen", 10);
         index.UpdateWeight("rezept-42", 11).ShouldBeTrue();
@@ -337,25 +324,14 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Payload(ChipJsonContext.Default.Chip).Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().WithPayload(ChipJsonContext.Default.Chip).Ensure();
 
-        index.Upsert(1, "vegan", 5, new Chip("vegan", "#0a0"));
+        index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan", "#0a0") });
         index.Upsert(2, "veganer-kuchen", 4);
 
-        var hits = index.Query("vegan").Rank(RankingOrder.WeightOnly).Execute().Hits;
+        var hits = index.Query("vegan").Rank(LuiRankingOrder.WeightOnly).Execute().Hits;
         hits[0].Payload.ShouldBe(new Chip("vegan", "#0a0"));
         hits[1].Payload.ShouldBeNull();
-    }
-
-    [Fact]
-    public void A_payload_without_a_serialiser_is_an_error_not_a_silent_loss()
-    {
-        using var database = new TestDatabase();
-        using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
-
-        Should.Throw<InvalidOperationException>(() => index.Upsert(1, "vegan", 5, new Chip("vegan")))
-            .Message.ShouldContain("Payload");
     }
 
     [Fact]
@@ -364,10 +340,10 @@ public sealed class OwnedIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var serializer = new CountingSerializer();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Payload(serializer).Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().WithPayload(serializer).Ensure();
         for (var i = 1; i <= 200; i++)
         {
-            index.Upsert(i, $"kuchen{i:000}", i, new Chip($"k{i}"));
+            index.Upsert(new(i, $"kuchen{i:000}") { Weight = i, Payload = new Chip($"k{i}") });
         }
 
         var result = index.Query("kuchen").Take(5).Execute();
@@ -382,7 +358,7 @@ public sealed class OwnedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "apfelkuchen", 10);
 
         using (var connection = database.Connect())
@@ -414,11 +390,11 @@ public sealed class OwnedIndexTests
         using var database = new TestDatabase();
         using (var catalog = database.Open())
         {
-            catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure().Upsert(1, "vegan", 5);
+            catalog.Index("tags").SingleWord().Owned<long>().Ensure().Upsert(1, "vegan", 5);
         }
 
         using var again = database.Open();
-        var index = again.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = again.Index("tags").SingleWord().Owned<long>().Ensure();
 
         index.Query("vegan").Execute().Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
     }
@@ -439,7 +415,7 @@ public sealed class OwnedIndexTests
         return names;
     }
 
-    private sealed class CountingSerializer : IPayloadSerializer<Chip>
+    private sealed class CountingSerializer : ILuiPayloadSerializer<Chip>
     {
         internal int Deserialized { get; private set; }
 

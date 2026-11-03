@@ -21,9 +21,9 @@ internal sealed class PreparedQuery
     /// </summary>
     private const int MaxExpressionWords = 8;
 
-    private readonly IndexKind _kind;
+    private readonly LuiIndexKind _kind;
 
-    private PreparedQuery(string search, string compact, IndexKind kind)
+    private PreparedQuery(string search, string compact, LuiIndexKind kind)
     {
         _kind = kind;
         Search = search;
@@ -31,7 +31,7 @@ internal sealed class PreparedQuery
         SearchLength = CodePoints(search);
         CompactLength = CodePoints(compact);
 
-        if (kind == IndexKind.MultiWord)
+        if (kind == LuiIndexKind.MultiWord)
         {
             // A multi-word index is read compactly everywhere: the words are the runs between separators, and
             // the prefix columns hold the first letters of the compact text — spaces and punctuation do
@@ -82,15 +82,15 @@ internal sealed class PreparedQuery
     /// count: „a b" has two letters, and no word of three to search for.
     /// </summary>
     internal bool IsPrefixPath =>
-        (_kind == IndexKind.MultiWord ? CompactLength : SearchLength) < MinimumTrigramLength;
+        (_kind == LuiIndexKind.MultiWord ? CompactLength : SearchLength) < MinimumTrigramLength;
 
     /// <summary>Nothing to search for.</summary>
     internal bool IsEmpty => IsPrefixPath && PrefixLength == 0;
 
     /// <summary>The FTS5 expression for the candidates (§8.2).</summary>
-    internal string Expression => _kind == IndexKind.MultiWord ? MultiWordExpression() : SingleWordExpression();
+    internal string Expression => _kind == LuiIndexKind.MultiWord ? MultiWordExpression() : SingleWordExpression();
 
-    internal static PreparedQuery Create(string input, NormalizationOptions options, IndexKind kind)
+    internal static PreparedQuery Create(string input, NormalizationOptions options, LuiIndexKind kind)
     {
         ArgumentNullException.ThrowIfNull(input);
 

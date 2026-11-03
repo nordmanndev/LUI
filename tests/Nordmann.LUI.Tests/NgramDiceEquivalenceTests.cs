@@ -24,7 +24,7 @@ public sealed class NgramDiceEquivalenceTests
     [InlineData("😀party", "party😀")]
     public void It_gives_the_number_of_the_library_for_known_pairs(string a, string b)
     {
-        Similarity.Similarity.NgramDice.Similarity(a, b).ShouldBe(Reference.Similarity(a, b), 1e-12);
+        LuiSimilarity.NgramDice.Similarity(a, b).ShouldBe(Reference.Similarity(a, b), 1e-12);
     }
 
     [Fact]
@@ -44,7 +44,7 @@ public sealed class NgramDiceEquivalenceTests
                 continue;
             }
 
-            Similarity.Similarity.NgramDice.Similarity(a, b).ShouldBe(expected, 1e-12, $"for '{a}' and '{b}'");
+            LuiSimilarity.NgramDice.Similarity(a, b).ShouldBe(expected, 1e-12, $"for '{a}' and '{b}'");
         }
     }
 
@@ -54,13 +54,13 @@ public sealed class NgramDiceEquivalenceTests
         var a = string.Concat(Enumerable.Repeat("apfelkuchen ", 80));
         var b = string.Concat(Enumerable.Repeat("kuchenapfel ", 90));
 
-        Similarity.Similarity.NgramDice.Similarity(a, b).ShouldBe(Reference.Similarity(a, b), 1e-12);
+        LuiSimilarity.NgramDice.Similarity(a, b).ShouldBe(Reference.Similarity(a, b), 1e-12);
     }
 
     [Fact]
     public void A_comparison_allocates_nothing()
     {
-        var measure = Similarity.Similarity.NgramDice;
+        var measure = LuiSimilarity.NgramDice;
         measure.Similarity("apfelkuch", "gedeckter apfelkuchen mit sahne");
 
         var before = GC.GetAllocatedBytesForCurrentThread();
@@ -79,7 +79,7 @@ public sealed class NgramDiceEquivalenceTests
     [InlineData("", "abc")]
     public void Texts_shorter_than_a_bigram_are_identical_or_have_nothing_in_common(string a, string b)
     {
-        Similarity.Similarity.NgramDice.Similarity(a, b).ShouldBe(string.Equals(a, b, StringComparison.Ordinal) ? 1.0 : 0.0);
+        LuiSimilarity.NgramDice.Similarity(a, b).ShouldBe(string.Equals(a, b, StringComparison.Ordinal) ? 1.0 : 0.0);
     }
 
     private static string Random(Random random, string alphabet, int length) =>

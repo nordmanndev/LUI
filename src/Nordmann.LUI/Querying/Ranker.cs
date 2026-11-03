@@ -1,6 +1,5 @@
 using Nordmann.LUI.Indexing;
 using Nordmann.LUI.Normalization;
-using Nordmann.LUI.Similarity;
 
 namespace Nordmann.LUI.Querying;
 
@@ -26,18 +25,18 @@ internal static class Ranker
         Scored[] candidates,
         int count,
         IReadOnlyList<string> queries,
-        RankingOrder order,
-        PriorityRanking priorities,
-        ITextSimilarity similarity,
+        LuiRankingOrder order,
+        LuiPriorityRanking priorities,
+        ILuiSimilarity similarity,
         NormalizationOptions normalization,
         int take,
         CancellationToken cancellationToken)
     {
-        var wordStartStage = order is RankingOrder.WordStartThenSimilarity or RankingOrder.WordStartThenWeight;
-        var priorityFirst = priorities == PriorityRanking.First;
+        var wordStartStage = order is LuiRankingOrder.WordStartThenSimilarity or LuiRankingOrder.WordStartThenWeight;
+        var priorityFirst = priorities == LuiPriorityRanking.First;
 
         // weight order with the priority first is the order the candidates came in
-        if (order == RankingOrder.WeightOnly && priorityFirst)
+        if (order == LuiRankingOrder.WeightOnly && priorityFirst)
         {
             return candidates[..Math.Min(count, take)];
         }
@@ -46,7 +45,7 @@ internal static class Ranker
         var grouped = Group(candidates, count, priorityFirst, wordStartStage, starts);
 
         var comparer = ComparerFor(order);
-        var needsSimilarity = order != RankingOrder.WeightOnly;
+        var needsSimilarity = order != LuiRankingOrder.WeightOnly;
         var result = new List<Scored>(Math.Min(count, take));
 
         for (var g = 0; g < GroupCount && result.Count < take; g++)
@@ -118,7 +117,7 @@ internal static class Ranker
     internal static double Measure(
         in Scored candidate,
         IReadOnlyList<string> queries,
-        ITextSimilarity similarity,
+        ILuiSimilarity similarity,
         NormalizationOptions normalization)
     {
         var text = Normalizer.ToSearchForm(candidate.Text, normalization);
@@ -133,10 +132,10 @@ internal static class Ranker
         return (priority * 2) + noWordStart;
     }
 
-    private static IComparer<Scored> ComparerFor(RankingOrder order) => order switch
+    private static IComparer<Scored> ComparerFor(LuiRankingOrder order) => order switch
     {
-        RankingOrder.WordStartThenSimilarity or RankingOrder.SimilarityOnly => SimilarityFirst.Instance,
-        RankingOrder.WordStartThenWeight => WeightFirst.Instance,
+        LuiRankingOrder.WordStartThenSimilarity or LuiRankingOrder.SimilarityOnly => SimilarityFirst.Instance,
+        LuiRankingOrder.WordStartThenWeight => WeightFirst.Instance,
         _ => WeightOnly.Instance,
     };
 

@@ -4,7 +4,7 @@ namespace Nordmann.LUI.Normalization;
 /// A text in the form LUI searches and compares in, plus the map back to the
 /// original.
 /// </summary>
-public sealed class NormalizedText
+internal sealed class NormalizedText
 {
     internal NormalizedText(string searchForm, string compactForm, int[] sourceOffsets)
     {

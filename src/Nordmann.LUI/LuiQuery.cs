@@ -1,10 +1,9 @@
-using Nordmann.LUI.Similarity;
 
 namespace Nordmann.LUI;
 
 /// <summary>
 /// A query being described (LUI-Spezifikation §12.5). Every method returns
-/// the query; <see cref="Execute"/> runs it.
+/// the query and checks its value at once; <see cref="Execute"/> runs it.
 /// </summary>
 /// <typeparam name="TKey">The key of the application.</typeparam>
 /// <typeparam name="TPayload">The payload that comes back with a hit.</typeparam>
@@ -42,7 +41,7 @@ public sealed class LuiQuery<TKey, TPayload>
     /// <summary>The order of the ranking.</summary>
     /// <param name="order">The order.</param>
     /// <returns>The query.</returns>
-    public LuiQuery<TKey, TPayload> Rank(RankingOrder order)
+    public LuiQuery<TKey, TPayload> Rank(LuiRankingOrder order)
     {
         _options = _options with { Rank = order };
         return this;
@@ -51,7 +50,7 @@ public sealed class LuiQuery<TKey, TPayload>
     /// <summary>What the priority does in the ranking.</summary>
     /// <param name="priorities">The rule.</param>
     /// <returns>The query.</returns>
-    public LuiQuery<TKey, TPayload> Priorities(PriorityRanking priorities)
+    public LuiQuery<TKey, TPayload> Priorities(LuiPriorityRanking priorities)
     {
         _options = _options with { Priorities = priorities };
         return this;
@@ -69,7 +68,7 @@ public sealed class LuiQuery<TKey, TPayload>
     /// <summary>Overrides the default similarity measure of the index.</summary>
     /// <param name="similarity">The measure.</param>
     /// <returns>The query.</returns>
-    public LuiQuery<TKey, TPayload> Similarity(ITextSimilarity similarity)
+    public LuiQuery<TKey, TPayload> Similarity(ILuiSimilarity similarity)
     {
         ArgumentNullException.ThrowIfNull(similarity);
         _options = _options with { Similarity = similarity };
@@ -101,5 +100,5 @@ public sealed class LuiQuery<TKey, TPayload>
     /// <param name="cancellationToken">Checked while the candidates are read.</param>
     /// <returns>The answer.</returns>
     public LuiResult<TKey, TPayload> Execute(CancellationToken cancellationToken = default) =>
-        _index.Query(_text, _options, cancellationToken);
+        _index.Search(_text, _options, cancellationToken);
 }

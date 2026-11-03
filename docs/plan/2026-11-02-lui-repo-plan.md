@@ -203,6 +203,10 @@ The spec §13 makes the API synchronous because `Microsoft.Data.Sqlite` has no a
 
 ## 4. The package's public surface (one assembly)
 
+> **Superseded by [ADR-0013](../adr/0013-the-api-shape-before-the-first-release.md)** (issue #11): every public
+> type lives in `Nordmann.LUI` and starts with `Lui`/`ILui`; the other namespaces are internal. The layout below is
+> the plan as it was written.
+
 ```
 Nordmann.LUI                     LuiCatalog, LuiCatalogOptions, LuiCatalogBuilder
 Nordmann.LUI.Indexing            LuiIndexBuilder, IndexKind, IndexSource, Ensure/Drop, Sync, Check, Rebuild, Optimize
@@ -229,6 +233,8 @@ The spec §20 gives nine steps; I add a repo foundation and the sample, and spli
 | **003** `feat: single-word owned index` | schema, triggers, packed rowid, candidates, prefix path (1–2 chars), ranking, payload-for-hits-only, `Upsert`/`UpdateWeight`/`UpdatePriority`/`Remove` | golden queries (§Anhang B) green · plan test (`INDEX 64`, no `TEMP B-TREE`) · p50 ≤ 2 ms / p95 ≤ 5 ms on 3M entries |
 | **004** `feat: multi-word index` | word split, `s_compact`, word-start on the compact form, N-gram Dice | golden queries for `MultiWord` green |
 | **005** `feat: typo tolerance` | prefix SymSpell dictionary, 1 edit, 3 corrections, correction triggers only when *no* candidate starts a word | quality floors (§19) green · concurrency test green |
+| **005a** `feat: api shape` | the review of the API before the first release (issue #11): staged builder, read/write interfaces, `LuiEntry` + `UpsertMany`, named results, one namespace, `Lui` prefix, unused dependencies out | ADR-0013 · smoke test runs the README quick start — **inserted after PR-005** |
+| **005b** `refactor: seams for linked` | the kind as a strategy, the content source as a strategy, the direction of the namespaces, a smaller `QueryRunner` — no behaviour change | measurements unchanged — **inserted before PR-006** |
 | **006** `feat: linked index` | `LinkedTo`, schema change with `allowSchemaChange`, `LuiSchemaChangeRequiredException` | integration tests against an app table green |
 | **007** `feat: sync / check / rebuild / optimize` | `Sync` (batched, resumable), `Check(source)`, `Check()`, `Rebuild()`, `Optimize()` | 1M-entry sync · abort + resume green |
 | **008** `feat: DI and query polish` | `AddLui`, keyed services, ensure-on-start, `Highlight`, `.SuggestWhenEmpty` → *no* (D5), remaining fluent surface | DI smoke test green |

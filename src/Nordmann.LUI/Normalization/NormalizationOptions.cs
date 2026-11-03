@@ -4,7 +4,7 @@ namespace Nordmann.LUI.Normalization;
 /// The options of the normalisation rule. They are fixed per index, because
 /// the rule decides what the index contains.
 /// </summary>
-public sealed record NormalizationOptions
+internal sealed record NormalizationOptions
 {
     /// <summary>The options every index uses unless it says otherwise.</summary>
     public static NormalizationOptions Default { get; } = new();

@@ -1,11 +1,11 @@
-namespace Nordmann.LUI.Payloads;
+namespace Nordmann.LUI;
 
 /// <summary>
 /// Turns the payload of an entry into bytes and back
 /// (LUI-Spezifikation §12.3). The payload is read for the hits only.
 /// </summary>
 /// <typeparam name="TPayload">The payload type.</typeparam>
-public interface IPayloadSerializer<TPayload>
+public interface ILuiPayloadSerializer<TPayload>
 {
     /// <summary>Serialises a payload.</summary>
     /// <param name="payload">The payload; never <see langword="null"/>.</param>

@@ -11,7 +11,7 @@ namespace Nordmann.LUI.Indexing;
 /// </para>
 /// </summary>
 internal sealed record IndexDefinition(
-    IndexKind Kind,
+    LuiIndexKind Kind,
     string Source,
     string KeyType,
     bool GermanTransliteration,

@@ -48,11 +48,11 @@ one pull request per step.
 | Licence | MIT |
 | Current version | `0.1.0` (not yet published) |
 
-The public API follows the specification: a `LuiCatalog`, an `ILuiIndex` per
+The public API follows the specification: a `LuiCatalog`, an index per
 searchable stock, a fluent query builder, and the two index kinds
-`SingleWord` and `MultiWord`. The quick start lands with the implementation —
-and it is **executed by the build**, so the README can never drift from the
-code.
+`SingleWord` and `MultiWord`. The quick start below is **executed by the
+package smoke test** — every C# block of this README is — so the README can
+never drift from the code.
 
 ## Install
 
@@ -62,6 +62,50 @@ dotnet add package Nordmann.LUI
 
 The package is not on nuget.org yet. The publish pipeline is in place and
 waits for its tag.
+
+## Quick start
+
+```csharp
+using Nordmann.LUI;
+
+using var lui = LuiCatalog.Open("Data Source=app.db");
+
+// an index of titles: words in any order, spaces optional, one typo forgiven
+var recipes = lui.Index("recipes").MultiWord().Owned<long>().TypoTolerance().Ensure();
+
+recipes.Upsert(1, "Gedeckter Apfelkuchen", weight: 9000);
+recipes.Upsert(2, "Apfelstrudel", weight: 5000);
+recipes.Upsert(3, "Bratapfelkuchen", weight: 800);
+
+foreach (var hit in recipes.Search("apfelkuch").Hits)
+{
+    Console.WriteLine($"{hit.Text} ({hit.Weight})");   // Gedeckter Apfelkuchen (9000), then Bratapfelkuchen (800)
+}
+
+Console.WriteLine(recipes.Search("apfel gedeckt").Hits[0].Text);   // Gedeckter Apfelkuchen
+Console.WriteLine(recipes.Search("gedekter").CorrectedQuery);         // gedeckter
+```
+
+Load a stock in **one** transaction, never entry by entry — `UpsertMany` is
+about four times faster than a loop of `Upsert`s:
+
+```csharp
+recipes.UpsertMany(Enumerable.Range(1, 10_000).Select(i =>
+    new LuiEntry<long, LuiNoPayload>(100 + i, $"Rezept Nummer {i}") { Weight = i }));
+```
+
+A query with all its knobs is a fluent builder; `Search(text, options)` takes
+the same settings from configuration:
+
+```csharp
+var result = recipes.Query("rezept")
+    .Take(5)
+    .Rank(LuiRankingOrder.WordStartThenWeight)
+    .TrackTimings()
+    .Execute();
+
+Console.WriteLine($"{result.Hits.Count} of {result.CandidatesConsidered} candidates in {result.Timings!.Total.TotalMilliseconds:F1} ms");
+```
 
 ---
 

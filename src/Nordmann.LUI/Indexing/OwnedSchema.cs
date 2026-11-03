@@ -35,7 +35,7 @@ internal static class OwnedSchema
     {
         var content = Content(name);
         var fts = Fts(name);
-        var multi = definition.Kind == IndexKind.MultiWord;
+        var multi = definition.Kind == LuiIndexKind.MultiWord;
 
         // The column the search index holds: s_norm for a single-word index; for a multi-word index
         // s_compact alone (ADR-0011) — it holds everything a multi-word query asks, and s_norm, which
@@ -60,7 +60,7 @@ internal static class OwnedSchema
 
     private static string ContentTable(string content, IndexDefinition definition)
     {
-        var multi = definition.Kind == IndexKind.MultiWord;
+        var multi = definition.Kind == LuiIndexKind.MultiWord;
 
         // The prefix columns hold the first letters of the text a query is read against: s_norm without its
         // '#' for a single-word index; s_compact — no spaces, no punctuation, no '#' — for a multi-word index

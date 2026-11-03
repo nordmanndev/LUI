@@ -41,32 +41,30 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>The connection string the catalog was opened with.</summary>
     public string ConnectionString { get; }
 
-    internal TimeProvider TimeProvider => _options.TimeProviderValue;
+    internal TimeProvider TimeProvider => _options.TimeProvider;
 
     /// <summary>
     /// Opens a catalog: checks the SQLite that is loaded, sets the pragmas
     /// and creates <c>lui_meta</c> if it is missing.
     /// <para>
     /// <b>This switches the database to write-ahead logging</b> unless
-    /// <see cref="LuiCatalogOptions.UseWriteAheadLog"/> says otherwise. WAL is a
+    /// <see cref="LuiCatalogOptions.WriteAheadLog"/> says otherwise. WAL is a
     /// property of the file: it stays, adds <c>-wal</c> and <c>-shm</c> files and does
     /// not work on network file systems. Turn it off when LUI shares the database of
     /// an application that chose its own mode.
     /// </para>
     /// </summary>
     /// <param name="connectionString">The database: the one of the application, or a file of LUI's own (E9).</param>
-    /// <param name="configure">Optional settings.</param>
+    /// <param name="options">The settings; <see langword="null"/> takes the defaults.</param>
     /// <returns>The catalog; dispose it when the application ends.</returns>
     /// <exception cref="LuiEnvironmentException">
     /// SQLite is too old, has no FTS5 trigram tokenizer, or folds text
     /// differently from the table the library was measured with.
     /// </exception>
-    public static LuiCatalog Open(string connectionString, Action<LuiCatalogOptions>? configure = null)
+    public static LuiCatalog Open(string connectionString, LuiCatalogOptions? options = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-
-        var options = new LuiCatalogOptions();
-        configure?.Invoke(options);
+        options ??= new LuiCatalogOptions();
 
         EnsureSqliteVersion(LoadedSqliteVersion());
         FoldProbe.EnsureVerified();
@@ -84,15 +82,90 @@ public sealed class LuiCatalog : IDisposable
         }
     }
 
-    /// <summary>Starts describing an index.</summary>
-    /// <typeparam name="TKey">The key of the application: <see cref="long"/> or <see cref="string"/>.</typeparam>
-    /// <typeparam name="TPayload">The payload that comes back with a hit.</typeparam>
+    /// <summary>
+    /// Starts describing an index: <c>Index("tags").SingleWord().Owned&lt;long&gt;().Ensure()</c>. Each step
+    /// offers only what may follow it, so an index without a kind or a source does not compile.
+    /// </summary>
     /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
-    /// <returns>The builder; <c>Ensure()</c> finishes it.</returns>
-    public LuiIndexBuilder<TKey, TPayload> Index<TKey, TPayload>(string name)
+    /// <returns>The first step: the kind of the index.</returns>
+    public LuiIndexBuilder Index(string name)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        return new LuiIndexBuilder<TKey, TPayload>(this, Identifier.ValidateIndexName(name, nameof(name)));
+        return new LuiIndexBuilder(this, Identifier.ValidateIndexName(name, nameof(name)));
+    }
+
+    /// <summary>
+    /// Removes an index with its tables, indexes and triggers and its row in <c>lui_meta</c>. It works whatever
+    /// the stored definition is — it is the way out of a <see cref="LuiDefinitionMismatchException"/>. Index
+    /// objects that were created before do not survive it: ensure the index again and use the new object.
+    /// </summary>
+    /// <param name="name">The name of the index.</param>
+    /// <returns><see langword="true"/> when the index existed.</returns>
+    public bool DropIndex(string name)
+    {
+        Identifier.ValidateIndexName(name, nameof(name));
+
+        using var scope = Begin();
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction(deferred: false);
+
+        var existed = ReadDefinition(connection, transaction, name) is not null;
+
+        foreach (var statement in OwnedSchema.Drop(name))
+        {
+            Execute(connection, transaction, statement);
+        }
+
+        using (var meta = connection.CreateCommand())
+        {
+            meta.Transaction = transaction;
+            meta.CommandText = "DELETE FROM lui_meta WHERE index_name = $name;";
+            meta.Parameters.AddWithValue("$name", name);
+            meta.ExecuteNonQuery();
+        }
+
+        transaction.Commit();
+
+        // the words of the dropped index are not the words of the next one
+        ForgetTypoDictionary(name);
+        return existed;
+    }
+
+    /// <summary>
+    /// Creates an index from its statements, or checks that the stored definition is the same — in one
+    /// transaction, so that two processes cannot both create it.
+    /// </summary>
+    /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
+    internal void EnsureIndex(string name, IndexDefinition definition, IEnumerable<string> createStatements)
+    {
+        using var scope = Begin();
+        using var connection = OpenConnection();
+        using var transaction = connection.BeginTransaction(deferred: false);
+
+        var stored = ReadDefinition(connection, transaction, name);
+        if (stored is null)
+        {
+            foreach (var statement in createStatements)
+            {
+                Execute(connection, transaction, statement);
+            }
+
+            WriteDefinition(connection, transaction, name, definition);
+        }
+        else if (stored != definition)
+        {
+            throw new LuiDefinitionMismatchException(name, stored.ToJson(), definition.ToJson());
+        }
+
+        transaction.Commit();
+    }
+
+    private static void Execute(SqliteConnection connection, SqliteTransaction transaction, string statement)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = statement;
+        command.ExecuteNonQuery();
     }
 
     /// <summary>
@@ -206,7 +279,7 @@ public sealed class LuiCatalog : IDisposable
         return command.ExecuteScalar() is string json ? IndexDefinition.FromJson(json) : null;
     }
 
-    internal void WriteDefinition(
+    private void WriteDefinition(
         SqliteConnection connection,
         SqliteTransaction transaction,
         string indexName,
@@ -251,7 +324,7 @@ public sealed class LuiCatalog : IDisposable
 
     private string Pragmas()
     {
-        var timeout = (long)_options.BusyTimeoutValue.TotalMilliseconds;
+        var timeout = (long)_options.BusyTimeout.TotalMilliseconds;
         var pragmas = string.Create(CultureInfo.InvariantCulture, $"PRAGMA busy_timeout = {timeout}; PRAGMA synchronous = NORMAL;");
 
         if (_options.CacheSizeMegabytes is { } cache)

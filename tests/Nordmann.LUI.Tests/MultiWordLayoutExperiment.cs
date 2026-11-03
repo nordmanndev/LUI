@@ -42,7 +42,7 @@ public sealed class MultiWordLayoutExperiment(ITestOutputHelper output)
                 var title = string.Join(' ', Enumerable.Range(0, random.Next(2, 5)).Select(_ => { var w = words[random.Next(words.Count)]; return char.ToUpperInvariant(w[0]) + w[1..]; }));
                 titles.Add(title);
                 var weight = (int)Math.Min(536_870_911, 1 + (long)(random.NextDouble() * random.NextDouble() * random.NextDouble() * 1_000_000));
-                pr.Value = RowId.Encode(Priority.Normal, weight, i); pn.Value = Normalizer.ToSearchForm(title); pc.Value = Normalizer.ToCompactForm(title); ins.ExecuteNonQuery();
+                pr.Value = RowId.Encode(LuiPriority.Normal, weight, i); pn.Value = Normalizer.ToSearchForm(title); pc.Value = Normalizer.ToCompactForm(title); ins.ExecuteNonQuery();
             }
             tx.Commit();
         }
@@ -88,7 +88,7 @@ public sealed class MultiWordLayoutExperiment(ITestOutputHelper output)
             {
                 foreach (var input in inputs)
                 {
-                    var pq = PreparedQuery.Create(input, NormalizationOptions.Default, IndexKind.MultiWord);
+                    var pq = PreparedQuery.Create(input, NormalizationOptions.Default, LuiIndexKind.MultiWord);
                     if (pq.IsPrefixPath) continue;
                     string expr;
                     if (variant.StartsWith("A2") && pq.Words.Count == 1 && pq.Words[0] == pq.Compact) expr = "s_compact : " + PreparedQuery.Quote(pq.Compact);

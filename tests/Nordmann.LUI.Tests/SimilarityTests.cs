@@ -1,4 +1,3 @@
-using Nordmann.LUI.Similarity;
 using Shouldly;
 
 namespace Nordmann.LUI.Tests;
@@ -8,10 +7,10 @@ public sealed class SimilarityTests
 {
     public static TheoryData<string> Measures => new()
     {
-        { nameof(Similarity.Similarity.JaroWinkler) },
-        { nameof(Similarity.Similarity.NgramDice) },
-        { nameof(Similarity.Similarity.DamerauLevenshtein) },
-        { nameof(Similarity.Similarity.Levenshtein) },
+        { nameof(LuiSimilarity.JaroWinkler) },
+        { nameof(LuiSimilarity.NgramDice) },
+        { nameof(LuiSimilarity.DamerauLevenshtein) },
+        { nameof(LuiSimilarity.Levenshtein) },
     };
 
     [Theory]
@@ -66,16 +65,16 @@ public sealed class SimilarityTests
     public void Each_kind_has_the_default_the_specification_names()
     {
         // §4: Jaro-Winkler for single words, N-gram Dice for several
-        ReferenceEquals(Similarity.Similarity.DefaultFor(IndexKind.SingleWord), Similarity.Similarity.JaroWinkler).ShouldBeTrue();
-        ReferenceEquals(Similarity.Similarity.DefaultFor(IndexKind.MultiWord), Similarity.Similarity.NgramDice).ShouldBeTrue();
+        ReferenceEquals(LuiSimilarity.DefaultFor(LuiIndexKind.SingleWord), LuiSimilarity.JaroWinkler).ShouldBeTrue();
+        ReferenceEquals(LuiSimilarity.DefaultFor(LuiIndexKind.MultiWord), LuiSimilarity.NgramDice).ShouldBeTrue();
     }
 
-    private static ITextSimilarity Get(string name) => name switch
+    private static ILuiSimilarity Get(string name) => name switch
     {
-        nameof(Similarity.Similarity.JaroWinkler) => Similarity.Similarity.JaroWinkler,
-        nameof(Similarity.Similarity.NgramDice) => Similarity.Similarity.NgramDice,
-        nameof(Similarity.Similarity.DamerauLevenshtein) => Similarity.Similarity.DamerauLevenshtein,
-        nameof(Similarity.Similarity.Levenshtein) => Similarity.Similarity.Levenshtein,
+        nameof(LuiSimilarity.JaroWinkler) => LuiSimilarity.JaroWinkler,
+        nameof(LuiSimilarity.NgramDice) => LuiSimilarity.NgramDice,
+        nameof(LuiSimilarity.DamerauLevenshtein) => LuiSimilarity.DamerauLevenshtein,
+        nameof(LuiSimilarity.Levenshtein) => LuiSimilarity.Levenshtein,
         _ => throw new ArgumentOutOfRangeException(nameof(name)),
     };
 }

@@ -82,7 +82,7 @@ Suchmaschine.
 | **Gewicht** | Die Beliebtheit, `0 … 536.870.911`. Bestimmt, **welche** Einträge Kandidaten werden, und entscheidet bei Gleichstand im Ranking. |
 | **Priorität** (`Priority`) | Eine Klasse `0 … 3` vor dem Gewicht: `System` (0), `High` (1), `Elevated` (2), `Normal` (3, Standard). Einträge höherer Priorität sind bei jeder passenden Eingabe **zuerst** Kandidaten und stehen im Ranking vorn — z. B. reservierte Systemtags wie „vegan". |
 | **Payload** | Daten, die mit dem Treffer zurückkommen (z. B. Slug, Farbe, Icon). Werden **nur für die Treffer** gelesen, nie für alle Kandidaten. |
-| **Art** (`IndexKind`) | `SingleWord` oder `MultiWord` (§ 4). Steuert, wie gesucht wird. |
+| **Art** (`LuiIndexKind`) | `SingleWord` oder `MultiWord` (§ 4). Steuert, wie gesucht wird. |
 | **Inhaltsquelle** | `Owned` (eigene Tabelle der Bibliothek) oder `Linked` (Tabelle der Anwendung) (§ 5). |
 | **Kandidat** | Ein Eintrag, den die Suche vorschlägt, bevor sortiert wird. Höchstens `Candidates` (Standard 500). |
 | **Treffer** | Ein Kandidat, der nach dem Ranking unter den ersten `MaxResults` (Standard 20) steht. |
@@ -379,18 +379,31 @@ Ein Test hält den Plan fest (§ 19).
 ### 8.3 Ergebnis
 
 ```csharp
-public sealed record LuiResult<TKey, TPayload>(
-    string Query,
-    IReadOnlyList<LuiHit<TKey, TPayload>> Hits,
-    int CandidatesConsidered,     // wie viele bewertet wurden (≤ Candidates)
-    bool Truncated,               // es gab mehr als Candidates Kandidaten
-    string? CorrectedQuery,       // gesetzt, wenn die Tippfehler-Korrektur gegriffen hat
-    LuiTimings? Timings);         // nur mit .TrackTimings()
+public sealed record LuiResult<TKey, TPayload>
+{
+    public required string Query { get; init; }
+    public required IReadOnlyList<LuiHit<TKey, TPayload>> Hits { get; init; }
+    public int CandidatesConsidered { get; init; }  // wie viele bewertet wurden (≤ Candidates)
+    public bool Truncated { get; init; }            // es gab mehr als Candidates Kandidaten
+    public string? CorrectedQuery { get; init; }    // gesetzt, wenn die Tippfehler-Korrektur gegriffen hat
+    public LuiTimings? Timings { get; init; }       // nur mit .TrackTimings()
+}
 
-public readonly record struct LuiHit<TKey, TPayload>(
-    TKey Key, string Text, TPayload? Payload, int Weight, Priority Priority,
-    double Similarity, bool AtWordStart, Highlight? Highlight);
+public readonly record struct LuiHit<TKey, TPayload>
+{
+    public required TKey Key { get; init; }
+    public required string Text { get; init; }
+    public TPayload? Payload { get; init; }
+    public int Weight { get; init; }
+    public LuiPriority Priority { get; init; }
+    public double Similarity { get; init; }
+    public bool AtWordStart { get; init; }
+}
 ```
+
+Die Ergebnistypen haben **benannte Eigenschaften, keine Positionen** (ADR-0013): Ein neues Feld ist eine
+Ergänzung, kein Bruch, und zwei Felder gleichen Typs können nicht still die Plätze tauschen. Die Markierung
+der Fundstelle (§ 9.3) kommt als weiteres Feld `Highlight` mit Schritt 8 dazu.
 
 ---
 
@@ -417,11 +430,11 @@ getrennt; ein führendes `#` zählt nicht.
 
 **Stufe 0 ist die Priorität** (Standard: an). Einträge höherer Priorität, die
 die Eingabe enthalten, stehen vor allen anderen; untereinander gelten die
-Stufen der gewählten `RankingOrder`. Mit `.Priorities(PriorityRanking.CandidatesOnly)`
+Stufen der gewählten `LuiRankingOrder`. Mit `.Priorities(LuiPriorityRanking.CandidatesOnly)`
 sind sie nur **sicher Kandidaten** und werden normal einsortiert.
 
 ```csharp
-public enum RankingOrder
+public enum LuiRankingOrder
 {
     WordStartThenSimilarity,   // Standard: Wortanfang → Ähnlichkeit → Gewicht
     WordStartThenWeight,       // Wortanfang → Gewicht → Ähnlichkeit
@@ -429,7 +442,7 @@ public enum RankingOrder
     WeightOnly,                // Gewicht (= Reihenfolge der Kandidaten)
 }
 
-public enum PriorityRanking
+public enum LuiPriorityRanking
 {
     First,                     // Standard: Priorität vor allen Stufen
     CandidatesOnly,            // nur sicher unter den Kandidaten, normal einsortiert
@@ -487,8 +500,8 @@ Wörtern.
 
 ### 10.3a Festlegungen der Umsetzung (ADR-0012)
 
-- **Standard: aus.** `.TypoTolerance(maxEdits: 1)` am Builder schaltet ein (0 schaltet aus, mehr als 1 wird abgelehnt); die
-  Abfrage überschreibt mit `.TypoTolerance(bool)`. Das Wörterbuch kostet Speicher, den die Anwendung nicht verlangt hat.
+- **Standard: aus.** `.TypoTolerance()` am Builder schaltet ein, `.TypoTolerance(false)` aus — mehr als eine Änderung gibt es
+  nicht, deshalb keine Zahl (ADR-0013); die Abfrage überschreibt mit `.TypoTolerance(bool)`. Das Wörterbuch kostet Speicher, den die Anwendung nicht verlangt hat.
 - **Häufigkeit = Summe von `Gewicht + 1`** (SymSpell verwirft einen Eintrag mit Häufigkeit 0). Der Aufbau summiert über alle Texte;
   `Upsert` ergänzt nur Wortanfänge, die es noch nicht gibt, und ändert die Häufigkeit der vorhandenen nicht. Die Häufigkeiten (und damit
   die Reihenfolge der drei Vorschläge) spiegeln den Bestand daher erst nach `RebuildTypoDictionary()` genau wider.
@@ -525,7 +538,7 @@ Trefferquote ohne Tippfehler.
 ## 11. Ähnlichkeit (austauschbar)
 
 ```csharp
-public interface ITextSimilarity
+public interface ILuiSimilarity
 {
     string Name { get; }
     double Similarity(string query, string text);     // 0 … 1, beide normalisiert
@@ -534,10 +547,10 @@ public interface ITextSimilarity
 
 | Implementierung | Standard für | pro Vergleich (15 vs. 38 Zeichen) |
 |---|---|---:|
-| `Similarity.JaroWinkler` | `SingleWord` | 4,5 µs, 336 B |
-| `Similarity.NgramDice` | `MultiWord` | 12,2 µs, 6,5 KB |
-| `Similarity.DamerauLevenshtein` | Codes, Nummern | 13,3 µs, 3,6 KB |
-| `Similarity.Levenshtein` | — | 6,4 µs, 352 B |
+| `LuiSimilarity.JaroWinkler` | `SingleWord` | 4,5 µs, 336 B |
+| `LuiSimilarity.NgramDice` | `MultiWord` | 12,2 µs, 6,5 KB |
+| `LuiSimilarity.DamerauLevenshtein` | Codes, Nummern | 13,3 µs, 3,6 KB |
+| `LuiSimilarity.Levenshtein` | — | 6,4 µs, 352 B |
 | eigene | — | — |
 
 Implementiert über `F23.StringSimilarity` (MIT). Die Ähnlichkeit wird **nur**
@@ -553,77 +566,99 @@ für die Kandidaten berechnet (≤ `Candidates`) und nur in Stufe 2 des Rankings
 ```csharp
 using Nordmann.LUI;
 
-using var lui = LuiCatalog.Open("Data Source=app.db", options => options
-    .CacheSize(megabytes: 256)
-    .MemoryMap(megabytes: 1024)
-    .UseTimeProvider(TimeProvider.System));
+using var lui = LuiCatalog.Open("Data Source=app.db", new LuiCatalogOptions
+{
+    CacheSizeMegabytes = 256,
+    MemoryMapMegabytes = 1024,
+    TimeProvider = TimeProvider.System,
+});
 ```
 
-### 12.2 Index anlegen (fluent)
+Die Optionen sind ein Record mit `init`-Eigenschaften — aus der Konfiguration bindbar — und prüfen jeden Wert,
+wenn er gesetzt wird (ADR-0013).
+
+### 12.2 Index anlegen (fluent, in Stufen)
 
 ```csharp
 // eigenständig: beliebige Quelle, eigene Inhaltstabelle
-ILuiIndex<long, RecipeChip> recipes = lui
-    .Index<long, RecipeChip>("recipes")
-    .MultiWord()
-    .Owned()
-    .Payload(RecipeJsonContext.Default.RecipeChip)       // System.Text.Json, quellgeneriert (AOT)
-    .Similarity(Similarity.NgramDice)                    // Standard für MultiWord, hier explizit
-    .TypoTolerance(maxEdits: 1)
+ILuiOwnedIndex<long, RecipeChip> recipes = lui
+    .Index("recipes")                                    // Stufe 1: die Art
+    .MultiWord()                                         // Stufe 2: die Quelle
+    .Owned<long>()                                       // Stufe 3: Schlüssel long, noch ohne Payload
+    .WithPayload(RecipeJsonContext.Default.RecipeChip)   // System.Text.Json, quellgeneriert (AOT)
+    .Similarity(LuiSimilarity.NgramDice)                 // Standard für MultiWord, hier explizit
+    .TypoTolerance()
     .Ensure();
 
-// verknüpft: hängt sich an eine Tabelle der Anwendung
+// ohne Payload
+ILuiOwnedIndex<long, LuiNoPayload> words = lui.Index("words").SingleWord().Owned<long>().Ensure();
+
+// verknüpft: hängt sich an eine Tabelle der Anwendung (Schritt 6)
 ILuiIndex<long, TagChip> tags = lui
-    .Index<long, TagChip>("tags")
+    .Index("tags")
     .SingleWord()
     .LinkedTo(table: "tag", key: "id", text: "name", weight: "usage_count", priority: "priority", allowSchemaChange: true)
-    .Payload(reader => new TagChip(reader.GetString("slug"), reader.GetString("color")))   // aus Spalten der Tabelle
+    .WithPayload(["slug", "color"], row => new TagChip(row.GetString("slug"), row.GetString("color")))   // aus Spalten der Tabelle
     .Ensure();
 ```
 
 Regeln:
 
-- Jede Methode des Builders gibt den Builder zurück; `Ensure()` schließt ab.
+- **Jede Stufe ist ein eigener Typ** und bietet nur an, was auf sie folgen darf: Ein Index ohne Art oder ohne
+  Quelle lässt sich nicht kompilieren. Der Schlüsseltyp wird mit der Quelle gewählt und dort geprüft.
+- Ein Index beginnt **ohne Payload** (`LuiNoPayload`); `WithPayload(…)` gibt ihm eine und behält die
+  Einstellungen, die davor gemacht wurden.
 - `Ensure()` ist **idempotent**: Existiert der Index mit gleicher Definition,
   wird er geöffnet; weicht die Definition ab, wird mit einer Meldung abgebrochen,
   die beide Definitionen nennt.
-- `Drop()` entfernt einen Index samt Tabellen, Spalten, Indizes und Triggern.
+- `lui.DropIndex(name)` entfernt einen Index samt Tabellen, Spalten, Indizes und Triggern — gleich, welche
+  Definition gespeichert ist.
 
 ### 12.3 Schlüssel und Payload
 
 - `TKey` ist `long` oder `string`. Bei `Linked` ist er `long` (Primärschlüssel).
 - **`Owned`**: Die Payload wird serialisiert gespeichert. Die API nimmt eine
   `JsonTypeInfo<TPayload>` (AOT- und trimmsicher) oder einen eigenen
-  `IPayloadSerializer<TPayload>`.
+  `ILuiPayloadSerializer<TPayload>`.
 - **`Linked`**: Die Payload wird aus Spalten der Tabelle gelesen; die API nimmt
-  eine Abbildung `Func<LuiRow, TPayload>` und die Liste der benötigten Spalten.
+  die Liste der benötigten Spalten und eine Abbildung `Func<LuiRow, TPayload>`.
 - In beiden Fällen: Payload **nur für die Treffer**, eine Abfrage
   `WHERE key IN (…)` bzw. `WHERE id IN (…)`.
 
 ### 12.4 Schreiben (`Owned`)
 
+Lesen und Schreiben sind zwei Schnittstellen (ADR-0013): `ILuiIndex<TKey, TPayload>` hat jeder Index —
+`Query`, `Search`, `Count`, das Tippfehler-Wörterbuch —, `ILuiOwnedIndex<TKey, TPayload>` ergänzt die
+Schreibmethoden. Ein Eintrag ist ein `LuiEntry<TKey, TPayload>`; ein Upsert speichert **ihn ganz** — Text,
+Gewicht, Priorität und Payload.
+
 ```csharp
-recipes.Upsert(42, "Gedeckter Apfelkuchen", weight: 9000, new RecipeChip("gedeckter-apfelkuchen"));
+recipes.Upsert(new LuiEntry<long, RecipeChip>(42, "Gedeckter Apfelkuchen") { Weight = 9000, Payload = chip });
 recipes.UpdateWeight(42, 9500);
 recipes.Remove(42);
 
-// reservierter Systemtag: immer zuerst, wenn er zur Eingabe passt
-tagIndex.Upsert(1, "vegan", weight: 0, chip, priority: Priority.System);
-tagIndex.UpdatePriority(1, Priority.Normal);
+// Kurzform ohne Payload; reservierter Systemtag: immer zuerst, wenn er zur Eingabe passt
+words.Upsert(1, "vegan", weight: 0, priority: LuiPriority.System);
+words.UpdatePriority(1, LuiPriority.Normal);
 
 // in der Transaktion der Anwendung — Fachdaten und Index ändern sich atomar
 using var tx = connection.BeginTransaction();
 // … eigenes INSERT …
-recipes.Upsert(42, "Gedeckter Apfelkuchen", 9000, chip, transaction: tx);
+recipes.Upsert(new LuiEntry<long, RecipeChip>(42, "Gedeckter Apfelkuchen") { Weight = 9000, Payload = chip }, tx);
 tx.Commit();
 
-// Abgleich mit einer Quelle: ergänzt, ändert, entfernt, was fehlt
-SyncReport report = recipes.Sync(source, options => options.BatchSize(10_000).Progress(progress), cancellationToken);
+// viele Einträge in einer Transaktion — so wird ein Index gefüllt, nie Zeile für Zeile
+recipes.UpsertMany(rows.Select(r => new LuiEntry<long, RecipeChip>(r.Id, r.Title) { Weight = r.Views }));
+
+// Abgleich mit einer Quelle: ergänzt, ändert, entfernt, was fehlt (Schritt 7)
+SyncReport report = recipes.Sync(source, new LuiSyncOptions { BatchSize = 10_000, Progress = progress }, cancellationToken);
 ```
 
-Bei `Linked` gibt es diese Methoden nicht: Die Anwendung schreibt in ihre
-Tabelle, die Trigger erledigen den Rest. `UpdateWeight` ist dort ein `UPDATE`
-der Gewichtsspalte.
+`UpsertMany` schreibt ohne Transaktion der Anwendung in **einer eigenen**: alle Einträge oder — bei einem
+Fehler oder einem Abbruch — keiner. Mit der Transaktion der Anwendung gehören die Einträge zu ihr.
+
+Bei `Linked` gibt es diese Methoden nicht: Der Index ist nur ein `ILuiIndex`, die Anwendung schreibt in ihre
+Tabelle — auch das Gewicht —, die Trigger erledigen den Rest.
 
 ### 12.5 Abfragen (fluent)
 
@@ -632,21 +667,23 @@ LuiResult<long, RecipeChip> result = recipes
     .Query("apfelkuch")
     .Take(20)                                        // MaxResults, Standard 20
     .Candidates(500)                                 // Standard 500
-    .Rank(RankingOrder.WordStartThenSimilarity)      // Standard
-    .Priorities(PriorityRanking.First)               // Standard
+    .Rank(LuiRankingOrder.WordStartThenSimilarity)   // Standard
+    .Priorities(LuiPriorityRanking.First)            // Standard
     .DistinctText(false)                             // Standard
-    .Similarity(Similarity.JaroWinkler)              // überschreibt den Standard der Art
+    .Similarity(LuiSimilarity.JaroWinkler)           // überschreibt den Standard der Art
     .TypoTolerance(true)                             // Standard: wie beim Index festgelegt
-    .Highlight(true)                                 // Standard: false
+    .Highlight(true)                                 // Standard: false (Schritt 8)
     .TrackTimings(false)
     .Execute(cancellationToken);
 
-// kurz:
-var hits = recipes.Query("apfelkuch").Execute().Hits;
+// kurz, mit den Standardwerten:
+var hits = recipes.Search("apfelkuch").Hits;
 
 // ohne Builder, für Konfiguration aus Dateien:
-var same = recipes.Query("apfelkuch", new LuiQueryOptions { MaxResults = 20 });
+var same = recipes.Search("apfelkuch", new LuiQueryOptions { MaxResults = 20 });
 ```
+
+Jeder Wert wird geprüft, wo er gesetzt wird: `Take(0)` wirft beim Aufruf, nicht erst in `Execute()`.
 
 Was die Abfrage **nicht** als Option hat, weil es aus der Art folgt: wie gesucht
 wird (ganz / in Wörtern / kompakt), der Präfix-Pfad, die Regel *Wortanfang*.
@@ -664,10 +701,10 @@ recipes.Optimize();                              // FTS5 'optimize'
 
 ```csharp
 services.AddLui("Data Source=app.db")
-        .AddIndex<long, RecipeChip>("recipes", index => index.MultiWord().Owned().Payload(RecipeJsonContext.Default.RecipeChip))
-        .AddIndex<long, TagChip>("tags", index => index.SingleWord().LinkedTo("tag", "id", "name", "usage_count", allowSchemaChange: true));
+        .AddIndex("recipes", index => index.MultiWord().Owned<long>().WithPayload(RecipeJsonContext.Default.RecipeChip))
+        .AddIndex("tags", index => index.SingleWord().LinkedTo("tag", "id", "name", "usage_count", allowSchemaChange: true));
 
-// Verwendung: Keyed Services
+// Verwendung: Keyed Services — der Suggest-Endpunkt braucht nur die Lese-Schnittstelle
 public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<long, RecipeChip> recipes) { … }
 ```
 
@@ -679,9 +716,10 @@ ersten Request.
 | Situation | Ausnahme |
 |---|---|
 | ungültiger Index- oder Spaltenname | `ArgumentException` mit dem erlaubten Muster |
+| Schlüsseltyp weder `long` noch `string` | `NotSupportedException` bei `Owned<TKey>()` |
 | Definition weicht von `lui_meta` ab | `LuiDefinitionMismatchException` (nennt beide) |
 | `Linked` ohne `allowSchemaChange` und fehlende Spalten | `LuiSchemaChangeRequiredException` (nennt das nötige SQL) |
-| Gewicht außerhalb des Bereichs | `ArgumentOutOfRangeException` |
+| Gewicht, Priorität oder Option außerhalb des Bereichs | `ArgumentOutOfRangeException`, wenn der Wert gesetzt wird |
 | SQLite meldet `SQLITE_BUSY` nach `busy_timeout` | `SqliteException` wird unverändert weitergereicht |
 
 ---
@@ -766,23 +804,22 @@ veröffentlicht.
 
 ### 17.1 Pakete
 
-| Paket | Inhalt | Abhängigkeiten |
-|---|---|---|
-| `Nordmann.LUI.Abstractions` | Verträge: `ILuiIndex`, `ITextSimilarity`, Optionen, Ergebnisse | keine |
-| `Nordmann.LUI` | die Umsetzung auf SQLite | Abstractions, `Microsoft.Data.Sqlite`, `symspell`, `F23.StringSimilarity` |
-| `Nordmann.LUI.DependencyInjection` | `AddLui`, Keyed Services, `IHostedService` | `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Hosting.Abstractions` |
+**Ein Paket**, `Nordmann.LUI`, eine Assembly (ADR-0001). Es hängt von `Microsoft.Data.Sqlite`, `symspell` und
+`F23.StringSimilarity` ab — und von nichts, was es nicht verwendet: Die `Microsoft.Extensions.*`-Abstraktionen
+kommen erst mit der Dependency Injection (Schritt 8), in derselben Assembly (ADR-0013).
 
 ### 17.2 Namespaces (Ordner = Namespace)
 
-| Namespace | Inhalt |
-|---|---|
-| `Nordmann.LUI` | `LuiCatalog`, Builder |
-| `Nordmann.LUI.Indexing` | Schema, Trigger, `Ensure`, `Sync`, `Check` |
-| `Nordmann.LUI.Querying` | Abfrage-Ablauf, Kandidaten, Ranking |
-| `Nordmann.LUI.Normalization` | `Normalizer`, SQL-Ausdrücke, Zuordnung für Highlight |
-| `Nordmann.LUI.Typos` | Wörterbuch der Wortanfänge |
-| `Nordmann.LUI.Similarity` | Ähnlichkeiten |
-| `Nordmann.LUI.Payloads` | Serialisierung, Abbildung aus Spalten |
+Ein Konsument braucht **ein** `using Nordmann.LUI;`: Jeder öffentliche Typ liegt dort und beginnt mit `Lui`
+bzw. `ILui` (ein Architekturtest hält das fest, ADR-0013). Die übrigen Namespaces sind intern.
+
+| Namespace | Inhalt | sichtbar |
+|---|---|---|
+| `Nordmann.LUI` | `LuiCatalog`, die Builder-Stufen, `ILuiIndex`, `ILuiOwnedIndex`, `LuiEntry`, Abfrage, Optionen, Ergebnisse, `ILuiSimilarity`/`LuiSimilarity`, `ILuiPayloadSerializer`, Ausnahmen | öffentlich |
+| `Nordmann.LUI.Indexing` | Schema, Trigger, Schreibzugriffe, `Sync`, `Check` | intern |
+| `Nordmann.LUI.Querying` | Abfrage-Ablauf, Kandidaten, Ranking | intern |
+| `Nordmann.LUI.Normalization` | `Normalizer`, SQL-Ausdrücke, Zuordnung für Highlight | intern |
+| `Nordmann.LUI.Typos` | Wörterbuch der Wortanfänge | intern |
 
 ### 17.3 Abhängigkeiten
 
@@ -800,7 +837,7 @@ Trigram-Tokenizer); getestet mit 3.53.3. Die Bibliothek prüft die Version beim
 
 - die Arbeitsweise: ADRs, `AGENTS.md`, Messungen als Tests, Benchmark-Projekt,
   CI mit Paket-Smoke-Test, Paketierung (SourceLink, Symbole, Package Validation);
-- die Distanzen als Vorlage (`IStringDistance` → `ITextSimilarity`);
+- die Distanzen als Vorlage (`IStringDistance` → `ILuiSimilarity`);
 - **nicht**: Roaring-Bitmaps, das Snapshot-Format, der Memory-Mapped-Reader,
   der Streaming-Build.
 

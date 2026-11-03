@@ -12,7 +12,7 @@ namespace Nordmann.LUI.Normalization;
 /// <c>docs/normalization.md</c>.
 /// </para>
 /// </summary>
-public static class Normalizer
+internal static class Normalizer
 {
     /// <summary>
     /// The characters the compact form drops: the ASCII punctuation, the

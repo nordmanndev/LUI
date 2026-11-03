@@ -24,7 +24,7 @@ public sealed class TypoQualityTests(ITestOutputHelper output)
         var words = Words();
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("words").SingleWord().Owned().TypoTolerance(1).Ensure();
+        var index = catalog.Index("words").SingleWord().Owned<long>().TypoTolerance().Ensure();
         Load(catalog, index, words);
 
         var random = new Random(1000 + length);
@@ -54,7 +54,7 @@ public sealed class TypoQualityTests(ITestOutputHelper output)
         ratio.ShouldBeGreaterThanOrEqualTo(floor, $"{typo} of {clean} at {length} letters");
     }
 
-    private static bool Found(ILuiIndex<long, Chip> index, string typed, string word, bool typoTolerance) =>
+    private static bool Found(ILuiOwnedIndex<long, LuiNoPayload> index, string typed, string word, bool typoTolerance) =>
         index.Query(typed).Take(20).TypoTolerance(typoTolerance).Execute().Hits
             .Any(h => string.Equals(h.Text, word, StringComparison.Ordinal));
 
@@ -63,7 +63,7 @@ public sealed class TypoQualityTests(ITestOutputHelper output)
             .Where(w => w.Length >= 3 && w.All(char.IsLetter))
             .Distinct(StringComparer.Ordinal)];
 
-    private static void Load(LuiCatalog catalog, ILuiIndex<long, Chip> index, List<string> words)
+    private static void Load(LuiCatalog catalog, ILuiOwnedIndex<long, LuiNoPayload> index, List<string> words)
     {
         var random = new Random(77);
         using var connection = catalog.OpenConnection();

@@ -5,18 +5,24 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** [#9](https://github.com/nordmanndev/LUI/issues/9) — Typo tolerance
-**Branch:** `feat/typo-tolerance`
-**State:** PR-005 is implemented and measured; the pull request is open.
+**Issue:** [#11](https://github.com/nordmanndev/LUI/issues/11) — API shape before 0.1.0 (DevEx review)
+**Branch:** `feat/api-shape`
+**State:** implemented, measured and verified; the pull request is opened when the owner asks.
 
 ## Where the work stands
 
-- `Typos/TypoDictionary` (SymSpell over the word beginnings, lazy, a lock), the correction in `QueryRunner`
-  (variants, union, per-candidate input), `Builder.TypoTolerance`, `LuiQuery.TypoTolerance`, `CorrectedQuery`.
-  ADR-0012. The specification (§10.3a) was extended with it.
-- Open decision of the owner: ADR-0010 (the §16 query budget at 3 M entries).
+- The public API has its pre-release shape (ADR-0013). Open decision of the owner: ADR-0010 (the §16 query budget at
+  3 M entries).
 
 ## The next step
+
+**PR-005b — the seams for `Linked`** (refactoring, no behaviour change): the index kind as one strategy (`IndexKindRules`:
+indexed column, prefix source, norm storage, default similarity, prefix path, expression) instead of `kind ==` in four files;
+the content source as a strategy (`IContentSource`: DDL, candidate/prefix/hit SQL, payload reader, typo source) designed
+against the `Linked` list below; the namespace direction fixed by NetArchTest; `QueryRunner` split into stages. The golden,
+plan and performance numbers must stay the same.
+
+**Then PR-006 — `Linked`:**
 
 PR-006 — `Linked`: an index over a table of the application (spec §5, §7.3, §12.2, §12.8). `LinkedTo(table, key, text, weight,
 priority, allowSchemaChange)`; five generated columns, three indexes and three triggers on the application's table; the payload from

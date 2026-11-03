@@ -5,7 +5,7 @@ namespace Nordmann.LUI;
 /// steers the query intrinsically: the caller does not have to know how the
 /// search is done (LUI-Spezifikation §4).
 /// </summary>
-public enum IndexKind
+public enum LuiIndexKind
 {
     /// <summary>Tags, single words, compounds, hashtags: the input is searched as a whole.</summary>
     SingleWord,

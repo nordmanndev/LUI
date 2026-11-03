@@ -14,7 +14,7 @@ public sealed class QueryPlanTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         var plan = Plan(database, QueryRunner<long, Chip>.CandidateSql("lui_tags_fts", "lui_tags"), "$expr", "s_norm : \"gan\"");
 
@@ -31,7 +31,7 @@ public sealed class QueryPlanTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index<long, Chip>("tags").MultiWord().Owned().Ensure();
+        catalog.Index("tags").MultiWord().Owned<long>().Ensure();
 
         var plan = Plan(database, QueryRunner<long, Chip>.CandidateSql("lui_tags_fts", "lui_tags"), "$expr", expression);
 
@@ -47,7 +47,7 @@ public sealed class QueryPlanTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         var plan = Plan(database, QueryRunner<long, Chip>.PrefixSql("lui_tags", length), "$q", "a");
 
@@ -60,7 +60,7 @@ public sealed class QueryPlanTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         var plan = Plan(database, "SELECT doc_id, key, payload FROM lui_tags WHERE doc_id IN (1, 2, 3);", "$none", "0");
 

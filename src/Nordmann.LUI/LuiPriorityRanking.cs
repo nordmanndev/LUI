@@ -3,7 +3,7 @@ namespace Nordmann.LUI;
 /// <summary>
 /// What the priority of an entry does in the ranking (LUI-Spezifikation §9.2).
 /// </summary>
-public enum PriorityRanking
+public enum LuiPriorityRanking
 {
     /// <summary>The default: the priority comes before every other stage.</summary>
     First,

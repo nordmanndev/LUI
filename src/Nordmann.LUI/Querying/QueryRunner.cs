@@ -3,8 +3,6 @@ using System.Diagnostics;
 using Microsoft.Data.Sqlite;
 using Nordmann.LUI.Indexing;
 using Nordmann.LUI.Normalization;
-using Nordmann.LUI.Payloads;
-using Nordmann.LUI.Similarity;
 using Nordmann.LUI.Typos;
 
 namespace Nordmann.LUI.Querying;
@@ -21,10 +19,10 @@ internal sealed class QueryRunner<TKey, TPayload>
 
     private readonly LuiCatalog _catalog;
     private readonly string _content;
-    private readonly IndexKind _kind;
+    private readonly LuiIndexKind _kind;
     private readonly NormalizationOptions _normalization;
-    private readonly IPayloadSerializer<TPayload>? _payload;
-    private readonly ITextSimilarity _defaultSimilarity;
+    private readonly ILuiPayloadSerializer<TPayload>? _payload;
+    private readonly ILuiSimilarity _defaultSimilarity;
     private readonly TypoDictionary _typos;
     private readonly bool _typoDefault;
     private readonly string _prefix1Sql;
@@ -36,8 +34,8 @@ internal sealed class QueryRunner<TKey, TPayload>
         LuiCatalog catalog,
         string indexName,
         IndexDefinition definition,
-        IPayloadSerializer<TPayload>? payload,
-        ITextSimilarity defaultSimilarity,
+        ILuiPayloadSerializer<TPayload>? payload,
+        ILuiSimilarity defaultSimilarity,
         TypoDictionary typos,
         bool typoDefault)
     {
@@ -73,7 +71,6 @@ internal sealed class QueryRunner<TKey, TPayload>
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(options);
-        Validate(options);
 
         var started = Stopwatch.GetTimestamp();
         using var scope = _catalog.Begin();
@@ -81,7 +78,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         var query = PreparedQuery.Create(input, _normalization, _kind);
         if (query.IsEmpty)
         {
-            return new LuiResult<TKey, TPayload>(input, [], 0, false, null, Timings(options, started, started, started, started, started));
+            return new LuiResult<TKey, TPayload> { Query = input, Hits = [], Timings = Timings(options, started, started, started, started, started) };
         }
 
         using var connection = _catalog.OpenConnection();
@@ -109,7 +106,7 @@ internal sealed class QueryRunner<TKey, TPayload>
 
         // A one- or two-character input carries no similarity worth ranking by: the
         // candidates all begin with it, and "the most popular first" is the answer (Anhang B).
-        var order = query.IsPrefixPath ? RankingOrder.WeightOnly : options.Rank;
+        var order = query.IsPrefixPath ? LuiRankingOrder.WeightOnly : options.Rank;
         var ranked = Ranker.Rank(
             candidates, count, queries, order, options.Priorities, similarity, _normalization, options.MaxResults, cancellationToken);
         var rankedAt = Stopwatch.GetTimestamp();
@@ -117,8 +114,15 @@ internal sealed class QueryRunner<TKey, TPayload>
         var hits = ReadHits(connection, snapshot, ranked, queries, similarity, order);
         var done = Stopwatch.GetTimestamp();
 
-        return new LuiResult<TKey, TPayload>(
-            input, hits, count, truncated, corrected, Timings(options, started, read, corrections, rankedAt, done));
+        return new LuiResult<TKey, TPayload>
+        {
+            Query = input,
+            Hits = hits,
+            CandidatesConsidered = count,
+            Truncated = truncated,
+            CorrectedQuery = corrected,
+            Timings = Timings(options, started, read, corrections, rankedAt, done),
+        };
     }
 
     private static bool NoWordStart(Scored[] candidates, int count)
@@ -269,38 +273,16 @@ internal sealed class QueryRunner<TKey, TPayload>
     private static LuiTimings? Timings(
         LuiQueryOptions options, long started, long read, long corrected, long ranked, long done) =>
         options.TrackTimings
-            ? new LuiTimings(
-                Stopwatch.GetElapsedTime(started, read),
-                Stopwatch.GetElapsedTime(corrected, ranked),
-                Stopwatch.GetElapsedTime(ranked, done),
-                Stopwatch.GetElapsedTime(started, done),
-                Stopwatch.GetElapsedTime(read, corrected))
+            ? new LuiTimings
+            {
+                Candidates = Stopwatch.GetElapsedTime(started, read),
+                Correction = Stopwatch.GetElapsedTime(read, corrected),
+                Ranking = Stopwatch.GetElapsedTime(corrected, ranked),
+                Payload = Stopwatch.GetElapsedTime(ranked, done),
+                Total = Stopwatch.GetElapsedTime(started, done),
+            }
             : null;
 
-    private static void Validate(LuiQueryOptions options)
-    {
-        if (options.MaxResults is < 1 or > LuiQueryOptions.MaxResultsLimit)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options), options.MaxResults, $"MaxResults is 1 … {LuiQueryOptions.MaxResultsLimit}.");
-        }
-
-        if (options.Candidates is < 1 or > LuiQueryOptions.CandidatesLimit)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(options), options.Candidates, $"Candidates is 1 … {LuiQueryOptions.CandidatesLimit}.");
-        }
-
-        if (!Enum.IsDefined(options.Rank))
-        {
-            throw new ArgumentOutOfRangeException(nameof(options), options.Rank, "Unknown ranking order.");
-        }
-
-        if (!Enum.IsDefined(options.Priorities))
-        {
-            throw new ArgumentOutOfRangeException(nameof(options), options.Priorities, "Unknown priority ranking.");
-        }
-    }
 
     private Scored[] ReadCandidates(
         SqliteConnection connection,
@@ -422,8 +404,8 @@ internal sealed class QueryRunner<TKey, TPayload>
         SqliteTransaction snapshot,
         Scored[] ranked,
         IReadOnlyList<string> queries,
-        ITextSimilarity similarity,
-        RankingOrder order)
+        ILuiSimilarity similarity,
+        LuiRankingOrder order)
     {
         var hits = new List<LuiHit<TKey, TPayload>>(ranked.Length);
         if (ranked.Length == 0)
@@ -457,19 +439,20 @@ internal sealed class QueryRunner<TKey, TPayload>
             }
 
             ref var entry = ref ranked[i];
-            var measured = order == RankingOrder.WeightOnly
+            var measured = order == LuiRankingOrder.WeightOnly
                 ? Ranker.Measure(entry, queries, similarity, _normalization)
                 : entry.Similarity;
 
-            hits.Add(new LuiHit<TKey, TPayload>(
-                KeyCodec<TKey>.FromText(key),
-                entry.Text,
-                payloads[i],
-                RowId.WeightOf(entry.RowId),
-                RowId.PriorityOf(entry.RowId),
-                measured,
-                entry.WordStart >= 0,
-                null));
+            hits.Add(new LuiHit<TKey, TPayload>
+            {
+                Key = KeyCodec<TKey>.FromText(key),
+                Text = entry.Text,
+                Payload = payloads[i],
+                Weight = RowId.WeightOf(entry.RowId),
+                Priority = RowId.PriorityOf(entry.RowId),
+                Similarity = measured,
+                AtWordStart = entry.WordStart >= 0,
+            });
         }
 
         return hits;

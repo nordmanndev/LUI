@@ -60,6 +60,42 @@ public sealed class Public_API_Shape
         offenders.ShouldBeEmpty("LUI does not leak hosting types into its public surface.");
     }
 
+    [Fact]
+    public void A_consumer_needs_one_using_and_every_public_type_says_it_is_lui()
+    {
+        // One namespace for the consumer (`using Nordmann.LUI;`), and a prefix that does not collide with the
+        // types of an application — `Priority` would, in almost every one of them (ADR-0013).
+        var offenders = LibraryAssembly
+            .GetExportedTypes()
+            .Where(type => !string.Equals(type.Namespace, "Nordmann.LUI", StringComparison.Ordinal)
+                        || !(type.Name.StartsWith("Lui", StringComparison.Ordinal) || type.Name.StartsWith("ILui", StringComparison.Ordinal)))
+            .Select(type => type.FullName!)
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+
+        offenders.ShouldBeEmpty("Every public type lives in Nordmann.LUI and starts with Lui or ILui.");
+    }
+
+    [Fact]
+    public void The_results_and_options_have_named_properties_not_positions()
+    {
+        // A positional record breaks every caller when a field is added — and two fields of the same type
+        // that swap places do not even fail to compile (ADR-0013).
+        string[] named = ["LuiHit`2", "LuiResult`2", "LuiTimings", "LuiQueryOptions", "LuiCatalogOptions"];
+
+        var offenders = LibraryAssembly
+            .GetExportedTypes()
+            .Where(type => named.Contains(type.Name, StringComparer.Ordinal))
+            .Where(type => type.GetConstructors().Any(constructor =>
+                constructor.GetParameters().Length > 0
+                && !(constructor.GetParameters().Length == 1 && constructor.GetParameters()[0].ParameterType == type)))
+            .Select(type => type.Name)
+            .ToArray();
+
+        offenders.ShouldBeEmpty("The results and options are built with named properties.");
+        LibraryAssembly.GetExportedTypes().Count(type => named.Contains(type.Name, StringComparer.Ordinal)).ShouldBe(named.Length);
+    }
+
     private static string Describe(TestResult result) =>
         result.FailingTypeNames is { Count: > 0 } names
             ? string.Join(", ", names)

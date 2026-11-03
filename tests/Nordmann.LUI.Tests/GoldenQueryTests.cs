@@ -13,7 +13,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("rezepte").SingleWord().Owned().Ensure();
+        var index = catalog.Index("rezepte").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "Apfelkuchen", 900);
         index.Upsert(2, "Gedeckter Apfelkuchen", 800);
         index.Upsert(3, "Apfelkuchen mit Sahne", 400);
@@ -33,7 +33,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("rezepte").SingleWord().Owned().Ensure();
+        var index = catalog.Index("rezepte").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "Apfelkuchen", 900);
         index.Upsert(2, "Gedeckter Apfelkuchen", 800);
         index.Upsert(3, "Bratapfelkuchen", 9_000);
@@ -54,7 +54,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("rezepte").SingleWord().Owned().Ensure();
+        var index = catalog.Index("rezepte").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "Gedeckter Apfelkuchen mit Äpfeln", 10);
         index.Upsert(2, "Gedeckter Apfelkuchen", 20);
 
@@ -68,7 +68,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("orte").SingleWord().Owned().Ensure();
+        var index = catalog.Index("orte").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "Hauptstraße", 10);
         index.Upsert(2, "Hauptstrasse", 5);
 
@@ -80,7 +80,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("rezepte").SingleWord().Owned().Ensure();
+        var index = catalog.Index("rezepte").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "Apfelkuchen", 300);
         index.Upsert(2, "Ananas-Torte", 700);
         index.Upsert(3, "Aprikosenkuchen", 500);
@@ -95,7 +95,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         LoadTagCorpus(database, index);
 
         foreach (var input in new[] { "gan", "veg", "vega", "vegan" })
@@ -103,7 +103,7 @@ public sealed class GoldenQueryTests
             var result = index.Query(input).Execute();
 
             result.Hits[0].Text.ShouldBe("vegan", $"for '{input}'");
-            result.Hits[0].Priority.ShouldBe(Priority.System);
+            result.Hits[0].Priority.ShouldBe(LuiPriority.System);
         }
 
         var wide = index.Query("gan").Execute();
@@ -112,7 +112,7 @@ public sealed class GoldenQueryTests
         database.Scalar<long>("SELECT count(*) FROM lui_tags WHERE s_norm LIKE '%gan%'").ShouldBeGreaterThan(30_000);
 
         // the same entry as an ordinary tag is not among the five hundred candidates — that is why the priority sits in the rowid (E10)
-        index.UpdatePriority(1, Priority.Normal);
+        index.UpdatePriority(1, LuiPriority.Normal);
         index.Query("gan").Execute().Hits.Select(h => h.Key).ShouldNotContain(1L);
     }
 
@@ -121,8 +121,8 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
-        index.Upsert(1, "vegan", 0, priority: Priority.System);
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
+        index.Upsert(1, "vegan", 0, priority: LuiPriority.System);
         index.Upsert(2, "Vegan", 800_000);
         index.Upsert(3, "vegane torte", 700_000);
 
@@ -130,7 +130,7 @@ public sealed class GoldenQueryTests
         index.Query("veg").DistinctText().Execute().Hits.Select(h => h.Key).ShouldBe([1, 3]);
     }
 
-    private static void LoadTagCorpus(TestDatabase database, ILuiIndex<long, Chip> index)
+    private static void LoadTagCorpus(TestDatabase database, ILuiOwnedIndex<long, LuiNoPayload> index)
     {
         // 35,000 tags that hold "gan", 1,100 that begin with "veg", and the system tag
         var random = new Random(20261102);
@@ -139,7 +139,7 @@ public sealed class GoldenQueryTests
         using var connection = database.Connect();
         using var transaction = connection.BeginTransaction();
 
-        index.Upsert(1, "vegan", 5, priority: Priority.System, transaction: transaction);
+        index.Upsert(1, "vegan", 5, priority: LuiPriority.System, transaction: transaction);
 
         for (var i = 0; i < 35_000; i++)
         {

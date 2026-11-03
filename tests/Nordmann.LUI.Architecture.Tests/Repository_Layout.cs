@@ -124,7 +124,9 @@ public sealed class Repository_Layout
     [Fact]
     public void The_library_ships_only_the_documented_runtime_dependencies()
     {
-        // What a consumer gets when they install the package: exactly these.
+        // What a consumer gets when they install the package: exactly these (LUI-Spezifikation §17.3).
+        // The Microsoft.Extensions abstractions come back with the dependency injection (PR-008), not before:
+        // a console application without a host should not carry them (ADR-0013).
         // Build-time packages carry PrivateAssets="all" and stay out.
         var runtime = Repository
             .Elements(Repository.LoadXml(LibraryProject()), "PackageReference")
@@ -138,9 +140,6 @@ public sealed class Repository_Layout
         [
             "F23.StringSimilarity",
             "Microsoft.Data.Sqlite",
-            "Microsoft.Extensions.DependencyInjection.Abstractions",
-            "Microsoft.Extensions.Hosting.Abstractions",
-            "Microsoft.Extensions.Logging.Abstractions",
             "symspell"
         ]);
     }

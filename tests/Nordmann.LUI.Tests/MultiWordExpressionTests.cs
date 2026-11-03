@@ -139,5 +139,5 @@ public sealed class MultiWordExpressionTests
     private static string Expression(string typed) => Query(typed).Expression;
 
     private static PreparedQuery Query(string typed) =>
-        PreparedQuery.Create(typed, NormalizationOptions.Default, IndexKind.MultiWord);
+        PreparedQuery.Create(typed, NormalizationOptions.Default, LuiIndexKind.MultiWord);
 }

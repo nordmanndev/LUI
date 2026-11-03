@@ -1,6 +1,4 @@
 using Microsoft.Data.Sqlite;
-using Nordmann.LUI.Payloads;
-using Nordmann.LUI.Similarity;
 using Shouldly;
 
 namespace Nordmann.LUI.Tests;
@@ -18,11 +16,11 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, int>("nums").SingleWord().Owned().Ensure();
+        var index = catalog.Index("nums").SingleWord().Owned<long>().Ensure();
 
         Should.NotThrow(() => index.Upsert(1, "vegan", 5));
 
-        index.Query("vegan").Execute().Hits.ShouldHaveSingleItem().Payload.ShouldBe(0);
+        index.Query("vegan").Execute().Hits.ShouldHaveSingleItem().Payload.ShouldBe(default(LuiNoPayload));
     }
 
     [Fact]
@@ -30,25 +28,15 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, int>("nums").SingleWord().Owned().Payload(new IntSerializer()).Ensure();
+        var index = catalog.Index("nums").SingleWord().Owned<long>().WithPayload(new IntSerializer()).Ensure();
 
-        index.Upsert(1, "vegan", 5, 42);
+        index.Upsert(new(1, "vegan") { Weight = 5, Payload = 42 });
         index.Upsert(2, "vegane torte", 4);
 
-        var hits = index.Query("vegan").Rank(RankingOrder.WeightOnly).Execute().Hits;
+        var hits = index.Query("vegan").Rank(LuiRankingOrder.WeightOnly).Execute().Hits;
         hits[0].Payload.ShouldBe(42);
         hits[1].Payload.ShouldBe(0);
         database.Scalar<long>("SELECT count(*) FROM lui_nums WHERE payload IS NULL").ShouldBe(1);
-    }
-
-    [Fact]
-    public void A_value_type_payload_that_is_not_the_default_needs_a_serialiser()
-    {
-        using var database = new TestDatabase();
-        using var catalog = database.Open();
-        var index = catalog.Index<long, int>("nums").SingleWord().Owned().Ensure();
-
-        Should.Throw<InvalidOperationException>(() => index.Upsert(1, "vegan", 5, 7));
     }
 
     // ---- B2: one snapshot for the candidates and the hits ------------------------------------
@@ -58,16 +46,16 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Payload(ChipJsonContext.Default.Chip).Ensure();
-        index.Upsert(1, "kirsche kuchen", 10, new Chip("old1"));
-        index.Upsert(2, "zitrone kuchen", 5, new Chip("old2"));
+        var index = catalog.Index("tags").SingleWord().Owned<long>().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        index.Upsert(new(1, "kirsche kuchen") { Weight = 10, Payload = new Chip("old1") });
+        index.Upsert(new(2, "zitrone kuchen") { Weight = 5, Payload = new Chip("old2") });
 
         // between the candidates and the hits, another writer removes the highest document and
         // adds a new one: SQLite hands the freed doc_id to the newcomer
         var interference = new OnFirstCall(() =>
         {
             index.Remove(2);
-            index.Upsert(3, "himbeer kuchen", 5, new Chip("new3"));
+            index.Upsert(new(3, "himbeer kuchen") { Weight = 5, Payload = new Chip("new3") });
         });
 
         var hits = index.Query("kuchen").Similarity(interference).Execute().Hits;
@@ -91,13 +79,13 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "apfel", 10);
         index.Upsert(2, "#apfelkuchen", 20);
         index.Upsert(3, "birne", 30);
 
-        var without = index.Query(typed).Rank(RankingOrder.WeightOnly).Execute().Hits.Select(h => h.Key).ToArray();
-        var with = index.Query("#" + typed).Rank(RankingOrder.WeightOnly).Execute().Hits.Select(h => h.Key).ToArray();
+        var without = index.Query(typed).Rank(LuiRankingOrder.WeightOnly).Execute().Hits.Select(h => h.Key).ToArray();
+        var with = index.Query("#" + typed).Rank(LuiRankingOrder.WeightOnly).Execute().Hits.Select(h => h.Key).ToArray();
 
         without.ShouldBe([2, 1]);
         with.ShouldBe(without);
@@ -110,11 +98,11 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "😀party", 5);
         index.Upsert(2, "😀smile", 3);
 
-        index.Query("😀").Rank(RankingOrder.WeightOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1, 2]);
+        index.Query("😀").Rank(LuiRankingOrder.WeightOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1, 2]);
         index.Query("😀p").Execute().Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
         index.Query("😀pa").Execute().Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
     }
@@ -126,8 +114,8 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Payload(ChipJsonContext.Default.Chip).Ensure();
-        index.Upsert(1, "vegan", 5, new Chip("vegan"));
+        var index = catalog.Index("tags").SingleWord().Owned<long>().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan") });
 
         index.Upsert(1, "vegan", 5);
 
@@ -147,8 +135,8 @@ public sealed class ReviewFollowUpTests
             command.ExecuteNonQuery();
         }
 
-        using var catalog = database.Open(options => options.UseWriteAheadLog(false));
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        using var catalog = database.Open(new LuiCatalogOptions { WriteAheadLog = false });
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "vegan", 5);
 
         database.Scalar<string>("PRAGMA journal_mode").ShouldBe("delete");
@@ -179,7 +167,7 @@ public sealed class ReviewFollowUpTests
         using var database = new TestDatabase();
         using var other = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
 
         using var connection = other.Connect();
         using var transaction = connection.BeginTransaction();
@@ -209,7 +197,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         using (var connection = database.Connect())
         {
             using var command = connection.CreateCommand();
@@ -229,14 +217,14 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Payload(ChipJsonContext.Default.Chip).Ensure();
-        index.Upsert(1, "vegan", 5, new Chip("v"));
-        index.Upsert(2, "vegane torte", 4, new Chip("t"));
+        var index = catalog.Index("tags").SingleWord().Owned<long>().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("v") });
+        index.Upsert(new(2, "vegane torte") { Weight = 4, Payload = new Chip("t") });
         var before = SearchIndexFingerprint(database);
 
         for (var i = 0; i < 50; i++)
         {
-            index.Upsert(1, "vegan", 5, new Chip("v"));
+            index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("v") });
         }
 
         SearchIndexFingerprint(database).ShouldBe(before);
@@ -247,13 +235,13 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Payload(ChipJsonContext.Default.Chip).Ensure();
-        index.Upsert(1, "vegan", 5, new Chip("v"));
+        var index = catalog.Index("tags").SingleWord().Owned<long>().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("v") });
         var before = SearchIndexFingerprint(database);
 
-        index.Upsert(1, "vegan", 5, new Chip("changed"));
+        index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("changed") });
         index.UpdateWeight(1, 5);
-        index.UpdatePriority(1, Priority.Normal);
+        index.UpdatePriority(1, LuiPriority.Normal);
 
         SearchIndexFingerprint(database).ShouldBe(before);
         index.Query("vegan").Execute().Hits.ShouldHaveSingleItem().Payload.ShouldBe(new Chip("changed"));
@@ -264,14 +252,14 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         index.Upsert(1, "vegan", 5);
         var before = SearchIndexFingerprint(database);
 
         index.Upsert(1, "vegan", 6);
         index.Upsert(1, "Vegan", 6);
-        index.UpdatePriority(1, Priority.High);
-        index.Upsert(1, "birne", 6, priority: Priority.High);
+        index.UpdatePriority(1, LuiPriority.High);
+        index.Upsert(1, "birne", 6, priority: LuiPriority.High);
 
         string.Equals(SearchIndexFingerprint(database), before, StringComparison.Ordinal).ShouldBeFalse();
         index.Query("vegan").Execute().Hits.ShouldBeEmpty();
@@ -290,7 +278,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index<long, Chip>("tags").SingleWord().Owned().Ensure();
+        var index = catalog.Index("tags").SingleWord().Owned<long>().Ensure();
         using (var connection = database.Connect())
         {
             using var transaction = connection.BeginTransaction();
@@ -313,7 +301,7 @@ public sealed class ReviewFollowUpTests
         database.Scalar<string>(
             "SELECT count(*) || ':' || coalesce(sum(length(block)), 0) || ':' || coalesce(sum(id), 0) FROM lui_tags_fts_data");
 
-    private sealed class OnFirstCall(Action action) : ITextSimilarity
+    private sealed class OnFirstCall(Action action) : ILuiSimilarity
     {
         private int _calls;
 
@@ -332,7 +320,7 @@ public sealed class ReviewFollowUpTests
         }
     }
 
-    private sealed class IntSerializer : IPayloadSerializer<int>
+    private sealed class IntSerializer : ILuiPayloadSerializer<int>
     {
         public byte[] Serialize(int payload) => BitConverter.GetBytes(payload);
 

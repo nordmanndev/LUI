@@ -122,6 +122,50 @@ internal sealed class TypoDictionary
     }
 
     /// <summary>
+    /// <see cref="Add"/> for many texts at once (<c>UpsertMany</c>): the queue gate and the write lock are taken
+    /// once for all of them.
+    /// </summary>
+    internal void AddRange(IReadOnlyCollection<(string Text, int Weight)> texts)
+    {
+        if (texts.Count == 0)
+        {
+            return;
+        }
+
+        lock (_pendingGate)
+        {
+            if (_pending is { } pending)
+            {
+                foreach (var text in texts)
+                {
+                    pending.Enqueue(text);
+                }
+            }
+        }
+
+        if (Volatile.Read(ref _symSpell) is null)
+        {
+            return;
+        }
+
+        _lock.EnterWriteLock();
+        try
+        {
+            if (_symSpell is { } symSpell)
+            {
+                foreach (var (text, weight) in texts)
+                {
+                    AddBeginnings(symSpell, text, weight, onlyNew: true);
+                }
+            }
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
     /// The corrected inputs, best first, at most <see cref="MaxVariants"/>, none equal to the input
     /// (§10.3): every word of three or more letters is looked up (closest, one edit); the k-th variant takes
     /// the k-th suggestion of every word that has one. A word longer than ten letters is looked up by
