@@ -49,6 +49,10 @@ one pull request per step, and every decision is an ADR in [`docs/adr/`](./docs/
 | Licence | MIT |
 | Current version | `0.1.0` (not yet published) |
 
+**The public API is frozen from `0.1.0` on, and grows only additively** ([ADR-0026](./docs/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)):
+a removed or renamed type or member, or a changed signature, needs a new minor version, a migration note in the
+[CHANGELOG](./CHANGELOG.md) and an ADR.
+
 The public API follows the specification: a `LuiCatalog`, an index per
 searchable stock, a fluent query builder, and the two index kinds
 `SingleWord` and `MultiWord`. The code of this README is **executed by the

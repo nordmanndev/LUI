@@ -5,6 +5,10 @@
 > is `CandidateRead`, the linked overload of `AddIndex` is `AddLinkedIndex`, and `Check()`, `WarmUpTypoDictionary` and
 > `RebuildTypoDictionary` are on the write interfaces, not on `ILuiIndex`. The text below is history.
 
+> **Freeze note (ADR-0026, 2026-11-04):** the sentence below, "in 0.x every minor version may break the API (SemVer)", is
+> tightened: from the tag `v0.1.0` on the public API grows only additively; a breaking change needs a new minor version,
+> a migration note and an ADR. The exact pin stays. The text below is history.
+
 - **Status:** Accepted (owner's decision, 2026-11-03)
 - **Date:** 2026-11-03
 - **Supersedes:** the "one package" of [0001](./0001-single-package.md) for the dependency injection; the "in the package"

@@ -57,3 +57,4 @@ here — in the **same pull request** as the change it describes.
 | [0023](./0023-owned-becomes-embedded.md) | `Owned` becomes `Embedded`: the name of the content source in LUI's own table | Accepted |
 | [0024](./0024-the-api-polish-before-the-freeze.md) | The API polish before the freeze: `AddLinkedIndex`, `entries`, `CandidateRead`, `LuiPayloadRow`, `LuiException`, a read interface that only reads | Accepted |
 | [0025](./0025-the-typo-dictionary-only-grows.md) | The typo dictionary only grows: no `Stale`, no background rebuild, one dictionary per index | Accepted |
+| [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) | The public API from 0.1.0 on grows only additively: a breaking change needs a minor version, a migration note and an ADR | Accepted |
