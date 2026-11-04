@@ -51,4 +51,19 @@
     <None Include="../../README.md" Pack="true" PackagePath="/" Visible="false" />
   </ItemGroup>
 
+  <!--
+    The core is pinned exactly: Nordmann.LUI.Hosting x.y.z depends on Nordmann.LUI [x.y.z], not >= x.y.z (owner's
+    decision, #24, ADR-0018). The two packages are released together with one version; in 0.x a newer core may change a
+    signature the hosting calls, and the mismatch would surface at run time (MissingMethodException), not at compile
+    time. NuGet makes a project reference a lower bound; this rewrites the version of the core's reference to an exact
+    range after NuGet read it, before the nuspec is written.
+  -->
+  <Target Name="PinTheCoreExactly" AfterTargets="_GetProjectReferenceVersions">
+    <ItemGroup>
+      <_ProjectReferencesWithVersions Update="@(_ProjectReferencesWithVersions)"
+                                       Condition="'%(Filename)' == 'Nordmann.LUI'"
+                                       ProjectVersion="[%(ProjectVersion)]" />
+    </ItemGroup>
+  </Target>
+
 </Project>

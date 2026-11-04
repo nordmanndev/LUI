@@ -4,8 +4,9 @@
 # the .nupkgs into a throwaway console application from a local feed, and run it.
 #
 # The two packages are released together, with one version (ADR-0018): the
-# hosting package must depend on the core of the same version, and the core
-# must not carry the Microsoft.Extensions abstractions of the hosting.
+# hosting package must pin the core of the same version exactly ([x.y.z],
+# #24), and the core must not carry the Microsoft.Extensions abstractions of
+# the hosting.
 #
 # A package that cannot be consumed is not a package. This is the test that
 # catches the three classic failures:
@@ -56,8 +57,10 @@ if grep -q 'id="Microsoft.Extensions' <<<"${CORE_NUSPEC}"; then
   echo "package-smoke-test: the core package depends on Microsoft.Extensions — that belongs to Nordmann.LUI.Hosting" >&2
   exit 1
 fi
-if ! grep -q "id=\"Nordmann.LUI\" version=\"${VERSION}\"" <<<"${HOSTING_NUSPEC}"; then
-  echo "package-smoke-test: Nordmann.LUI.Hosting does not depend on Nordmann.LUI ${VERSION}" >&2
+# exactly the core of the same version: [x.y.z], not >= x.y.z (#24, ADR-0018)
+if ! grep -q "id=\"Nordmann.LUI\" version=\"\[${VERSION}\]\"" <<<"${HOSTING_NUSPEC}"; then
+  echo "package-smoke-test: Nordmann.LUI.Hosting does not pin Nordmann.LUI exactly at [${VERSION}]" >&2
+  grep "id=\"Nordmann.LUI\"" <<<"${HOSTING_NUSPEC}" >&2 || true
   exit 1
 fi
 
