@@ -314,8 +314,9 @@ single words of the German word list (685,829 words, then compounds), one millio
 | typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
 
-Three of these were stated anew by the owner after they were measured — a loosening, written down as such in
-ADR-0020.
+Five of these were stated anew by the owner after they were measured — the query p95, the correction, the
+allocation, the file and the first load; for three of them (long inputs, the correction, the file) a loosening,
+written down as such in ADR-0020.
 
 ### BenchmarkDotNet
 

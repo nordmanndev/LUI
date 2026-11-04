@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Shouldly;
 
 using Nordmann.LUI.Testing;
@@ -37,6 +38,21 @@ public sealed class Readme_Benchmarks
     /// <summary>The first column of every table.</summary>
     private static readonly string[] MethodColumn = ["Method"];
 
+    /// <summary>
+    /// The attribute of a benchmark method in any form — <c>[Benchmark]</c>, <c>[Benchmark(Baseline = true)]</c>,
+    /// <c>[Benchmark, …]</c>, <c>[…, Benchmark]</c> — and not <c>[BenchmarkCategory]</c> (review of pull request 37, M3).
+    /// </summary>
+    private static readonly Regex BenchmarkAttribute = new(
+        @"[\[,]\s*Benchmark\s*[\](,]",
+        RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture,
+        TimeSpan.FromSeconds(1));
+
+    /// <summary>Line and block comments: a <c>[Benchmark]</c> in a comment is no benchmark.</summary>
+    private static readonly Regex Comment = new(
+        @"//[^\n]*|/\*.*?\*/",
+        RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture | RegexOptions.Singleline,
+        TimeSpan.FromSeconds(1));
+
     private static string ResultsDirectory => Path.Combine(Repository.RootPath, "benchmarks", "results");
 
     private static string BenchmarksDirectory => Path.Combine(Repository.RootPath, "benchmarks", "Nordmann.LUI.Benchmarks");
@@ -46,7 +62,7 @@ public sealed class Readme_Benchmarks
     {
         var classes = Repository
             .SourceFiles(BenchmarksDirectory)
-            .Where(file => File.ReadAllText(file).Contains("[Benchmark]", StringComparison.Ordinal))
+            .Where(file => BenchmarkAttribute.IsMatch(StripComments(File.ReadAllText(file))))
             .Select(Path.GetFileNameWithoutExtension)
             .Order(StringComparer.Ordinal)
             .ToArray();
@@ -59,6 +75,20 @@ public sealed class Readme_Benchmarks
         classes.ShouldNotBeEmpty();
         reports.ShouldBe(classes, "benchmarks/results/ holds BenchmarkDotNet's report of every benchmark class — run tools/benchmarks.sh");
         Sections.Select(section => section.Class).Order(StringComparer.Ordinal).ToArray().ShouldBe(classes, "every benchmark class has a section in the README");
+    }
+
+    [Theory]
+    [InlineData("[Benchmark] public int A() => 1;", true)]
+    [InlineData("[Benchmark(Baseline = true)] public int A() => 1;", true)]
+    [InlineData("[Benchmark(Description = \"x\")] public int A() => 1;", true)]
+    [InlineData("[MemoryDiagnoser, Benchmark] public int A() => 1;", true)]
+    [InlineData("[BenchmarkCategory(\"x\")] public int A() => 1;", false)]
+    [InlineData("// [Benchmark] in a comment", false)]
+    [InlineData("/* [Benchmark] */ public int A() => 1;", false)]
+    public void A_benchmark_is_found_by_its_attribute_in_every_form_and_not_in_a_comment(string source, bool isBenchmark)
+    {
+        // review of pull request 37, M3: a literal "[Benchmark]" missed [Benchmark(Baseline = true)]
+        BenchmarkAttribute.IsMatch(StripComments(source)).ShouldBe(isBenchmark, source);
     }
 
     [Fact]
@@ -135,6 +165,8 @@ public sealed class Readme_Benchmarks
 
         return text.Append('\n').ToString();
     }
+
+    private static string StripComments(string source) => Comment.Replace(source, string.Empty);
 
     private static string ReportPath(string benchmarkClass) =>
         Path.Combine(ResultsDirectory, $"Nordmann.LUI.Benchmarks.{benchmarkClass}-report-github.md");

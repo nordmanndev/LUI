@@ -225,7 +225,14 @@ expect_caught "a-readme-benchmark-number-edited-by-hand" "${ARCHITECTURE_PROJECT
   "FullyQualifiedName~Readme_Benchmarks" \
   "sed -i '0,/ μs |/s// ms |/' README.md"
 
-# 18. The clean trees stay green.
+# 18. A number in a committed BenchmarkDotNet report is edited by hand, and the
+#     README is not rendered anew (review of pull request 37, M2): the two no
+#     longer agree, and the guard notices from the other side.
+expect_caught "a-benchmark-report-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Readme_Benchmarks" \
+  "sed -i '0,/ μs\*\* |/s// ms** |/' benchmarks/results/Nordmann.LUI.Benchmarks.QueryBenchmarks-report-github.md"
+
+# 19. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

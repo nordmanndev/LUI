@@ -404,11 +404,21 @@ Against the `ShortRun` above (mean, µs; the error of the default job is 2–8 %
 | query, multi-word: the same | 520 · 539 · 1,002 · 158 | 595 · 634 · 1,071 · 192 |
 | corrected query: `kartofel` · `bahmhof` · `fusbal` · `strasee` | 97 · 257 · 481 · 117 | 114 · 275 · 477 · 124 |
 | `UpdateWeight` · the same upsert · an upsert with another text | 279 · 79 · 226 | 343 · 93 · 228 |
+| search form: `Apfelkuchen` · `Größenänderungsmaßnahme` · the title of 35 characters (ns) | 48 · 121 · 131 | 57 · 135 · 130 |
+| Jaro-Winkler against `apfelku`: the same (ns) | 90 · 152 · 158 | 106 · 185 · 155 |
+| N-gram Dice against `apfelku`: the same (ns) | 119 · 172 · 262 | 106 · 202 · 287 |
 
-The allocations are the same to the kilobyte. The means of the default job are 0–23 % higher. That is not a
-regression the run can name: the queries without a correction take no path that #19 changed, and `ShortRun` measures
-three iterations right after the warm-up, which favours a short mean. The default job is the one the README shows,
-because its interval is narrow enough to compare two rows.
+*The texts in the order of PR-009 — BenchmarkDotNet's report sorts them otherwise (`Apfelkuchen`, the title, then
+`Größe…`); the allocations, 144 · 320 · 240 B in both runs, pin the rows to their texts (review of pull request 37,
+M1).*
+
+The allocations are the same to the byte. The means of all 24 benchmarks differ by **−11 % to +23 %** — ten of them by
+less than 10 %, five are lower (`haus` in single words, `fusbal`, the search form and Jaro-Winkler of the title,
+N-gram Dice of `Apfelkuchen`). It is not a change the two runs can name in either direction: `ShortRun`'s three
+iterations gave an interval of up to 260 % of the mean, so none of its means is known to better than the spread
+between them, and the queries without a correction take no path that #19 changed. The default job is the one the
+README shows, because its interval (2–8 %) is narrow enough to compare two rows of one run — and a later run against
+this one.
 
 ```text
 tools/fetch-wordlist.sh   # once: the full word list

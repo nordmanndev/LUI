@@ -15,7 +15,8 @@ The README of plan §7 has a section "Performance: the §16 numbers, measured, w
 results of BenchmarkDotNet there as well. A table of numbers copied into a README by hand has two problems:
 
 - It ages silently. The code changes, the numbers stay, and nothing says which run they came from.
-- It can be edited. A number nobody measured looks exactly like one somebody did.
+- It can be edited. A number nobody measured looks exactly like one somebody did. (What this record closes is the
+  README side; the reports themselves are trusted input — see the consequences.)
 
 AGENTS.md: "a performance claim without a measurement is a rumour". The README is the first page a user reads, so the
 rule matters most there.
@@ -62,7 +63,13 @@ rule matters most there.
   diff of `benchmarks/results/` shows what changed.
 - The numbers in the README are those of one machine, the one named in the section. CI does not run the benchmarks: a
   shared runner measures its neighbours.
-- `tools/mutation-check.sh` has a mutation that edits a number in the README by hand; `Readme_Benchmarks` catches it.
+- `tools/mutation-check.sh` has two mutations: a number in the README edited by hand, and a number in a committed
+  report edited by hand. `Readme_Benchmarks` catches both, because each breaks the agreement of the two.
+- **The guard proves consistency, not authenticity** (review of pull request 37, M2). The reports are trusted input: a
+  number changed in a report *and* the section rendered anew from it passes, and so would a report written by hand.
+  Nothing in a repository can make a file's content trustworthy. The guards for that are code review and the diff of
+  `benchmarks/results/` — a report changes only with `tools/benchmarks.sh`, all four at once, and with a new environment
+  line or a new run date in the commit that brings it.
 
-**Verified by:** `Readme_Benchmarks` (three tests), the mutation `a-readme-benchmark-number-edited-by-hand`, and the
-run recorded in `docs/benchmarks.md`.
+**Verified by:** `Readme_Benchmarks` (three tests), the mutations `a-readme-benchmark-number-edited-by-hand` and
+`a-benchmark-report-edited-by-hand`, and the run recorded in `docs/benchmarks.md`.
