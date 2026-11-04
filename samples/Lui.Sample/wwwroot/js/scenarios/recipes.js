@@ -23,7 +23,7 @@ export const recipes = {
 
     /** @param {any} envelope @returns {any[]} */
     presenter: envelope => envelope.results.map(hit => {
-        const item = baseItem(hit, envelope);
+        const item = baseItem(hit);
         display(item, 'emoji', hit.payload?.emoji ?? '');
         display(item, 'category', hit.payload?.category ?? 'Other');
         display(item, 'meta', hit.payload ? `${hit.payload.minutes} min` : '');

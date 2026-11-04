@@ -54,6 +54,7 @@ function mountScenarios({ settings, transport, bus }) {
     let active = scenarios[0].id;
 
     function show(id) {
+        mounted.get(active)?.dispose();
         active = id;
         for (const tab of tabs.children) {
             tab.setAttribute('aria-selected', String(tab.dataset.id === id));

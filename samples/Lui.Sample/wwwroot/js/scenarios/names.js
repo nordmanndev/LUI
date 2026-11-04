@@ -23,7 +23,7 @@ export const names = {
     ],
 
     /** @param {any} envelope @returns {any[]} */
-    presenter: envelope => envelope.results.map(hit => baseItem(hit, envelope)),
+    presenter: envelope => envelope.results.map(hit => baseItem(hit)),
 
     flex: () => ({
         visibleProperties: ['label', 'badge'],

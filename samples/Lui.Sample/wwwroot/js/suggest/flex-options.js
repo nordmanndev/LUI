@@ -20,7 +20,8 @@ export function buildFlexOptions(scenario, settings) {
         resultsProperty: 'results',
 
         // The server ranks, corrects typos and transliterates. flexdatalist's own filter would drop what it cannot match
-        // literally — `gedekter` → `Gedeckter Apfelkuchen` — and with it switched off, nothing is highlighted: see `item.js`.
+        // literally — `gedekter` → `Gedeckter Apfelkuchen`, `mueller` → `Müller` — and it is the same function that would mark a
+        // match: the page uses neither (ADR-0028). A correction is shown as a question instead: `did-you-mean.js`.
         searchDisabled: true,
         // Keyed by keyword, not by the parameters: with a changed setting it would show the hits of the old one.
         cache: false,

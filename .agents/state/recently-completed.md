@@ -30,17 +30,20 @@ the scratchpad here at the end of a session.
 
 ## 2026-11-04 — PR-011 (#51): the sample
 
-- ADR-0027. `samples/Lui.Sample`: three autocompletes with flexdatalist 3.1.1 (vendored unmodified, SHA-256 in `vendor/README.md`):
+- ADR-0027, ADR-0028. `samples/Lui.Sample`: three autocompletes with flexdatalist 3.1.1 (vendored unmodified, SHA-256 in `vendor/README.md`):
   recipes (embedded, JSON payload, grouped), tags (linked, column payload, priority System, picker, add-new through triggers + outbox),
   names (typo tolerance, a dictionary of its own). Every `LuiQueryOptions` setting is a control and a parameter; the panels show the
   whole `LuiResult`, the hits as ranked, the requests, and the indexes with their maintenance.
 - The client is ES modules by concern with the direction of the imports as a table (`Sample_Client`), one fetch boundary
   (`net/`: abort on every keystroke, the envelope on a bus, the items from a presenter), an escaped `_highlight` twin for every
   displayed property (flexdatalist writes them with `innerHTML`), a strict CSP, no build, no dependency.
-- Found by checking flexdatalist's source: no abort, no highlight with `searchDisabled`, a cache keyed without `params`, an unescaped
-  `innerHTML`. LUI has no `Highlight` (#20): the page marks the match itself.
-- Tests: 35 `SampleApiTests` (real Kestrel), 16 `Sample_Client`, 45 node tests (`npm test`, a CI lane), five mutations;
-  31 browser assertions by hand (Chromium). The sample's `appsettings.json` is gone (a referencing test project copied it and changed its log level).
+- Found by checking flexdatalist's source: no abort, a marker that is the same function as its client filter (so none with
+  `searchDisabled`), a cache keyed without `params`, an unescaped `innerHTML`.
+- **`Highlight` struck (owner, 2026-11-04, ADR-0028, #20 closed):** the page marks nothing; a correction is "Did you mean …?" from
+  `CorrectedQuery` (one line above the list, choosing it searches the word). A first version with a measured fold table and a span map
+  was built, matched the tokenizer for 334 letters of 16 Latin alphabets, and was dropped. Spec §9.3 "entfällt".
+- Tests: 35 `SampleApiTests` (real Kestrel), 16 `Sample_Client`, 32 node tests (`npm test`, a CI lane), five mutations;
+  browser assertions by hand (Chromium). The sample's `appsettings.json` is gone (a referencing test project copied it and changed its log level).
 
 ## 2026-11-04 — #43: the freeze
 

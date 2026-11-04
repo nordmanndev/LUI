@@ -16,8 +16,8 @@ how it highlights, caches and requests — ADR-0027), and run the browser check.
 What the sample relies on (read in the source of 3.1.1):
 
 - `searchDisabled: true` skips the library's own filter, so the server's ranking, its typo correction and its transliteration
-  stay in charge; nothing is highlighted then — the sample supplies `<property>_highlight`.
+  stay in charge. The library's marker lives in the same function and is off with it; the sample marks nothing (ADR-0028).
 - The values of `visibleProperties` and the group header are written with `innerHTML`; without a `<property>_highlight` the
-  **raw** value is. The sample gives every displayed property an escaped twin.
+  **raw** value is. The sample gives every displayed property an escaped twin (no markup: it does not mark).
 - `cache` is keyed by keyword and relatives, not by `params`: it is switched off.
 - No request is aborted; at most one is kept pending while one is in flight. The sample aborts in its fetch boundary.

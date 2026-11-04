@@ -19,11 +19,8 @@ const hit = {
 };
 const envelope = { query: 'img', correctedQuery: null, results: [hit] };
 
-/** What the page itself puts into the HTML: the match, and the colour dot (whose colour is validated). */
-const ours = html => html
-    .replace(/<span class="swatch" data-color="#[0-9a-fA-F]{6}"><\/span>/g, '')
-    .replaceAll('<span class="highlight">', '')
-    .replaceAll('</span>', '');
+/** What the page itself puts into the HTML: the colour dot, whose colour is validated. */
+const ours = html => html.replace(/<span class="swatch" data-color="#[0-9a-fA-F]{6}"><\/span>/g, '');
 
 for (const scenario of scenarios) {
     test(`${scenario.id}: every displayed property has an escaped twin, and no hostile markup survives`, () => {

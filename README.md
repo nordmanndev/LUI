@@ -423,11 +423,11 @@ with [flexdatalist](https://github.com/sergiodlopes/flexdatalist) and the whole 
 
 | Autocomplete | Index | What it shows |
 |---|---|---|
-| Recipes | embedded, multi-word, **JSON payload** (category, minutes, emoji) | the payload as groups and properties, a priority badge, highlight, typo correction, transliteration |
+| Recipes | embedded, multi-word, **JSON payload** (category, minutes, emoji) | the payload as groups and properties, a priority badge, typo correction as "Did you mean …?", transliteration |
 | Tags | **linked** to the application's own table, columns as the payload, priority `System` | a tag picker with chips and a colour from the payload; "add a tag" writes a row and tells the index (triggers, outbox) |
 | Names | embedded, multi-word, no payload | the typo tolerance — with a dictionary of its own per index |
 
-![The recipes autocomplete: "kartofel" is corrected to "kartoffel", the hits are grouped by the category of their payload, the match is highlighted](./docs/images/sample-recipes.png)
+![The recipes autocomplete: "kartofel" is corrected, the page asks "Did you mean “kartoffel”?", the hits are grouped by the category of their payload](./docs/images/sample-recipes.png)
 
 ![The tag picker over the application's own table: chips, a colour from the payload column, the priority System first](./docs/images/sample-tags.png)
 
@@ -438,7 +438,8 @@ abandoned while typing is aborted, and the server stops its work), and the index
 `Rebuild`, `Optimize`, the typo dictionary, the outbox, the triggers).
 
 The client is plain ES modules in folders by concern, with one fetch boundary and no build; `npm test` in the sample's folder runs
-the tests of its modules. LUI has no `Highlight` yet (#20), so the page marks the match itself, in the format flexdatalist uses.
+the tests of its modules. LUI delivers no found positions ([ADR-0028](./docs/adr/0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md)):
+when the typo tolerance corrected the input, the page says so — "Did you mean …?" from `CorrectedQuery` — and marks nothing.
 
 ---
 

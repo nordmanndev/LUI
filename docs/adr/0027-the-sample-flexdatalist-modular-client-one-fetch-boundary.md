@@ -1,11 +1,11 @@
 # 0027 — The sample: flexdatalist against the whole API, a modular client, one fetch boundary
 
-- **Status:** Accepted (owner's requirements of 2026-11-04: built with flexdatalist, a clean modular client, the whole of LUI, a payload, highlighting and the abort of a fast typeahead "professionally")
+- **Status:** Accepted (owner's requirements of 2026-11-04: built with flexdatalist, a clean modular client, the whole of LUI, a payload, highlighting and the abort of a fast typeahead "professionally"; highlighting was then dropped on the owner's decision, decision 4 and ADR-0028)
 - **Date:** 2026-11-04
 - **Issue:** #51 (PR-011 of the plan)
 - **Builds on:** [0002](./0002-library-not-an-application.md) (the sample is a library demo), [0017](./0017-dependency-injection-and-hosted-services.md)
   and [0018](./0018-two-packages-core-and-hosting.md) (the sample uses the hosting package), [0025](./0025-the-typo-dictionary-only-grows.md)
-  (a dictionary per index), [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (written against the frozen API)
+  (a dictionary per index), [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (written against the frozen API), [0028](./0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md) (no highlighting)
 - **Amends:** plan §3 D7 ("one `index.html` with inline `<style>` and an inline module") and the corresponding row of ADR-0002
 - **Affects:**
   - `samples/Lui.Sample/` (the server, the client, `client-tests/`, `package.json`)
@@ -18,15 +18,15 @@
 The sample is what people see first. The plan (D7) wanted one inline page that shows the whole API, built with flexdatalist; the
 owner now asks for more than the plan: **several autocompletes** that cover every scenario of LUI, the **query settings** passed
 along, a **payload** (a category) that flexdatalist makes visible, a **clean client in modules**, and flexdatalist used
-**professionally** — highlighting, and the abort of a typeahead that types fast. A sample that is a hundred lines of inline
+**professionally** — highlighting (dropped, decision 4), and the abort of a typeahead that types fast. A sample that is a hundred lines of inline
 script teaches how to write a demo; a sample in modules teaches how to use LUI in an application.
 
 ### What flexdatalist 3.1.1 does and does not do — read in its source, not in its README
 
 | Topic | The library | Consequence here |
 |---|---|---|
-| Highlighting | Marks only in its own client-side filter: `<property>_highlight` with `<span class="highlight">`. With `searchDisabled: true` — which a server-side ranker needs: its filter would drop `gedekter` → `Gedeckter Apfelkuchen`, and `mueller` → `Müller`, because it cannot match them literally — **nothing is marked**. | The page produces `<property>_highlight` itself, in the library's own format. LUI has no `Highlight` yet (spec §9.3, #20: "the JavaScript library of the front end marks the match itself"). |
-| Writing the list | The values of `visibleProperties` **and the group header** are written with `innerHTML`; without a `_highlight` twin the **raw value**. | Every displayed property has an escaped twin (`suggest/item.js`). A hostile entry (`<img onerror>`) is text. |
+| Highlighting | Marks only in its own client-side filter: `<property>_highlight` with `<span class="highlight">`. With `searchDisabled: true` — which a server-side ranker needs: its filter would drop `gedekter` → `Gedeckter Apfelkuchen`, and `mueller` → `Müller`, because it cannot match them literally — **nothing is marked**; and filter and marker are one function, so one cannot be had without the other. | The page does not mark: a correction is shown as "Did you mean …?" (decision 4). LUI has no `Highlight` ([0028](./0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md)). |
+| Writing the list | The values of `visibleProperties` **and the group header** are written with `innerHTML`; without a `_highlight` twin the **raw value**. | Every displayed property has an escaped `_highlight` twin (`suggest/item.js`; the name is the library's, the twin carries no markup). A hostile entry (`<img onerror>`) is text. |
 | Aborting | None. It debounces (`searchDelay`) and keeps **one** request pending while one is in flight; the answer of the one in flight is still rendered for an input the user has left. | The fetch boundary aborts it (decision 3). |
 | Cache | `cache: true`; the key holds the keyword and the relatives, **not** `params`. A changed query setting would show the hits of the old one. | `cache: false`. |
 | The response | Only `resultsProperty` is read; the rest of the response is dropped. | `CorrectedQuery`, `Truncated`, `Timings` would be lost: the boundary puts the whole `LuiResult` on a bus. |
@@ -48,7 +48,7 @@ wwwroot/js/
   main.js            the composition root: the only module that knows all the others
   core/              bus (events), dom (build DOM from text, never from markup), format
   net/               http (the fetch boundary, part one), api (the routes), suggest-transport (part two)
-  suggest/           settings (the knobs, the defaults from the server), flex-options, fold, highlight, item, swatches
+  suggest/           settings (the knobs, the defaults from the server), flex-options, item (escaped twins), did-you-mean, swatches
   scenarios/         one module per autocomplete: data, a presenter, the options flexdatalist gets
   panels/            settings, scenario-view (the one module that uses flexdatalist), envelope, hits, activity, indexes
   vendor/            flexdatalist
@@ -73,21 +73,18 @@ and passes everything else on. It does what the library does not:
 Why a transport and not a patch of the vendored file: the file stays byte-identical to the package, and the page owns the
 behaviour that is the page's. Why the global `fetch`: it is what the library calls; there is no hook.
 
-### 4. Highlighting is the page's, in the library's format
+### 4. No highlighting; a correction is shown as a question
 
-`suggest/highlight.js` marks the words of the **corrected** query (`kartofel` → `kartoffel`), a word start first, then anywhere
-(the trigram index finds `kuchen` in `Apfelkuchen`); `suggest/fold.js` folds like LUI's search form (docs/normalization.md: the
-German transliteration, then the tokenizer) and remembers, for each character, the span of the original — so `mueller` marks all of
-`Müller`, `kaesekuchen` all of `Käsekuchen`, a decomposed umlaut one letter, and a mark the tokenizer drops stays with its letter.
+The sample marks nothing. A first version did — a fold table measured from the tokenizer, a span map from the search form back to
+the original, 600 lines with tests, exact for 334 letters of 16 Latin alphabets — and still could not mark what LUI matched through
+the compact form or the second correction variant. The owner asked what a user needs from a correction, and the answer is not a
+mark: it is to know that a correction happened. Hence `suggest/did-you-mean.js`: when `LuiResult.CorrectedQuery` is there and
+differs from what was typed, **one line above the list** says "Did you mean “apfel”?", and choosing it searches the corrected word as
+it is. The list is what LUI ranked; flexdatalist's own filter and marker stay off. LUI delivers no found positions
+([0028](./0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md)).
 
-**The folding is exact and not specific to a language:** it is the table LUI measured from SQLite's tokenizer for every code point of
-the Basic Multilingual Plane (`tokenizer-fold.txt`), generated into `fold-table.js` (`tools/generate-fold-table.mjs`) and held to
-the measured file by a test over all 63,000 code points. An earlier version of `fold.js` folded `đ ł ø ħ ı` by a table of its own
-that was assumed, not measured; the tokenizer leaves them alone (so `dakovo` does not find `Đakovo`, and a page that marked it
-would mark what LUI did not find). Measured against the tokenizer: 334 letters of 16 Latin-script alphabets (Croatian, Polish,
-Czech, Hungarian, Romanian, Turkish, Icelandic, the Nordic languages, French, Spanish, Maltese, Baltic, Finnish, Albanian,
-Welsh, Vietnamese, German), all equal. What stays an **approximation** is *which part* matched: the compact form (`apfelkuchen`
-in `Apfel Kuchen`), the second and third correction variant. When LUI delivers `Highlight` (#20), these two files go away.
+What stays is the **safety** the missing marker would have hidden: flexdatalist writes the displayed values with `innerHTML` and,
+without a `<property>_highlight`, the raw value — so every displayed property keeps its escaped twin (decision 5).
 
 ### 5. Safe by construction, and by policy
 
@@ -102,7 +99,7 @@ literal text, and no element is created from the data even where the policy is n
 
 | Index | Storage · kind | Payload | What it shows in flexdatalist |
 |---|---|---|---|
-| `recipes` | Embedded · MultiWord | JSON `{category, minutes, emoji}`, stored by LUI | `groupBy: category` with counts, the emoji and the time as properties, a badge for a priority above normal, highlight, typo and transliteration |
+| `recipes` | Embedded · MultiWord | JSON `{category, minutes, emoji}`, stored by LUI | `groupBy: category` with counts, the emoji and the time as properties, a badge for a priority above normal, typo correction as "Did you mean", transliteration |
 | `tags` | **Linked** to the application's `tag` table · SingleWord | columns `kind`, `color` (and `usage_count` as the weight, `rank` as the priority) | a **tag picker**: `multiple`, `selectionRequired`, grouped by kind, a colour dot from the payload; `vegan` (System) leads; `showAddNewItem` writes a row to the table and tells the index (triggers → outbox → `ApplyPending`) |
 | `names` | Embedded · MultiWord | none | the typo tolerance; a dictionary of its own — `megn` is `mega…` here and nothing among the tags (the owner's requirement of #48, seen) |
 
@@ -115,7 +112,7 @@ group in the panel, kept apart because they belong to another library. The contr
 budget of AGENTS.md. `delayMs` (0 … 2000) is a demo parameter: a slow server, to see an abort.
 
 **Not offered, because it does not exist:** a `Highlight` setting and a highlight span in the hit table (the plan's D7 table had
-them; spec §9.3 and #20 put them in a later version). **Not built:** a list of the entries of an index (the library has no such
+them; struck, [0028](./0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md)). **Not built:** a list of the entries of an index (the library has no such
 call), and a `POST` form of the suggest route (every setting is a scalar).
 
 ### 8. The server
@@ -135,8 +132,8 @@ sketch. A wrong argument is a 400, a condition LUI reports (`LuiException`) a 40
 |---|---|
 | .NET integration | `SampleApiTests` (35): a real Kestrel on the loopback over a database of its own — every setting reaches the library, the three indexes, the dictionary per index, the write side, the linked flow with and without triggers, an abandoned request, the policy |
 | .NET architecture | `Sample_Client` (16): the rules of decision 2, 3 and 5 and the hash of decision 1; five mutations in `tools/mutation-check.sh` |
-| Node (`npm test`) | 45 tests of the modules without a browser: fold, highlight, every presenter against hostile data, the settings, the transport (abort, cancel, envelope, refusal), the bus; a CI lane |
-| Browser | Chromium, by hand for this pull request (Playwright is not a dependency of the repository): highlight, typo and transliteration, groups, the picker and add-new, abort while typing fast, a hostile entry, the settings, the indexes panel — described in the pull request |
+| Node (`npm test`) | 32 tests of the modules without a browser: every presenter against hostile data, the settings, the transport (abort, cancel, envelope, refusal), "Did you mean", the bus; a CI lane |
+| Browser | Chromium, by hand for this pull request (Playwright is not a dependency of the repository): typo correction and "Did you mean" (and choosing it), transliteration, groups, the picker and add-new, abort while typing fast, a hostile entry, the settings, the indexes panel — described in the pull request |
 
 The integration project hosts the sample: a project reference and the ASP.NET Core **framework** reference, no package;
 `Directory.Packages.props` is unchanged. The framework brings `Microsoft.Extensions.Hosting` along, so NuGet calls that test
@@ -151,10 +148,11 @@ from the props file and a guard wants every central version referenced.
   server is a parameter. It is for `localhost`; it is not a template for an internet-facing page.
 - **flexdatalist is pinned by hash.** A new version is a deliberate change: the provenance, the hash, a read of what changed in
   highlighting, caching and requests, and the browser check. The sample depends on three behaviours of it, and each is in the table above.
-- **When LUI has `Highlight` (#20)** `fold.js` and `highlight.js` are deleted and the presenters read ranges; the transport stays.
+- **A page that wants marks** writes them itself against `CorrectedQuery` and the hit text; the sample no longer shows how (0028).
 - **The browser check is not in CI.** The node tests, the .NET tests and the guards cover what can be covered without a browser;
   what only a browser shows (the CSS the library expects, the policy, the list under the input) was seen once, and a regression there
   would be seen by the next person who runs the sample.
 - **Rejected:** a framework (Alpine, as the standards' baseline, ADR-0002: it would teach nothing about LUI); a bundler; the
   library's own CSS (plan D7); letting flexdatalist filter (it would drop what the server corrected); a patch of the vendored
-  file for aborting (the page owns that behaviour; the file stays verifiable); `unsafe-inline` for the colour dots (the CSSOM does it).
+  file for aborting (the page owns that behaviour; the file stays verifiable); `unsafe-inline` for the colour dots (the CSSOM does it); a
+  page-made highlight (built, measured, and dropped: 0028).

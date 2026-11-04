@@ -1,6 +1,7 @@
 import { el, clear } from '../core/dom.js';
 import { Flexdatalist } from '../vendor/flexdatalist.es.js';
 import { buildFlexOptions } from '../suggest/flex-options.js';
+import { showDidYouMean } from '../suggest/did-you-mean.js';
 import { paintSwatches } from '../suggest/swatches.js';
 
 /**
@@ -25,6 +26,13 @@ export function mountScenario({ root, scenario, settings, transport, api, bus })
     let instance = null;
     /** @type {Map<string, any>} */
     const chosen = new Map();
+    /** The response of the last suggestion of this index: what "Did you mean" reads. */
+    let latest = null;
+    const unsubscribe = bus.on('suggest:response', ({ index, envelope }) => {
+        if (index === scenario.index) {
+            latest = envelope;
+        }
+    });
 
     const search = text => {
         const alias = document.getElementById(`fd-${scenario.id}-flexdatalist`);
@@ -106,6 +114,7 @@ export function mountScenario({ root, scenario, settings, transport, api, bus })
                 .catch(error => bus.emit('suggest:error', { index: scenario.index, status: error.status ?? 0, detail: error.message }));
         });
         paintSwatches(input);
+        showDidYouMean(input, { latest: () => latest, choose: corrected => search(corrected) });
 
         [instance] = await Flexdatalist.init(input, buildFlexOptions(scenario, settings));
 
@@ -121,6 +130,12 @@ export function mountScenario({ root, scenario, settings, transport, api, bus })
         clear(field);
     }
 
+    /** Ends the input and stops listening: a scenario that is left leaves nothing behind. */
+    function dispose() {
+        stop();
+        unsubscribe();
+    }
+
     renderSelection();
-    return { start, stop, search };
+    return { start, stop, dispose, search };
 }

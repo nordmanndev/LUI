@@ -2,7 +2,7 @@
  * The styles of the flexdatalist input. The library ships a stylesheet of its own; the sample does not use it (plan D7) and
  * styles the class names the library puts on its elements (read in the source of 3.1.1, vendor/README.md): the alias input,
  * the list `.flexdatalist-results` with `li.item` / `li.group` / `li.no-results`, the properties `span.prop-*`, the match
- * `span.highlight`, and the chips of the multiple mode `ul.flexdatalist-multiple`.
+ * and the chips of the multiple mode `ul.flexdatalist-multiple`.
  */
 
 .flexdatalist-alias,
@@ -63,9 +63,14 @@
 .flexdatalist-results li.active .prop-badge { color: inherit; background: rgb(255 255 255 / 25%); }
 .swatch { display: inline-block; width: 12px; height: 12px; border-radius: 50%; border: 1px solid rgb(0 0 0 / 25%); }
 
-/* the match */
-.flexdatalist-results span.highlight { background: var(--mark); color: var(--mark-ink); border-radius: 3px; padding: 0 1px; }
-.flexdatalist-results li.active span.highlight { background: rgb(255 255 255 / 30%); color: inherit; }
+/* "Did you mean …?" above the list, when LUI corrected the input */
+.flexdatalist-results li.did-you-mean {
+  display: block; justify-content: flex-start; text-transform: none; letter-spacing: 0;
+  font-size: 0.85rem; font-weight: 500; color: var(--ink-2); cursor: default;
+}
+.flexdatalist-results li.did-you-mean .suggestion {
+  padding: 0; background: none; border: 0; color: var(--brand); font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline;
+}
 
 /* the chips of the multiple mode */
 .flexdatalist-multiple { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0; list-style: none; cursor: text; }

@@ -1,5 +1,8 @@
 # 0008 — The query path: groups, a lazy similarity, and what the result reserves
 
+> **Note (ADR-0028, 2026-11-04):** `Highlight` is not coming back: LUI delivers no found positions, and issue #20 is closed.
+> The text below is history.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —

@@ -11,7 +11,7 @@
  *  - **The envelope.** flexdatalist reads `results` and drops the rest of the response. The whole LuiResult — corrected
  *    query, truncation, timings — is put on the bus for the panels.
  *  - **The items.** The response flexdatalist gets is made by the presenter of the index (`scenarios/*`): flat items with
- *    escaped, highlighted twins of every displayed property.
+ *    escaped twins of every displayed property.
  *  - **Errors.** A refused request (a 400 for a setting the library rejects) must not reach flexdatalist as a body: it
  *    would try to render a problem document. It gets an empty list, and the bus gets the reason.
  */

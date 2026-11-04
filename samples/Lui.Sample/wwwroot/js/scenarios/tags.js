@@ -27,7 +27,7 @@ export const tags = {
 
     /** @param {any} envelope @returns {any[]} */
     presenter: envelope => envelope.results.map(hit => {
-        const item = baseItem(hit, envelope);
+        const item = baseItem(hit);
         const color = HEX_COLOR.test(hit.payload?.color ?? '') ? hit.payload.color : '#718096';
         display(item, 'kind', hit.payload?.kind ?? 'Sonstiges');
         // the colour is set on the element by `swatches.js` after the list is drawn: an inline style would be refused by the policy
