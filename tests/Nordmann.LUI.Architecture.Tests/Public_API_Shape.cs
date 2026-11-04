@@ -108,27 +108,114 @@ public sealed class Public_API_Shape
     {
         // In .NET "owned" is the vocabulary of lifetime (Autofac's Owned<T>, an owned IDisposable); the index of LUI's own
         // table is a singleton that is never disposed. The content source is called Embedded (ADR-0023, issue #41).
-        const string retired = "Owned";
-        const BindingFlags surface = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        var types = PackageAssemblies.SelectMany(assembly => assembly.GetExportedTypes()).ToArray();
 
-        var offenders = PackageAssemblies
-            .SelectMany(assembly => assembly.GetExportedTypes())
-            .SelectMany(type => new[] { type.FullName! }
-                .Concat(type.GetMembers(surface)
-                    .Where(member => member is MethodBase { IsPublic: true } or MethodBase { IsFamily: true } or PropertyInfo or FieldInfo { IsPublic: true } or EventInfo)
-                    .Select(member => $"{type.FullName}.{member.Name}"))
-                .Concat(type.GetMethods(surface)
-                    .Where(method => method.IsPublic || method.IsFamily)
-                    .SelectMany(method => method.GetParameters().Select(parameter => $"{type.FullName}.{method.Name}({parameter.Name})"))))
-            .Where(name => name.Contains(retired, StringComparison.OrdinalIgnoreCase))
+        var offenders = types
+            .SelectMany(SurfaceNames)
+            .Where(name => name.Contains("Owned", StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.Ordinal)
             .Order(StringComparer.Ordinal)
             .ToArray();
 
         offenders.ShouldBeEmpty("No public type, member or parameter says 'Owned' — the content source is 'Embedded'.");
-        PackageAssemblies.SelectMany(assembly => assembly.GetExportedTypes())
-            .ShouldContain(type => string.Equals(type.Name, "ILuiEmbeddedIndex`2", StringComparison.Ordinal), "the guard sees the renamed type");
+        types.ShouldContain(type => string.Equals(type.Name, "ILuiEmbeddedIndex`2", StringComparison.Ordinal), "the guard sees the renamed type");
     }
+
+    [Fact]
+    public void The_guard_of_the_vocabulary_reads_the_public_surface_and_only_that()
+    {
+        // Review of pull request 46: the first version missed the parameters of a public constructor and tripped over a
+        // private property. A guard that reads the wrong surface is worse than none — it feigns a promise.
+        var names = new[] { typeof(PublicSurfaceProbe), typeof(PrivateSurfaceProbe) }.SelectMany(SurfaceNames).ToArray();
+
+        // public: the type, a constructor parameter, a method and its parameter, a property, a protected member, a field
+        names.ShouldContain(name => name.EndsWith("PublicSurfaceProbe..ctor(owned)", StringComparison.Ordinal), "a public constructor parameter");
+        names.ShouldContain(name => name.EndsWith("PublicSurfaceProbe.Ask(owned)", StringComparison.Ordinal), "a public method parameter");
+        names.ShouldContain(name => name.EndsWith("PublicSurfaceProbe.OwnedProperty", StringComparison.Ordinal), "a public property");
+        names.ShouldContain(name => name.EndsWith("PublicSurfaceProbe.OwnedProtected", StringComparison.Ordinal), "a protected property of an open class");
+        names.ShouldContain(name => name.EndsWith("PublicSurfaceProbe.OwnedField", StringComparison.Ordinal), "a public field");
+
+        // not public: nothing of the private members, however they are named
+        names.ShouldNotContain(name => name.Contains("OwnedCache", StringComparison.Ordinal), "a private property");
+        names.ShouldNotContain(name => name.Contains("OwnedSecret", StringComparison.Ordinal), "a private method");
+        names.ShouldNotContain(name => name.Contains("hidden", StringComparison.Ordinal), "the parameter of a private constructor");
+        names.ShouldNotContain(name => name.Contains("OwnedInternal", StringComparison.Ordinal), "an internal member");
+    }
+
+    /// <summary>
+    /// The names a consumer can see on a public type: the type, its public and protected members, and the parameters of its
+    /// public and protected methods and constructors. A protected member of a sealed class is not visible, but the C#
+    /// compiler does not let one be declared there either.
+    /// </summary>
+    private static IEnumerable<string> SurfaceNames(Type type)
+    {
+        const BindingFlags all = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+
+        yield return type.FullName!;
+
+        foreach (var method in type.GetMethods(all).Cast<MethodBase>().Concat(type.GetConstructors(all)).Where(Visible))
+        {
+            yield return $"{type.FullName}.{method.Name}";
+            foreach (var parameter in method.GetParameters())
+            {
+                yield return $"{type.FullName}.{method.Name}({parameter.Name})";
+            }
+        }
+
+        foreach (var property in type.GetProperties(all).Where(property => Visible(property.GetMethod) || Visible(property.SetMethod)))
+        {
+            yield return $"{type.FullName}.{property.Name}";
+        }
+
+        foreach (var field in type.GetFields(all).Where(field => field.IsPublic || field.IsFamily || field.IsFamilyOrAssembly))
+        {
+            yield return $"{type.FullName}.{field.Name}";
+        }
+
+        foreach (var @event in type.GetEvents(all).Where(@event => Visible(@event.AddMethod) || Visible(@event.RemoveMethod)))
+        {
+            yield return $"{type.FullName}.{@event.Name}";
+        }
+    }
+
+    /// <summary>Whether a method (or an accessor) can be reached from outside the assembly: public, protected, or both.</summary>
+    private static bool Visible(MethodBase? method) => method is { IsPublic: true } or { IsFamily: true } or { IsFamilyOrAssembly: true };
+
+#pragma warning disable CA1051, CA1822, CA1823, CA1812, CS0169, CS0414, IDE0051, IDE0052, IDE0060, S1144, S4487, S1450
+    /// <summary>A type with a retired word in every place a consumer can see — for the guard of the guard.</summary>
+    public class PublicSurfaceProbe
+    {
+        public int OwnedField;
+
+        public PublicSurfaceProbe(string owned)
+        {
+        }
+
+        public string OwnedProperty { get; set; } = string.Empty;
+
+        protected string OwnedProtected { get; set; } = string.Empty;
+
+        internal string OwnedInternal { get; set; } = string.Empty;
+
+        public void Ask(string owned)
+        {
+        }
+    }
+
+    /// <summary>A type whose retired words are all out of sight.</summary>
+    public sealed class PrivateSurfaceProbe
+    {
+        private PrivateSurfaceProbe(int hidden)
+        {
+        }
+
+        private string OwnedCache { get; set; } = string.Empty;
+
+        private void OwnedSecret(string hidden)
+        {
+        }
+    }
+#pragma warning restore CA1051, CA1822, CA1823, CA1812, CS0169, CS0414, IDE0051, IDE0052, IDE0060, S1144, S4487, S1450
 
     private static string Describe(TestResult result) =>
         result.FailingTypeNames is { Count: > 0 } names

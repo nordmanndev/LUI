@@ -59,7 +59,12 @@ internal static class IndexStore
         }
         else if (stored != definition)
         {
-            throw new LuiDefinitionMismatchException(name, stored.ToJson(), definition.ToJson(), linked: stored.Link is not null);
+            throw new LuiDefinitionMismatchException(
+                name,
+                stored.ToJson(),
+                definition.ToJson(),
+                linked: stored.Link is not null,
+                unknownSource: ContentSources.IsKnown(stored.Source) ? null : stored.Source);
         }
 
         transaction.Commit();

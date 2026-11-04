@@ -26,6 +26,55 @@ public sealed class EmbeddedIndexTests
     }
 
     [Fact]
+    public void A_database_of_a_pre_release_build_is_refused_with_a_way_out_and_not_with_a_dead_end()
+    {
+        // Review of pull request 46: before ADR-0023 the stored content source was called "Owned". DropIndex refuses a source
+        // it does not know, so the message of Ensure must not send the caller there — and DropIndex must say what to do.
+        using var database = new TestDatabase();
+        using (var catalog = database.Open())
+        {
+            catalog.Index("tags").SingleWord().Ensure().Upsert(1, "vegan", 5);
+        }
+
+        using (var connection = database.Connect())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText =
+                "UPDATE lui_meta SET source = 'Owned', definition = replace(definition, '\"Embedded\"', '\"Owned\"') WHERE index_name = 'tags';";
+            command.ExecuteNonQuery().ShouldBe(1);
+        }
+
+        using var reopened = database.Open();
+
+        var mismatch = Should.Throw<LuiDefinitionMismatchException>(() => reopened.Index("tags").SingleWord().Ensure());
+        mismatch.Message.ShouldContain("'Owned'");
+        mismatch.Message.ShouldContain("create the database anew");
+        mismatch.Message.ShouldContain("does not remove it either");
+        mismatch.Message.ShouldNotContain("remove the index with", Case.Sensitive);
+
+        var refused = Should.Throw<InvalidOperationException>(() => reopened.DropIndex("tags"));
+        refused.ShouldNotBeOfType<LuiDefinitionMismatchException>();
+        refused.Message.ShouldContain("'Owned'");
+        refused.Message.ShouldContain("create the database anew");
+        database.Scalar<long>("SELECT count(*) FROM lui_meta WHERE index_name = 'tags'").ShouldBe(1, "nothing was removed");
+    }
+
+    [Fact]
+    public void An_index_with_a_known_source_and_another_definition_still_names_DropIndex_as_the_way_out()
+    {
+        // the other half of the same rule: the hint stays for every definition this version knows
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Index("tags").SingleWord().Ensure();
+
+        var mismatch = Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags").MultiWord().Ensure());
+
+        mismatch.Message.ShouldContain("LuiCatalog.DropIndex(name)");
+        mismatch.Message.ShouldNotContain("create the database anew");
+        catalog.DropIndex("tags").ShouldBeTrue();
+    }
+
+    [Fact]
     public void Ensure_writes_the_definition_into_the_meta_table()
     {
         using var database = new TestDatabase();

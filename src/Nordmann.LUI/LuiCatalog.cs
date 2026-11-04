@@ -99,8 +99,15 @@ public sealed class LuiCatalog : IDisposable
 
     /// <summary>
     /// Removes an index with its tables, indexes and triggers and its row in <c>lui_meta</c>. It works whatever
-    /// the stored definition is — it is the way out of a <see cref="LuiDefinitionMismatchException"/>. Index
-    /// objects that were created before do not survive it: ensure the index again and use the new object.
+    /// the stored definition is — it is the way out of a <see cref="LuiDefinitionMismatchException"/> — as long as this
+    /// version of LUI knows the content source of the index. Index objects that were created before do not survive it:
+    /// ensure the index again and use the new object.
+    /// <para>
+    /// An index whose content source this version does not know is <b>refused</b>: LUI does not remove what it does not
+    /// know. Such a database was created by another build — a pre-release one, or a newer version; open it with that
+    /// build, or create the database anew (ADR-0023). <c>Ensure</c> says so in its
+    /// <see cref="LuiDefinitionMismatchException"/>.
+    /// </para>
     /// <para>
     /// For a <c>Linked</c> index the application's table and its rows stay. Its triggers, if the index has some on
     /// the table, are removed only with <paramref name="dropTriggers"/>: they write into the tables that go, so they
@@ -112,7 +119,8 @@ public sealed class LuiCatalog : IDisposable
     /// <param name="name">The name of the index.</param>
     /// <param name="dropTriggers">Removes the triggers of a linked index on the application's table, too.</param>
     /// <returns><see langword="true"/> when the index existed.</returns>
-    /// <exception cref="InvalidOperationException">A linked index has triggers, and <paramref name="dropTriggers"/> is not set.</exception>
+    /// <exception cref="InvalidOperationException">A linked index has triggers, and <paramref name="dropTriggers"/> is not set; or the
+    /// index has a content source that this version of LUI does not know.</exception>
     public bool DropIndex(string name, bool dropTriggers = false)
     {
         Identifier.ValidateIndexName(name, nameof(name));
