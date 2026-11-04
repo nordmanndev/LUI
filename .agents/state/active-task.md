@@ -6,9 +6,9 @@ describes it. Link the issue; do not repeat the whole plan here.
 -->
 
 **Epic:** [#39](https://github.com/nordmanndev/LUI/issues/39) — the public API before the freeze of 0.1.0 (architecture review of 2026-11-04)
-**Issue:** [#48](https://github.com/nordmanndev/LUI/issues/48) — the typo dictionary only grows (option G, ADR-0025)
-**Branch:** `refactor/typo-dictionary-only-grows`
-**State:** implemented and verified; pushed; the pull request waits for the owner's word.
+**Issue:** [#43](https://github.com/nordmanndev/LUI/issues/43) — the freeze: the public API from 0.1.0 on grows only additively (ADR-0026)
+**Branch:** `docs/api-freeze`
+**State:** written and verified; the pull request waits for the owner's word. No snapshot guard (owner, 2026-11-04).
 
 ## Decided by the owner (2026-11-04)
 
@@ -20,5 +20,5 @@ describes it. Link the issue; do not repeat the whole plan here.
 
 ## The next step
 
-**Next:** #43 — ADR-0026, the freeze: the public API from 0.1.0 on is additive only, and it lists the rejected points of the
-review by name (review of #45, M4); then PR-011 (sample) and PR-012 (release; ask before publishing).
+**Next:** PR-011 (the sample, against the final API), then PR-012 (the release; ask before publishing). After 0.1.0: #35, #30
+(with the own Jaro-Winkler), #31, #32, #38, #44, #20, and the `compactLevel` follow-up of #48.

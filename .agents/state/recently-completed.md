@@ -28,6 +28,12 @@ the scratchpad here at the end of a session.
   rendered by `Readme_Benchmarks` (`LUI_UPDATE_README=1`), which also fails on drift; `tools/benchmarks.sh`. ADR-0022.
 - Smoke test runs the new blocks (priority, stale dictionary); mutation `a-readme-benchmark-number-edited-by-hand`.
 
+## 2026-11-04 — #43: the freeze
+
+- ADR-0026. From `v0.1.0` on the public API grows only additively; a break needs a minor version, a migration note and an ADR.
+  The rejected points of the review of 2026-11-04 are listed by name with their reasons (A.2, A.4, B.1, B.2, C.4/C.5, D.2a, D.3).
+  Note in ADR-0018; README (Status) and CHANGELOG name the promise. A snapshot guard of the public API was offered and not taken.
+
 ## 2026-11-04 — #48: the typo dictionary only grows
 
 - ADR-0025 (amends 0021). No `Stale`, no marks counter, no `LuiSyncReport.TypoDictionaryStale`, no `LuiTypoRebuilder`, no
