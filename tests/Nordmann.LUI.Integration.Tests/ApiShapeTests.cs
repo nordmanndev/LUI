@@ -217,8 +217,8 @@ public sealed class ApiShapeTests
         Should.Throw<ArgumentOutOfRangeException>(() => query.Take(0)).Message.ShouldContain("MaxResults");
         Should.Throw<ArgumentOutOfRangeException>(() => query.Candidates(100_001)).Message.ShouldContain("Candidates");
         Should.Throw<ArgumentOutOfRangeException>(() => query.Rank((LuiRankingOrder)42)).Message.ShouldContain("Rank");
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiQueryOptions { Priorities = (LuiPriorityRanking)42 })
-            .Message.ShouldContain("Priorities");
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiQueryOptions { PriorityMode = (LuiPriorityMode)42 })
+            .Message.ShouldContain("PriorityMode");
     }
 
     [Fact]
@@ -359,6 +359,23 @@ public sealed class ApiShapeTests
     }
 
     [Fact]
+    public void The_exceptions_of_the_library_can_be_caught_as_one_and_still_as_an_InvalidOperationException()
+    {
+        // Review of 2026-11-04, A.8: a caller that separates LUI's conditions from its own errors had no type for it
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Index("words").SingleWord().Ensure();
+
+        var mismatch = Record.Exception(() => catalog.Index("words").MultiWord().Ensure());
+
+        mismatch.ShouldBeOfType<LuiDefinitionMismatchException>();
+        mismatch.ShouldBeAssignableTo<LuiException>();
+        mismatch.ShouldBeAssignableTo<InvalidOperationException>("a catch that exists keeps catching it");
+        new LuiEnvironmentException("too old").ShouldBeAssignableTo<LuiException>();
+        new LuiLinkedTableException("no such table").ShouldBeAssignableTo<LuiException>();
+    }
+
+    [Fact]
     public void Every_step_that_changes_the_key_or_the_payload_keeps_every_setting()
     {
         // review of 2026-11-04, C.1 (#40): one settings record instead of three fields copied by hand in four places
@@ -396,8 +413,6 @@ public sealed class ApiShapeTests
 
     private sealed class Constant(double value) : ILuiSimilarity
     {
-        public string Name => "constant";
-
         public double Similarity(string query, string text) => value;
     }
 

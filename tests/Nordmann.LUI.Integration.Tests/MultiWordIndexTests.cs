@@ -306,7 +306,7 @@ public sealed class MultiWordIndexTests
         index.Upsert(2, "Brat Apfel Kuchen", 0, priority: LuiPriority.System);
 
         index.Query("apfel kuchen").Execute().Hits.Select(h => h.Key).ShouldBe([2L, 1L]);
-        index.Query("apfel kuchen").Priorities(LuiPriorityRanking.CandidatesOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1L, 2L]);
+        index.Query("apfel kuchen").PriorityMode(LuiPriorityMode.CandidatesOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1L, 2L]);
     }
 
     [Fact]

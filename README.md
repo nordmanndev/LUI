@@ -188,11 +188,11 @@ the same settings as a `LuiQueryOptions` — from configuration, for example. Ev
 | `.Take(n)` | `MaxResults` | 20 | how many hits come back (1 … 1,000) |
 | `.Candidates(n)` | `Candidates` | 500 | how many candidates are ranked — chosen by priority and weight (1 … 100,000) |
 | `.Rank(order)` | `Rank` | `WordStartThenSimilarity` | the order of the ranking, see below |
-| `.Priorities(mode)` | `Priorities` | `First` | whether the priority comes before everything (`First`) or only makes an entry a certain candidate (`CandidatesOnly`) |
+| `.PriorityMode(mode)` | `PriorityMode` | `First` | whether the priority comes before everything (`First`) or only makes an entry a certain candidate (`CandidatesOnly`) |
 | `.DistinctText()` | `DistinctText` | off | one hit per normalised text — the one of the highest priority, then weight |
 | `.Similarity(measure)` | `Similarity` | of the index | `LuiSimilarity.JaroWinkler` (the default of `SingleWord`), `NgramDice` (of `MultiWord`), `DamerauLevenshtein`, `Levenshtein` — or your own `ILuiSimilarity` |
 | `.TypoTolerance(bool)` | `TypoTolerance` | of the index | whether an input that no word begins with is corrected |
-| `.TrackTimings()` | `TrackTimings` | off | `result.Timings`: candidates, correction, ranking, payload, total |
+| `.TrackTimings()` | `TrackTimings` | off | `result.Timings`: candidate read, correction, ranking, payload, total |
 
 A `LuiResult` holds the `Hits` (key, text, weight, priority, payload, whether a word begins with the input, the
 similarity), `CandidatesConsidered`, `Truncated` (the candidate budget was spent), `CorrectedQuery` and
@@ -267,7 +267,7 @@ var builder = Host.CreateApplicationBuilder();
 builder.Services
     .AddLui("Data Source=app.db")
     .AddIndex("recipes", index => index.MultiWord().TypoTolerance())
-    .AddIndex("tags", index => index.SingleWord().LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count"),
+    .AddLinkedIndex("tags", index => index.SingleWord().LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count"),
               applyPendingEvery: TimeSpan.FromSeconds(5))
     .WarmUpTypoDictionariesOnStart();
 
@@ -278,6 +278,12 @@ host.Start();
 var suggest = host.Services.GetRequiredKeyedService<ILuiIndex<long, LuiNoPayload>>("recipes");
 Console.WriteLine(suggest.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
 ```
+
+`AddLui` opens the database when the host starts — also with `EnsureOnStart(false)`, because the hosted services
+resolve the catalog first, so that the container disposes them before it. A SQLite that LUI cannot run on (older than 3.45,
+or without the FTS5 trigram tokenizer) therefore stops the start with a `LuiEnvironmentException`. It, the
+`LuiDefinitionMismatchException` of an index that exists with another definition and the `LuiLinkedTableException` share
+the base `LuiException` — an `InvalidOperationException`, so a `catch` of that one still catches them.
 
 The host also rebuilds, once a minute, a typo dictionary that a `Sync` left
 stale (`RebuildStaleTypoDictionariesEvery`), and no query waits for a build:

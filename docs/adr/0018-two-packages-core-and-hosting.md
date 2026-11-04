@@ -1,5 +1,10 @@
 # 0018 — Two packages: the core and the hosting, released together
 
+> **Name note (ADR-0024, 2026-11-04):** since this record was written, `LuiRow` is `LuiPayloadRow`, `LuiSyncResult` is
+> `LuiLinkedSyncReport`, `LuiPriorityRanking` is `LuiPriorityMode` (`Priorities` → `PriorityMode`), `LuiTimings.Candidates`
+> is `CandidateRead`, the linked overload of `AddIndex` is `AddLinkedIndex`, and `Check()`, `WarmUpTypoDictionary` and
+> `RebuildTypoDictionary` are on the write interfaces, not on `ILuiIndex`. The text below is history.
+
 - **Status:** Accepted (owner's decision, 2026-11-03)
 - **Date:** 2026-11-03
 - **Supersedes:** the "one package" of [0001](./0001-single-package.md) for the dependency injection; the "in the package"

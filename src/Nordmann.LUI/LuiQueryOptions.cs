@@ -45,11 +45,11 @@ public sealed record LuiQueryOptions
     } = LuiRankingOrder.WordStartThenSimilarity;
 
     /// <summary>What the priority does in the ranking. Default: it comes first.</summary>
-    public LuiPriorityRanking Priorities
+    public LuiPriorityMode PriorityMode
     {
         get;
-        init => field = Setting.Defined(value, nameof(Priorities));
-    } = LuiPriorityRanking.First;
+        init => field = Setting.Defined(value, nameof(PriorityMode));
+    } = LuiPriorityMode.First;
 
     /// <summary>
     /// Shows one entry per normalised text: the one with the highest priority,

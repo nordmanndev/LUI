@@ -6,9 +6,6 @@ namespace Nordmann.LUI;
 /// </summary>
 public interface ILuiSimilarity
 {
-    /// <summary>The name of the measure.</summary>
-    string Name { get; }
-
     /// <summary>Compares an input with a text.</summary>
     /// <param name="query">The input, normalised.</param>
     /// <param name="text">The text, normalised.</param>

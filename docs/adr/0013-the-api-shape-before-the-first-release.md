@@ -4,6 +4,11 @@
 > `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
 > `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
 
+> **Name note (ADR-0024, 2026-11-04):** since this record was written, `LuiRow` is `LuiPayloadRow`, `LuiSyncResult` is
+> `LuiLinkedSyncReport`, `LuiPriorityRanking` is `LuiPriorityMode` (`Priorities` → `PriorityMode`), `LuiTimings.Candidates`
+> is `CandidateRead`, the linked overload of `AddIndex` is `AddLinkedIndex`, and `Check()`, `WarmUpTypoDictionary` and
+> `RebuildTypoDictionary` are on the write interfaces, not on `ILuiIndex`. The text below is history.
+
 - **Status:** Accepted
 - **Date:** 2026-11-03
 - **Supersedes:** the namespace layout of ADR-0001 (the package decision stands)

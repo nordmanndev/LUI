@@ -9,10 +9,10 @@ namespace Nordmann.LUI.Querying;
 /// <typeparam name="TPayload">The payload type.</typeparam>
 internal sealed class ColumnPayload<TPayload> : PayloadReader<TPayload>
 {
-    private readonly Func<LuiRow, TPayload> _map;
+    private readonly Func<LuiPayloadRow, TPayload> _map;
     private readonly Dictionary<string, int> _ordinals;
 
-    internal ColumnPayload(IReadOnlyList<string> columns, Func<LuiRow, TPayload> map)
+    internal ColumnPayload(IReadOnlyList<string> columns, Func<LuiPayloadRow, TPayload> map)
     {
         Columns = columns;
         _map = map;
@@ -25,5 +25,17 @@ internal sealed class ColumnPayload<TPayload> : PayloadReader<TPayload>
 
     internal override IReadOnlyList<string> Columns { get; }
 
-    internal override TPayload? Read(SqliteDataReader row) => _map(new LuiRow(row, _ordinals));
+    internal override TPayload? Read(SqliteDataReader row)
+    {
+        var payloadRow = new LuiPayloadRow(row, _ordinals);
+        try
+        {
+            return _map(payloadRow);
+        }
+        finally
+        {
+            // the reader moves on to the next hit: a row that was kept must not read it (review of 2026-11-04, A.7)
+            payloadRow.Invalidate();
+        }
+    }
 }

@@ -5,7 +5,7 @@ namespace Nordmann.LUI;
 /// trigram tokenizer, or a tokenizer that folds text differently from the
 /// table the library was measured with (docs/normalization.md).
 /// </summary>
-public sealed class LuiEnvironmentException : InvalidOperationException
+public sealed class LuiEnvironmentException : LuiException
 {
     /// <summary>Creates the exception.</summary>
     /// <param name="message">What is wrong, and what to do about it.</param>

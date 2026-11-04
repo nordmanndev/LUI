@@ -2,7 +2,8 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// An index, as it is read: a searchable stock of entries with its own name and kind
-/// (LUI-Spezifikation §2). Every index has this interface, whatever its content
+/// (LUI-Spezifikation §2). It only reads; what keeps an index in order — <c>Check</c>, the typo dictionary's warm-up and
+/// rebuild — belongs to the interfaces that write (review of 2026-11-04, B.3). Every index has this interface, whatever its content
 /// source; an index whose content the application writes through LUI is also an
 /// <see cref="ILuiEmbeddedIndex{TKey, TPayload}"/>. An index is a singleton and safe
 /// to use from many threads.
@@ -45,36 +46,4 @@ public interface ILuiIndex<TKey, TPayload>
     /// <param name="cancellationToken">Checked while the candidates are read.</param>
     /// <returns>The answer.</returns>
     LuiResult<TKey, TPayload> Search(string text, LuiQueryOptions? options = null, CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Checks the index (§12.6, §14): the stored definition is the one of this instance, the search index passes FTS5's
-    /// integrity check, and what keeps it in step is in place — the triggers of an <c>Embedded</c> index; for a
-    /// <c>Linked</c> one, the application's table still fits and the entries agree with its rows. Nothing is changed; the
-    /// integrity check reads the whole search index under SQLite's write lock (about 2 s for a million entries); the
-    /// comparison of a linked index with its table runs after it, in a snapshot of its own, without the lock. For a linked
-    /// index with triggers, the rows they noted count until <c>ApplyPending()</c> — a health check between two of them
-    /// asks <c>Pending()</c>.
-    /// </summary>
-    /// <returns>What was found; <see cref="LuiIntegrityReport.IsHealthy"/> when nothing.</returns>
-    LuiIntegrityReport Check();
-
-    /// <summary>
-    /// Builds the typo dictionary now, if it is not built yet — so that the first typo does not pay for it
-    /// (about 5 seconds and 140 MB for 685,000 words). Meant for the start of an application; it builds the
-    /// dictionary even when this instance has the typo tolerance off. Nothing happens if it exists.
-    /// </summary>
-    /// <param name="cancellationToken">Checked while the entries are read, and while it waits for a build that runs.</param>
-    void WarmUpTypoDictionary(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// Builds the typo dictionary anew from the entries (§10.1). The dictionary is built on first use and
-    /// grows with every upsert through LUI: only new word beginnings, so the frequencies of the old ones stay as
-    /// they were; a removal does not shrink it, because SymSpell cannot forget — a correction towards a removed
-    /// word finds nothing. A rebuild gives the sums of the weights as they are now and forgets the removed
-    /// words; it also takes in what was written past the library. It reads every entry (seconds for a large
-    /// index); writes that arrive meanwhile are not lost, and queries use the old dictionary until the new one is
-    /// ready.
-    /// </summary>
-    /// <param name="cancellationToken">Checked while the entries are read, and while it waits for a build that runs.</param>
-    void RebuildTypoDictionary(CancellationToken cancellationToken = default);
 }

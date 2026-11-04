@@ -224,10 +224,10 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         return keys.Count;
     }
 
-    public LuiSyncResult Sync(CancellationToken cancellationToken = default)
+    public LuiLinkedSyncReport Sync(CancellationToken cancellationToken = default)
     {
         using var scope = _database.Begin();
-        LuiSyncResult? result = null;
+        LuiLinkedSyncReport? result = null;
         Guarded(() => Write(null, (connection, transaction) => result = SyncAll(connection, transaction, cancellationToken)));
 
         // the words of the table as they are now: a built dictionary is built anew
@@ -240,7 +240,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
     }
 
     /// <summary>Clears the index and fills it again from the table, a chunk of rows at a time, then merges it.</summary>
-    private LuiSyncResult SyncAll(SqliteConnection connection, SqliteTransaction transaction, CancellationToken cancellationToken)
+    private LuiLinkedSyncReport SyncAll(SqliteConnection connection, SqliteTransaction transaction, CancellationToken cancellationToken)
     {
         Execute(connection, transaction, _source.ClearSql);
 
@@ -276,7 +276,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         using var skipped = Command(connection, transaction, _source.SkippedSql);
         using var reader = skipped.ExecuteReader();
         reader.Read();
-        return new LuiSyncResult
+        return new LuiLinkedSyncReport
         {
             Indexed = Scalar(connection, transaction, _source.CountSql),
             WithoutText = reader.GetInt64(0),

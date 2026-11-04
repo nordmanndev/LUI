@@ -3,8 +3,11 @@ namespace Nordmann.LUI;
 /// <summary>Where the time of a query went; only measured with <see cref="LuiQueryOptions.TrackTimings"/>.</summary>
 public sealed record LuiTimings
 {
-    /// <summary>Reading the candidates of the input out of SQLite.</summary>
-    public TimeSpan Candidates { get; init; }
+    /// <summary>
+    /// Reading the candidates of the input out of SQLite — a duration, as the other properties are. The budget of candidates
+    /// is <see cref="LuiQueryOptions.Candidates"/>; how many were read is <see cref="LuiResult{TKey, TPayload}.CandidatesConsidered"/>.
+    /// </summary>
+    public TimeSpan CandidateRead { get; init; }
 
     /// <summary>
     /// The typo correction: building the dictionary on first use, the lookups, and the candidates of the

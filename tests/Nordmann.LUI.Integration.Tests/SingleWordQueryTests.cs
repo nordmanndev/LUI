@@ -235,7 +235,7 @@ public sealed class SingleWordQueryTests
         index.Upsert(2, "bratapfelkuchen", 0, priority: LuiPriority.System);
 
         index.Query("apfelkuch").Execute().Hits.Select(h => h.Key).ShouldBe([2, 1]);
-        index.Query("apfelkuch").Priorities(LuiPriorityRanking.CandidatesOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1, 2]);
+        index.Query("apfelkuch").PriorityMode(LuiPriorityMode.CandidatesOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1, 2]);
     }
 
     [Fact]
@@ -248,7 +248,7 @@ public sealed class SingleWordQueryTests
         index.Upsert(2, "kuchen b", 1, priority: LuiPriority.High);
 
         Keys(index, "kuchen", LuiRankingOrder.WeightOnly).ShouldBe([2, 1]);
-        index.Query("kuchen").Rank(LuiRankingOrder.WeightOnly).Priorities(LuiPriorityRanking.CandidatesOnly).Execute()
+        index.Query("kuchen").Rank(LuiRankingOrder.WeightOnly).PriorityMode(LuiPriorityMode.CandidatesOnly).Execute()
             .Hits.Select(h => h.Key).ShouldBe([1, 2]);
     }
 
@@ -372,7 +372,7 @@ public sealed class SingleWordQueryTests
 
         var timings = index.Query("apfel").TrackTimings().Execute().Timings.ShouldNotBeNull();
         timings.Total.ShouldBeGreaterThan(TimeSpan.Zero);
-        (timings.Candidates + timings.Ranking + timings.Payload).ShouldBeLessThanOrEqualTo(timings.Total);
+        (timings.CandidateRead + timings.Ranking + timings.Payload).ShouldBeLessThanOrEqualTo(timings.Total);
     }
 
     [Fact]
@@ -433,8 +433,6 @@ public sealed class SingleWordQueryTests
 
     private sealed class ConstantSimilarity(double value) : ILuiSimilarity
     {
-        public string Name => "Constant";
-
         public double Similarity(string query, string text) => value;
     }
 }

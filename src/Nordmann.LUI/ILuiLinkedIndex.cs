@@ -25,7 +25,7 @@ public interface ILuiLinkedIndex<TPayload> : ILuiIndex<long, TPayload>
     /// </summary>
     /// <param name="cancellationToken">Checked between chunks of rows; a cancelled sync changes nothing.</param>
     /// <returns>What was indexed, and what was left out.</returns>
-    LuiSyncResult Sync(CancellationToken cancellationToken = default);
+    LuiLinkedSyncReport Sync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Brings the entry of one row in step with the table: after the application inserted, changed or deleted it. A row
@@ -44,6 +44,37 @@ public interface ILuiLinkedIndex<TPayload> : ILuiIndex<long, TPayload>
     /// <param name="cancellationToken">Checked between the rows; LUI's own transaction is rolled back.</param>
     /// <returns>How many of the rows are in the index now.</returns>
     int RefreshMany(IEnumerable<long> keys, SqliteTransaction? transaction = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Checks the index against itself and against the application's table (§12.6, §14) and changes nothing: the stored
+    /// definition is the one of this instance, the search index passes FTS5's integrity check, the application's table
+    /// still fits, and the entries agree with its rows. The integrity check reads the whole search index under SQLite's
+    /// write lock (about 2 s for a million entries); the comparison with the table runs after it, in a snapshot of its own,
+    /// without the lock. For an index with triggers, the rows they noted count until <see cref="ApplyPending"/> — a health
+    /// check between two of them asks <see cref="Pending"/>.
+    /// </summary>
+    /// <returns>What was found; <see cref="LuiIntegrityReport.IsHealthy"/> when nothing.</returns>
+    LuiIntegrityReport Check();
+
+    /// <summary>
+    /// Builds the typo dictionary now, if it is not built yet — so that the first typo does not pay for it
+    /// (about 5 seconds and 140 MB for 685,000 words). Meant for the start of an application; it builds the
+    /// dictionary even when this instance has the typo tolerance off. Nothing happens if it exists.
+    /// </summary>
+    /// <param name="cancellationToken">Checked while the entries are read, and while it waits for a build that runs.</param>
+    void WarmUpTypoDictionary(CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Builds the typo dictionary anew from the entries (§10.1). The dictionary is built on first use and
+    /// grows with every write through LUI: only new word beginnings, so the frequencies of the old ones stay as
+    /// they were; a removal does not shrink it, because SymSpell cannot forget — a correction towards a removed
+    /// word finds nothing. A rebuild gives the sums of the weights as they are now and forgets the removed
+    /// words; it also takes in what was written past the library. It reads every entry (seconds for a large
+    /// index); writes that arrive meanwhile are not lost, and queries use the old dictionary until the new one is
+    /// ready. <see cref="ILuiIndex{TKey, TPayload}.TypoDictionaryState"/> says when one is due.
+    /// </summary>
+    /// <param name="cancellationToken">Checked while the entries are read, and while it waits for a build that runs.</param>
+    void RebuildTypoDictionary(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Merges the segments of the search index. Many single refreshes leave deletion marks that a query has to step

@@ -20,7 +20,6 @@ public sealed class SimilarityTests
     {
         var measure = Get(name);
 
-        measure.Name.ShouldBe(name);
         measure.Similarity("apfelkuchen", "apfelkuchen").ShouldBe(1.0, 1e-9);
         measure.Similarity("apfelkuchen", "xyzxyzxyz").ShouldBeLessThan(0.3);
     }

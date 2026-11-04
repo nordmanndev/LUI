@@ -53,7 +53,7 @@ public sealed class RankingTests
             candidates.Length,
             ["apfelkuch"],
             LuiRankingOrder.WordStartThenSimilarity,
-            LuiPriorityRanking.First,
+            LuiPriorityMode.First,
             measure,
             Nordmann.LUI.Normalization.NormalizationOptions.Default,
             take: 20,
@@ -87,7 +87,7 @@ public sealed class RankingTests
             candidates.Length,
             ["apfelkuch"],
             LuiRankingOrder.WordStartThenSimilarity,
-            LuiPriorityRanking.First,
+            LuiPriorityMode.First,
             measure,
             Nordmann.LUI.Normalization.NormalizationOptions.Default,
             take: 20,
@@ -120,7 +120,7 @@ public sealed class RankingTests
             candidates.Length,
             ["apfelkuch"],
             LuiRankingOrder.WeightOnly,
-            LuiPriorityRanking.First,
+            LuiPriorityMode.First,
             measure,
             Nordmann.LUI.Normalization.NormalizationOptions.Default,
             take: 20,
@@ -134,8 +134,6 @@ public sealed class RankingTests
     private sealed class CountingSimilarity : ILuiSimilarity
     {
         public int Calls { get; private set; }
-
-        public string Name => "Counting";
 
         public double Similarity(string query, string text)
         {

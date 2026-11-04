@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependency injection, in a second package `Nordmann.LUI.Hosting`** ([ADR-0017](docs/adr/0017-dependency-injection-and-hosted-services.md),
   [ADR-0018](docs/adr/0018-two-packages-core-and-hosting.md)), released with `Nordmann.LUI` under the same version:
   `services.AddLui(connectionString, options?)` (or with delegates that read the container) and
-  `.AddIndex(name, index => …)` for an embedded or a linked index. Every index is a keyed singleton under its name, as
+  `.AddIndex(name, index => …)` for an embedded and `.AddLinkedIndex(name, index => …)` for a linked index. Every index is a keyed singleton under its name, as
   `ILuiIndex<TKey, TPayload>` and as `ILuiEmbeddedIndex`/`ILuiLinkedIndex`; the catalog is a singleton the container
   disposes. A hosted service ensures every index when the host starts (`EnsureOnStart(false)` switches it off) and,
   with `WarmUpTypoDictionariesOnStart()`, builds the typo dictionaries of the indexes with typo tolerance in the
@@ -53,13 +53,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own implementation of `ILuiIndex` (a test double) has to add it.
 
 - **Sync, check, rebuild and optimize** ([ADR-0016](docs/adr/0016-sync-check-rebuild.md)). An embedded index:
-  `Sync(source, options?, cancellationToken)` (and an overload for an `IAsyncEnumerable` source) adds what is missing,
+  `Sync(entries, options?, cancellationToken)` (and an overload for an `IAsyncEnumerable` source) adds what is missing,
   writes what differs, keeps what is the same and removes the keys that were there when it began and that the source
   does not have — in batches of
   `LuiSyncOptions.BatchSize` (default 10,000), each in a transaction of its own, written in the order of the search
   index and merged once at the end. A sync cancelled while it reads the source keeps its committed batches and removes
   nothing (one cancelled during the removal at the end leaves the rest of it); run again, it skips what is done. It returns a `LuiSyncReport` (`Read`, `Added`, `Changed`, `Unchanged`, `Removed`, `Batches`, `Merged`) and
-  reports the same after every batch to `LuiSyncOptions.Progress`. `Check(source)` compares and changes nothing;
+  reports the same after every batch to `LuiSyncOptions.Progress`. `Check(entries)` compares and changes nothing;
   `Rebuild()` creates the triggers and the search index anew; `Optimize()` merges. Every index has `Check()` (on
   `ILuiIndex`): the definition, the triggers, FTS5's integrity check — for a linked index also the table and the
   entries against its rows. It returns a `LuiIntegrityReport` (`Problems`, `IsHealthy`, `Missing`, `Extra`,
@@ -74,8 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Optimize()`; triggers only on request: `TriggerScript()`, `CreateTriggers()`, `DropTriggers()` — they only note the
   key of a changed row in an outbox (plain SQL, any SQLite can write the table); `ApplyPending()` brings the noted rows
   into the index, `Pending()` counts them. A payload from columns:
-  `WithPayload(columns, row => …)` with `LuiRow`. `LuiLinkedTableException` when the table is not what the link says.
-  `Sync()` returns a `LuiSyncResult` (indexed, without text, key out of range); `Triggers()` returns a
+  `WithPayload(columns, row => …)` with `LuiPayloadRow`. `LuiLinkedTableException` when the table is not what the link says.
+  `Sync()` returns a `LuiLinkedSyncReport` (indexed, without text, key out of range); `Triggers()` returns a
   `LuiTriggerState` (`None`, `Current`, `Stale`); `DropIndex(name, dropTriggers)` removes the triggers of a linked
   index only when asked. A candidate whose current text no longer matches is not a hit.
   200,000 rows: sync 3.5–3.9 s, query p95 1.11–1.17 ms, refresh p95 0.51–0.58 ms.
@@ -121,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ([ADR-0009](docs/adr/0009-writes-use-prepared-statements.md)).
   - Queries: the prefix path for one and two characters, FTS5 trigram
     candidates from three, ranked by priority → word start → similarity →
-    weight (`LuiRankingOrder`, `LuiPriorityRanking`, `DistinctText`, `Take`,
+    weight (`LuiRankingOrder`, `LuiPriorityMode`, `DistinctText`, `Take`,
     `Candidates`, `TrackTimings`), fluent (`LuiQuery`) or with
     `Search(text, LuiQueryOptions)`. The answer is a `LuiResult` of `LuiHit`s.
   - `LuiPriority` (`System` … `Normal`) in the rowid: a system tag is a
@@ -158,6 +158,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Truncated` is no longer set for a linked index when the only row after the budget is an outdated one (#26).
 
 ### Changed
+
+- **The public API before the freeze** ([ADR-0024](docs/adr/0024-the-api-polish-before-the-freeze.md), #42, from the
+  architecture review of 2026-11-04). Renamed and tidied before the first release, so nobody has to migrate:
+  - `AddIndex` registers an embedded index, **`AddLinkedIndex`** a linked one (with `applyPendingEvery`); the two were
+    overloads of one name, chosen by the return type of the description.
+  - `LuiPriorityRanking` → `LuiPriorityMode`; `LuiQuery.Priorities(…)` and `LuiQueryOptions.Priorities` → `PriorityMode`.
+  - `LuiTimings.Candidates` → `CandidateRead`: a duration, not the budget (`LuiQueryOptions.Candidates`) and not the count
+    (`LuiResult.CandidatesConsidered`).
+  - `Sync(source, …)` and `Check(source)` of `ILuiEmbeddedIndex` take `entries`.
+  - `LuiRow` → `LuiPayloadRow`. A row that is kept and read after the mapping of `WithPayload` throws an
+    `InvalidOperationException` instead of reading the next hit.
+  - `LuiSyncResult` → `LuiLinkedSyncReport`: the linked index's sync is a different operation from the embedded one, with
+    other counts, and now says so in its name.
+  - New: `LuiException`, abstract and still an `InvalidOperationException`, is the base of `LuiEnvironmentException`,
+    `LuiDefinitionMismatchException` and `LuiLinkedTableException`.
+  - `ILuiIndex` only reads. `Check()`, `WarmUpTypoDictionary()` and `RebuildTypoDictionary()` moved to `ILuiEmbeddedIndex`
+    and `ILuiLinkedIndex`; `TypoTolerance` and `TypoDictionaryState` stay.
+  - `ILuiSimilarity.Name` is gone: nothing read it, and a measure of your own no longer has to invent one.
 
 - **`Owned` is `Embedded`** ([ADR-0023](docs/adr/0023-owned-becomes-embedded.md), #41). The content source in LUI's own
   table, `lui_<index>`, is named after where its rows live, and pairs with `Linked`. In .NET "owned" is the word of
@@ -209,7 +227,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `LuiCatalog.Open(connectionString, options)` takes it as a value. `LuiQueryOptions` checks its values when they
     are set, so `Take(0)` throws at the call.
   - Every public type lives in `Nordmann.LUI` and starts with `Lui`/`ILui`: `Priority` → `LuiPriority`,
-    `IndexKind` → `LuiIndexKind`, `RankingOrder` → `LuiRankingOrder`, `PriorityRanking` → `LuiPriorityRanking`,
+    `IndexKind` → `LuiIndexKind`, `RankingOrder` → `LuiRankingOrder`, `PriorityRanking` → `LuiPriorityMode`,
     `ITextSimilarity` → `ILuiSimilarity`, `Similarity` → `LuiSimilarity`, `IPayloadSerializer<T>` →
     `ILuiPayloadSerializer<T>`, `JsonPayloadSerializer<T>` → `LuiJsonPayloadSerializer<T>`.
   - `Normalizer`, `NormalizedText` and `NormalizationOptions` are internal.

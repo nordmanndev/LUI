@@ -48,11 +48,11 @@ public sealed class LuiQuery<TKey, TPayload>
     }
 
     /// <summary>What the priority does in the ranking.</summary>
-    /// <param name="priorities">The rule.</param>
+    /// <param name="mode">The rule.</param>
     /// <returns>The query.</returns>
-    public LuiQuery<TKey, TPayload> Priorities(LuiPriorityRanking priorities)
+    public LuiQuery<TKey, TPayload> PriorityMode(LuiPriorityMode mode)
     {
-        _options = _options with { Priorities = priorities };
+        _options = _options with { PriorityMode = mode };
         return this;
     }
 

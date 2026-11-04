@@ -77,7 +77,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         // candidates all begin with it, and "the most popular first" is the answer (Anhang B).
         var order = query.IsPrefixPath ? LuiRankingOrder.WeightOnly : options.Rank;
         var ranked = Ranker.Rank(
-            candidates, count, queries, order, options.Priorities, similarity, _source.Normalization, options.MaxResults, cancellationToken);
+            candidates, count, queries, order, options.PriorityMode, similarity, _source.Normalization, options.MaxResults, cancellationToken);
         var rankedAt = Stopwatch.GetTimestamp();
 
         var hits = _hits.Read(connection, snapshot, ranked, queries, similarity, order);
@@ -130,7 +130,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         options.TrackTimings
             ? new LuiTimings
             {
-                Candidates = Stopwatch.GetElapsedTime(started, read),
+                CandidateRead = Stopwatch.GetElapsedTime(started, read),
                 Correction = Stopwatch.GetElapsedTime(read, corrected),
                 Ranking = Stopwatch.GetElapsedTime(corrected, ranked),
                 Payload = Stopwatch.GetElapsedTime(ranked, done),

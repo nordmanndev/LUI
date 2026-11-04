@@ -255,6 +255,37 @@ public sealed class LinkedIndexTests
     }
 
     [Fact]
+    public void A_payload_row_that_is_kept_throws_instead_of_reading_another_hit()
+    {
+        // Review of 2026-11-04, A.7: the row wraps the reader, which moves on to the next hit. Kept and read later, it used
+        // to give the value of whatever the reader stood on — without a word.
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Run(database, "INSERT INTO tag(id, name, usage_count, slug, color) VALUES (1, 'vegan', 5, 'vegan', '#0a0'), (2, 'veganer', 4, 'veganer', NULL);");
+        using var catalog = database.Open();
+        var kept = new List<LuiPayloadRow>();
+        var tags = catalog.Index("tags").SingleWord()
+            .LinkTo("tag", "id", "name", weight: "usage_count")
+            .WithPayload(["slug"], row =>
+            {
+                kept.Add(row);
+                return row.GetString("slug");
+            })
+            .Ensure();
+        tags.Sync();
+
+        var hits = tags.Search("vegan").Hits;
+
+        hits.Select(hit => hit.Payload).ShouldBe(["vegan", "veganer"], "the row works while the mapping runs");
+        kept.Count.ShouldBe(2);
+        foreach (var row in kept)
+        {
+            Should.Throw<InvalidOperationException>(() => row.GetString("slug")).Message.ShouldContain("only while the mapping");
+            Should.Throw<InvalidOperationException>(() => row.IsNull("slug"));
+        }
+    }
+
+    [Fact]
     public void A_payload_column_that_is_not_there_is_refused_at_ensure_and_one_that_was_not_named_at_the_query()
     {
         using var database = new TestDatabase();

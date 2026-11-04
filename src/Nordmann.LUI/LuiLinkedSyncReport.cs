@@ -1,7 +1,7 @@
 namespace Nordmann.LUI;
 
 /// <summary>What a sync of a <c>Linked</c> index did (ADR-0015): what it indexed, and what it left out and why.</summary>
-public sealed record LuiSyncResult
+public sealed record LuiLinkedSyncReport
 {
     /// <summary>The entries in the index now.</summary>
     public long Indexed { get; init; }

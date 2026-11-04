@@ -187,14 +187,14 @@ internal sealed class EmbeddedIndex<TKey, TPayload> : ILuiEmbeddedIndex<TKey, TP
         && exception.Message.Contains("doc_id", StringComparison.Ordinal);
 
     public LuiSyncReport Sync(
-        IEnumerable<LuiEntry<TKey, TPayload>> source,
+        IEnumerable<LuiEntry<TKey, TPayload>> entries,
         LuiSyncOptions? options = null,
         CancellationToken cancellationToken = default)
     {
         using var scope = _database.Begin();
         try
         {
-            return _sync.Run(source, options ?? DefaultSyncOptions, cancellationToken);
+            return _sync.Run(entries, options ?? DefaultSyncOptions, cancellationToken);
         }
         catch (SqliteException exception) when (IsDocIdExhausted(exception))
         {
@@ -203,18 +203,18 @@ internal sealed class EmbeddedIndex<TKey, TPayload> : ILuiEmbeddedIndex<TKey, TP
     }
 
     public LuiSyncReport Sync(
-        IAsyncEnumerable<LuiEntry<TKey, TPayload>> source,
+        IAsyncEnumerable<LuiEntry<TKey, TPayload>> entries,
         LuiSyncOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(entries);
 
         // the source may be asynchronous, the writes to SQLite are not (§13): the entries are awaited one by one
-        return Sync(source.ToBlockingEnumerable(cancellationToken), options, cancellationToken);
+        return Sync(entries.ToBlockingEnumerable(cancellationToken), options, cancellationToken);
     }
 
-    public LuiIntegrityReport Check(IEnumerable<LuiEntry<TKey, TPayload>> source, CancellationToken cancellationToken = default) =>
-        _check.Against(source, cancellationToken);
+    public LuiIntegrityReport Check(IEnumerable<LuiEntry<TKey, TPayload>> entries, CancellationToken cancellationToken = default) =>
+        _check.Against(entries, cancellationToken);
 
     public LuiIntegrityReport Check() => _check.Itself();
 

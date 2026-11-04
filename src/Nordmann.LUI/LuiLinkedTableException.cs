@@ -5,7 +5,7 @@ namespace Nordmann.LUI;
 /// column is missing, or the key is not its <c>INTEGER PRIMARY KEY</c> (LUI-Spezifikation §12.8, ADR-0015). LUI does
 /// not change the application's table to make it fit — the message says what is missing.
 /// </summary>
-public sealed class LuiLinkedTableException : InvalidOperationException
+public sealed class LuiLinkedTableException : LuiException
 {
     /// <summary>Creates the exception.</summary>
     public LuiLinkedTableException()
