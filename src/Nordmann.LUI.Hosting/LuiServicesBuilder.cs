@@ -46,8 +46,6 @@ public sealed class LuiServicesBuilder
             name,
             Ensure: provider => provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name),
             WarmUp: (provider, token) => WarmUp(provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name), token),
-            ApplyPending: null,
-            ApplyPendingEvery: null,
             RebuildIfStale: (provider, token) => RebuildIfStale(provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name), token)));
 
         Services.AddKeyedSingleton<ILuiOwnedIndex<TKey, TPayload>>(
@@ -87,13 +85,13 @@ public sealed class LuiServicesBuilder
             throw new ArgumentOutOfRangeException(nameof(applyPendingEvery), every, "The interval of ApplyPending is positive.");
         }
 
-        _registrations.Add(new IndexRegistration(
+        _registrations.Add(new LinkedIndexRegistration(
             name,
             Ensure: provider => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name),
             WarmUp: (provider, token) => WarmUp(provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name), token),
+            RebuildIfStale: (provider, token) => RebuildIfStale(provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name), token),
             ApplyPending: (provider, token) => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name).ApplyPending(token),
-            ApplyPendingEvery: applyPendingEvery,
-            RebuildIfStale: (provider, token) => RebuildIfStale(provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name), token)));
+            ApplyPendingEvery: applyPendingEvery));
 
         Services.AddKeyedSingleton<ILuiLinkedIndex<TPayload>>(
             name, (provider, _) => index(provider.GetRequiredService<LuiCatalog>().Index(name)).Ensure());

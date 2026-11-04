@@ -1,3 +1,4 @@
+using Nordmann.LUI.Schema;
 using Shouldly;
 
 namespace Nordmann.LUI.Integration.Tests;
@@ -355,6 +356,27 @@ public sealed class ApiShapeTests
 
         reader.Search("vegan").Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
         reader.Count().ShouldBe(1);
+    }
+
+    [Fact]
+    public void Every_step_that_changes_the_key_or_the_payload_keeps_every_setting()
+    {
+        // review of 2026-11-04, C.1 (#40): one settings record instead of three fields copied by hand in four places
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var similarity = new Constant(0.25);
+        var expected = new IndexSettings(similarity, GermanTransliteration: false, TypoTolerance: true);
+        var described = catalog.Index("words").SingleWord().Similarity(similarity).GermanTransliteration(false).TypoTolerance();
+
+        catalog.Index("plain").SingleWord().Settings.ShouldBe(IndexSettings.Default);
+        described.Settings.ShouldBe(expected);
+        described.WithKey<string>().Settings.ShouldBe(expected, "WithKey");
+        described.WithPayload(ChipJsonContext.Default.Chip).Settings.ShouldBe(expected, "WithPayload(typeInfo)");
+        described.WithPayload(new LuiJsonPayloadSerializer<Chip>(ChipJsonContext.Default.Chip)).Settings.ShouldBe(expected, "WithPayload(serializer)");
+
+        var linked = described.LinkTo("tag", "id", "name");
+        linked.Settings.ShouldBe(expected, "LinkTo");
+        linked.WithPayload(["name"], row => new Chip(row.GetString("name"))).Settings.ShouldBe(expected, "the linked WithPayload");
     }
 
     [Fact]
