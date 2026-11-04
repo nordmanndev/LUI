@@ -86,7 +86,7 @@ public interface ILuiLinkedIndex<TPayload> : ILuiIndex<long, TPayload>
     /// Brings the rows the triggers noted in step with the index — in batches of a thousand, each in a transaction of
     /// LUI's own, on its checked connection. The triggers only note the key of a changed row (<see cref="CreateTriggers"/>);
     /// until this runs, the index answers as before the change — a query never applies them, a read stays a read.
-    /// Call it after a burst of writes, on a timer (<c>AddIndex(…, applyPendingEvery: …)</c> of the dependency injection
+    /// Call it after a burst of writes, on a timer (<c>AddLinkedIndex(…, applyPendingEvery: …)</c> of the dependency injection
     /// does that), or before a query that has to see them.
     /// <para>
     /// Run it regularly: a row that changed and is not applied yet still stands in the index with its old text, and a query

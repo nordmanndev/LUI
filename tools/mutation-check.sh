@@ -251,12 +251,18 @@ expect_caught "a-member-joins-the-read-interface" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_read_interface_only_reads" \
   "sed -i '\$ i\\    /// <summary>x</summary>\n    void Extra() { }' src/Nordmann.LUI/ILuiIndex.cs"
 
-# 22. A write interface loses a maintenance member (B.3): the class keeps the method, so the tree builds.
+# 22. An event joins the interface that only reads (review of pull request 47, M5): an event
+#     is neither a property nor a method without a special name, so the guard has to ask for events.
+expect_caught "an-event-joins-the-read-interface" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_read_interface_only_reads" \
+  "sed -i '\$ i\\    /// <summary>x</summary>\n    event System.EventHandler? Extra { add { } remove { } }' src/Nordmann.LUI/ILuiIndex.cs"
+
+# 23. A write interface loses a maintenance member (B.3): the class keeps the method, so the tree builds.
 expect_caught "a-write-interface-loses-a-maintenance-member" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_read_interface_only_reads" \
   "perl -0pi -e 's|    /// <summary>\\n    /// Checks the index against itself and against.*?LuiIntegrityReport Check\\(\\);\\n\\n||s' src/Nordmann.LUI/ILuiLinkedIndex.cs"
 
-# 23. The clean trees stay green.
+# 24. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

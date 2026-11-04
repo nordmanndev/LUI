@@ -61,7 +61,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   nothing (one cancelled during the removal at the end leaves the rest of it); run again, it skips what is done. It returns a `LuiSyncReport` (`Read`, `Added`, `Changed`, `Unchanged`, `Removed`, `Batches`, `Merged`) and
   reports the same after every batch to `LuiSyncOptions.Progress`. `Check(entries)` compares and changes nothing;
   `Rebuild()` creates the triggers and the search index anew; `Optimize()` merges. Every index has `Check()` (on
-  `ILuiIndex`): the definition, the triggers, FTS5's integrity check — for a linked index also the table and the
+  `ILuiEmbeddedIndex` and `ILuiLinkedIndex`): the definition, the triggers, FTS5's integrity check — for a linked index also the table and the
   entries against its rows. It returns a `LuiIntegrityReport` (`Problems`, `IsHealthy`, `Missing`, `Extra`,
   `Different`). 1,000,000 entries: sync 78 s (batches of 10,000) or 55 s (100,000), query p95 afterwards 3.9 ms
   (5.4 ms after `UpsertMany`).
@@ -91,8 +91,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   An input without a word start is corrected by one edit with a SymSpell dictionary of the word
   beginnings (3 … 10 letters) of the index; the three best corrections are searched and united with
   the candidates of the input. `LuiResult.CorrectedQuery` says what was searched, `LuiTimings.Correction`
-  what it cost, `ILuiIndex.WarmUpTypoDictionary()` builds the dictionary ahead of the first typo,
-  `RebuildTypoDictionary()` builds it anew (both take a `CancellationToken`); the dictionary is shared by all
+  what it cost, `WarmUpTypoDictionary()` builds the dictionary ahead of the first typo,
+  `RebuildTypoDictionary()` builds it anew (both are on `ILuiEmbeddedIndex` and `ILuiLinkedIndex`, and take a `CancellationToken`); the dictionary is shared by all
   instances of an index and its build never holds up a write. The dictionary of the whole
   German word list takes 4.2 s and 138 MB.
 
@@ -201,7 +201,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A candidate of a linked index whose current text no longer matches does not count against the candidate budget any
   more: the read goes on past it, up to another budget of such rows (review of PR #16, F1).
 - `Highlight` is not part of 0.1 (owner's decision): the front end marks the match; it comes with a later version (#20).
-- `ILuiIndex<TKey, TPayload>` has `Check()`. Inside, the catalog is taken apart (review DevEx D4, D6): no change to
+- Every index has `Check()` (on `ILuiEmbeddedIndex` and `ILuiLinkedIndex`). Inside, the catalog is taken apart (review DevEx D4, D6): no change to
   the public API besides.
 - **The builder: an embedded index is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;
   `SingleWord()`/`MultiWord()` return a `LuiEmbeddedIndexBuilder<long, LuiNoPayload>` — an embedded index, or with
@@ -227,7 +227,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `LuiCatalog.Open(connectionString, options)` takes it as a value. `LuiQueryOptions` checks its values when they
     are set, so `Take(0)` throws at the call.
   - Every public type lives in `Nordmann.LUI` and starts with `Lui`/`ILui`: `Priority` → `LuiPriority`,
-    `IndexKind` → `LuiIndexKind`, `RankingOrder` → `LuiRankingOrder`, `PriorityRanking` → `LuiPriorityMode`,
+    `IndexKind` → `LuiIndexKind`, `RankingOrder` → `LuiRankingOrder`, `PriorityRanking` → `LuiPriorityRanking`,
     `ITextSimilarity` → `ILuiSimilarity`, `Similarity` → `LuiSimilarity`, `IPayloadSerializer<T>` →
     `ILuiPayloadSerializer<T>`, `JsonPayloadSerializer<T>` → `LuiJsonPayloadSerializer<T>`.
   - `Normalizer`, `NormalizedText` and `NormalizationOptions` are internal.

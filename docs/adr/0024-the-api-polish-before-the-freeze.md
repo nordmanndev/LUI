@@ -71,7 +71,8 @@ its own.
 - `ApiShapeTests.The_exceptions_of_the_library_can_be_caught_as_one_and_still_as_an_InvalidOperationException`;
 - `DependencyInjectionTests` (the linked registrations through `AddLinkedIndex`, the warm-up and the rebuild through the write
   interfaces);
-- the mutations `an-option-without-a-method-on-the-query`, `a-member-joins-the-read-interface` and
-  `a-write-interface-loses-a-maintenance-member` (`tools/mutation-check.sh`), each caught by test and not refused by the
-  build;
+- the mutations `an-option-without-a-method-on-the-query`, `a-member-joins-the-read-interface`,
+  `an-event-joins-the-read-interface` (an event is no property and no method without a special name; review of pull
+  request 47, M5) and `a-write-interface-loses-a-maintenance-member` (`tools/mutation-check.sh`), each caught by test and
+  not refused by the build;
 - the package smoke test (the README is compiled and run with the new names).

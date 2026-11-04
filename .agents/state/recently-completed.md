@@ -10,7 +10,7 @@ the scratchpad here at the end of a session.
 - ADR-0024. `AddLinkedIndex`; `LuiPriorityMode`/`PriorityMode`; `LuiTimings.CandidateRead`; `entries`; `LuiPayloadRow` (a kept
   row throws); abstract `LuiException`; `LuiLinkedSyncReport`; `ILuiIndex` only reads (`Check`, `WarmUp…`, `Rebuild…` on the write
   interfaces); no `ILuiSimilarity.Name`; README/spec on `AddLui` opening the database at the start.
-- Guards: exceptions, `LuiQuery` ↔ `LuiQueryOptions`, the read interface; three mutations, each caught by test.
+- Guards: exceptions, `LuiQuery` ↔ `LuiQueryOptions`, the read interface; four mutations, each caught by test.
 - #41 (`Owned` → `Embedded`, ADR-0023) merged as #46.
 
 ## 2026-11-04 — #41: `Owned` → `Embedded`

@@ -154,6 +154,7 @@ public sealed class Public_API_Shape
         [
             .. type.GetProperties(declared).Select(property => property.Name),
             .. type.GetMethods(declared).Where(method => !method.IsSpecialName).Select(method => method.Name),
+            .. type.GetEvents(declared).Select(@event => @event.Name),
         ];
 
         Members(typeof(ILuiIndex<,>)).Order(StringComparer.Ordinal)
