@@ -2,7 +2,7 @@ using Microsoft.Data.Sqlite;
 
 namespace Nordmann.LUI.Querying;
 
-/// <summary>A payload stored as bytes by a serialiser (<c>Owned</c>); none without a serialiser.</summary>
+/// <summary>A payload stored as bytes by a serialiser (<c>Embedded</c>); none without a serialiser.</summary>
 /// <typeparam name="TPayload">The payload type.</typeparam>
 internal sealed class SerializedPayload<TPayload>(ILuiPayloadSerializer<TPayload>? serializer) : PayloadReader<TPayload>
 {

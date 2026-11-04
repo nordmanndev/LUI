@@ -5,11 +5,11 @@ using Nordmann.LUI.Storage;
 namespace Nordmann.LUI.Indexes;
 
 /// <summary>
-/// The check and the repair of an <c>Owned</c> index (LUI-Spezifikation §12.6, §14, ADR-0016): against a source, against
+/// The check and the repair of an <c>Embedded</c> index (LUI-Spezifikation §12.6, §14, ADR-0016): against a source, against
 /// itself — definition, triggers, FTS5's integrity check against the content table —, and the rebuild of everything
 /// below the content table.
 /// </summary>
-internal sealed class OwnedCheck<TKey, TPayload>(Database database, OwnedSource source, Func<TPayload?, byte[]?> payloadBytes)
+internal sealed class EmbeddedCheck<TKey, TPayload>(Database database, EmbeddedSource source, Func<TPayload?, byte[]?> payloadBytes)
 {
     private const string Repair = "Rebuild() builds the search index anew from the content table.";
 
@@ -29,14 +29,14 @@ internal sealed class OwnedCheck<TKey, TPayload>(Database database, OwnedSource 
         var found = $"lui_check_{Interlocked.Increment(ref _foundTables)}";
 
         // the temporary database is written without a lock on the file
-        Execute(connection, null, OwnedSource.CreateFoundSql(found));
+        Execute(connection, null, EmbeddedSource.CreateFoundSql(found));
         try
         {
             using var transaction = connection.BeginTransaction(deferred: true);
             NoteAll(connection, transaction, found, entries, cancellationToken);
 
-            var (missing, missingKeys) = Finding(connection, transaction, OwnedSource.FoundKeysSql(found, OwnedSource.FoundMissing));
-            var (different, differentKeys) = Finding(connection, transaction, OwnedSource.FoundKeysSql(found, OwnedSource.FoundDifferent));
+            var (missing, missingKeys) = Finding(connection, transaction, EmbeddedSource.FoundKeysSql(found, EmbeddedSource.FoundMissing));
+            var (different, differentKeys) = Finding(connection, transaction, EmbeddedSource.FoundKeysSql(found, EmbeddedSource.FoundDifferent));
             var (extra, extraKeys) = Finding(connection, transaction, source.NotInSourceSql(found, count: true), source.NotInSourceSql(found, count: false));
 
             List<string> problems = [];
@@ -61,7 +61,7 @@ internal sealed class OwnedCheck<TKey, TPayload>(Database database, OwnedSource 
         }
         finally
         {
-            Execute(connection, null, OwnedSource.DropTempSql(found));
+            Execute(connection, null, EmbeddedSource.DropTempSql(found));
         }
     }
 
@@ -74,7 +74,7 @@ internal sealed class OwnedCheck<TKey, TPayload>(Database database, OwnedSource 
         CancellationToken cancellationToken)
     {
         using var compare = Command(connection, transaction, source.CompareSql);
-        using var note = Command(connection, transaction, OwnedSource.FoundSql(found));
+        using var note = Command(connection, transaction, EmbeddedSource.FoundSql(found));
         var key = compare.Parameters.Add("$key", SqliteType.Text);
         var text = compare.Parameters.Add("$text", SqliteType.Text);
         var weight = compare.Parameters.Add("$weight", SqliteType.Integer);
@@ -96,9 +96,9 @@ internal sealed class OwnedCheck<TKey, TPayload>(Database database, OwnedSource 
 
             using (var reader = compare.ExecuteReader())
             {
-                noteState.Value = !reader.Read() ? OwnedSource.FoundMissing
-                    : reader.GetInt64(1) == 1 ? OwnedSource.FoundSame
-                    : OwnedSource.FoundDifferent;
+                noteState.Value = !reader.Read() ? EmbeddedSource.FoundMissing
+                    : reader.GetInt64(1) == 1 ? EmbeddedSource.FoundSame
+                    : EmbeddedSource.FoundDifferent;
             }
 
             noteKey.Value = keyText;

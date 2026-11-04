@@ -40,7 +40,7 @@ Everything else in LUI is machinery for those four rules.
 | **Priority** | A class `0 … 3` in front of the weight: `System`, `High`, `Elevated`, `Normal`. Higher priority entries are candidates **first**. |
 | **Payload** | Data that comes back with a hit (slug, colour, icon). Read only for the hits, never for all candidates. |
 | **Kind** (`LuiIndexKind`) | `SingleWord` or `MultiWord`. Fixed at creation; decides how searching works. |
-| **Content source** | `Owned` (the library's own table) or `Linked` (a table of the application). |
+| **Content source** | `Embedded` (the library's own table) or `Linked` (a table of the application). |
 | **Candidate** | An entry the search proposes, before sorting. At most `Candidates` (default 500). |
 | **Hit** | A candidate that made it into the top `MaxResults` (default 20). |
 | **Word beginning** | The input is the beginning of one of the entry's words. |
@@ -68,7 +68,7 @@ These never break. Each of them has a test.
 
 ```text
 lui_meta          one row per index: kind, source, definition (JSON), schema version
-lui_<index>       the content table (Owned) — doc_id, key, text, weight, priority, payload
+lui_<index>       the content table (Embedded) — doc_id, key, text, weight, priority, payload
                   plus the generated columns s_norm, s_compact, s_p1, s_p2, s_rowid
 lui_<index>_fts   the FTS5 virtual table (external content, trigram tokenizer)
                   plus three triggers: insert, update, delete
@@ -90,7 +90,7 @@ primary key.
 FTS5 → no candidate starts a word? correct the typo and try again → rank →
 read the payloads of the hits → answer.
 
-**The write (Owned).** `Upsert` / `UpdateWeight` / `UpdatePriority` /
+**The write (Embedded).** `Upsert` / `UpdateWeight` / `UpdatePriority` /
 `Remove` — one statement each, inside the application's transaction when the
 application has one.
 
@@ -115,7 +115,7 @@ Each finding of a check names its repair.
 
 | Extension | What the application provides | What LUI does with it |
 |---|---|---|
-| Payload (Owned) | a `JsonTypeInfo<T>` or an `IPayloadSerializer<T>` | serialises it, stores it, returns it for the hits |
+| Payload (Embedded) | a `JsonTypeInfo<T>` or an `IPayloadSerializer<T>` | serialises it, stores it, returns it for the hits |
 | Payload (Linked) | a mapping from the table's columns | reads the columns for the hits |
 | Similarity | `ILuiSimilarity` | measures the candidates |
 | Content source (Sync) | a sequence of entries | reconciles the content table |

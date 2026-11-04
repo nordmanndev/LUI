@@ -3,12 +3,12 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests;
 
 /// <summary>
-/// Sync, check, rebuild and optimize (LUI-Spezifikation §12.4, §12.6, §14, ADR-0016): an <c>Owned</c> index against a
+/// Sync, check, rebuild and optimize (LUI-Spezifikation §12.4, §12.6, §14, ADR-0016): an <c>Embedded</c> index against a
 /// source and against itself, a <c>Linked</c> one against the application's table.
 /// </summary>
 public sealed class SyncCheckRebuildTests
 {
-    // ---- the sync of an owned index -----------------------------------------------------------------------------
+    // ---- the sync of an embedded index -----------------------------------------------------------------------------
 
     [Fact]
     public void A_sync_fills_an_empty_index_and_says_what_it_added()
@@ -300,7 +300,7 @@ public sealed class SyncCheckRebuildTests
         new LuiSyncOptions().BatchSize.ShouldBe(10_000);
     }
 
-    // ---- the check of an owned index against a source -------------------------------------------------------------
+    // ---- the check of an embedded index against a source -------------------------------------------------------------
 
     [Fact]
     public void A_check_against_the_source_counts_and_names_what_differs_and_changes_nothing()
@@ -352,7 +352,7 @@ public sealed class SyncCheckRebuildTests
         report.Problems.ShouldHaveSingleItem().ShouldContain("'5', …");
     }
 
-    // ---- the check of an owned index against itself, and the rebuild ------------------------------------------------
+    // ---- the check of an embedded index against itself, and the rebuild ------------------------------------------------
 
     [Fact]
     public void A_fresh_index_is_healthy()
@@ -528,7 +528,7 @@ public sealed class SyncCheckRebuildTests
 
     private const string TagTable = "CREATE TABLE tag (id INTEGER PRIMARY KEY, name TEXT, usage_count INTEGER NOT NULL DEFAULT 0);";
 
-    private static ILuiOwnedIndex<long, LuiNoPayload> Words(LuiCatalog catalog) => catalog.Index("words").SingleWord().Ensure();
+    private static ILuiEmbeddedIndex<long, LuiNoPayload> Words(LuiCatalog catalog) => catalog.Index("words").SingleWord().Ensure();
 
     private static ILuiLinkedIndex<LuiNoPayload> Tags(LuiCatalog catalog) =>
         catalog.Index("tags").SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").Ensure();

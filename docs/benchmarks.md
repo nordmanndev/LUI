@@ -35,7 +35,7 @@ measurement has something to contradict.
 | Query with typo correction | 3 M entries, a beginning with one typo | p95 ≤ 35 ms |
 | Allocation per query | 3 M entries, inputs of 1–8 characters | p50 ≤ 250 KB, p95 ≤ 350 KB (too much — bug #30) |
 | `Upsert` / `UpdateWeight` / `Remove` | one at a time, own transaction | p95 ≤ 1 ms |
-| Build-up | 3 M entries, `Owned`, a first load by `Sync` | ≤ 4 min |
+| Build-up | 3 M entries, `Embedded`, a first load by `Sync` | ≤ 4 min |
 | Typo dictionary | 700 000 distinct words | ≤ 200 MB, build ≤ 10 s |
 | File size | 1 M titles of 36 characters on average, `MultiWord` | ≤ 500 MB including the content table |
 
@@ -165,16 +165,16 @@ segment merges that a write now and then triggers. **Missed at 1 M and 3 M.**
 
 A `Linked` index over a table of the application ([ADR-0015](./adr/0015-the-linked-index-is-loosely-coupled.md)):
 a contentless FTS5 table and LUI's table without text; the text comes from the application's table by its primary
-key. Against an `Owned` index of the same entries, single-word, the whole word list:
+key. Against an `Embedded` index of the same entries, single-word, the whole word list:
 
 | | 200,000 rows | 1,000,000 rows |
 |---|---:|---:|
 | `Sync` of the table | 3.5–3.9 s | 26.7 s |
-| `UpsertMany` of the same entries into `Owned` | 8.2 s | 50.8 s |
+| `UpsertMany` of the same entries into `Embedded` | 8.2 s | 50.8 s |
 | query p50 / p95, linked | 0.52 / 1.11–1.17 ms | 1.10 / 3.43 ms |
-| query p50 / p95, owned | 0.59–0.61 / 1.25–1.33 ms | 1.41 / 4.72 ms |
+| query p50 / p95, embedded | 0.59–0.61 / 1.25–1.33 ms | 1.41 / 4.72 ms |
 | `Refresh` of one row, p50 / p95 | 0.31–0.33 / 0.51–0.58 ms | 0.94 / 1.67 ms |
-| size of the index (spike) | 36 MB (owned: 45 MB) | — |
+| size of the index (spike) | 36 MB (embedded: 45 MB) | — |
 
 `Sync` writes the search index sorted and merges it; `UpsertMany` builds it row by row and does not merge — the
 difference is the bulk path of ADR-0010, not the source. Many single refreshes leave deletion marks: p95 1.78 ms
@@ -219,7 +219,7 @@ path — rowid-ordered loading, one merge at the end — belongs to `Sync` and
 ### The sync, the check and the rebuild (PR-007)
 
 [ADR-0016](./adr/0016-sync-check-rebuild.md). Single-word, the whole word list, 1,000,000 entries in random order,
-cache 512 MB. First the experiment that decided the bulk path (`OwnedBulkExperiment`, batches of 10,000 unless said):
+cache 512 MB. First the experiment that decided the bulk path (`EmbeddedBulkExperiment`, batches of 10,000 unless said):
 
 | Load | Time | query p95 before / after the merge |
 |---|---:|---:|
@@ -252,7 +252,7 @@ that it marks it stale; the rebuild on its own is 2.0 / 2.3 s.
 ```text
 LUI_PERF=1 LUI_PERF_ENTRIES=1000000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"
 LUI_PERF=1 LUI_PERF_ENTRIES=1000000 LUI_PERF_BATCH=100000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"
-LUI_PERF=1 LUI_PERF_ENTRIES=1000000 dotnet test --filter OwnedBulkExperiment --logger "console;verbosity=detailed"
+LUI_PERF=1 LUI_PERF_ENTRIES=1000000 dotnet test --filter EmbeddedBulkExperiment --logger "console;verbosity=detailed"
 LUI_PERF=1 LUI_PERF_ENTRIES=300000 dotnet test --filter A_delta_sync_with_a_built_typo_dictionary --logger "console;verbosity=detailed"
 ```
 

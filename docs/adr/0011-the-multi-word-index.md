@@ -1,5 +1,9 @@
 # 0011 — The multi-word index: one indexed column, one expression, a Dice that allocates nothing
 
+> **Name note (ADR-0023, 2026-11-04):** since this record was written, `Owned` is called `Embedded`: `ILuiOwnedIndex` is
+> `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
+> `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
+
 - **Status:** Accepted — changes §7.4 and §8.2 of the specification (corrected in the same pull request). The file size
   target of §16 is stated anew by the owner (2026-11-04, ADR-0020): ≤ 500 MB for one million titles of 36 characters on
   average (measured 445–457 MB)

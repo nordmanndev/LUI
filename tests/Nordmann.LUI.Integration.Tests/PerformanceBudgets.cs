@@ -73,7 +73,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
         budget.AtMost("single write p95", "Upsert / UpdateWeight / Remove, own transaction", Percentile(MeasureWrites(index, corpus), 95), 1.0, "ms");
         // §16 since the owner's decision of 2026-11-04: the build follows the disk — 172–206 s on two machines (#32)
-        budget.AtMost("build", "3 M entries, Owned, a first load by Sync", build.Elapsed.TotalSeconds, 240, "s");
+        budget.AtMost("build", "3 M entries, Embedded, a first load by Sync", build.Elapsed.TotalSeconds, 240, "s");
 
         budget.Verify();
     }
@@ -175,7 +175,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
     }
 
     /// <summary>The single writes of §16, each in a transaction of its own: an upsert, a weight, a removal (and the entry back).</summary>
-    private static double[] MeasureWrites(ILuiOwnedIndex<long, LuiNoPayload> index, Corpus corpus)
+    private static double[] MeasureWrites(ILuiEmbeddedIndex<long, LuiNoPayload> index, Corpus corpus)
     {
         var writes = new List<double>(600);
         var random = new Random(11);

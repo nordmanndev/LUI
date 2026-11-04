@@ -9,7 +9,7 @@ namespace Nordmann.LUI.Schema;
 /// id, the packed rowid and the two prefix keys) and a <b>contentless</b> FTS5 table over the search form. The text
 /// and the payload are read from the application's table by its primary key, so the text is not stored twice.
 /// <para>
-/// The forms are computed by the same SQL expressions that generate the columns of <c>Owned</c>, inside the
+/// The forms are computed by the same SQL expressions that generate the columns of <c>Embedded</c>, inside the
 /// statements that write the index: <see cref="RefreshSql"/> for one row, <see cref="SyncChunkSql"/> for a range of
 /// rows — and, if the application wants them, the same statements in three triggers (<see cref="TriggerScript"/>).
 /// Every name of the application is checked against <see cref="Identifier.ApplicationPattern"/> and quoted.
@@ -257,7 +257,7 @@ internal sealed class LinkedSource : ContentSource
     /// </summary>
     private string Indexable => $"{HasText} AND {KeyInRange}";
 
-    /// <summary>The packed rowid of a row (§7.2) — the same expression as the generated column of <c>Owned</c>.</summary>
+    /// <summary>The packed rowid of a row (§7.2) — the same expression as the generated column of <c>Embedded</c>.</summary>
     private string RowIdValue => $"({_priority} << 61) | (({RowId.MaxWeight} - {_weight}) << 32) | {_key}";
 
     /// <summary>The two inserts that index the rows of a condition: the entry with its keys, then the search form.</summary>

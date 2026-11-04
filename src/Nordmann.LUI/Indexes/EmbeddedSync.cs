@@ -6,20 +6,20 @@ using Nordmann.LUI.Typos;
 namespace Nordmann.LUI.Indexes;
 
 /// <summary>
-/// The sync of an <c>Owned</c> index with a source (LUI-Spezifikation §12.4, §14, ADR-0016): batches of entries, each in a
+/// The sync of an <c>Embedded</c> index with a source (LUI-Spezifikation §12.4, §14, ADR-0016): batches of entries, each in a
 /// transaction of its own on the catalog's writer. A table of the writer's connection holds the keys that were in the
 /// index when the sync began; each one the source has is crossed off, and what is left at the end is removed. Then the
 /// search index is merged. A key the application adds while the sync runs is never removed.
 /// <para>
-/// The bulk path (ADR-0010, option 5, measured in <c>OwnedBulkExperiment</c>): FTS5 starts a new segment whenever a
+/// The bulk path (ADR-0010, option 5, measured in <c>EmbeddedBulkExperiment</c>): FTS5 starts a new segment whenever a
 /// rowid is smaller than the last one it was given, so each batch is written in the order of the search index —
 /// priority, then weight descending; a new entry's document id grows with the order of the inserts —, with FTS5's
 /// incremental merge off while it loads, and one merge at the end.
 /// </para>
 /// </summary>
-internal sealed class OwnedSync<TKey, TPayload>(
+internal sealed class EmbeddedSync<TKey, TPayload>(
     Database database,
-    OwnedSource source,
+    EmbeddedSource source,
     Func<TPayload?, byte[]?> payloadBytes,
     TypoDictionary typos)
 {
@@ -35,7 +35,7 @@ internal sealed class OwnedSync<TKey, TPayload>(
 
         // a table of its own per run: two syncs on the writer's connection do not share one
         var start = $"lui_sync_{Interlocked.Increment(ref _startTables)}";
-        Write(OwnedSource.CreateStartSql(start), source.SnapshotSql(start));
+        Write(EmbeddedSource.CreateStartSql(start), source.SnapshotSql(start));
         try
         {
             var report = new LuiSyncReport();
@@ -161,7 +161,7 @@ internal sealed class OwnedSync<TKey, TPayload>(
                 var writer = database.Writer;
                 using var transaction = writer.BeginTransaction(deferred: false);
                 var keys = new List<(long Row, string Key)>(batchSize);
-                using (var notFound = Command(writer, transaction, OwnedSource.NotFoundSql(start)))
+                using (var notFound = Command(writer, transaction, EmbeddedSource.NotFoundSql(start)))
                 {
                     notFound.Parameters.AddWithValue("$after", after);
                     notFound.Parameters.AddWithValue("$n", batchSize);
@@ -209,7 +209,7 @@ internal sealed class OwnedSync<TKey, TPayload>(
             lock (database.WriterGate)
             {
                 using var drop = database.Writer.CreateCommand();
-                drop.CommandText = OwnedSource.DropTempSql(start);
+                drop.CommandText = EmbeddedSource.DropTempSql(start);
                 drop.ExecuteNonQuery();
             }
         }
@@ -260,11 +260,11 @@ internal sealed class OwnedSync<TKey, TPayload>(
         private readonly SqliteCommand _upsert;
         private readonly SqliteCommand _found;
 
-        internal Statements(SqliteConnection connection, SqliteTransaction transaction, OwnedSource source, string start)
+        internal Statements(SqliteConnection connection, SqliteTransaction transaction, EmbeddedSource source, string start)
         {
             _compare = Command(connection, transaction, source.CompareSql);
             _upsert = Command(connection, transaction, source.Upsert);
-            _found = Command(connection, transaction, OwnedSource.FoundInSourceSql(start));
+            _found = Command(connection, transaction, EmbeddedSource.FoundInSourceSql(start));
             foreach (var command in new[] { _compare, _upsert })
             {
                 command.Parameters.Add("$key", SqliteType.Text);

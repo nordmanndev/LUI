@@ -2,8 +2,8 @@ using Nordmann.LUI.Schema;
 
 namespace Nordmann.LUI;
 
-/// <summary>The step from the default, an owned index, to an index over a table of the application.</summary>
-public static class LuiIndexBuilderExtensions
+/// <summary>The step from the default, an embedded index, to an index over a table of the application.</summary>
+public static class LuiEmbeddedIndexBuilderExtensions
 {
     /// <summary>
     /// Links the index to a table of the application instead (<c>Linked</c>, ADR-0015): it searches the table's
@@ -25,7 +25,7 @@ public static class LuiIndexBuilderExtensions
     /// <returns>The builder of the linked index, with the settings made so far.</returns>
     /// <exception cref="ArgumentException">A name is not a name of the pattern <c>^[A-Za-z_][A-Za-z0-9_]{0,63}$</c>.</exception>
     public static LuiLinkedIndexBuilder<LuiNoPayload> LinkTo(
-        this LuiIndexBuilder<long, LuiNoPayload> builder,
+        this LuiEmbeddedIndexBuilder<long, LuiNoPayload> builder,
         string table,
         string key,
         string text,

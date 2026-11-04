@@ -26,12 +26,12 @@ public sealed class DependencyInjectionTests
         host.Start();
         Meta(database).ShouldBe(2);
 
-        var owned = host.Services.GetRequiredKeyedService<ILuiOwnedIndex<long, LuiNoPayload>>("words");
+        var embedded = host.Services.GetRequiredKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("words");
         var read = host.Services.GetRequiredKeyedService<ILuiIndex<long, LuiNoPayload>>("words");
-        read.ShouldBeSameAs(owned);
+        read.ShouldBeSameAs(embedded);
         host.Services.GetRequiredKeyedService<ILuiIndex<long, Chip>>("titles").Kind.ShouldBe(LuiIndexKind.MultiWord);
 
-        owned.Upsert(1, "vegan");
+        embedded.Upsert(1, "vegan");
         read.Search("veg").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
     }
 
@@ -255,12 +255,12 @@ public sealed class DependencyInjectionTests
             builder => builder.Logging.AddProvider(log));
         host.Start();
         var words = host.Services.GetRequiredKeyedService<ILuiIndex<long, LuiNoPayload>>("words");
-        var owned = host.Services.GetRequiredKeyedService<ILuiOwnedIndex<long, LuiNoPayload>>("words");
-        owned.Sync([new LuiEntry<long, LuiNoPayload>(1, "kartoffel"), new LuiEntry<long, LuiNoPayload>(2, "tomate")]);
+        var embedded = host.Services.GetRequiredKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("words");
+        embedded.Sync([new LuiEntry<long, LuiNoPayload>(1, "kartoffel"), new LuiEntry<long, LuiNoPayload>(2, "tomate")]);
         words.WarmUpTypoDictionary();
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
 
-        owned.Sync([new LuiEntry<long, LuiNoPayload>(2, "tomate")]);
+        embedded.Sync([new LuiEntry<long, LuiNoPayload>(2, "tomate")]);
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Stale);
 
         Eventually(() =>

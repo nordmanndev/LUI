@@ -414,7 +414,7 @@ public sealed class MultiWordIndexTests
         index.Query("apfel kuchen").Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfel-Kuchen");
     }
 
-    private static long[] Keys(ILuiOwnedIndex<long, LuiNoPayload> index, string typed) =>
+    private static long[] Keys(ILuiEmbeddedIndex<long, LuiNoPayload> index, string typed) =>
         [.. index.Query(typed).Execute().Hits.Select(h => h.Key).Order()];
 
     private static List<string> RandomTitles(Random random, int count)
@@ -426,7 +426,7 @@ public sealed class MultiWordIndexTests
             .Select(_ => string.Join(random.Next(3) == 0 ? "-" : " ", Enumerable.Range(0, random.Next(1, 4)).Select(_ => words[random.Next(words.Count)])))];
     }
 
-    private static void Load(LuiCatalog catalog, ILuiOwnedIndex<long, LuiNoPayload> index, List<string> titles)
+    private static void Load(LuiCatalog catalog, ILuiEmbeddedIndex<long, LuiNoPayload> index, List<string> titles)
     {
         using var connection = catalog.Database.OpenConnection();
         using var transaction = connection.BeginTransaction();
@@ -519,9 +519,9 @@ public sealed class MultiWordIndexTests
         return names;
     }
 
-    private sealed class Fixture(ILuiOwnedIndex<long, LuiNoPayload> index) : IDisposable
+    private sealed class Fixture(ILuiEmbeddedIndex<long, LuiNoPayload> index) : IDisposable
     {
-        internal ILuiOwnedIndex<long, LuiNoPayload> Index => index;
+        internal ILuiEmbeddedIndex<long, LuiNoPayload> Index => index;
 
         public void Dispose()
         {

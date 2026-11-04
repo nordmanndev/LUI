@@ -20,7 +20,7 @@
 2. [Begriffe](#2-begriffe)
 3. [Grundentscheidungen](#3-grundentscheidungen)
 4. [Arten von Indizes](#4-arten-von-indizes)
-5. [Inhaltsquellen: eigenständig und verknüpft](#5-inhaltsquellen-eigenständig-und-verknüpft)
+5. [Inhaltsquellen: eingebettet und verknüpft](#5-inhaltsquellen-eingebettet-und-verknüpft)
 6. [Normalisierung](#6-normalisierung)
 7. [Datenmodell](#7-datenmodell)
 8. [Ablauf einer Abfrage](#8-ablauf-einer-abfrage)
@@ -83,7 +83,7 @@ Suchmaschine.
 | **Priorität** (`Priority`) | Eine Klasse `0 … 3` vor dem Gewicht: `System` (0), `High` (1), `Elevated` (2), `Normal` (3, Standard). Einträge höherer Priorität sind bei jeder passenden Eingabe **zuerst** Kandidaten und stehen im Ranking vorn — z. B. reservierte Systemtags wie „vegan". |
 | **Payload** | Daten, die mit dem Treffer zurückkommen (z. B. Slug, Farbe, Icon). Werden **nur für die Treffer** gelesen, nie für alle Kandidaten. |
 | **Art** (`LuiIndexKind`) | `SingleWord` oder `MultiWord` (§ 4). Steuert, wie gesucht wird. |
-| **Inhaltsquelle** | `Owned` (eigene Tabelle der Bibliothek) oder `Linked` (Tabelle der Anwendung) (§ 5). |
+| **Inhaltsquelle** | `Embedded` (eigene Tabelle der Bibliothek) oder `Linked` (Tabelle der Anwendung) (§ 5). |
 | **Kandidat** | Ein Eintrag, den die Suche vorschlägt, bevor sortiert wird. Höchstens `Candidates` (Standard 500). |
 | **Treffer** | Ein Kandidat, der nach dem Ranking unter den ersten `MaxResults` (Standard 20) steht. |
 | **Wortanfang** | Die Eingabe steht am Anfang eines Wortes des Eintrags (§ 9.1). |
@@ -127,12 +127,12 @@ Der Aufrufer muss bei der Abfrage nicht wissen, wie gesucht wird.
 
 ---
 
-## 5. Inhaltsquellen: eigenständig und verknüpft
+## 5. Inhaltsquellen: eingebettet und verknüpft
 
 Die Quellen unterscheiden sich darin, **wessen Tabelle** die Inhalte liefert — und wer den Index nachführt.
-`Owned` ist der Standard.
+`Embedded` ist der Standard.
 
-| | **`Owned`** (eigenständig, Standard) | **`Linked`** (verknüpft) |
+| | **`Embedded`** (eingebettet, Standard) | **`Linked`** (verknüpft) |
 |---|---|---|
 | Inhaltstabelle | `lui_<index>` — gehört der Bibliothek | eine Tabelle der Anwendung, z. B. `recipe` |
 | Wer schreibt hinein | die Anwendung über `Upsert` / `UpsertMany` / `Remove` | die Anwendung mit normalem SQL (oder ORM) |
@@ -202,7 +202,7 @@ gegen `^[a-z][a-z0-9_]{0,40}$` geprüft und **nie** ungeprüft in SQL eingesetzt
 CREATE TABLE IF NOT EXISTS lui_meta (
     index_name   TEXT PRIMARY KEY,
     kind         TEXT NOT NULL,          -- SingleWord | MultiWord
-    source       TEXT NOT NULL,          -- Owned | Linked
+    source       TEXT NOT NULL,          -- Embedded | Linked
     definition   TEXT NOT NULL,          -- JSON: Tabelle, Spalten, Optionen
     schema_version INTEGER NOT NULL,
     created_at   TEXT NOT NULL           -- ISO-8601, aus TimeProvider
@@ -213,7 +213,7 @@ CREATE TABLE IF NOT EXISTS lui_meta (
 gewünschten passt. Eine Abweichung ist ein Fehler mit klarer Meldung — ein
 Index wird nie stillschweigend umgebaut (§ 12.5).
 
-### 7.2 Inhaltstabelle bei `Owned`
+### 7.2 Inhaltstabelle bei `Embedded`
 
 ```sql
 CREATE TABLE lui_recipes (
@@ -271,7 +271,7 @@ CREATE VIRTUAL TABLE lui_tags_fts USING fts5(
 ```
 
 Die Formen (`s_norm`, `s_compact`, Präfixe, Rowid) berechnen dieselben SQL-Ausdrücke wie die berechneten
-Spalten bei `Owned`, nur in den Statements, die den Index schreiben. Kandidaten und Treffer lesen Text und
+Spalten bei `Embedded`, nur in den Statements, die den Index schreiben. Kandidaten und Treffer lesen Text und
 Payload über den Primärschlüssel aus der Tabelle der Anwendung; der Text liegt nicht doppelt in der Datei.
 
 Voraussetzungen, geprüft bei jedem `Ensure()` (sonst `LuiLinkedTableException`, nichts wird geändert):
@@ -518,7 +518,7 @@ Original-Position. Abschaltbar, weil sie pro Treffer Arbeit kostet.
   sie stehen (SymSpell kennt kein Entfernen; eine Korrektur dorthin findet
   schlicht nichts). `RebuildTypoDictionary()` baut neu.
 - **Zustand** (`TypoDictionaryState`, ADR-0021): `NotBuilt`, `Building`, `Current`, `Stale`. Ein `Sync` eines
-  `Owned`-Index, der Einträge ändert oder entfernt, baut das Wörterbuch **nicht** neu, sondern markiert es nach jedem
+  `Embedded`-Index, der Einträge ändert oder entfernt, baut das Wörterbuch **nicht** neu, sondern markiert es nach jedem
   bestätigten Stapel als `Stale` — auch ein abgebrochener — und sagt es im Bericht (`LuiSyncReport.TypoDictionaryStale`):
   die neuen Wörter kennt es schon, die entfernten bleiben stehen, bis `RebuildTypoDictionary()` (oder der
   Hintergrunddienst aus § 12.7) es neu baut. „Stale" ist ein Zähler, kein Flag: Jede Markierung zählt hoch, ein Aufbau
@@ -636,17 +636,17 @@ wenn er gesetzt wird (ADR-0013).
 ### 12.2 Index anlegen (fluent)
 
 ```csharp
-// eigenständig — der Standard: eigene Inhaltstabelle, Schlüssel long
-ILuiOwnedIndex<long, RecipeChip> recipes = lui
+// eingebettet — der Standard: eigene Inhaltstabelle, Schlüssel long
+ILuiEmbeddedIndex<long, RecipeChip> recipes = lui
     .Index("recipes")                                    // der Name
-    .MultiWord()                                         // die Art; danach: Owned mit long-Schlüssel
+    .MultiWord()                                         // die Art; danach: Embedded mit long-Schlüssel
     .WithPayload(RecipeJsonContext.Default.RecipeChip)   // System.Text.Json, quellgeneriert (AOT)
     .Similarity(LuiSimilarity.NgramDice)                 // Standard für MultiWord, hier explizit
     .TypoTolerance()
     .Ensure();
 
 // ohne Payload, mit einem Text-Schlüssel
-ILuiOwnedIndex<string, LuiNoPayload> words = lui.Index("words").SingleWord().WithKey<string>().Ensure();
+ILuiEmbeddedIndex<string, LuiNoPayload> words = lui.Index("words").SingleWord().WithKey<string>().Ensure();
 
 // verknüpft: liest eine Tabelle der Anwendung, ohne sie zu ändern (ADR-0015)
 ILuiLinkedIndex<TagChip> tags = lui
@@ -661,7 +661,7 @@ tags.Sync();                                             // füllt den Index aus
 Regeln:
 
 - **Jede Stufe ist ein eigener Typ** und bietet nur an, was auf sie folgen darf: Ein Index ohne Art lässt sich
-  nicht kompilieren. Nach der Art ist der Index `Owned` mit einem `long`-Schlüssel; `WithKey<string>()` wählt
+  nicht kompilieren. Nach der Art ist der Index `Embedded` mit einem `long`-Schlüssel; `WithKey<string>()` wählt
   einen Text-Schlüssel und prüft den Typ dort, wo er gewählt wird (ADR-0015).
 - Ein Index beginnt **ohne Payload** (`LuiNoPayload`); `WithPayload(…)` gibt ihm eine und behält die
   Einstellungen, die davor gemacht wurden.
@@ -678,7 +678,7 @@ Regeln:
 ### 12.3 Schlüssel und Payload
 
 - `TKey` ist `long` oder `string`. Bei `Linked` ist er `long` (Primärschlüssel).
-- **`Owned`**: Die Payload wird serialisiert gespeichert. Die API nimmt eine
+- **`Embedded`**: Die Payload wird serialisiert gespeichert. Die API nimmt eine
   `JsonTypeInfo<TPayload>` (AOT- und trimmsicher) oder einen eigenen
   `ILuiPayloadSerializer<TPayload>`.
 - **`Linked`**: Die Payload wird aus Spalten der Tabelle gelesen; die API nimmt
@@ -687,10 +687,10 @@ Regeln:
 - In beiden Fällen: Payload **nur für die Treffer**, eine Abfrage
   `WHERE key IN (…)` bzw. `WHERE id IN (…)`.
 
-### 12.4 Schreiben (`Owned`)
+### 12.4 Schreiben (`Embedded`)
 
 Lesen und Schreiben sind zwei Schnittstellen (ADR-0013): `ILuiIndex<TKey, TPayload>` hat jeder Index —
-`Query`, `Search`, `Count`, das Tippfehler-Wörterbuch —, `ILuiOwnedIndex<TKey, TPayload>` ergänzt die
+`Query`, `Search`, `Count`, das Tippfehler-Wörterbuch —, `ILuiEmbeddedIndex<TKey, TPayload>` ergänzt die
 Schreibmethoden. Ein Eintrag ist ein `LuiEntry<TKey, TPayload>`; ein Upsert speichert **ihn ganz** — Text,
 Gewicht, Priorität und Payload.
 
@@ -772,10 +772,10 @@ wird (ganz / in Wörtern / kompakt), der Präfix-Pfad, die Regel *Wortanfang*.
 ### 12.6 Prüfen und reparieren
 
 ```csharp
-LuiIntegrityReport check = recipes.Check(source);   // Owned: Abweichungen zur Quelle (fehlt / überzählig / anders)
+LuiIntegrityReport check = recipes.Check(source);   // Embedded: Abweichungen zur Quelle (fehlt / überzählig / anders)
 LuiIntegrityReport self  = recipes.Check();         // beide: Definition = lui_meta, Trigger, FTS5 integrity-check
 LuiIntegrityReport tags  = tagIndex.Check();        // Linked: dazu die Einträge gegen die Zeilen der Tabelle
-recipes.Rebuild();                                  // Owned: Trigger und Suchindex neu aus der Inhaltstabelle, zusammengeführt
+recipes.Rebuild();                                  // Embedded: Trigger und Suchindex neu aus der Inhaltstabelle, zusammengeführt
 recipes.Optimize();                                 // FTS5 'optimize'
 ```
 
@@ -803,8 +803,8 @@ public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<lon
 - Der Katalog ist ein Singleton, das der Container beim ersten Bedarf öffnet und mit sich entsorgt; `AddLui` einmal
   pro Container.
 - Jeder Index ist ein **Keyed Singleton unter seinem Namen**, als Lese- (`ILuiIndex<TKey, TPayload>`) und als
-  Schreibschnittstelle (`ILuiOwnedIndex` bzw. `ILuiLinkedIndex`) — dieselbe Instanz. Der Rückgabetyp der
-  Beschreibung wählt die Art: `LuiIndexBuilder` = `Owned`, `LuiLinkedIndexBuilder` = `Linked`.
+  Schreibschnittstelle (`ILuiEmbeddedIndex` bzw. `ILuiLinkedIndex`) — dieselbe Instanz. Der Rückgabetyp der
+  Beschreibung wählt die Art: `LuiEmbeddedIndexBuilder` = `Embedded`, `LuiLinkedIndexBuilder` = `Linked`.
 - `Ensure()` läuft beim Start (als `IHostedService`, abschaltbar mit `EnsureOnStart(false)`), nicht beim ersten
   Request: Eine abweichende Definition stoppt den Start. Gehostete Dienste starten in der Reihenfolge ihrer
   Registrierung: Eine Migration, die die Tabelle eines verknüpften Index anlegt, wird vor `AddLui` registriert oder vor
@@ -859,14 +859,14 @@ Thread des Pools.
 
 ## 14. Konsistenz und Integrität
 
-| Ebene | `Owned` | `Linked` |
+| Ebene | `Embedded` | `Linked` |
 |---|---|---|
 | Suchindex ↔ Inhaltstabelle | Trigger, dieselbe Transaktion | Anwendung: `Refresh` in ihrer Transaktion, sonst `Sync` — oder ihre Trigger (§ 7.3) |
 | Inhaltstabelle ↔ Fachdaten | Anwendung: `Upsert` in ihrer Transaktion, sonst `Sync` | entfällt |
 | Prüfung | `Check(source)`, `Check()` | `Check()` |
 | Reparatur | `Sync(source)`, `Rebuild()` | `Sync()` |
 
-`Sync` (`Owned`) arbeitet in Stapeln (Standard 10.000) in je einer Transaktion. Zu Beginn merkt er sich die
+`Sync` (`Embedded`) arbeitet in Stapeln (Standard 10.000) in je einer Transaktion. Zu Beginn merkt er sich die
 Schlüssel des Index, streicht jeden, den die Quelle hat, und entfernt am Ende, was übrig ist: die Schlüssel, die beim
 Start im Index waren und in der Quelle fehlen. Ein Schlüssel, den die Anwendung währenddessen neu schreibt, bleibt. Er ist abbrechbar und wieder aufsetzbar: Ein Abbruch während des Lesens der Quelle behält die übergebenen Stapel und
 entfernt nichts; ein Abbruch während der Entfernung am Ende lässt einen Teil davon stehen. Ein zweiter Lauf findet das
@@ -913,7 +913,7 @@ veröffentlicht.
 | Abfrage mit Tippfehler-Korrektur | 3 Mio. Einträge, ein Wortanfang mit einem Tippfehler | p95 ≤ 35 ms |
 | Allokation pro Abfrage | 3 Mio. Einträge, Eingaben 1–8 Zeichen | p50 ≤ 250 KB, p95 ≤ 350 KB (zu viel — Bug #30) |
 | `Upsert` / `UpdateWeight` / `Remove` | einzeln, eigene Transaktion | p95 ≤ 1 ms |
-| Aufbau | 3 Mio. Einträge, `Owned`, ein erster Ladevorgang mit `Sync` | ≤ 4 min |
+| Aufbau | 3 Mio. Einträge, `Embedded`, ein erster Ladevorgang mit `Sync` | ≤ 4 min |
 | Tippfehler-Wörterbuch | 700.000 verschiedene Wörter | ≤ 200 MB, Aufbau ≤ 10 s |
 | Dateigröße | 1 Mio. Titel von im Mittel 36 Zeichen, `MultiWord` | ≤ 500 MB inkl. Inhaltstabelle |
 
@@ -961,8 +961,8 @@ bzw. `ILui` (ein Architekturtest hält das fest, ADR-0013). Die übrigen Namespa
 
 | Namespace | Inhalt | sichtbar |
 |---|---|---|
-| `Nordmann.LUI` | `LuiCatalog`, die Builder-Stufen, `ILuiIndex`, `ILuiOwnedIndex`, `LuiEntry`, Abfrage, Optionen, Ergebnisse, `ILuiSimilarity`/`LuiSimilarity`, `ILuiPayloadSerializer`, Ausnahmen | öffentlich |
-| `Nordmann.LUI.Indexes` | ein Index: setzt Inhaltsquelle, Schreibzugriffe und Abfrage zusammen (`Owned`, `Linked`); führt `Sync`, `Check`, `Rebuild` aus; die gespeicherten Definitionen (`IndexStore`) | intern |
+| `Nordmann.LUI` | `LuiCatalog`, die Builder-Stufen, `ILuiIndex`, `ILuiEmbeddedIndex`, `LuiEntry`, Abfrage, Optionen, Ergebnisse, `ILuiSimilarity`/`LuiSimilarity`, `ILuiPayloadSerializer`, Ausnahmen | öffentlich |
+| `Nordmann.LUI.Indexes` | ein Index: setzt Inhaltsquelle, Schreibzugriffe und Abfrage zusammen (`Embedded`, `Linked`); führt `Sync`, `Check`, `Rebuild` aus; die gespeicherten Definitionen (`IndexStore`) | intern |
 | `Nordmann.LUI.Querying` | Abfrage-Ablauf als Pipeline: Kandidaten, Korrektur, Ranking, Treffer | intern |
 | `Nordmann.LUI.Writing` | Schreibzugriffe (vorbereitete Statements) | intern |
 | `Nordmann.LUI.Schema` | Definition, Rowid, Regeln der Art, Inhaltsquellen mit ihrem SQL — auch dem von `Sync` und `Check`, nicht deren Ausführung | intern |
@@ -976,7 +976,7 @@ Die internen Namespaces haben eine Richtung: Jeder kennt nur die unter ihm (in d
 eine Fassade über `Storage.Database`, `Indexes.IndexStore` (die gespeicherten Definitionen und ihr DDL) und
 `Typos.TypoDictionaries` (ADR-0016). Was schreibt und Verbindungen braucht — `Sync`, `Check`, `Rebuild` —,
 wird in `Indexes` ausgeführt; `Schema` liefert nur das SQL dazu. Die Regeln der Art (`SingleWord`, `MultiWord`) stehen an
-**einer** Stelle, die Inhaltsquelle (`Owned`, `Linked`) ist eine Nahtstelle; die Abfrage kennt keinen
+**einer** Stelle, die Inhaltsquelle (`Embedded`, `Linked`) ist eine Nahtstelle; die Abfrage kennt keinen
 Tabellennamen. Architekturtests halten das fest (ADR-0014).
 
 ### 17.3 Abhängigkeiten
@@ -1030,7 +1030,7 @@ Trigram-Tokenizer); getestet mit 3.53.3. Die Bibliothek prüft die Version beim
 |---|---|
 | **Unit** | `Normalizer` (Tabellen aus § 6), Wortanfang (Tabelle § 9.1), Ranking-Reihenfolgen, FTS5-Ausdruck (Escaping, Wörter < 3 Zeichen) |
 | **Gleichheit SQL ↔ C#** | Für alle 685.829 Wörter der deutschen Wortliste und eine Liste von Sonderfällen liefern die SQL-Spalten und der C#-`Normalizer` dieselbe Suchform |
-| **Integration** | `Ensure` (neu, idempotent, Abweichung), `Owned` und `Linked` (Insert, Update Text, Update Gewicht, Delete), `Sync`/`Check`/`Rebuild`, Payload nur für Treffer, Transaktion der Anwendung (Rollback lässt den Index unverändert) |
+| **Integration** | `Ensure` (neu, idempotent, Abweichung), `Embedded` und `Linked` (Insert, Update Text, Update Gewicht, Delete), `Sync`/`Check`/`Rebuild`, Payload nur für Treffer, Transaktion der Anwendung (Rollback lässt den Index unverändert) |
 | **Goldene Abfragen** | die Beispiele aus Anhang B als feste Erwartungen (z. B. `apfelkuch` → Apfelkuchen auf Platz 1, Bratapfelkuchen hinter allen Wortanfängen; `gan` → Systemtag „vegan" auf Platz 1 auch bei 30.000+ Treffern) |
 | **Qualität** | Hit@5 / Hit@20 auf dem Testkorpus (Anhang A), getrennt nach Länge, Tippfehler, Wortreihenfolge; Untergrenzen als Test |
 | **Plan** | `EXPLAIN QUERY PLAN` der Kandidatenabfrage enthält `INDEX 64` und keinen `TEMP B-TREE` |
@@ -1047,7 +1047,7 @@ Jeder Schritt ist ein Pull Request mit ADR, Tests und Messung.
 |---|---|---|
 | 1 | Grundgerüst: Pakete, Namespaces, CI, `AGENTS.md`, `LuiCatalog.Open`, `lui_meta` | Build und Architekturtests grün |
 | 2 | `Normalizer` in C# und SQL, Gleichheitstest | Gleichheit für die ganze Wortliste |
-| 3 | `SingleWord` + `Owned`: Schema, Trigger, `Upsert`/`Remove`/`UpdateWeight`/`UpdatePriority`, `rowid` mit Priorität, Kandidaten, Präfix-Pfad, Ranking, Payload | Goldene Abfragen für `SingleWord` (inkl. Systemtag), Plan-Test, Leistungsziele |
+| 3 | `SingleWord` + `Embedded`: Schema, Trigger, `Upsert`/`Remove`/`UpdateWeight`/`UpdatePriority`, `rowid` mit Priorität, Kandidaten, Präfix-Pfad, Ranking, Payload | Goldene Abfragen für `SingleWord` (inkl. Systemtag), Plan-Test, Leistungsziele |
 | 4 | `MultiWord`: Zerlegung, `s_compact`, Wortanfang kompakt, N-gram Dice | Goldene Abfragen für `MultiWord` |
 | 5 | Tippfehler-Toleranz | Qualitätsuntergrenzen für Tippfehler, Nebenläufigkeitstest |
 | 6 | `Linked`, lose gekoppelt (ADR-0015) | Integrationstests mit einer Tabelle der Anwendung: Schema unverändert, `Refresh` mit und ohne Transaktion, `Sync`, Trigger nur auf Aufruf |

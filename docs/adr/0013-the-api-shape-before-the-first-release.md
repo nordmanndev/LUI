@@ -1,5 +1,9 @@
 # 0013 — The API shape before the first release: steps, one namespace, entries, named results
 
+> **Name note (ADR-0023, 2026-11-04):** since this record was written, `Owned` is called `Embedded`: `ILuiOwnedIndex` is
+> `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
+> `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
+
 - **Status:** Accepted
 - **Date:** 2026-11-03
 - **Supersedes:** the namespace layout of ADR-0001 (the package decision stands)

@@ -1,5 +1,9 @@
 # 0020 — The performance budgets of §16, measured: a corpus, a test per target, waivers with reasons
 
+> **Name note (ADR-0023, 2026-11-04):** since this record was written, `Owned` is called `Embedded`: `ILuiOwnedIndex` is
+> `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
+> `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
+
 - **Status:** Accepted. **Owner's decisions of 2026-11-04** on the four waivers: the targets are stated anew in §16 and
   asserted — see "The owner's decisions" at the end; the allocation with bug #30
 - **Date:** 2026-11-03

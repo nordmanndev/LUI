@@ -4,10 +4,10 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests;
 
 /// <summary>
-/// The schema and the write API of an <c>Owned</c> single-word index
+/// The schema and the write API of an <c>Embedded</c> single-word index
 /// (LUI-Spezifikation §7.2, §7.4, §12.2, §12.4, §12.8).
 /// </summary>
-public sealed class OwnedIndexTests
+public sealed class EmbeddedIndexTests
 {
     [Fact]
     public void Ensure_creates_the_tables_the_indexes_the_search_index_and_the_triggers()
@@ -34,7 +34,7 @@ public sealed class OwnedIndexTests
         catalog.Index("recipes").SingleWord().Ensure();
 
         database.Scalar<string>("SELECT kind FROM lui_meta WHERE index_name = 'recipes'").ShouldBe("SingleWord");
-        database.Scalar<string>("SELECT source FROM lui_meta WHERE index_name = 'recipes'").ShouldBe("Owned");
+        database.Scalar<string>("SELECT source FROM lui_meta WHERE index_name = 'recipes'").ShouldBe("Embedded");
         database.Scalar<string>("SELECT definition FROM lui_meta WHERE index_name = 'recipes'")
             .ShouldContain("\"germanTransliteration\":true");
     }

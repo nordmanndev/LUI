@@ -142,7 +142,7 @@ searched. The caller does not have to know how.
 
 ## The two content sources
 
-| | `Owned` (the default) | `Linked` |
+| | `Embedded` (the default) | `Linked` |
 |---|---|---|
 | Content table | `lui_<index>` — the library's own | a table of your application |
 | Who writes | the application, via `Upsert` / `UpsertMany` / `Remove` | the application, with ordinary SQL |

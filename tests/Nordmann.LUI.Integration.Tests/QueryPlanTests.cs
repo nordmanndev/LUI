@@ -89,6 +89,6 @@ public sealed class QueryPlanTests
     private static string Describe(string[] plan) => "plan: " + string.Join(" | ", plan);
 
     /// <summary>The statements of the index <c>tags</c>, as the query path gets them from its content source.</summary>
-    private static OwnedSource Tags(LuiIndexKind kind) =>
-        new("tags", new IndexDefinition(kind, OwnedSource.SourceName, "long", GermanTransliteration: true, Payload: false, TokenizerFold.Version));
+    private static EmbeddedSource Tags(LuiIndexKind kind) =>
+        new("tags", new IndexDefinition(kind, EmbeddedSource.SourceName, "long", GermanTransliteration: true, Payload: false, TokenizerFold.Version));
 }

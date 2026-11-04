@@ -14,7 +14,7 @@ namespace Nordmann.LUI.Integration.Tests;
 /// without a copy of its text? The layout under test: a <b>contentless</b> FTS5 table (<c>content=''</c>,
 /// <c>contentless_delete=1</c>) over the search form, and a small table of LUI without text (doc_id, packed rowid,
 /// the two prefix keys); the text is read from the application's table by its primary key. It is measured against
-/// <c>Owned</c> on the same stock: the same candidates for every input, the plan, the time of the candidate and the
+/// <c>Embedded</c> on the same stock: the same candidates for every input, the plan, the time of the candidate and the
 /// prefix statements, the size of the file.
 /// <code>LUI_PERF=1 dotnet test --filter LinkedLayoutExperiment --logger "console;verbosity=detailed"</code>
 /// </summary>
@@ -23,23 +23,23 @@ public sealed class LinkedLayoutExperiment(ITestOutputHelper output)
     private const int Queries = 2_000;
 
     [PerformanceFact]
-    public void A_contentless_index_over_the_application_table_against_owned()
+    public void A_contentless_index_over_the_application_table_against_embedded()
     {
         var entries = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? "200000", CultureInfo.InvariantCulture);
         var stock = Stock(entries);
 
-        using var ownedDatabase = new TestDatabase();
+        using var embeddedDatabase = new TestDatabase();
         using var linkedDatabase = new TestDatabase();
-        using var catalog = ownedDatabase.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
+        using var catalog = embeddedDatabase.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
 
-        // both files hold the application's table; the owned one adds its index with a copy of the text
-        CreateHost(ownedDatabase, stock);
+        // both files hold the application's table; the embedded one adds its index with a copy of the text
+        CreateHost(embeddedDatabase, stock);
         CreateHost(linkedDatabase, stock);
 
         var build = Stopwatch.StartNew();
-        var owned = catalog.Index("tags").SingleWord().Ensure();
-        owned.UpsertMany(stock.Select(e => new LuiEntry<long, LuiNoPayload>(e.Id, e.Text) { Weight = e.Weight }));
-        Report($"owned:  build {build.Elapsed.TotalSeconds:F1} s");
+        var embedded = catalog.Index("tags").SingleWord().Ensure();
+        embedded.UpsertMany(stock.Select(e => new LuiEntry<long, LuiNoPayload>(e.Id, e.Text) { Weight = e.Weight }));
+        Report($"embedded:  build {build.Elapsed.TotalSeconds:F1} s");
 
         using var linked = linkedDatabase.Connect();
         Pragmas(linked);
@@ -47,36 +47,36 @@ public sealed class LinkedLayoutExperiment(ITestOutputHelper output)
         CreateLinked(linked, stock);
         Report($"linked: build {build.Elapsed.TotalSeconds:F1} s");
 
-        using var ownedConnection = ownedDatabase.Connect();
-        Pragmas(ownedConnection);
-        Checkpoint(ownedConnection);
+        using var embeddedConnection = embeddedDatabase.Connect();
+        Pragmas(embeddedConnection);
+        Checkpoint(embeddedConnection);
         Checkpoint(linked);
-        Report($"file: owned {Megabytes(ownedDatabase)} MB, linked {Megabytes(linkedDatabase)} MB, application table alone {HostMegabytes(stock)} MB");
+        Report($"file: embedded {Megabytes(embeddedDatabase)} MB, linked {Megabytes(linkedDatabase)} MB, application table alone {HostMegabytes(stock)} MB");
 
-        var source = new OwnedSource("tags", new IndexDefinition(LuiIndexKind.SingleWord, OwnedSource.SourceName, "long", true, false, TokenizerFold.Version));
+        var source = new EmbeddedSource("tags", new IndexDefinition(LuiIndexKind.SingleWord, EmbeddedSource.SourceName, "long", true, false, TokenizerFold.Version));
         var inputs = Inputs(stock, new Random(7));
 
         Plan(linked, LinkedCandidateSql, "$expr", "s_norm : \"gan\"").ShouldContain(line => line.Contains("VIRTUAL TABLE INDEX 64", StringComparison.Ordinal));
         Report("plan (linked candidates): " + string.Join(" | ", Plan(linked, LinkedCandidateSql, "$expr", "s_norm : \"gan\"")));
         Report("plan (linked prefix):     " + string.Join(" | ", Plan(linked, LinkedPrefixSql(1), "$q", "a")));
 
-        Compare(ownedConnection, source, linked, inputs, "fresh");
+        Compare(embeddedConnection, source, linked, inputs, "fresh");
 
-        ApplyWrites(owned, linked, stock);
+        ApplyWrites(embedded, linked, stock);
 
-        Compare(ownedConnection, source, linked, inputs, "after writes");
+        Compare(embeddedConnection, source, linked, inputs, "after writes");
 
         Execute(linked, "INSERT INTO lui_t_fts(lui_t_fts) VALUES ('integrity-check');");
         Execute(linked, "INSERT INTO lui_t_fts(lui_t_fts) VALUES ('optimize');");
-        Execute(ownedConnection, "INSERT INTO lui_tags_fts(lui_tags_fts) VALUES ('optimize');");
+        Execute(embeddedConnection, "INSERT INTO lui_tags_fts(lui_tags_fts) VALUES ('optimize');");
         Report("linked: integrity-check and optimize pass");
 
-        Compare(ownedConnection, source, linked, inputs, "both optimized");
-        Compare(ownedConnection, source, linked, inputs, "both optimized, again");
+        Compare(embeddedConnection, source, linked, inputs, "both optimized");
+        Compare(embeddedConnection, source, linked, inputs, "both optimized, again");
     }
 
     /// <summary>Removes a thousand entries and changes the weight of a thousand, in both layouts — contentless_delete by rowid alone.</summary>
-    private void ApplyWrites(ILuiOwnedIndex<long, LuiNoPayload> owned, SqliteConnection linked, List<Entry> stock)
+    private void ApplyWrites(ILuiEmbeddedIndex<long, LuiNoPayload> embedded, SqliteConnection linked, List<Entry> stock)
     {
         var random = new Random(3);
         var changed = Enumerable.Range(0, 2_000).Select(_ => stock[random.Next(stock.Count)]).DistinctBy(e => e.Id).ToList();
@@ -103,11 +103,11 @@ public sealed class LinkedLayoutExperiment(ITestOutputHelper output)
             var entry = changed[i];
             if (i % 2 == 1)
             {
-                owned.UpdateWeight(entry.Id, entry.Weight + 17);
+                embedded.UpdateWeight(entry.Id, entry.Weight + 17);
             }
             else
             {
-                owned.Remove(entry.Id);
+                embedded.Remove(entry.Id);
             }
         }
 
@@ -121,9 +121,9 @@ public sealed class LinkedLayoutExperiment(ITestOutputHelper output)
         $"SELECT s.s_rowid, h.name FROM lui_t s JOIN tag h ON h.id = s.doc_id WHERE s.s_p{length} = $q ORDER BY s.s_rowid LIMIT $n;";
 
     /// <summary>For every input: the same candidates in both layouts, and the time of both statements, alternating.</summary>
-    private void Compare(SqliteConnection owned, OwnedSource source, SqliteConnection linked, List<string> inputs, string stage)
+    private void Compare(SqliteConnection embedded, EmbeddedSource source, SqliteConnection linked, List<string> inputs, string stage)
     {
-        var ownedTimes = new List<double>();
+        var embeddedTimes = new List<double>();
         var linkedTimes = new List<double>();
         var different = 0;
 
@@ -135,26 +135,26 @@ public sealed class LinkedLayoutExperiment(ITestOutputHelper output)
                 continue;
             }
 
-            var (ownedSql, linkedSql, name, value) = query.IsPrefixPath
+            var (embeddedSql, linkedSql, name, value) = query.IsPrefixPath
                 ? (source.PrefixSql(query.PrefixLength), LinkedPrefixSql(query.PrefixLength), "$q", query.PrefixKey)
                 : (source.CandidateSql, LinkedCandidateSql, "$expr", query.Expression);
 
             var started = Stopwatch.GetTimestamp();
-            var fromOwned = Read(owned, ownedSql, name, value);
-            ownedTimes.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            var fromEmbedded = Read(embedded, embeddedSql, name, value);
+            embeddedTimes.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
 
             started = Stopwatch.GetTimestamp();
             var fromLinked = Read(linked, linkedSql, name, value);
             linkedTimes.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
 
-            if (!fromOwned.SequenceEqual(fromLinked))
+            if (!fromEmbedded.SequenceEqual(fromLinked))
             {
                 different++;
             }
         }
 
-        Report($"{stage}: {ownedTimes.Count:N0} inputs, different candidates: {different}; "
-            + $"owned p50 {Percentile(ownedTimes, 50):F2} / p95 {Percentile(ownedTimes, 95):F2} ms, "
+        Report($"{stage}: {embeddedTimes.Count:N0} inputs, different candidates: {different}; "
+            + $"embedded p50 {Percentile(embeddedTimes, 50):F2} / p95 {Percentile(embeddedTimes, 95):F2} ms, "
             + $"linked p50 {Percentile(linkedTimes, 50):F2} / p95 {Percentile(linkedTimes, 95):F2} ms");
         different.ShouldBe(0);
     }
@@ -221,7 +221,7 @@ public sealed class LinkedLayoutExperiment(ITestOutputHelper output)
         transaction.Commit();
     }
 
-    // the forms are computed by the same SQL expressions as the generated columns of Owned
+    // the forms are computed by the same SQL expressions as the generated columns of Embedded
     private static readonly string Norm = SqlNormalizer.Transliteration("$text");
 
     private static void LinkedInsert(SqliteConnection connection, SqliteTransaction transaction, Entry entry)

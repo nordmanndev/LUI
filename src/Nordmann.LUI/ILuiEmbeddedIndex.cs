@@ -4,12 +4,12 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// An index whose content lives in a table of the library and is written through
-/// it (<c>Owned</c>, LUI-Spezifikation §5, §12.4). Inside a transaction of the
+/// it (<c>Embedded</c>, LUI-Spezifikation §5, §12.4). Inside a transaction of the
 /// application, its rows and the entries change atomically.
 /// </summary>
 /// <typeparam name="TKey">The key of the application: <see cref="long"/> or <see cref="string"/>.</typeparam>
 /// <typeparam name="TPayload">The payload that comes back with a hit; <see cref="LuiNoPayload"/> when there is none.</typeparam>
-public interface ILuiOwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
+public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
 {
     /// <summary>
     /// Adds an entry, or <b>replaces the whole entry</b> with the same key — text, weight, priority

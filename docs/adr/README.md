@@ -54,3 +54,4 @@ here — in the **same pull request** as the change it describes.
 | [0020](./0020-the-performance-budgets-measured.md) | The performance budgets of §16, measured: a corpus, a test per target, waivers with reasons | Accepted |
 | [0021](./0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md) | A stale typo dictionary, a query that does not wait, a rebuild in the background | Accepted |
 | [0022](./0022-the-benchmark-results-in-the-readme.md) | The BenchmarkDotNet results in the README: committed reports, a rendered section, a guard | Accepted |
+| [0023](./0023-owned-becomes-embedded.md) | `Owned` becomes `Embedded`: the name of the content source in LUI's own table | Accepted |

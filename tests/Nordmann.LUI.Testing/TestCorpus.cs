@@ -26,9 +26,9 @@ public static class TestCorpus
         Environment.GetEnvironmentVariable("LUI_WORDLIST")
         ?? Path.Combine(Repository.RootPath, "artifacts", "wordlist", "german-words.txt");
 
-    /// <summary>The golden schema of an owned index, as <c>sqlite_master</c> wrote it.</summary>
+    /// <summary>The golden schema of an embedded index, as <c>sqlite_master</c> wrote it.</summary>
     public static string GoldenSchemaPath =>
-        Path.Combine(Repository.RootPath, "tests", "Nordmann.LUI.TestData", "golden", "owned-schema.txt");
+        Path.Combine(Repository.RootPath, "tests", "Nordmann.LUI.TestData", "golden", "embedded-schema.txt");
 
     /// <summary>The words of the sample corpus.</summary>
     public static string[] SampleWords() =>

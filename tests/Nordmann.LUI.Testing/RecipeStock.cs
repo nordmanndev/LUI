@@ -21,7 +21,7 @@ public static class RecipeStock
     ];
 
     /// <summary>Puts the titles into an index.</summary>
-    public static void Fill(ILuiOwnedIndex<long, LuiNoPayload> index)
+    public static void Fill(ILuiEmbeddedIndex<long, LuiNoPayload> index)
     {
         foreach (var (key, text, weight) in Entries)
         {

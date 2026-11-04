@@ -7,7 +7,7 @@ namespace Nordmann.LUI.Integration.Tests;
 
 /// <summary>
 /// What a <c>Linked</c> index costs on a table of the application (ADR-0015): the sync of the whole table, the
-/// queries through the whole pipeline, the refresh of single rows — against an <c>Owned</c> index of the same entries.
+/// queries through the whole pipeline, the refresh of single rows — against an <c>Embedded</c> index of the same entries.
 /// <code>LUI_PERF=1 dotnet test --filter LinkedPerformance --logger "console;verbosity=detailed"</code>
 /// </summary>
 public sealed class LinkedPerformance(ITestOutputHelper output)
@@ -15,7 +15,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     private const int Queries = 2_000;
 
     [PerformanceFact]
-    public void Sync_queries_and_refreshes_against_owned()
+    public void Sync_queries_and_refreshes_against_embedded()
     {
         var entries = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? "200000", CultureInfo.InvariantCulture);
         var words = TestCorpus.MeasurementWords(out var corpus);
@@ -35,10 +35,10 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         linked.Sync();
         Report($"linked: sync {clock.Elapsed.TotalSeconds:F1} s");
 
-        var owned = catalog.Index("owned").SingleWord().Ensure();
+        var embedded = catalog.Index("embedded").SingleWord().Ensure();
         clock.Restart();
-        owned.UpsertMany(rows.Select(row => new LuiEntry<long, LuiNoPayload>(row.Id, row.Text) { Weight = row.Weight }));
-        Report($"owned:  UpsertMany {clock.Elapsed.TotalSeconds:F1} s");
+        embedded.UpsertMany(rows.Select(row => new LuiEntry<long, LuiNoPayload>(row.Id, row.Text) { Weight = row.Weight }));
+        Report($"embedded:  UpsertMany {clock.Elapsed.TotalSeconds:F1} s");
 
         var inputs = Enumerable.Range(0, Queries).Select(_ =>
         {
@@ -51,23 +51,23 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         foreach (var input in inputs.Take(200))
         {
             linked.Search(input);
-            owned.Search(input);
+            embedded.Search(input);
         }
 
         var linkedTimes = new List<double>();
-        var ownedTimes = new List<double>();
+        var embeddedTimes = new List<double>();
         foreach (var input in inputs)
         {
             var started = Stopwatch.GetTimestamp();
             linked.Search(input);
             linkedTimes.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
             started = Stopwatch.GetTimestamp();
-            owned.Search(input);
-            ownedTimes.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            embedded.Search(input);
+            embeddedTimes.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
         }
 
         Report($"query: linked p50 {Percentile(linkedTimes, 50):F2} / p95 {Percentile(linkedTimes, 95):F2} ms, "
-            + $"owned p50 {Percentile(ownedTimes, 50):F2} / p95 {Percentile(ownedTimes, 95):F2} ms");
+            + $"embedded p50 {Percentile(embeddedTimes, 50):F2} / p95 {Percentile(embeddedTimes, 95):F2} ms");
 
         MeasureRefreshes(database, linked, entries, random);
     }

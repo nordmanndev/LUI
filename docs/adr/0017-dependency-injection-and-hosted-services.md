@@ -1,5 +1,9 @@
 # 0017 — Dependency injection and hosted services; stale candidates past the budget
 
+> **Name note (ADR-0023, 2026-11-04):** since this record was written, `Owned` is called `Embedded`: `ILuiOwnedIndex` is
+> `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
+> `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
+
 - **Status:** Accepted
 - **Date:** 2026-11-03
 - **Where it lives:** in the second package `Nordmann.LUI.Hosting` — **[ADR-0018](./0018-two-packages-core-and-hosting.md)

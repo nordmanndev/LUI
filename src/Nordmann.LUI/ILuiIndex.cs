@@ -4,7 +4,7 @@ namespace Nordmann.LUI;
 /// An index, as it is read: a searchable stock of entries with its own name and kind
 /// (LUI-Spezifikation §2). Every index has this interface, whatever its content
 /// source; an index whose content the application writes through LUI is also an
-/// <see cref="ILuiOwnedIndex{TKey, TPayload}"/>. An index is a singleton and safe
+/// <see cref="ILuiEmbeddedIndex{TKey, TPayload}"/>. An index is a singleton and safe
 /// to use from many threads.
 /// </summary>
 /// <typeparam name="TKey">The key of the application: <see cref="long"/> or <see cref="string"/>.</typeparam>
@@ -48,7 +48,7 @@ public interface ILuiIndex<TKey, TPayload>
 
     /// <summary>
     /// Checks the index (§12.6, §14): the stored definition is the one of this instance, the search index passes FTS5's
-    /// integrity check, and what keeps it in step is in place — the triggers of an <c>Owned</c> index; for a
+    /// integrity check, and what keeps it in step is in place — the triggers of an <c>Embedded</c> index; for a
     /// <c>Linked</c> one, the application's table still fits and the entries agree with its rows. Nothing is changed; the
     /// integrity check reads the whole search index under SQLite's write lock (about 2 s for a million entries); the
     /// comparison of a linked index with its table runs after it, in a snapshot of its own, without the lock. For a linked

@@ -1,5 +1,7 @@
 # LUI — repo, package and sample plan
 
+> **Name note (ADR-0023, 2026-11-04):** this plan says `Owned` where the code now says `Embedded`; it keeps the names of its time.
+
 - **Status:** Proposed
 - **Date:** 2026-11-02
 - **Inputs:** `LUI-Spezifikation.md` (Entwurf 2, 2026-11-01) · `nordmanndev/standards` @ `c63d696` (v2.5.5)

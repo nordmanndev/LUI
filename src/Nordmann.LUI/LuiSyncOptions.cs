@@ -3,7 +3,7 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// How an <c>Owned</c> index is synced with a source (LUI-Spezifikation §12.4, §14, ADR-0016). A record with
+/// How an <c>Embedded</c> index is synced with a source (LUI-Spezifikation §12.4, §14, ADR-0016). A record with
 /// <c>init</c> properties, bindable from configuration; every value is checked where it is set.
 /// </summary>
 public sealed record LuiSyncOptions
