@@ -413,7 +413,7 @@ internal sealed class TypoDictionary
         var symSpell = new SymSpell(initialCapacity: 1 << 16, maxDictionaryEditDistance: 1, prefixLength: 7, countThreshold: 1);
 
         // The bulk path of the package, as its own LoadDictionary uses it: the delete lists are collected and put in place in
-        // one step. 4.0 s → 2.3 s for the whole word list, a fifth less garbage, the same memory (#48).
+        // one step. About a fifth faster, a fifth less garbage, the same memory, the same dictionary (ADR-0025 has the measurements).
         var stage = new SymSpell.SuggestionStage(StagingCapacity);
         foreach (var (text, weight) in _source())
         {

@@ -19,7 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   [ADR-0025](docs/adr/0025-the-typo-dictionary-only-grows.md), #19, #48). A built typo dictionary learns the words of every
   write at once and is never built anew by itself: `Sync` of an embedded index does not touch it, a removed word lingers
   until `RebuildTypoDictionary()` (the index is the filter, so a correction towards it falls away), and the build uses
-  SymSpell's bulk path (2.8 → 2.3 s for 685,829 words). Every index has a dictionary of its own — a search among tags is
+  SymSpell's bulk path (the warm-up of a 300,000-entry index: 2.8 → 2.3 s). Every index has a dictionary of its own — a search among tags is
   never corrected towards names. New API:
   - `LuiTypoDictionaryState` (`NotBuilt`, `Building`, `Current`) and `ILuiIndex.TypoDictionaryState` — an application's own
     implementation of `ILuiIndex` (a test double) adds the property;

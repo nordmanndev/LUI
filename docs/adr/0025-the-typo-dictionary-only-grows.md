@@ -57,7 +57,8 @@ Issue #48 looked at what that machinery buys. What was found:
 
 ### Measured
 
-685,829 words, 300,000 entries, the typo dictionary of beginnings (`SyncPerformance`, gated):
+The corpus is the German word list (685,829 words); an index of 300,000 of them, typo dictionary of beginnings
+(`SyncPerformance`, gated). The warm-up reads the entries from the database, the rebuild too:
 
 | | ADR-0021 | this record |
 |---|---|---|
@@ -77,3 +78,7 @@ Issue #48 looked at what that machinery buys. What was found:
   were never released (0.1.0 is the first release), so nothing breaks.
 - **Rejected:** a rebuild on a threshold (a counter again), a rebuild by a timer without a state (the same service), and a
   dictionary of whole words (the numbers above).
+
+The build from a word list alone, without the database (review of pull request 49, three alternating rounds, median): the
+whole list 3.53 s → 2.88 s (−18 %), allocated 1,483 → 1,208 MB (−19 %), live after a GC 156 MB in both; 300,000 words 1.40 →
+1.16 s. The two dictionaries are **identical**: 647,948 words and 880,384 entries, no difference in a single frequency.

@@ -515,10 +515,12 @@ Original-Position. Abschaltbar, weil sie pro Treffer Arbeit kostet.
 - **Werkzeug:** SymSpell (`symspell` 6.7.3, MIT), maximal **1** Fehler.
 - **Ort:** im Arbeitsspeicher, **pro Index** (ADR-0025): Die Wörterbücher sind nach dem Namen des Index getrennt — eine
   Suche in Tags korrigiert nie zu Namen und umgekehrt. Aufbau beim ersten Zugriff aus der Inhaltstabelle (im Stapel:
-  `SuggestionStage` + `CommitStaged`); danach ergänzt jeder Schreibzugriff durch LUI (`Upsert`, `UpsertMany`, `Sync`,
-  `Refresh`) die neuen Wortanfänge sofort.
-- **Es wächst nur.** `Remove`, eine Textänderung und ein `Sync` lassen entfernte Wörter stehen (SymSpell kennt kein
-  Entfernen); nichts baut das Wörterbuch von selbst neu. Eine Korrektur zu einem entfernten Wort kostet fast nichts: der
+  `SuggestionStage` + `CommitStaged`); danach ergänzt jeder Schreibzugriff durch LUI (`Upsert`, `UpsertMany`, das `Sync` eines
+  `Embedded`-Index, `Refresh`) die neuen Wortanfänge sofort.
+- **Es wächst nur.** `Remove`, eine Textänderung und das `Sync` eines `Embedded`-Index lassen entfernte Wörter stehen
+  (SymSpell kennt kein Entfernen); nichts baut das Wörterbuch von selbst neu. **Ausnahme:** `Sync()` eines `Linked`-Index
+  füllt den Index aus der Tabelle der Anwendung neu auf — ein ausdrückliches „von vorn" — und baut ein gebautes Wörterbuch
+  an seinem Ende neu, weil sich die Wörter der Tabelle ändern können, ohne dass LUI es sieht (ADR-0025, Punkt 8). Eine Korrektur zu einem entfernten Wort kostet fast nichts: der
   Index ist der Filter, die Korrektur findet keinen Kandidaten und fällt weg. `RebuildTypoDictionary()` vergisst die
   entfernten Wörter und setzt die Häufigkeiten neu; es liest alle Einträge, Schreibzugriffe währenddessen gehen nicht
   verloren, Abfragen nutzen bis dahin das alte Wörterbuch.
