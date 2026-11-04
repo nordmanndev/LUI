@@ -268,7 +268,36 @@ expect_caught "a-write-interface-loses-a-maintenance-member" "${ARCHITECTURE_PRO
   "FullyQualifiedName~The_read_interface_only_reads" \
   "perl -0pi -e 's|    /// <summary>\\n    /// Checks the index against itself and against.*?LuiIntegrityReport Check\\(\\);\\n\\n||s' src/Nordmann.LUI/ILuiLinkedIndex.cs"
 
-# 24. The clean trees stay green.
+# 24. The client of the sample (PR-011, ADR-0027). Each mutation is a thing that would go wrong on a tired day, and the
+#     guard `Sample_Client` has to notice — the client has no build, so nothing else does.
+SAMPLE_JS="samples/Lui.Sample/wwwroot/js"
+
+#     a module outside net/ calls fetch: the page has one fetch boundary
+expect_caught "a-module-calls-fetch-outside-the-boundary" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Sample_Client" \
+  "echo \"export const leak = () => fetch('/api/health');\" >> ${SAMPLE_JS}/core/format.js"
+
+#     a module writes HTML from a string
+expect_caught "a-module-writes-html-from-a-string" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Sample_Client" \
+  "echo \"export const leak = (node, text) => { node.innerHTML = text; };\" >> ${SAMPLE_JS}/core/format.js"
+
+#     the vendored library is edited without its provenance
+expect_caught "the-vendored-library-is-edited" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Sample_Client" \
+  "echo '// edited' >> ${SAMPLE_JS}/vendor/flexdatalist.es.js"
+
+#     a low-level module reaches up into a panel
+expect_caught "core-imports-a-panel" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Sample_Client" \
+  "sed -i \"1i import '../panels/hits-panel.js';\" ${SAMPLE_JS}/core/format.js"
+
+#     the page gets an inline script (its policy would refuse it, but only in a browser)
+expect_caught "the-page-gets-an-inline-script" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Sample_Client" \
+  "sed -i 's|</head>|<script>window.x = 1</script></head>|' samples/Lui.Sample/wwwroot/index.html"
+
+# 25. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

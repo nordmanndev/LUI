@@ -164,6 +164,10 @@ The spec §19 demands SQL ↔ C# parity over **all 685,829 words** of the German
 
 ### D7 — The sample app
 
+> **Superseded in part by [ADR-0027](../adr/0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md) (2026-11-04):** the page is no longer one inline `index.html`
+> but ES modules by concern; the plan's `Highlight` knob and highlight column do not exist (LUI has no `Highlight`: struck, ADR-0028); the routes are plural; there is no
+> list of entries and no `POST` form of the suggest route. What the plan wrote below is history.
+
 `dotnet run --project samples/Lui.Sample` → an **inline static site** served by the ASP.NET Core app, with the full LUI API behind it.
 
 **Shape:** one `wwwroot/index.html` with inline `<style>` and an inline `<script type="module">`; `wwwroot/assets/js/flexdatalist.es.js` vendored (flexdatalist 3.1.1, MIT, pinned, with provenance + license header).
@@ -360,7 +364,7 @@ also changed three things the plan did not foresee:
 | Two hosted services: ensure on start (+ optional warm-up), `ApplyPending` on an interval | the warm-up of ADR-0013 and the timer of ADR-0015 |
 | `Nordmann.LUI.Hosting` knows only the public API | another assembly, no `InternalsVisibleTo`: the compiler pins it; `ILuiIndex.TypoTolerance` is new for the warm-up |
 | An outdated linked candidate does not count against the budget (F1) | many of them among the best crowded out a match; the read goes on up to a second budget |
-| `Highlight` is not built | owner's decision: the front end marks the match; issue #20 for a later version |
+| `Highlight` is not built | owner's decision: the front end marks the match; issue #20 for a later version — **struck** on 2026-11-04 (ADR-0028) |
 | The sample does not use LUI yet | on purpose: the sample comes with PR-011 and will use `Nordmann.LUI.Hosting` there (review of PR #23, N6) |
 
 ## 6g. PR-009 — what actually happened

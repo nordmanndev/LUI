@@ -18,6 +18,12 @@ public static class Repository
 
     public static string LibraryDirectory => Path.Combine(SourceDirectory, "Nordmann.LUI");
 
+    /// <summary>The sample application (PR-011, ADR-0027): the ASP.NET Core project, and the static client it serves.</summary>
+    public static string SampleDirectory => Path.Combine(RootPath, "samples", "Lui.Sample");
+
+    /// <summary>The root of the sample's static files — the page, its stylesheets and its ES modules.</summary>
+    public static string SampleWebRoot => Path.Combine(SampleDirectory, "wwwroot");
+
     /// <summary>The second package: LUI in a .NET host (ADR-0018).</summary>
     public static string HostingDirectory => Path.Combine(SourceDirectory, "Nordmann.LUI.Hosting");
 

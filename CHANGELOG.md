@@ -9,12 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **The freeze** ([ADR-0026](docs/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md), #43). From the tag `v0.1.0` on, the
-  public API of `Nordmann.LUI` and `Nordmann.LUI.Hosting` grows only additively. A breaking change — a removed or renamed
-  member, a changed signature (a new optional parameter counts), a changed meaning of a documented behaviour — needs a new
-  minor version, a migration note in this file and an ADR. A new interface member comes as a default member; a new enum value
-  is a line here ("adds `X` to `Y`"). The record also lists the points of the architecture review of 2026-11-04 that were
-  decided against, by name, with their reasons.
+- **The sample** ([ADR-0027](docs/adr/0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md), #51). `samples/Lui.Sample` is an
+  ASP.NET Core application with three autocompletes built with flexdatalist — recipes (embedded, JSON payload), tags (linked to
+  the application's table, column payload, priority System, add-new through triggers and the outbox) and names (typo
+  tolerance, a dictionary of its own) — every query setting as a control, the whole `LuiResult`, the hits as ranked, the
+  write side and the maintenance. The client is plain ES modules with one fetch boundary that aborts a request on every
+  keystroke and escapes everything flexdatalist writes with `innerHTML`; a corrected input is shown as "Did you mean …?".
+  No change to the public API.
 
 - **The README of the first release** ([ADR-0022](docs/adr/0022-the-benchmark-results-in-the-readme.md), #36): the
   query options with their defaults, the ranking and the priority, the typo tolerance, the §16 budgets and the results
@@ -153,6 +154,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Normalizer.TryWriteSearchForm` / `TryWriteCompactForm` — the same two
   forms without an allocation, for the path that normalises every candidate.
 
+### Removed
+
+- **`Highlight` is struck from the specification** ([ADR-0028](docs/adr/0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md), #20
+  closed): LUI delivers no found positions (`LuiHit.Highlight`, `.Highlight(…)`, a map from the search form to the original). It never
+  existed in the code; spec §9.3 now says "entfällt". An application shows a correction with `LuiResult.CorrectedQuery`.
+
+- **The freeze** ([ADR-0026](docs/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md), #43). From the tag `v0.1.0` on, the
+  public API of `Nordmann.LUI` and `Nordmann.LUI.Hosting` grows only additively. A breaking change — a removed or renamed
+  member, a changed signature (a new optional parameter counts), a changed meaning of a documented behaviour — needs a new
+  minor version, a migration note in this file and an ADR. A new interface member comes as a default member; a new enum value
+  is a line here ("adds `X` to `Y`"). The record also lists the points of the architecture review of 2026-11-04 that were
+  decided against, by name, with their reasons.
+
 ### Fixed
 
 - `Nordmann.LUI.Hosting` pins `Nordmann.LUI` exactly (`[x.y.z]`), not as a lower bound: a newer core referenced beside
@@ -207,7 +221,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   mutation check found them: it changed the "ä" to "a" instead of "ae" and the suite stayed green.
 - A candidate of a linked index whose current text no longer matches does not count against the candidate budget any
   more: the read goes on past it, up to another budget of such rows (review of PR #16, F1).
-- `Highlight` is not part of 0.1 (owner's decision): the front end marks the match; it comes with a later version (#20).
+- `Highlight` is not part of the library (owner's decision; struck, ADR-0028).
 - Every index has `Check()` (on `ILuiEmbeddedIndex` and `ILuiLinkedIndex`). Inside, the catalog is taken apart (review DevEx D4, D6): no change to
   the public API besides.
 - **The builder: an embedded index is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;
@@ -228,7 +242,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `LuiEntry<TKey, TPayload>(Key, Text) { Weight, Priority, Payload }` is what an upsert stores; the short form
     `Upsert(key, text, weight, priority, transaction)` carries no payload.
   - `LuiHit`, `LuiResult` and `LuiTimings` have named `init` properties instead of positions; `LuiHit.Highlight`
-    and `Highlight` are gone until the highlighting lands.
+    and `Highlight` are gone (struck, ADR-0028).
   - `LuiCatalogOptions` is a record with `init` properties (`CacheSizeMegabytes`, `MemoryMapMegabytes`,
     `BusyTimeout`, `WriteAheadLog`, `TimeProvider`), checked when set and bindable from configuration;
     `LuiCatalog.Open(connectionString, options)` takes it as a value. `LuiQueryOptions` checks its values when they

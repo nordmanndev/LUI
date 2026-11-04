@@ -434,8 +434,8 @@ public readonly record struct LuiHit<TKey, TPayload>
 ```
 
 Die Ergebnistypen haben **benannte Eigenschaften, keine Positionen** (ADR-0013): Ein neues Feld ist eine
-Ergänzung, kein Bruch, und zwei Felder gleichen Typs können nicht still die Plätze tauschen. Die Markierung
-der Fundstelle (§ 9.3) kommt als weiteres Feld `Highlight` in einer späteren Version dazu (Issue #20).
+Ergänzung, kein Bruch, und zwei Felder gleichen Typs können nicht still die Plätze tauschen. Eine Markierung
+der Fundstelle liefert LUI nicht (§ 9.3, ADR-0028).
 
 ---
 
@@ -493,15 +493,23 @@ gemessen.
 Bei Gleichstand auf allen Stufen entscheidet die `rowid` (also Gewicht, dann
 `doc_id`); das Ergebnis ist damit deterministisch.
 
-### 9.3 Markierung der Fundstelle (optional, spätere Version)
+### 9.3 Markierung der Fundstelle — entfällt
 
-**Nicht in 0.1** (Entscheidung des Eigentümers, ADR-0017): Die JavaScript-Bibliothek des Frontends markiert die
-Fundstelle selbst; die Markierung durch LUI kommt mit einer späteren Version (Issue #20).
+**LUI liefert keine Fundstellen** (Entscheidung des Eigentümers, 2026-11-04, ADR-0028; Issue #20 ist geschlossen). Es gibt weder
+`LuiHit.Highlight` noch `.Highlight(…)` an der Abfrage noch eine Zuordnung Suchform-Position → Original-Position im `Normalizer`.
 
-Weil die Normalisierung die Länge ändert (ü → ue), liefert LUI die Fundstelle
-**im Originaltext** zurück (`Highlight(Start, Length)`). Dafür bildet der
-`Normalizer` neben der Suchform eine Zuordnung Suchform-Position →
-Original-Position. Abschaltbar, weil sie pro Treffer Arbeit kostet.
+Gründe, gemessen und gelesen bei PR-011 (ADR-0027, ADR-0028):
+
+- Eine Markierung braucht den Weg von der Suchform zurück zum Originaltext, und die Normalisierung ändert die Länge
+  (`ü → ue`, `ß → ss`) und entfernt Trennzeichen (Kompaktform). Das Zurückrechnen ist pro Schrift zu prüfen; SQLites
+  `highlight()` ersetzt es nicht: Es liefert die Kompaktform statt des Originals, bei `Linked` (ohne Inhalt) `NULL`, und es gibt es
+  nicht für den Präfix-Pfad oder für eine Korrekturvariante.
+- Was ein Nutzer von einer Korrektur braucht, ist zu **wissen, dass sie stattgefand**: `CorrectedQuery` sagt, was gesucht wurde.
+  Eine Anwendung zeigt „Meintest du …?" (das Sample tut es); eine Markierung erklärt das nicht.
+- Die Markierung eines JavaScript-Eingabefelds ist an seinen eigenen Filter gekoppelt; für eine Liste, die der Server bewertet,
+  taugt sie nicht (ADR-0027).
+
+Wer markieren will, tut es in der Anwendung, mit dem, was sie über ihre Schrift und ihre Eingabe weiß.
 
 ---
 
@@ -616,8 +624,7 @@ für die Kandidaten berechnet (≤ `Candidates`) und nur in Stufe 2 des Rankings
 
 ## 12. Öffentliche API
 
-Die Listings in § 12 beschreiben die **Ziel-API**: Was erst mit einem späteren Schritt kommt, ist markiert
-(`Highlight` mit einer späteren Version, Issue #20) und lässt sich bis dahin nicht kompilieren. Was heute gilt, führt der Quick Start des README vor; der Paket-Smoke-Test führt ihn aus.
+Die Listings in § 12 beschreiben die API. Was heute gilt, führt der Quick Start des README vor; der Paket-Smoke-Test führt ihn aus.
 
 ### 12.1 Katalog öffnen
 
@@ -756,7 +763,6 @@ LuiResult<long, RecipeChip> result = recipes
     .DistinctText(false)                             // Standard
     .Similarity(LuiSimilarity.JaroWinkler)           // überschreibt den Standard der Art
     .TypoTolerance(true)                             // Standard: wie beim Index festgelegt
-    .Highlight(true)                                 // Standard: false (spätere Version, Issue #20)
     .TrackTimings(false)
     .Execute(cancellationToken);
 
@@ -1062,7 +1068,7 @@ Jeder Schritt ist ein Pull Request mit ADR, Tests und Messung.
 | 5 | Tippfehler-Toleranz | Qualitätsuntergrenzen für Tippfehler, Nebenläufigkeitstest |
 | 6 | `Linked`, lose gekoppelt (ADR-0015) | Integrationstests mit einer Tabelle der Anwendung: Schema unverändert, `Refresh` mit und ohne Transaktion, `Sync`, Trigger nur auf Aufruf |
 | 7 | `Sync`, `Check`, `Rebuild`, `Optimize`; der Katalog zerlegt (ADR-0016) | Abgleich mit 1 Mio. Einträgen, Abbruch und Wiederaufsetzen |
-| 8 | Dependency Injection und gehostete Dienste (ADR-0017); veraltete Kandidaten jenseits des Budgets; `Highlight` verschoben (#20) | Paket-Smoke-Test mit README-Code, DI-Tests gegen einen echten Host |
+| 8 | Dependency Injection und gehostete Dienste (ADR-0017); veraltete Kandidaten jenseits des Budgets; `Highlight` entfällt (#20, ADR-0028) | Paket-Smoke-Test mit README-Code, DI-Tests gegen einen echten Host |
 | 9 | Leistungsbudgets und Benchmarks auf 3 Mio. Einträgen | alle Ziele aus § 16 als Tests grün |
 
 ---

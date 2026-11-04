@@ -59,6 +59,16 @@ jobs:
           --logger "trx;LogFileName=integration.trx"
           --results-directory artifacts/test-results
 
+      # The modules of the sample's client (ADR-0027): plain Node, nothing to install. Node 22 is on the runner image; the
+      # step names it so that a change of the image does not change the lane unnoticed.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Test · sample client
+        working-directory: samples/Lui.Sample
+        run: npm test
+
       - name: Upload test results
         if: always()
         uses: actions/upload-artifact@v4
