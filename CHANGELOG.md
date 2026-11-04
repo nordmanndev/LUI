@@ -61,6 +61,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `Nordmann.LUI.Hosting` pins `Nordmann.LUI` exactly (`[x.y.z]`), not as a lower bound: a newer core referenced beside
+  an older hosting package is named at restore (`NU1608`, an error with `TreatWarningsAsErrors`) instead of surfacing at
+  run time (#24, ADR-0018).
+
 - A host disposed without a stop no longer waits for the warm-up of the typo dictionaries: the hosted services are
   disposed before the catalog and cancel it; a round of `ApplyPending` that meets a disposed catalog ends quietly
   instead of logging an error (#26).

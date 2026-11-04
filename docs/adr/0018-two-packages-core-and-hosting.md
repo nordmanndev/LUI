@@ -68,12 +68,19 @@ versions together again. Three places used internals and now do not:
 architecture test). The publish pipeline packs both from the same commit, and the smoke test checks that the hosting
 package depends on the core of the same version.
 
-**The range of that dependency is open — to be decided before 0.1.0 is released** (review of pull request 23, S3; issue
-#24). NuGet makes the project reference a lower bound (`>= 0.1.0`), not a pin. In 0.x every minor version may break the
-API (SemVer), so an application that references a newer core directly — `Nordmann.LUI 0.2.0` beside
-`Nordmann.LUI.Hosting 0.1.0` — could meet a changed signature the hosting package calls at run time
-(`MissingMethodException`), not at compile time. The choices: an exact pin `[x.y.z]`, a range `[0.1.0, 0.2.0)`, or the
-lower bound on purpose. How the pack sets a range for a project reference is not checked yet.
+**The core is pinned exactly** — owner's decision of 2026-11-04 (issue #24, review of pull request 23, S3):
+`Nordmann.LUI.Hosting x.y.z` depends on `Nordmann.LUI [x.y.z]`. NuGet makes a project reference a lower bound
+(`>= x.y.z`); in 0.x every minor version may break the API (SemVer), so an application that referenced a newer core
+directly would have met a changed signature the hosting package calls at run time (`MissingMethodException`), not at
+compile time. The two packages are released together anyway, so the pin costs nothing: a fix of either releases both.
+The hosting project rewrites the version of its reference to the core into an exact range after NuGet read it
+(`PinTheCoreExactly`, after `_GetProjectReferenceVersions`), and the package smoke test checks the nuspec for
+`version="[x.y.z]"`. **What the pin does, measured:** an application that references `Nordmann.LUI 0.2.0` directly beside
+`Nordmann.LUI.Hosting 0.1.0` still restores — NuGet takes the direct reference — but with the warning
+`NU1608: Detected package version outside of dependency constraint: Nordmann.LUI.Hosting 0.1.0 requires Nordmann.LUI
+(= 0.1.0) but version Nordmann.LUI 0.2.0 was resolved`; with `TreatWarningsAsErrors` it is an error. Without the pin
+there was no word at all. The pin turns a silent mismatch into a named one at restore; it cannot forbid a direct
+reference of the application.
 
 **No timer in the core.** A console application keeps its linked index current without a host:
 
