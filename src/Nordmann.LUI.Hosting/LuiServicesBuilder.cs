@@ -26,9 +26,9 @@ public sealed class LuiServicesBuilder
     public IServiceCollection Services { get; }
 
     /// <summary>
-    /// Adds an index of LUI's own (<c>Owned</c>): <c>AddIndex("recipes", index =&gt; index.MultiWord().WithPayload(…))</c>.
+    /// Adds an index of LUI's own (<c>Embedded</c>): <c>AddIndex("recipes", index =&gt; index.MultiWord().WithPayload(…))</c>.
     /// Registered under <paramref name="name"/> as <see cref="ILuiIndex{TKey, TPayload}"/> and
-    /// <see cref="ILuiOwnedIndex{TKey, TPayload}"/>.
+    /// <see cref="ILuiEmbeddedIndex{TKey, TPayload}"/>.
     /// </summary>
     /// <typeparam name="TKey">The key of the application.</typeparam>
     /// <typeparam name="TPayload">The payload of a hit.</typeparam>
@@ -37,21 +37,21 @@ public sealed class LuiServicesBuilder
     /// <returns>The builder.</returns>
     /// <exception cref="ArgumentException">The name is empty, or it is registered already. A name that is not a valid index
     /// name (<c>^[a-z][a-z0-9_]{0,40}$</c>) fails when the index is ensured — on start.</exception>
-    public LuiServicesBuilder AddIndex<TKey, TPayload>(string name, Func<LuiIndexKindBuilder, LuiIndexBuilder<TKey, TPayload>> index)
+    public LuiServicesBuilder AddIndex<TKey, TPayload>(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder<TKey, TPayload>> index)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
         ArgumentNullException.ThrowIfNull(index);
 
         _registrations.Add(new IndexRegistration(
             name,
-            Ensure: provider => provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name),
-            WarmUp: (provider, token) => WarmUp(provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name), token),
-            RebuildIfStale: (provider, token) => RebuildIfStale(provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name), token)));
+            Ensure: provider => provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name),
+            WarmUp: (provider, token) => WarmUp(provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name), token),
+            RebuildIfStale: (provider, token) => RebuildIfStale(provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name), token)));
 
-        Services.AddKeyedSingleton<ILuiOwnedIndex<TKey, TPayload>>(
+        Services.AddKeyedSingleton<ILuiEmbeddedIndex<TKey, TPayload>>(
             name, (provider, _) => index(provider.GetRequiredService<LuiCatalog>().Index(name)).Ensure());
         Services.AddKeyedSingleton<ILuiIndex<TKey, TPayload>>(
-            name, (provider, _) => provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name));
+            name, (provider, _) => provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name));
         return this;
     }
 
@@ -140,7 +140,7 @@ public sealed class LuiServicesBuilder
 
     /// <summary>
     /// How often the typo dictionaries a sync left stale are rebuilt in the background (default: every minute;
-    /// <see langword="null"/> switches it off). A sync of an owned index that changed or removed entries marks a built
+    /// <see langword="null"/> switches it off). A sync of an embedded index that changed or removed entries marks a built
     /// dictionary stale instead of building it anew — the build of three million entries takes half a minute, and the
     /// sync should not pay it (ADR-0021). A stale dictionary answers meanwhile: the new words are in it, the words that
     /// went linger and find nothing. Without a host, <c>RebuildTypoDictionary()</c> does the same.

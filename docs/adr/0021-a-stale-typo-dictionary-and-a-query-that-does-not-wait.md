@@ -1,5 +1,9 @@
 # 0021 — A stale typo dictionary, a query that does not wait, a rebuild in the background
 
+> **Name note (ADR-0023, 2026-11-04):** since this record was written, `Owned` is called `Embedded`: `ILuiOwnedIndex` is
+> `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
+> `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
+
 - **Status:** Accepted (owner's decision, 2026-11-04: "#19 before 0.1.0, as proposed")
 - **Date:** 2026-11-04
 - **Issue:** #19

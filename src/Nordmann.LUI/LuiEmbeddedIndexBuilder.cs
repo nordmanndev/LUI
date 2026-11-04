@@ -6,14 +6,14 @@ using Nordmann.LUI.Normalization;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// Describes an index whose content lives in a table of the library, <c>lui_&lt;name&gt;</c> — <c>Owned</c>, the
+/// Describes an index whose content lives in a table of the library, <c>lui_&lt;name&gt;</c> — <c>Embedded</c>, the
 /// default (LUI-Spezifikation §5, §12.2): the application writes through the index. Every method is optional and
 /// returns a builder; <see cref="Ensure"/> finishes it. An index over a table of the application starts here too,
 /// with <c>LinkTo(…)</c>, as long as no key and no payload are chosen.
 /// </summary>
 /// <typeparam name="TKey">The key of the application: <see cref="long"/> (the default) or <see cref="string"/>.</typeparam>
 /// <typeparam name="TPayload">The payload that comes back with a hit; <see cref="LuiNoPayload"/> until <c>WithPayload</c>.</typeparam>
-public sealed class LuiIndexBuilder<TKey, TPayload>
+public sealed class LuiEmbeddedIndexBuilder<TKey, TPayload>
 {
     private readonly LuiCatalog _catalog;
     private readonly string _name;
@@ -21,7 +21,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     private readonly ILuiPayloadSerializer<TPayload>? _payload;
     private IndexOptions _options;
 
-    internal LuiIndexBuilder(
+    internal LuiEmbeddedIndexBuilder(
         LuiCatalog catalog,
         string name,
         LuiIndexKind kind,
@@ -54,11 +54,11 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     /// <typeparam name="TNewKey"><see cref="long"/> or <see cref="string"/>.</typeparam>
     /// <returns>A builder of an index with that key, with the settings made so far.</returns>
     /// <exception cref="NotSupportedException"><typeparamref name="TNewKey"/> is neither <see cref="long"/> nor <see cref="string"/>.</exception>
-    public LuiIndexBuilder<TNewKey, TPayload> WithKey<TNewKey>()
+    public LuiEmbeddedIndexBuilder<TNewKey, TPayload> WithKey<TNewKey>()
     {
         // the key type is checked here, where it is chosen, not when the index is ensured
         _ = KeyCodec<TNewKey>.KeyType;
-        return new LuiIndexBuilder<TNewKey, TPayload>(_catalog, _name, _kind, _payload, _options);
+        return new LuiEmbeddedIndexBuilder<TNewKey, TPayload>(_catalog, _name, _kind, _payload, _options);
     }
 
     /// <summary>
@@ -68,17 +68,17 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     /// <typeparam name="TNewPayload">The payload type.</typeparam>
     /// <param name="typeInfo">The generated type description of the payload.</param>
     /// <returns>A builder of an index with that payload, with the settings made so far.</returns>
-    public LuiIndexBuilder<TKey, TNewPayload> WithPayload<TNewPayload>(JsonTypeInfo<TNewPayload> typeInfo) =>
+    public LuiEmbeddedIndexBuilder<TKey, TNewPayload> WithPayload<TNewPayload>(JsonTypeInfo<TNewPayload> typeInfo) =>
         WithPayload(new LuiJsonPayloadSerializer<TNewPayload>(typeInfo));
 
     /// <summary>Stores a payload with every entry, serialised by <paramref name="serializer"/>.</summary>
     /// <typeparam name="TNewPayload">The payload type.</typeparam>
     /// <param name="serializer">The serialiser.</param>
     /// <returns>A builder of an index with that payload, with the settings made so far.</returns>
-    public LuiIndexBuilder<TKey, TNewPayload> WithPayload<TNewPayload>(ILuiPayloadSerializer<TNewPayload> serializer)
+    public LuiEmbeddedIndexBuilder<TKey, TNewPayload> WithPayload<TNewPayload>(ILuiPayloadSerializer<TNewPayload> serializer)
     {
         ArgumentNullException.ThrowIfNull(serializer);
-        return new LuiIndexBuilder<TKey, TNewPayload>(_catalog, _name, _kind, serializer, _options);
+        return new LuiEmbeddedIndexBuilder<TKey, TNewPayload>(_catalog, _name, _kind, serializer, _options);
     }
 
     /// <summary>
@@ -89,7 +89,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     /// </summary>
     /// <param name="similarity">The measure.</param>
     /// <returns>The builder.</returns>
-    public LuiIndexBuilder<TKey, TPayload> Similarity(ILuiSimilarity similarity)
+    public LuiEmbeddedIndexBuilder<TKey, TPayload> Similarity(ILuiSimilarity similarity)
     {
         ArgumentNullException.ThrowIfNull(similarity);
         _options = _options with { Similarity = similarity };
@@ -102,7 +102,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     /// </summary>
     /// <param name="enabled">Whether the transliteration is applied.</param>
     /// <returns>The builder.</returns>
-    public LuiIndexBuilder<TKey, TPayload> GermanTransliteration(bool enabled)
+    public LuiEmbeddedIndexBuilder<TKey, TPayload> GermanTransliteration(bool enabled)
     {
         _options = _options with { GermanTransliteration = enabled };
         return this;
@@ -124,7 +124,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     /// </summary>
     /// <param name="enabled">Whether an input without a word start is corrected.</param>
     /// <returns>The builder.</returns>
-    public LuiIndexBuilder<TKey, TPayload> TypoTolerance(bool enabled = true)
+    public LuiEmbeddedIndexBuilder<TKey, TPayload> TypoTolerance(bool enabled = true)
     {
         _options = _options with { TypoTolerance = enabled };
         return this;
@@ -135,20 +135,20 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     /// </summary>
     /// <returns>The index.</returns>
     /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
-    public ILuiOwnedIndex<TKey, TPayload> Ensure()
+    public ILuiEmbeddedIndex<TKey, TPayload> Ensure()
     {
         var definition = new IndexDefinition(
             _kind,
-            OwnedSource.SourceName,
+            EmbeddedSource.SourceName,
             KeyCodec<TKey>.KeyType,
             _options.GermanTransliteration,
             _payload is not null,
             TokenizerFold.Version);
 
-        var source = new OwnedSource(_name, definition);
+        var source = new EmbeddedSource(_name, definition);
         IndexStore.Ensure(_catalog.Database, source, _catalog.TimeProvider.GetUtcNow());
 
-        return new OwnedIndex<TKey, TPayload>(
+        return new EmbeddedIndex<TKey, TPayload>(
             _catalog.Database,
             _catalog.TypoDictionaries,
             source,

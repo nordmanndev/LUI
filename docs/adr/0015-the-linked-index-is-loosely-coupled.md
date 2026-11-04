@@ -1,5 +1,9 @@
 # 0015 — The linked index is loosely coupled: LUI never changes the application's table on its own
 
+> **Name note (ADR-0023, 2026-11-04):** since this record was written, `Owned` is called `Embedded`: `ILuiOwnedIndex` is
+> `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
+> `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
+
 - **Status:** Accepted
 - **Date:** 2026-11-03
 - **Supersedes:** the `Linked` design of the specification, draft 2 (§5, §7.3, §12.2: generated columns, indexes and

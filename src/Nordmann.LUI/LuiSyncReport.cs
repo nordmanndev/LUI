@@ -1,7 +1,7 @@
 namespace Nordmann.LUI;
 
 /// <summary>
-/// What a sync of an <c>Owned</c> index with a source did (LUI-Spezifikation §12.4, ADR-0016): every entry of the source
+/// What a sync of an <c>Embedded</c> index with a source did (LUI-Spezifikation §12.4, ADR-0016): every entry of the source
 /// was added, changed or found as it was; what the source does not have was removed. While a sync runs, the same record
 /// reports its progress after every batch.
 /// </summary>

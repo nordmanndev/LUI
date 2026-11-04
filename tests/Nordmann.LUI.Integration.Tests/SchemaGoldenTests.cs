@@ -3,7 +3,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests;
 
 /// <summary>
-/// The schema of an <c>Owned</c> index is a promise to every database that already holds one: the SQL that
+/// The schema of an <c>Embedded</c> index is a promise to every database that already holds one: the SQL that
 /// creates it must not change by accident (ADR-0014, ADR-0015). The golden file is the <c>sqlite_master</c> of a
 /// single-word and a multi-word index as <c>main</c> created them before the second content source; a change
 /// that is meant is a new golden file and a new schema version, in the same pull request.
@@ -11,7 +11,7 @@ namespace Nordmann.LUI.Integration.Tests;
 public sealed class SchemaGoldenTests
 {
     [Fact]
-    public void The_schema_of_an_owned_index_is_the_golden_one()
+    public void The_schema_of_an_embedded_index_is_the_golden_one()
     {
         using var database = new TestDatabase();
         using (var catalog = database.Open())

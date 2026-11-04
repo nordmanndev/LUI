@@ -103,6 +103,33 @@ public sealed class Public_API_Shape
         LibraryAssembly.GetExportedTypes().Count(type => named.Contains(type.Name, StringComparer.Ordinal)).ShouldBe(named.Length);
     }
 
+    [Fact]
+    public void The_content_sources_are_called_Embedded_and_Linked_and_the_old_word_is_gone_from_the_public_surface()
+    {
+        // In .NET "owned" is the vocabulary of lifetime (Autofac's Owned<T>, an owned IDisposable); the index of LUI's own
+        // table is a singleton that is never disposed. The content source is called Embedded (ADR-0023, issue #41).
+        const string retired = "Owned";
+        const BindingFlags surface = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+
+        var offenders = PackageAssemblies
+            .SelectMany(assembly => assembly.GetExportedTypes())
+            .SelectMany(type => new[] { type.FullName! }
+                .Concat(type.GetMembers(surface)
+                    .Where(member => member is MethodBase { IsPublic: true } or MethodBase { IsFamily: true } or PropertyInfo or FieldInfo { IsPublic: true } or EventInfo)
+                    .Select(member => $"{type.FullName}.{member.Name}"))
+                .Concat(type.GetMethods(surface)
+                    .Where(method => method.IsPublic || method.IsFamily)
+                    .SelectMany(method => method.GetParameters().Select(parameter => $"{type.FullName}.{method.Name}({parameter.Name})"))))
+            .Where(name => name.Contains(retired, StringComparison.OrdinalIgnoreCase))
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        offenders.ShouldBeEmpty("No public type, member or parameter says 'Owned' — the content source is 'Embedded'.");
+        PackageAssemblies.SelectMany(assembly => assembly.GetExportedTypes())
+            .ShouldContain(type => string.Equals(type.Name, "ILuiEmbeddedIndex`2", StringComparison.Ordinal), "the guard sees the renamed type");
+    }
+
     private static string Describe(TestResult result) =>
         result.FailingTypeNames is { Count: > 0 } names
             ? string.Join(", ", names)

@@ -328,7 +328,7 @@ public sealed class LinkedIndexTests
     }
 
     [Fact]
-    public void A_linked_index_answers_as_an_owned_index_with_the_same_entries()
+    public void A_linked_index_answers_as_an_embedded_index_with_the_same_entries()
     {
         using var database = new TestDatabase();
         Run(database, Table);
@@ -341,13 +341,13 @@ public sealed class LinkedIndexTests
         using var catalog = database.Open();
         var linked = Tags(catalog);
         linked.Sync();
-        var owned = catalog.Index("owned").SingleWord().Ensure();
-        owned.UpsertMany(rows.Select(row => new LuiEntry<long, LuiNoPayload>(row.Item1, row.Item2!) { Weight = row.Item3 }));
+        var embedded = catalog.Index("embedded").SingleWord().Ensure();
+        embedded.UpsertMany(rows.Select(row => new LuiEntry<long, LuiNoPayload>(row.Item1, row.Item2!) { Weight = row.Item3 }));
 
         foreach (var input in new[] { "a", "ap", "apf", "kuchen", "nka", "veg", "#äpf", "äpfel", "strasse", "torte3", "zimtz" })
         {
             linked.Search(input).Hits.Select(hit => (hit.Key, hit.Text)).ShouldBe(
-                owned.Search(input).Hits.Select(hit => (hit.Key, hit.Text)), $"input '{input}'");
+                embedded.Search(input).Hits.Select(hit => (hit.Key, hit.Text)), $"input '{input}'");
         }
     }
 
@@ -781,7 +781,7 @@ public sealed class LinkedIndexTests
 
         Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags").SingleWord().LinkTo("tag", "id", "slug").Ensure())
             .Message.ShouldContain("dropTriggers: true");
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("owned").SingleWord().Ensure().Count() + catalog.Index("owned").MultiWord().Ensure().Count())
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("embedded").SingleWord().Ensure().Count() + catalog.Index("embedded").MultiWord().Ensure().Count())
             .Message.ShouldNotContain("dropTriggers");
     }
 

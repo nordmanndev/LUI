@@ -5,7 +5,7 @@ namespace Nordmann.LUI.Querying;
 /// <summary>
 /// Reads the payload of a hit from the row of the hits statement (<c>ContentSource.HitsSql</c>), starting at
 /// the column after the key. Where the payload comes from is a matter of the content source: bytes of a
-/// serialiser for <c>Owned</c>, columns of the application's table for <c>Linked</c>. The reader names its
+/// serialiser for <c>Embedded</c>, columns of the application's table for <c>Linked</c>. The reader names its
 /// columns, and the hits statement is built from that list — the columns and the order they are read in are
 /// decided in one place (review of pull request 14, S3).
 /// </summary>

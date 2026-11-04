@@ -1,5 +1,9 @@
 # 0016 — Sync, check and rebuild: batches that can be run again, a merge at the end, a catalog taken apart
 
+> **Name note (ADR-0023, 2026-11-04):** since this record was written, `Owned` is called `Embedded`: `ILuiOwnedIndex` is
+> `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
+> `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
+
 - **Status:** Accepted. The owner's decisions of 2026-11-04 on the two open questions at the end: the default batch size
   **stays 10,000** (a first load is told to use 1,000,000, ADR-0020); the shadow build of a linked sync comes **after
   0.1.0** (#31); the bookkeeping by key is kept

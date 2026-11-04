@@ -15,7 +15,7 @@ namespace Nordmann.LUI.Writing;
 /// every index that shares a connection share its lock.
 /// </para>
 /// </summary>
-internal sealed class WriteStatements(SqliteConnection connection, OwnedSource sql, Lock gate)
+internal sealed class WriteStatements(SqliteConnection connection, EmbeddedSource sql, Lock gate)
 {
     private Prepared? _upsert;
     private Prepared? _updateWeight;

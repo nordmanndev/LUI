@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   makes a new run.
 
 - **A stale typo dictionary, a query that does not wait** ([ADR-0021](docs/adr/0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md),
-  #19). `Sync` of an owned index no longer builds a built typo dictionary anew when it changed or removed entries: it
+  #19). `Sync` of an embedded index no longer builds a built typo dictionary anew when it changed or removed entries: it
   marks it stale — the new words are known at once, removed ones linger until `RebuildTypoDictionary()`. A delta sync
   of 100 changes at 300,000 words: 4.4–4.8 s before, 2.6 s now. New API:
   - `LuiTypoDictionaryState` (`NotBuilt`, `Building`, `Current`, `Stale`) and `ILuiIndex.TypoDictionaryState` — an
@@ -42,8 +42,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependency injection, in a second package `Nordmann.LUI.Hosting`** ([ADR-0017](docs/adr/0017-dependency-injection-and-hosted-services.md),
   [ADR-0018](docs/adr/0018-two-packages-core-and-hosting.md)), released with `Nordmann.LUI` under the same version:
   `services.AddLui(connectionString, options?)` (or with delegates that read the container) and
-  `.AddIndex(name, index => …)` for an owned or a linked index. Every index is a keyed singleton under its name, as
-  `ILuiIndex<TKey, TPayload>` and as `ILuiOwnedIndex`/`ILuiLinkedIndex`; the catalog is a singleton the container
+  `.AddIndex(name, index => …)` for an embedded or a linked index. Every index is a keyed singleton under its name, as
+  `ILuiIndex<TKey, TPayload>` and as `ILuiEmbeddedIndex`/`ILuiLinkedIndex`; the catalog is a singleton the container
   disposes. A hosted service ensures every index when the host starts (`EnsureOnStart(false)` switches it off) and,
   with `WarmUpTypoDictionariesOnStart()`, builds the typo dictionaries of the indexes with typo tolerance in the
   background; another one applies the outbox of a linked index on its interval (`applyPendingEvery`). The hosting
@@ -52,7 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ILuiIndex.TypoTolerance`: whether a query of the instance corrects typos unless it says otherwise. An application's
   own implementation of `ILuiIndex` (a test double) has to add it.
 
-- **Sync, check, rebuild and optimize** ([ADR-0016](docs/adr/0016-sync-check-rebuild.md)). An owned index:
+- **Sync, check, rebuild and optimize** ([ADR-0016](docs/adr/0016-sync-check-rebuild.md)). An embedded index:
   `Sync(source, options?, cancellationToken)` (and an overload for an `IAsyncEnumerable` source) adds what is missing,
   writes what differs, keeps what is the same and removes the keys that were there when it began and that the source
   does not have — in batches of
@@ -80,7 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   index only when asked. A candidate whose current text no longer matches is not a hit.
   200,000 rows: sync 3.5–3.9 s, query p95 1.11–1.17 ms, refresh p95 0.51–0.58 ms.
 
-- `ILuiOwnedIndex.UpsertMany(entries, transaction, cancellationToken)` — many entries in one transaction, all or
+- `ILuiEmbeddedIndex.UpsertMany(entries, transaction, cancellationToken)` — many entries in one transaction, all or
   nothing in LUI's own; 100,000 entries in 3.8 s instead of 16.9 s one by one (4.4×).
   The typo dictionary learns the words at once, also inside the application's transaction: a rollback leaves
   them there until `RebuildTypoDictionary()` (documented and pinned by a test).
@@ -96,7 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instances of an index and its build never holds up a write. The dictionary of the whole
   German word list takes 4.2 s and 138 MB.
 
-- **The multi-word index** (`MultiWord`, `Owned`): `catalog.Index(name).MultiWord().Ensure()`
+- **The multi-word index** (`MultiWord`, `Embedded`): `catalog.Index(name).MultiWord().Ensure()`
   for names and titles ([ADR-0011](docs/adr/0011-the-multi-word-index.md)). The input is split
   into words that are ANDed and also searched compactly, so `kuchen apfel` and `apfelkuch` both
   find „Apfel Kuchen"; the word start is decided on the compact form; the default similarity is
@@ -107,7 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `LuiSimilarity.NgramDice` no longer allocates: a query that compared 500 candidates allocated
   3.6 MB at the 95th percentile, now 263 KB; the number is the one of `F23.SorensenDice(2)`.
 
-- **The single-word index** (`SingleWord`, `Owned`) — the first index that
+- **The single-word index** (`SingleWord`, `Embedded`) — the first index that
   answers a query ([ADR-0006](docs/adr/0006-the-single-word-index.md),
   [ADR-0008](docs/adr/0008-the-query-path.md)):
   - `LuiCatalog.Open(connectionString, options)` with `LuiCatalogOptions`
@@ -115,7 +115,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `lui_meta`. `Dispose()` waits for the operations that are running.
   - `catalog.Index(name).SingleWord().WithKey<TKey>().WithPayload(…)
     .Similarity(…).GermanTransliteration(…).Ensure()` and `DropIndex(name)`; the
-    result is an `ILuiOwnedIndex<TKey, TPayload>`.
+    result is an `ILuiEmbeddedIndex<TKey, TPayload>`.
   - Writes: `Upsert`, `UpdateWeight`, `UpdatePriority`, `Remove`, `Count` —
     also inside the application's `SqliteTransaction`
     ([ADR-0009](docs/adr/0009-writes-use-prepared-statements.md)).
@@ -159,6 +159,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`Owned` is `Embedded`** ([ADR-0023](docs/adr/0023-owned-becomes-embedded.md), #41). The content source in LUI's own
+  table, `lui_<index>`, is named after where its rows live, and pairs with `Linked`. In .NET "owned" is the word of
+  lifetime (Autofac's `Owned<T>`, an owned `IDisposable`), and the index is a singleton that is never disposed. Renamed
+  before the first release, so nobody has to migrate:
+  - `ILuiOwnedIndex<TKey, TPayload>` → `ILuiEmbeddedIndex<TKey, TPayload>`;
+  - `LuiIndexBuilder<TKey, TPayload>` → `LuiEmbeddedIndexBuilder<TKey, TPayload>`, the builder of the embedded route as
+    `LuiLinkedIndexBuilder` is that of the linked one; `LuiIndexBuilderExtensions` →
+    `LuiEmbeddedIndexBuilderExtensions` (`LinkTo` stays an extension of the embedded builder);
+  - the stored content source, `lui_meta.source`: `Owned` → `Embedded`. A database that a pre-release build created
+    answers `Ensure` with a `LuiDefinitionMismatchException`, and `DropIndex` refuses the source it does not know: delete
+    the file. There is no migration, because nothing was released.
+
 - **The test tree** ([ADR-0019](docs/adr/0019-the-test-tree-three-layers-one-map.md)). The one test project
   becomes three — `Nordmann.LUI.Unit.Tests` (the rules, without a database), `Nordmann.LUI.Integration.Tests`
   (the library against a real SQLite file) and `Nordmann.LUI.Architecture.Tests` — plus
@@ -175,11 +187,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Highlight` is not part of 0.1 (owner's decision): the front end marks the match; it comes with a later version (#20).
 - `ILuiIndex<TKey, TPayload>` has `Check()`. Inside, the catalog is taken apart (review DevEx D4, D6): no change to
   the public API besides.
-- **The builder: `Owned<long>` is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;
-  `SingleWord()`/`MultiWord()` return a `LuiIndexBuilder<long, LuiNoPayload>` — an owned index, or with `LinkTo(…)`
-  a linked one (the names were `LuiIndexBuilder` and `LuiOwnedIndexBuilder<TKey, TPayload>`, review of PR #16, N1);
-  `Owned<TKey>()` and `LuiIndexSourceBuilder` are gone, `WithKey<string>()` chooses a text key.
-  `lui.Index("tags").SingleWord().Ensure()` is a whole index.
+- **The builder: an embedded index is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;
+  `SingleWord()`/`MultiWord()` return a `LuiEmbeddedIndexBuilder<long, LuiNoPayload>` — an embedded index, or with
+  `LinkTo(…)` a linked one (review of PR #16, N1); the builder types and the `…<TKey>()` steps of earlier pre-release
+  builds are gone, `WithKey<string>()` chooses a text key. `lui.Index("tags").SingleWord().Ensure()` is a whole index.
 - `DropIndex` decides by the stored source and refuses a source it does not know.
 
 - **The API shape before the first release** ([ADR-0013](docs/adr/0013-the-api-shape-before-the-first-release.md)) —
@@ -189,7 +200,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (`LuiNoPayload` until `WithPayload`). `TypoTolerance(int maxEdits)` is `TypoTolerance(bool enabled = true)`.
     `Drop()` is `LuiCatalog.DropIndex(name)`.
   - Reading and writing are two interfaces: `ILuiIndex<TKey, TPayload>` (`Query`, `Search`, `Count`, the typo
-    dictionary) and `ILuiOwnedIndex<TKey, TPayload>` (the writes). `Query(text, options)` is
+    dictionary) and `ILuiEmbeddedIndex<TKey, TPayload>` (the writes). `Query(text, options)` is
     `Search(text, options = null)`.
   - `LuiEntry<TKey, TPayload>(Key, Text) { Weight, Priority, Payload }` is what an upsert stores; the short form
     `Upsert(key, text, weight, priority, transaction)` carries no payload.
@@ -212,7 +223,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The first release. It ships the packages `Nordmann.LUI` and `Nordmann.LUI.Hosting` with the API of the
 specification ([`docs/spec/LUI-Spezifikation.md`](./docs/spec/LUI-Spezifikation.md)):
 
-- `SingleWord` and `MultiWord` indices, `Owned` and `Linked` content sources
+- `SingleWord` and `MultiWord` indices, `Embedded` and `Linked` content sources
 - FTS5 trigram search with priority-first candidates, word-start ranking and
   similarity scoring
 - typo tolerance over a prefix dictionary

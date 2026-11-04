@@ -3,16 +3,16 @@ using Nordmann.LUI.Normalization;
 namespace Nordmann.LUI.Schema;
 
 /// <summary>
-/// The content source <c>Owned</c> (LUI-Spezifikation §5, §7.2, §7.4): the content lives in a table of the
+/// The content source <c>Embedded</c> (LUI-Spezifikation §5, §7.2, §7.4): the content lives in a table of the
 /// library, <c>lui_&lt;name&gt;</c>, with its generated columns, three indexes, an FTS5 table and three
 /// triggers; the application writes through the index.
 /// </summary>
-internal sealed class OwnedSource : ContentSource
+internal sealed class EmbeddedSource : ContentSource
 {
     /// <summary>The name of the source in <c>lui_meta</c> and in the definition.</summary>
-    internal const string SourceName = "Owned";
+    internal const string SourceName = "Embedded";
 
-    internal OwnedSource(string indexName, IndexDefinition definition)
+    internal EmbeddedSource(string indexName, IndexDefinition definition)
         : base(indexName, definition)
     {
         ContentTable = Content(indexName);
@@ -169,7 +169,7 @@ internal sealed class OwnedSource : ContentSource
         ];
     }
 
-    /// <summary>The statements that remove an <c>Owned</c> index, in the order they have to run.</summary>
+    /// <summary>The statements that remove an <c>Embedded</c> index, in the order they have to run.</summary>
     internal static IReadOnlyList<string> Drop(string indexName)
     {
         var content = Content(indexName);

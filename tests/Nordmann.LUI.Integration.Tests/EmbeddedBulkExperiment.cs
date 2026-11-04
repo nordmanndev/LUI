@@ -6,7 +6,7 @@ using Xunit.Abstractions;
 namespace Nordmann.LUI.Integration.Tests;
 
 /// <summary>
-/// The bulk path of an <c>Owned</c> index, measured before it is built (ADR-0010, option 5; PR-007): how much does the
+/// The bulk path of an <c>Embedded</c> index, measured before it is built (ADR-0010, option 5; PR-007): how much does the
 /// order in which the rows reach the search index matter, and does a sync in batches keep it?
 /// <list type="bullet">
 /// <item><b>row order</b> — batches of 10,000 in the order of the source, each in a transaction, through the triggers
@@ -17,9 +17,9 @@ namespace Nordmann.LUI.Integration.Tests;
 /// the content table in rowid order (the reference: the whole index sorted).</item>
 /// </list>
 /// Each variant is merged (<c>optimize</c>) at the end; the queries run before and after the merge.
-/// <code>LUI_PERF=1 dotnet test --filter OwnedBulkExperiment --logger "console;verbosity=detailed"</code>
+/// <code>LUI_PERF=1 dotnet test --filter EmbeddedBulkExperiment --logger "console;verbosity=detailed"</code>
 /// </summary>
-public sealed class OwnedBulkExperiment(ITestOutputHelper output)
+public sealed class EmbeddedBulkExperiment(ITestOutputHelper output)
 {
     private static readonly int Batch = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_BATCH") ?? "10000", CultureInfo.InvariantCulture);
     private const int Queries = 2_000;

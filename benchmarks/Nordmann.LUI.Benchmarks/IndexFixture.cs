@@ -29,7 +29,7 @@ internal sealed class IndexFixture : IDisposable
 
     internal LuiCatalog Catalog { get; }
 
-    internal ILuiOwnedIndex<long, LuiNoPayload> Index { get; }
+    internal ILuiEmbeddedIndex<long, LuiNoPayload> Index { get; }
 
     public void Dispose()
     {

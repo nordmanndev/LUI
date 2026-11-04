@@ -5,6 +5,14 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-04 — #41: `Owned` → `Embedded`
+
+- ADR-0023. `ILuiEmbeddedIndex`, `LuiEmbeddedIndexBuilder`, `LuiEmbeddedIndexBuilderExtensions`, the internal `Embedded…`
+  types, `lui_meta.source = 'Embedded'`, spec/README/CHANGELOG/living docs; ADRs keep the old word with a name note.
+- Guard: `Public_API_Shape.The_content_sources_are_called_Embedded_and_Linked_…` + mutation
+  `the-old-word-returns-to-the-public-surface`. Pre-release databases are refused, not migrated (delete the file).
+- #40 (internal settings/registrations/loop) merged as #45 (`IndexOptions`, `IOutboxRegistration`, `PeriodicRound`).
+
 ## 2026-11-04 — PR-010 (#36): the README of the first release
 
 - README per plan §7: query options with defaults, ranking and priority, typo tolerance, §16 budgets, BenchmarkDotNet.

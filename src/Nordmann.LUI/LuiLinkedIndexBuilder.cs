@@ -70,7 +70,7 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
 
     /// <summary>
     /// The default similarity measure of the queries of this index — a property of <b>this instance</b>, as for an
-    /// owned index.
+    /// embedded index.
     /// </summary>
     /// <param name="similarity">The measure.</param>
     /// <returns>The builder.</returns>
@@ -91,7 +91,7 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
     }
 
     /// <summary>
-    /// Typo tolerance (§10), as for an owned index. The dictionary learns the words of <c>Refresh</c> and <c>Sync</c>;
+    /// Typo tolerance (§10), as for an embedded index. The dictionary learns the words of <c>Refresh</c> and <c>Sync</c>;
     /// a write to the table that LUI is not told of — without a refresh and without the triggers — reaches it with
     /// <c>RebuildTypoDictionary()</c>.
     /// </summary>

@@ -14,7 +14,7 @@ namespace Nordmann.LUI.Indexes;
 /// forms, the triggers keep the search index in step (E3).
 /// </summary>
 #pragma warning disable CA1001 // see TypoDictionary: the lock of the dictionary needs no disposal, and an index lives as long as its catalog
-internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload>
+internal sealed class EmbeddedIndex<TKey, TPayload> : ILuiEmbeddedIndex<TKey, TPayload>
 #pragma warning restore CA1001
 {
     private static readonly LuiQueryOptions DefaultOptions = new();
@@ -26,20 +26,20 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
     /// <summary><c>SQLITE_CONSTRAINT_CHECK</c>.</summary>
     private const int SqliteCheckConstraintFailed = 275;
 
-    private readonly OwnedSource _source;
+    private readonly EmbeddedSource _source;
     private readonly TypoDictionary _typos;
-    private readonly OwnedSync<TKey, TPayload> _sync;
-    private readonly OwnedCheck<TKey, TPayload> _check;
+    private readonly EmbeddedSync<TKey, TPayload> _sync;
+    private readonly EmbeddedCheck<TKey, TPayload> _check;
 
     // The statements of the application's own connections, one set per connection.
     private readonly ConditionalWeakTable<SqliteConnection, WriteStatements> _applicationStatements = [];
     private readonly Lock _ownGate = new();
     private WriteStatements? _ownStatements;
 
-    internal OwnedIndex(
+    internal EmbeddedIndex(
         Database database,
         TypoDictionaries typoDictionaries,
-        OwnedSource source,
+        EmbeddedSource source,
         ILuiPayloadSerializer<TPayload>? payload,
         ILuiSimilarity similarity,
         bool typoTolerance)
@@ -52,8 +52,8 @@ internal sealed class OwnedIndex<TKey, TPayload> : ILuiOwnedIndex<TKey, TPayload
         _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql));
         _runner = new QueryRunner<TKey, TPayload>(
             database, source, new SerializedPayload<TPayload>(payload), similarity, _typos, typoTolerance);
-        _sync = new OwnedSync<TKey, TPayload>(database, source, PayloadBytes, _typos);
-        _check = new OwnedCheck<TKey, TPayload>(database, source, PayloadBytes);
+        _sync = new EmbeddedSync<TKey, TPayload>(database, source, PayloadBytes, _typos);
+        _check = new EmbeddedCheck<TKey, TPayload>(database, source, PayloadBytes);
     }
 
     public string Name { get; }

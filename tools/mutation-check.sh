@@ -232,7 +232,14 @@ expect_caught "a-benchmark-report-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~Readme_Benchmarks" \
   "sed -i '0,/ μs\*\* |/s// ms** |/' benchmarks/results/Nordmann.LUI.Benchmarks.QueryBenchmarks-report-github.md"
 
-# 19. The clean trees stay green.
+# 19. The retired word returns to the public surface (ADR-0023, issue #41): a
+#     public member is named "Owned…" again — renamed everywhere, so the tree
+#     still builds and only the guard of the vocabulary can react.
+expect_caught "the-old-word-returns-to-the-public-surface" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Embedded_and_Linked" \
+  "grep -rl --include=*.cs CorrectionSkipped src tests | xargs sed -i 's/CorrectionSkipped/OwnedSkipped/g'"
+
+# 20. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 
