@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The README of the first release** ([ADR-0022](docs/adr/0022-the-benchmark-results-in-the-readme.md), #36): the
+  query options with their defaults, the ranking and the priority, the typo tolerance, the §16 budgets and the results
+  of BenchmarkDotNet. The benchmark tables are rendered from BenchmarkDotNet's reports in `benchmarks/results/` by the
+  architecture test `Readme_Benchmarks`, which fails when the README and the reports differ; `tools/benchmarks.sh`
+  makes a new run.
+
 - **A stale typo dictionary, a query that does not wait** ([ADR-0021](docs/adr/0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md),
   #19). `Sync` of an owned index no longer builds a built typo dictionary anew when it changed or removed entries: it
   marks it stale — the new words are known at once, removed ones linger until `RebuildTypoDictionary()`. A delta sync
@@ -73,69 +79,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `LuiTriggerState` (`None`, `Current`, `Stale`); `DropIndex(name, dropTriggers)` removes the triggers of a linked
   index only when asked. A candidate whose current text no longer matches is not a hit.
   200,000 rows: sync 3.5–3.9 s, query p95 1.11–1.17 ms, refresh p95 0.51–0.58 ms.
-
-### Fixed
-
-- `Nordmann.LUI.Hosting` pins `Nordmann.LUI` exactly (`[x.y.z]`), not as a lower bound: a newer core referenced beside
-  an older hosting package is named at restore (`NU1608`, an error with `TreatWarningsAsErrors`) instead of surfacing at
-  run time (#24, ADR-0018).
-
-- A host disposed without a stop no longer waits for the warm-up of the typo dictionaries: the hosted services are
-  disposed before the catalog and cancel it; a round of `ApplyPending` that meets a disposed catalog ends quietly
-  instead of logging an error (#26).
-- `Truncated` is no longer set for a linked index when the only row after the budget is an outdated one (#26).
-
-### Changed
-
-- **The test tree** ([ADR-0019](docs/adr/0019-the-test-tree-three-layers-one-map.md)). The one test project
-  becomes three — `Nordmann.LUI.Unit.Tests` (the rules, without a database), `Nordmann.LUI.Integration.Tests`
-  (the library against a real SQLite file) and `Nordmann.LUI.Architecture.Tests` — plus
-  `Nordmann.LUI.Testing`, a library that holds the shared setup: the database, the corpora, the fixtures. The
-  infrastructure that was copied, pasted and `<Compile Include>`-linked is in one place now. The unit lane takes
-  about one second; it used to be part of a process of thirty-six seconds.
-- **The map of the tests** is [`docs/testing.md`](docs/testing.md): which test holds which rule of the
-  specification up. It is a guard, not a document — `Test_Landscape` fails when the map and the tree disagree.
-- The pin of `Alba` is gone: no project referenced it.
-- Two letters of the German transliteration had no test — the lower-case "ä" and the upper-case "Ö". The
-  mutation check found them: it changed the "ä" to "a" instead of "ae" and the suite stayed green.
-- A candidate of a linked index whose current text no longer matches does not count against the candidate budget any
-  more: the read goes on past it, up to another budget of such rows (review of PR #16, F1).
-- `Highlight` is not part of 0.1 (owner's decision): the front end marks the match; it comes with a later version (#20).
-- `ILuiIndex<TKey, TPayload>` has `Check()`. Inside, the catalog is taken apart (review DevEx D4, D6): no change to
-  the public API besides.
-- **The builder: `Owned<long>` is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;
-  `SingleWord()`/`MultiWord()` return a `LuiIndexBuilder<long, LuiNoPayload>` — an owned index, or with `LinkTo(…)`
-  a linked one (the names were `LuiIndexBuilder` and `LuiOwnedIndexBuilder<TKey, TPayload>`, review of PR #16, N1);
-  `Owned<TKey>()` and `LuiIndexSourceBuilder` are gone, `WithKey<string>()` chooses a text key.
-  `lui.Index("tags").SingleWord().Ensure()` is a whole index.
-- `DropIndex` decides by the stored source and refuses a source it does not know.
-
-- **The API shape before the first release** ([ADR-0013](docs/adr/0013-the-api-shape-before-the-first-release.md)) —
-  a break on purpose, while it costs nothing:
-  - A staged builder: `lui.Index(name).SingleWord().WithPayload(…).TypoTolerance().Ensure()`. An index
-    without a kind does not compile; the key type is checked at `WithKey<TKey>()`; a payload is optional
-    (`LuiNoPayload` until `WithPayload`). `TypoTolerance(int maxEdits)` is `TypoTolerance(bool enabled = true)`.
-    `Drop()` is `LuiCatalog.DropIndex(name)`.
-  - Reading and writing are two interfaces: `ILuiIndex<TKey, TPayload>` (`Query`, `Search`, `Count`, the typo
-    dictionary) and `ILuiOwnedIndex<TKey, TPayload>` (the writes). `Query(text, options)` is
-    `Search(text, options = null)`.
-  - `LuiEntry<TKey, TPayload>(Key, Text) { Weight, Priority, Payload }` is what an upsert stores; the short form
-    `Upsert(key, text, weight, priority, transaction)` carries no payload.
-  - `LuiHit`, `LuiResult` and `LuiTimings` have named `init` properties instead of positions; `LuiHit.Highlight`
-    and `Highlight` are gone until the highlighting lands.
-  - `LuiCatalogOptions` is a record with `init` properties (`CacheSizeMegabytes`, `MemoryMapMegabytes`,
-    `BusyTimeout`, `WriteAheadLog`, `TimeProvider`), checked when set and bindable from configuration;
-    `LuiCatalog.Open(connectionString, options)` takes it as a value. `LuiQueryOptions` checks its values when they
-    are set, so `Take(0)` throws at the call.
-  - Every public type lives in `Nordmann.LUI` and starts with `Lui`/`ILui`: `Priority` → `LuiPriority`,
-    `IndexKind` → `LuiIndexKind`, `RankingOrder` → `LuiRankingOrder`, `PriorityRanking` → `LuiPriorityRanking`,
-    `ITextSimilarity` → `ILuiSimilarity`, `Similarity` → `LuiSimilarity`, `IPayloadSerializer<T>` →
-    `ILuiPayloadSerializer<T>`, `JsonPayloadSerializer<T>` → `LuiJsonPayloadSerializer<T>`.
-  - `Normalizer`, `NormalizedText` and `NormalizationOptions` are internal.
-  - The package no longer depends on `Microsoft.Extensions.DependencyInjection.Abstractions`,
-    `Microsoft.Extensions.Hosting.Abstractions` and `Microsoft.Extensions.Logging.Abstractions`: no code used them.
-
-### Added
 
 - `ILuiOwnedIndex.UpsertMany(entries, transaction, cancellationToken)` — many entries in one transaction, all or
   nothing in LUI's own; 100,000 entries in 3.8 s instead of 16.9 s one by one (4.4×).
@@ -203,9 +146,70 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Normalizer.TryWriteSearchForm` / `TryWriteCompactForm` — the same two
   forms without an allocation, for the path that normalises every candidate.
 
+### Fixed
+
+- `Nordmann.LUI.Hosting` pins `Nordmann.LUI` exactly (`[x.y.z]`), not as a lower bound: a newer core referenced beside
+  an older hosting package is named at restore (`NU1608`, an error with `TreatWarningsAsErrors`) instead of surfacing at
+  run time (#24, ADR-0018).
+
+- A host disposed without a stop no longer waits for the warm-up of the typo dictionaries: the hosted services are
+  disposed before the catalog and cancel it; a round of `ApplyPending` that meets a disposed catalog ends quietly
+  instead of logging an error (#26).
+- `Truncated` is no longer set for a linked index when the only row after the budget is an outdated one (#26).
+
+### Changed
+
+- **The test tree** ([ADR-0019](docs/adr/0019-the-test-tree-three-layers-one-map.md)). The one test project
+  becomes three — `Nordmann.LUI.Unit.Tests` (the rules, without a database), `Nordmann.LUI.Integration.Tests`
+  (the library against a real SQLite file) and `Nordmann.LUI.Architecture.Tests` — plus
+  `Nordmann.LUI.Testing`, a library that holds the shared setup: the database, the corpora, the fixtures. The
+  infrastructure that was copied, pasted and `<Compile Include>`-linked is in one place now. The unit lane takes
+  about one second; it used to be part of a process of thirty-six seconds.
+- **The map of the tests** is [`docs/testing.md`](docs/testing.md): which test holds which rule of the
+  specification up. It is a guard, not a document — `Test_Landscape` fails when the map and the tree disagree.
+- The pin of `Alba` is gone: no project referenced it.
+- Two letters of the German transliteration had no test — the lower-case "ä" and the upper-case "Ö". The
+  mutation check found them: it changed the "ä" to "a" instead of "ae" and the suite stayed green.
+- A candidate of a linked index whose current text no longer matches does not count against the candidate budget any
+  more: the read goes on past it, up to another budget of such rows (review of PR #16, F1).
+- `Highlight` is not part of 0.1 (owner's decision): the front end marks the match; it comes with a later version (#20).
+- `ILuiIndex<TKey, TPayload>` has `Check()`. Inside, the catalog is taken apart (review DevEx D4, D6): no change to
+  the public API besides.
+- **The builder: `Owned<long>` is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;
+  `SingleWord()`/`MultiWord()` return a `LuiIndexBuilder<long, LuiNoPayload>` — an owned index, or with `LinkTo(…)`
+  a linked one (the names were `LuiIndexBuilder` and `LuiOwnedIndexBuilder<TKey, TPayload>`, review of PR #16, N1);
+  `Owned<TKey>()` and `LuiIndexSourceBuilder` are gone, `WithKey<string>()` chooses a text key.
+  `lui.Index("tags").SingleWord().Ensure()` is a whole index.
+- `DropIndex` decides by the stored source and refuses a source it does not know.
+
+- **The API shape before the first release** ([ADR-0013](docs/adr/0013-the-api-shape-before-the-first-release.md)) —
+  a break on purpose, while it costs nothing:
+  - A staged builder: `lui.Index(name).SingleWord().WithPayload(…).TypoTolerance().Ensure()`. An index
+    without a kind does not compile; the key type is checked at `WithKey<TKey>()`; a payload is optional
+    (`LuiNoPayload` until `WithPayload`). `TypoTolerance(int maxEdits)` is `TypoTolerance(bool enabled = true)`.
+    `Drop()` is `LuiCatalog.DropIndex(name)`.
+  - Reading and writing are two interfaces: `ILuiIndex<TKey, TPayload>` (`Query`, `Search`, `Count`, the typo
+    dictionary) and `ILuiOwnedIndex<TKey, TPayload>` (the writes). `Query(text, options)` is
+    `Search(text, options = null)`.
+  - `LuiEntry<TKey, TPayload>(Key, Text) { Weight, Priority, Payload }` is what an upsert stores; the short form
+    `Upsert(key, text, weight, priority, transaction)` carries no payload.
+  - `LuiHit`, `LuiResult` and `LuiTimings` have named `init` properties instead of positions; `LuiHit.Highlight`
+    and `Highlight` are gone until the highlighting lands.
+  - `LuiCatalogOptions` is a record with `init` properties (`CacheSizeMegabytes`, `MemoryMapMegabytes`,
+    `BusyTimeout`, `WriteAheadLog`, `TimeProvider`), checked when set and bindable from configuration;
+    `LuiCatalog.Open(connectionString, options)` takes it as a value. `LuiQueryOptions` checks its values when they
+    are set, so `Take(0)` throws at the call.
+  - Every public type lives in `Nordmann.LUI` and starts with `Lui`/`ILui`: `Priority` → `LuiPriority`,
+    `IndexKind` → `LuiIndexKind`, `RankingOrder` → `LuiRankingOrder`, `PriorityRanking` → `LuiPriorityRanking`,
+    `ITextSimilarity` → `ILuiSimilarity`, `Similarity` → `LuiSimilarity`, `IPayloadSerializer<T>` →
+    `ILuiPayloadSerializer<T>`, `JsonPayloadSerializer<T>` → `LuiJsonPayloadSerializer<T>`.
+  - `Normalizer`, `NormalizedText` and `NormalizationOptions` are internal.
+  - The package no longer depends on `Microsoft.Extensions.DependencyInjection.Abstractions`,
+    `Microsoft.Extensions.Hosting.Abstractions` and `Microsoft.Extensions.Logging.Abstractions`: no code used them.
+
 ## [0.1.0] — not published
 
-The first release. It ships the package `Nordmann.LUI` with the API of the
+The first release. It ships the packages `Nordmann.LUI` and `Nordmann.LUI.Hosting` with the API of the
 specification ([`docs/spec/LUI-Spezifikation.md`](./docs/spec/LUI-Spezifikation.md)):
 
 - `SingleWord` and `MultiWord` indices, `Owned` and `Linked` content sources
@@ -213,8 +217,9 @@ specification ([`docs/spec/LUI-Spezifikation.md`](./docs/spec/LUI-Spezifikation.
   similarity scoring
 - typo tolerance over a prefix dictionary
 - `Sync`, `Check`, `Rebuild`, `Optimize`
-- dependency injection (`AddLui`, keyed services)
-- a sample application that exposes the whole API in the browser
+- dependency injection (`AddLui`, keyed services, hosted services) in the second package `Nordmann.LUI.Hosting`,
+  released with the same version
+- a sample application with a search field in the browser
 
 [Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.1.0...HEAD
 [0.1.0]: https://github.com/nordmanndev/LUI/releases/tag/v0.1.0
