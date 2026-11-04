@@ -18,7 +18,8 @@ export const names = {
         { text: 'schroeder', note: 'ö as oe' },
         { text: 'mueller', note: 'ü as ue — finds Müller too' },
         { text: 'müler', note: 'typo + umlaut' },
-        { text: 'lukasz', note: 'Ł folds to l' },
+        { text: 'simic', note: 'Croatian: š folds to s' },
+        { text: 'lukasz', note: 'ł is not folded: the typo correction finds it' },
     ],
 
     /** @param {any} envelope @returns {any[]} */

@@ -22,7 +22,7 @@ internal static class NameData
         ("Fuchs Charlotte", 350), ("Peters Matteo", 340), ("Lang Pauline", 330), ("Scholz Milo", 320),
         ("Möller Nele", 310), ("Weiß Ruben", 300), ("Jung Leni", 290), ("Hahn Samuel", 280),
         ("Vogel Mathilda", 270), ("Friedrich Emil", 260), ("Keller Marlene", 250), ("Günther Ole", 240),
-        ("Łukasz Kowalski", 150), ("Łódź Nowak", 140), ("İsmail Yılmaz", 130), ("Çelik Zeynep", 120),
+        ("Đuro Šimić", 160), ("Željko Ćosić", 155), ("Ivana Škorić", 150), ("Łukasz Kowalski", 150), ("Łódź Nowak", 140), ("İsmail Yılmaz", 130), ("Çelik Zeynep", 120),
         ("Jörg Böhm", 110), ("Åsa Lindgren", 100), ("José García", 90), ("François Dubois", 80),
     ];
 }

@@ -22,6 +22,22 @@ test('transliteration: "kaesekuchen" marks the whole of "Käsekuchen"', () => {
     assert.equal(marked('Straße', 'strasse'), '[Straße]');
 });
 
+test('Croatian: č ć š ž are found by c c s z, and the whole letter is marked', () => {
+    assert.equal(marked('Čevapčići', 'cevapcici'), '[Čevapčići]');
+    assert.equal(marked('Željko Ćosić', 'zeljko cosic'), '[Željko] [Ćosić]');
+    assert.equal(marked('Šibenik', 'sib'), '[Šib]enik');
+});
+
+test('đ is not folded by the search index, so "dakovo" does not mark "Đakovo" and "đakovo" does', () => {
+    assert.equal(marked('Đakovo', 'dakovo'), 'Đakovo');
+    assert.equal(marked('Đakovo', 'đakovo'), '[Đakovo]');
+    assert.equal(marked('Łódź', 'łodz'), '[Łódź]');
+});
+
+test('an accent that is its own character is marked with its letter', () => {
+    assert.equal(marked('Cafe\u0301', 'cafe'), '[Cafe\u0301]');
+});
+
 test('a decomposed umlaut in the text is marked as one letter', () => {
     assert.equal(marked('Müller', 'mueller'), '[Müller]');
 });

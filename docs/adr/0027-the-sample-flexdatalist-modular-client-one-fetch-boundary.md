@@ -77,9 +77,17 @@ behaviour that is the page's. Why the global `fetch`: it is what the library cal
 
 `suggest/highlight.js` marks the words of the **corrected** query (`kartofel` → `kartoffel`), a word start first, then anywhere
 (the trigram index finds `kuchen` in `Apfelkuchen`); `suggest/fold.js` folds like LUI's search form (docs/normalization.md: the
-German transliteration, case, diacritics) and remembers, for each character, the span of the original — so `mueller` marks all of
-`Müller`, `kaesekuchen` all of `Käsekuchen`, a decomposed umlaut one letter. It is an approximation of the tokenizer's folding, on
-purpose and said so. When LUI delivers `Highlight` (#20), these two files go away and the presenter reads ranges from the hit.
+German transliteration, then the tokenizer) and remembers, for each character, the span of the original — so `mueller` marks all of
+`Müller`, `kaesekuchen` all of `Käsekuchen`, a decomposed umlaut one letter, and a mark the tokenizer drops stays with its letter.
+
+**The folding is exact and not specific to a language:** it is the table LUI measured from SQLite's tokenizer for every code point of
+the Basic Multilingual Plane (`tokenizer-fold.txt`), generated into `fold-table.js` (`tools/generate-fold-table.mjs`) and held to
+the measured file by a test over all 63,000 code points. An earlier version of `fold.js` folded `đ ł ø ħ ı` by a table of its own
+that was assumed, not measured; the tokenizer leaves them alone (so `dakovo` does not find `Đakovo`, and a page that marked it
+would mark what LUI did not find). Measured against the tokenizer: 334 letters of 16 Latin-script alphabets (Croatian, Polish,
+Czech, Hungarian, Romanian, Turkish, Icelandic, the Nordic languages, French, Spanish, Maltese, Baltic, Finnish, Albanian,
+Welsh, Vietnamese, German), all equal. What stays an **approximation** is *which part* matched: the compact form (`apfelkuchen`
+in `Apfel Kuchen`), the second and third correction variant. When LUI delivers `Highlight` (#20), these two files go away.
 
 ### 5. Safe by construction, and by policy
 

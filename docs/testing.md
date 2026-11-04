@@ -199,7 +199,7 @@ lists C# files — but they are a lane of CI:
 
 | Test file | Proves |
 |---|---|
-| `fold.test.js`, `highlight.test.js` | the folding of a text like LUI's search form, with the span of the original for every character; where a match is marked (word start first, then anywhere; the corrected query; transliteration; a decomposed umlaut) and that the HTML is escaped |
+| `fold.test.js`, `fold-table.test.js`, `highlight.test.js` | the folding of a text like LUI's search form — exact, from the table LUI measured from the tokenizer, held to the measured file for every code point of the Basic Multilingual Plane — with the span of the original for every character (Croatian, Polish, Turkish letters included); where a match is marked (word start first, then anywhere; the corrected query; transliteration; a decomposed umlaut) and that the HTML is escaped |
 | `presenters.test.js` | for every scenario, with hostile data in every field: every displayed property has an escaped `_highlight` twin and no markup survives — flexdatalist writes the displayed values with `innerHTML` |
 | `settings.test.js` | only what differs from the library's default is sent; the three-valued typo tolerance; the demo latency; the storage that is blocked, broken or holds rubbish |
 | `transport.test.js` | the fetch boundary: a new request for an index aborts the one in flight, `cancel(index)` on a keystroke, the envelope on the bus, a refused request and a network error as an empty list |
