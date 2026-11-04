@@ -283,7 +283,7 @@ Voraussetzungen, geprüft bei jedem `Ensure()` (sonst `LuiLinkedTableException`,
 Werte der Anwendung werden in den Bereich gebracht, statt den ganzen Index scheitern zu lassen: ein Gewicht
 außerhalb von 0 … 536.870.911 wird begrenzt, eine Priorität außerhalb von 0 … 3 gilt als `Normal`; eine Zeile
 ohne Text (`NULL` oder leer) und eine Zeile mit einem Schlüssel außerhalb von 0 … 2³²−1 kommen nicht in den
-Index — `Sync` zählt sie (`LuiSyncResult`), ein Trigger lehnt den Schreibvorgang der Anwendung nicht ab.
+Index — `Sync` zählt sie (`LuiLinkedSyncReport`), ein Trigger lehnt den Schreibvorgang der Anwendung nicht ab.
 Ein Kandidat, dessen **aktueller** Text die Eingabe nicht mehr enthält, ist kein Treffer: Der Index ist so
 aktuell, wie die Anwendung ihn hält, aber er zeigt nie einen Text, der nicht passt. Ein Flag wie `is_system` lässt sich als berechnete
 Spalte der Anwendung abbilden (`GENERATED ALWAYS AS (CASE WHEN is_system THEN 0 ELSE 3 END)`).
@@ -462,7 +462,7 @@ getrennt; ein führendes `#` zählt nicht.
 
 **Stufe 0 ist die Priorität** (Standard: an). Einträge höherer Priorität, die
 die Eingabe enthalten, stehen vor allen anderen; untereinander gelten die
-Stufen der gewählten `LuiRankingOrder`. Mit `.Priorities(LuiPriorityRanking.CandidatesOnly)`
+Stufen der gewählten `LuiRankingOrder`. Mit `.PriorityMode(LuiPriorityMode.CandidatesOnly)`
 sind sie nur **sicher Kandidaten** und werden normal einsortiert.
 
 ```csharp
@@ -474,7 +474,7 @@ public enum LuiRankingOrder
     WeightOnly,                // Gewicht (= Reihenfolge der Kandidaten)
 }
 
-public enum LuiPriorityRanking
+public enum LuiPriorityMode
 {
     First,                     // Standard: Priorität vor allen Stufen
     CandidatesOnly,            // nur sicher unter den Kandidaten, normal einsortiert
@@ -593,7 +593,6 @@ Trefferquote ohne Tippfehler.
 ```csharp
 public interface ILuiSimilarity
 {
-    string Name { get; }
     double Similarity(string query, string text);     // 0 … 1, beide normalisiert
 }
 ```
@@ -682,16 +681,17 @@ Regeln:
   `JsonTypeInfo<TPayload>` (AOT- und trimmsicher) oder einen eigenen
   `ILuiPayloadSerializer<TPayload>`.
 - **`Linked`**: Die Payload wird aus Spalten der Tabelle gelesen; die API nimmt
-  die Liste der benötigten Spalten und eine Abbildung `Func<LuiRow, TPayload>`. Die Spalten werden mit den
-  Treffern gelesen, in dieser Reihenfolge; `LuiRow` kennt nur sie und gilt nur, solange die Abbildung läuft.
+  die Liste der benötigten Spalten und eine Abbildung `Func<LuiPayloadRow, TPayload>`. Die Spalten werden mit den
+  Treffern gelesen, in dieser Reihenfolge; `LuiPayloadRow` kennt nur sie und gilt nur, solange die Abbildung läuft.
 - In beiden Fällen: Payload **nur für die Treffer**, eine Abfrage
   `WHERE key IN (…)` bzw. `WHERE id IN (…)`.
 
 ### 12.4 Schreiben (`Embedded`)
 
-Lesen und Schreiben sind zwei Schnittstellen (ADR-0013): `ILuiIndex<TKey, TPayload>` hat jeder Index —
-`Query`, `Search`, `Count`, das Tippfehler-Wörterbuch —, `ILuiEmbeddedIndex<TKey, TPayload>` ergänzt die
-Schreibmethoden. Ein Eintrag ist ein `LuiEntry<TKey, TPayload>`; ein Upsert speichert **ihn ganz** — Text,
+Lesen und Schreiben sind zwei Schnittstellen (ADR-0013): `ILuiIndex<TKey, TPayload>` hat jeder Index und liest nur —
+`Query`, `Search`, `Count`, `TypoTolerance`, `TypoDictionaryState` —; `ILuiEmbeddedIndex<TKey, TPayload>` ergänzt die
+Schreibmethoden und die Pflege des Index (`Check`, `WarmUpTypoDictionary`, `RebuildTypoDictionary`; ADR-0024). Dasselbe gilt für
+`ILuiLinkedIndex<TPayload>`. Ein Eintrag ist ein `LuiEntry<TKey, TPayload>`; ein Upsert speichert **ihn ganz** — Text,
 Gewicht, Priorität und Payload.
 
 ```csharp
@@ -713,7 +713,7 @@ tx.Commit();
 recipes.UpsertMany(rows.Select(r => new LuiEntry<long, RecipeChip>(r.Id, r.Title) { Weight = r.Views }));
 
 // Abgleich mit einer Quelle: ergänzt, was fehlt, ändert, was abweicht, entfernt, was die Quelle nicht hat (ADR-0016)
-LuiSyncReport report = recipes.Sync(source, new LuiSyncOptions { BatchSize = 10_000, Progress = progress }, cancellationToken);
+LuiSyncReport report = recipes.Sync(entries, new LuiSyncOptions { BatchSize = 10_000, Progress = progress }, cancellationToken);
 // report.Added, .Changed, .Unchanged, .Removed, .Batches, .Merged
 ```
 
@@ -749,7 +749,7 @@ LuiResult<long, RecipeChip> result = recipes
     .Take(20)                                        // MaxResults, Standard 20
     .Candidates(500)                                 // Standard 500
     .Rank(LuiRankingOrder.WordStartThenSimilarity)   // Standard
-    .Priorities(LuiPriorityRanking.First)            // Standard
+    .PriorityMode(LuiPriorityMode.First)            // Standard
     .DistinctText(false)                             // Standard
     .Similarity(LuiSimilarity.JaroWinkler)           // überschreibt den Standard der Art
     .TypoTolerance(true)                             // Standard: wie beim Index festgelegt
@@ -772,16 +772,16 @@ wird (ganz / in Wörtern / kompakt), der Präfix-Pfad, die Regel *Wortanfang*.
 ### 12.6 Prüfen und reparieren
 
 ```csharp
-LuiIntegrityReport check = recipes.Check(source);   // Embedded: Abweichungen zur Quelle (fehlt / überzählig / anders)
+LuiIntegrityReport check = recipes.Check(entries);   // Embedded: Abweichungen zur Quelle (fehlt / überzählig / anders)
 LuiIntegrityReport self  = recipes.Check();         // beide: Definition = lui_meta, Trigger, FTS5 integrity-check
 LuiIntegrityReport tags  = tagIndex.Check();        // Linked: dazu die Einträge gegen die Zeilen der Tabelle
 recipes.Rebuild();                                  // Embedded: Trigger und Suchindex neu aus der Inhaltstabelle, zusammengeführt
 recipes.Optimize();                                 // FTS5 'optimize'
 ```
 
-Ein Bericht nennt jeden Befund in einem Satz mit der Reparatur (`Sync(source)`, `Rebuild()`, `Sync()`, `ApplyPending()`,
+Ein Bericht nennt jeden Befund in einem Satz mit der Reparatur (`Sync(entries)`, `Rebuild()`, `Sync()`, `ApplyPending()`,
 `CreateTriggers()`) und zählt bei einem Vergleich fehlende, überzählige und abweichende Einträge, mit bis zu fünf
-Schlüsseln. `IsHealthy` heißt: nichts gefunden. `Check(source)` liest in einem eigenen Snapshot und ändert nichts;
+Schlüsseln. `IsHealthy` heißt: nichts gefunden. `Check(entries)` liest in einem eigenen Snapshot und ändert nichts;
 `Check()` führt die Integritätsprüfung von FTS5 unter der Schreibsperre aus (ein `INSERT`, das zurückgerollt wird).
 Bei `Linked` sieht `Check()` keinen Text, der sich hinter den ersten beiden Buchstaben geändert hat — der Suchindex
 speichert ihn nicht; eine Abfrage zeigt ihn trotzdem nie (§ 7.3), und `Sync()` repariert ihn.
@@ -791,7 +791,7 @@ speichert ihn nicht; eine Abfrage zeigt ihn trotzdem nie (§ 7.3), und `Sync()` 
 ```csharp
 services.AddLui("Data Source=app.db")                   // oder AddLui(sp => …Verbindungszeichenfolge aus der Konfiguration…)
         .AddIndex("recipes", index => index.MultiWord().WithPayload(RecipeJsonContext.Default.RecipeChip))
-        .AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"),
+        .AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"),
                   applyPendingEvery: TimeSpan.FromSeconds(5))   // die Outbox der Trigger, auf einem Timer
         .EnsureOnStart()                                  // Standard
         .WarmUpTypoDictionariesOnStart();                 // optional, im Hintergrund
@@ -804,7 +804,12 @@ public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<lon
   pro Container.
 - Jeder Index ist ein **Keyed Singleton unter seinem Namen**, als Lese- (`ILuiIndex<TKey, TPayload>`) und als
   Schreibschnittstelle (`ILuiEmbeddedIndex` bzw. `ILuiLinkedIndex`) — dieselbe Instanz. Der Rückgabetyp der
-  Beschreibung wählt die Art: `LuiEmbeddedIndexBuilder` = `Embedded`, `LuiLinkedIndexBuilder` = `Linked`.
+  Beschreibung ist je Art eine eigene Methode: `AddIndex` nimmt die Beschreibung eines `Embedded`-Index
+  (`LuiEmbeddedIndexBuilder`), `AddLinkedIndex` die eines `Linked`-Index (`LuiLinkedIndexBuilder`, dazu `applyPendingEvery`;
+  ADR-0024).
+- **`AddLui` öffnet die Datenbank, wenn der Host startet — auch mit `EnsureOnStart(false)`**: Die gehosteten Dienste lösen den
+  Katalog vor sich selbst auf, damit der Container sie vor ihm entsorgt (ADR-0017). Ein SQLite, das LUI nicht tragen kann,
+  stoppt deshalb den Start mit einer `LuiEnvironmentException`.
 - `Ensure()` läuft beim Start (als `IHostedService`, abschaltbar mit `EnsureOnStart(false)`), nicht beim ersten
   Request: Eine abweichende Definition stoppt den Start. Gehostete Dienste starten in der Reihenfolge ihrer
   Registrierung: Eine Migration, die die Tabelle eines verknüpften Index anlegt, wird vor `AddLui` registriert oder vor
@@ -830,9 +835,16 @@ public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<lon
 | ungültiger Index- oder Spaltenname | `ArgumentException` mit dem erlaubten Muster |
 | Schlüsseltyp weder `long` noch `string` | `NotSupportedException` bei `WithKey<TKey>()` |
 | Definition weicht von `lui_meta` ab | `LuiDefinitionMismatchException` (nennt beide) |
+| SQLite zu alt, ohne FTS5-Trigram-Tokenizer oder mit anderer Faltung | `LuiEnvironmentException` beim `LuiCatalog.Open` |
 | `Linked`: Tabelle oder Spalte fehlt, Schlüssel ist nicht der `INTEGER PRIMARY KEY`, Schlüssel außerhalb 0 … 2³²−1 beim `Sync` | `LuiLinkedTableException` (nennt, was fehlt; nichts wird geändert) |
 | Gewicht, Priorität oder Option außerhalb des Bereichs | `ArgumentOutOfRangeException`, wenn der Wert gesetzt wird |
 | SQLite meldet `SQLITE_BUSY` nach `busy_timeout` | `SqliteException` wird unverändert weitergereicht |
+| ein `LuiPayloadRow`, der nach der Abbildung von `WithPayload` gelesen wird | `InvalidOperationException` (die Zeile gilt nur, solange die Abbildung läuft) |
+
+Die drei Ausnahmen der Bibliothek — `LuiEnvironmentException`, `LuiDefinitionMismatchException`, `LuiLinkedTableException` —
+haben die gemeinsame, abstrakte Basis `LuiException`, die ihrerseits eine `InvalidOperationException` ist: `catch (LuiException)`
+trennt die Fälle der Bibliothek von den Fehlern der Anwendung, und ein bestehendes `catch (InvalidOperationException)` fängt sie
+weiter (ADR-0024).
 
 ---
 
@@ -863,8 +875,8 @@ Thread des Pools.
 |---|---|---|
 | Suchindex ↔ Inhaltstabelle | Trigger, dieselbe Transaktion | Anwendung: `Refresh` in ihrer Transaktion, sonst `Sync` — oder ihre Trigger (§ 7.3) |
 | Inhaltstabelle ↔ Fachdaten | Anwendung: `Upsert` in ihrer Transaktion, sonst `Sync` | entfällt |
-| Prüfung | `Check(source)`, `Check()` | `Check()` |
-| Reparatur | `Sync(source)`, `Rebuild()` | `Sync()` |
+| Prüfung | `Check(entries)`, `Check()` | `Check()` |
+| Reparatur | `Sync(entries)`, `Rebuild()` | `Sync()` |
 
 `Sync` (`Embedded`) arbeitet in Stapeln (Standard 10.000) in je einer Transaktion. Zu Beginn merkt er sich die
 Schlüssel des Index, streicht jeden, den die Quelle hat, und entfernt am Ende, was übrig ist: die Schlüssel, die beim

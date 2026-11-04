@@ -97,7 +97,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         {
             var slow = index.Query(inputs[i]).TrackTimings().Execute();
             Report($"  slow '{inputs[i]}': {latencies[i]:F1} ms; again {slow.Timings!.Total.TotalMilliseconds:F1} ms "
-                + $"(candidates {slow.Timings.Candidates.TotalMilliseconds:F1}, ranking {slow.Timings.Ranking.TotalMilliseconds:F1}, "
+                + $"(candidates {slow.Timings.CandidateRead.TotalMilliseconds:F1}, ranking {slow.Timings.Ranking.TotalMilliseconds:F1}, "
                 + $"payload {slow.Timings.Payload.TotalMilliseconds:F1}); {slow.CandidatesConsidered} candidates{(slow.Truncated ? " (truncated)" : string.Empty)}");
         }
 

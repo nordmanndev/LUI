@@ -18,7 +18,7 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
     private readonly LuiIndexKind _kind;
     private readonly LinkDefinition _link;
     private readonly IReadOnlyList<string> _payloadColumns;
-    private readonly Func<LuiRow, TPayload>? _payload;
+    private readonly Func<LuiPayloadRow, TPayload>? _payload;
     private IndexOptions _options;
 
     internal LuiLinkedIndexBuilder(
@@ -27,7 +27,7 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
         LuiIndexKind kind,
         LinkDefinition link,
         IReadOnlyList<string> payloadColumns,
-        Func<LuiRow, TPayload>? payload,
+        Func<LuiPayloadRow, TPayload>? payload,
         IndexOptions options)
     {
         _options = options;
@@ -47,7 +47,7 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
     /// <param name="columns">The columns the payload is built from.</param>
     /// <param name="map">Builds the payload from the row; it sees only <paramref name="columns"/>.</param>
     /// <returns>A builder of an index with that payload, with the settings made so far.</returns>
-    public LuiLinkedIndexBuilder<TNewPayload> WithPayload<TNewPayload>(IReadOnlyList<string> columns, Func<LuiRow, TNewPayload> map)
+    public LuiLinkedIndexBuilder<TNewPayload> WithPayload<TNewPayload>(IReadOnlyList<string> columns, Func<LuiPayloadRow, TNewPayload> map)
     {
         ArgumentNullException.ThrowIfNull(columns);
         ArgumentNullException.ThrowIfNull(map);

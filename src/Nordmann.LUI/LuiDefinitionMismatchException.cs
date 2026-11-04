@@ -5,7 +5,7 @@ namespace Nordmann.LUI;
 /// An index is never rebuilt silently (LUI-Spezifikation §7.1): the message
 /// names both definitions.
 /// </summary>
-public sealed class LuiDefinitionMismatchException : InvalidOperationException
+public sealed class LuiDefinitionMismatchException : LuiException
 {
     /// <summary>Creates the exception.</summary>
     /// <param name="indexName">The name of the index.</param>

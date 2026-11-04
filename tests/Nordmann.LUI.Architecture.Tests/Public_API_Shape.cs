@@ -87,7 +87,7 @@ public sealed class Public_API_Shape
         string[] named =
         [
             "LuiHit`2", "LuiResult`2", "LuiTimings", "LuiQueryOptions", "LuiCatalogOptions",
-            "LuiSyncResult", "LuiSyncOptions", "LuiSyncReport", "LuiIntegrityReport",
+            "LuiLinkedSyncReport", "LuiSyncOptions", "LuiSyncReport", "LuiIntegrityReport",
         ];
 
         var offenders = LibraryAssembly
@@ -101,6 +101,72 @@ public sealed class Public_API_Shape
 
         offenders.ShouldBeEmpty("The results and options are built with named properties.");
         LibraryAssembly.GetExportedTypes().Count(type => named.Contains(type.Name, StringComparer.Ordinal)).ShouldBe(named.Length);
+    }
+
+    [Fact]
+    public void Every_exception_the_library_exposes_is_a_LuiException()
+    {
+        // One type for "something LUI says about an index or its environment", still an InvalidOperationException
+        // (review of 2026-11-04, A.8). A fourth exception that forgets the base fails here.
+        typeof(LuiException).IsAbstract.ShouldBeTrue("the library throws the three, never the base itself");
+        typeof(InvalidOperationException).IsAssignableFrom(typeof(LuiException)).ShouldBeTrue();
+
+        var exceptions = PackageAssemblies
+            .SelectMany(assembly => assembly.GetExportedTypes())
+            .Where(type => typeof(Exception).IsAssignableFrom(type))
+            .ToArray();
+
+        exceptions.Where(type => !typeof(LuiException).IsAssignableFrom(type)).Select(type => type.Name)
+            .ShouldBeEmpty("Every public exception derives from LuiException.");
+        exceptions.Select(type => type.Name).Order(StringComparer.Ordinal)
+            .ShouldBe(["LuiDefinitionMismatchException", "LuiEnvironmentException", "LuiException", "LuiLinkedTableException"]);
+    }
+
+    [Fact]
+    public void Every_option_of_a_query_can_be_set_on_the_query_and_every_setting_of_the_query_is_an_option()
+    {
+        // The settings of a query exist twice, as the properties of LuiQueryOptions and as the methods of LuiQuery. Nothing
+        // but this test says that the two sets are the same (review of 2026-11-04, B.2). The one name that differs is Take.
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        var renamed = new Dictionary<string, string>(StringComparer.Ordinal) { ["MaxResults"] = "Take" };
+
+        var options = typeof(LuiQueryOptions).GetProperties(declared)
+            .Select(property => renamed.GetValueOrDefault(property.Name, property.Name))
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        var settings = typeof(LuiQuery<,>).GetMethods(declared)
+            .Where(method => method.ReturnType.IsGenericType && method.ReturnType.GetGenericTypeDefinition() == typeof(LuiQuery<,>))
+            .Select(method => method.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+
+        options.ShouldNotBeEmpty();
+        settings.ShouldBe(options, "LuiQuery has a method for every property of LuiQueryOptions, and no method without one.");
+    }
+
+    [Fact]
+    public void The_read_interface_only_reads_and_the_write_interfaces_carry_the_maintenance()
+    {
+        // What keeps an index in order is not part of the interface that a suggest endpoint gets injected (review of
+        // 2026-11-04, B.3). TypoTolerance and TypoDictionaryState stay: the hosting package sees the public API only.
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        static string[] Members(Type type) =>
+        [
+            .. type.GetProperties(declared).Select(property => property.Name),
+            .. type.GetMethods(declared).Where(method => !method.IsSpecialName).Select(method => method.Name),
+            .. type.GetEvents(declared).Select(@event => @event.Name),
+        ];
+
+        Members(typeof(ILuiIndex<,>)).Order(StringComparer.Ordinal)
+            .ShouldBe(["Count", "Kind", "Name", "Query", "Search", "TypoDictionaryState", "TypoTolerance"]);
+
+        foreach (var write in new[] { typeof(ILuiEmbeddedIndex<,>), typeof(ILuiLinkedIndex<>) })
+        {
+            foreach (var maintenance in new[] { "Check", "WarmUpTypoDictionary", "RebuildTypoDictionary" })
+            {
+                Members(write).ShouldContain(name => string.Equals(name, maintenance, StringComparison.Ordinal), $"{write.Name}.{maintenance}");
+            }
+        }
     }
 
     [Fact]

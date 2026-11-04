@@ -27,7 +27,6 @@ public static class LuiSimilarity
     {
         private readonly JaroWinkler _measure = new();
 
-        public string Name => nameof(JaroWinkler);
 
         public double Similarity(string query, string text) => _measure.Similarity(query, text);
     }
@@ -43,7 +42,6 @@ public static class LuiSimilarity
         /// <summary>Bigram sets up to this size are handled on the stack.</summary>
         private const int StackBigrams = 256;
 
-        public string Name => nameof(NgramDice);
 
         public double Similarity(string query, string text)
         {
@@ -151,7 +149,6 @@ public static class LuiSimilarity
     {
         private readonly Damerau _measure = new();
 
-        public string Name => nameof(DamerauLevenshtein);
 
         public double Similarity(string query, string text)
         {
@@ -164,7 +161,6 @@ public static class LuiSimilarity
     {
         private readonly NormalizedLevenshtein _measure = new();
 
-        public string Name => nameof(Levenshtein);
 
         public double Similarity(string query, string text) => _measure.Similarity(query, text);
     }

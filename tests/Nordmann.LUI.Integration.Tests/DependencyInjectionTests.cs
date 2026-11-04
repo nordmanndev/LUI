@@ -56,7 +56,7 @@ public sealed class DependencyInjectionTests
         using var database = new TestDatabase();
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         builder.Services.AddHostedService(_ => new Migration(database));
-        builder.Services.AddLui(database.ConnectionString).AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        builder.Services.AddLui(database.ConnectionString).AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
         using var host = builder.Build();
 
         host.Start();
@@ -85,7 +85,7 @@ public sealed class DependencyInjectionTests
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         using var host = Host(
             database,
-            lui => lui.AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(5)),
+            lui => lui.AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(5)),
             new LuiCatalogOptions { TimeProvider = clock });
         host.Start();
 
@@ -112,7 +112,7 @@ public sealed class DependencyInjectionTests
         var log = new CapturedLog();
         using var host = Host(
             database,
-            lui => lui.AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(1)),
+            lui => lui.AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(1)),
             new LuiCatalogOptions { TimeProvider = clock },
             builder => builder.Logging.SetMinimumLevel(LogLevel.Debug).AddProvider(log));
         host.Start();
@@ -151,7 +151,7 @@ public sealed class DependencyInjectionTests
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         using var host = Host(
             database,
-            lui => lui.AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(5)),
+            lui => lui.AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(5)),
             new LuiCatalogOptions { TimeProvider = clock },
             builder => builder.Services.AddSingleton(new LuiCatalogOptions { TimeProvider = TimeProvider.System }));
         host.Start();
@@ -236,7 +236,7 @@ public sealed class DependencyInjectionTests
         Should.Throw<ArgumentException>(() => lui.AddIndex("words", index => index.MultiWord()));
         Should.Throw<ArgumentException>(() => lui.AddIndex(" ", index => index.SingleWord()));
         Should.Throw<ArgumentOutOfRangeException>(() =>
-            lui.AddIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.Zero));
+            lui.AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.Zero));
     }
 
     [Fact]
@@ -257,7 +257,7 @@ public sealed class DependencyInjectionTests
         var words = host.Services.GetRequiredKeyedService<ILuiIndex<long, LuiNoPayload>>("words");
         var embedded = host.Services.GetRequiredKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("words");
         embedded.Sync([new LuiEntry<long, LuiNoPayload>(1, "kartoffel"), new LuiEntry<long, LuiNoPayload>(2, "tomate")]);
-        words.WarmUpTypoDictionary();
+        embedded.WarmUpTypoDictionary();
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
 
         embedded.Sync([new LuiEntry<long, LuiNoPayload>(2, "tomate")]);

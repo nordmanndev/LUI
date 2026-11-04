@@ -1,5 +1,9 @@
 # 0023 — `Owned` becomes `Embedded`: the name of the content source in LUI's own table
 
+> **Update (ADR-0024, 2026-11-04):** the last consequence below — `AddIndex` chooses its overload by the return type of the
+> description, "splitting them is #42" — held until #42. `AddIndex` is now two methods: `AddIndex` for an embedded index and
+> `AddLinkedIndex` for a linked one. The rest of this record stands as written.
+
 - **Status:** Accepted (owner's decision, 2026-11-04, after an independent architecture review)
 - **Date:** 2026-11-04
 - **Issue:** #41, step 2 of epic #39 (the public API before the freeze of 0.1.0)

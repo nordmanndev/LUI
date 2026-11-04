@@ -45,8 +45,16 @@ public sealed class LuiServicesBuilder
         _registrations.Add(new IndexRegistration(
             name,
             Ensure: provider => provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name),
-            WarmUp: (provider, token) => WarmUp(provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name), token),
-            RebuildIfStale: (provider, token) => RebuildIfStale(provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name), token)));
+            WarmUp: (provider, token) =>
+            {
+                var index = provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name);
+                return WarmUp(index.TypoTolerance, index.WarmUpTypoDictionary, token);
+            },
+            RebuildIfStale: (provider, token) =>
+            {
+                var index = provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name);
+                return RebuildIfStale(index.TypoDictionaryState, index.RebuildTypoDictionary, token);
+            }));
 
         Services.AddKeyedSingleton<ILuiEmbeddedIndex<TKey, TPayload>>(
             name, (provider, _) => index(provider.GetRequiredService<LuiCatalog>().Index(name)).Ensure());
@@ -57,7 +65,7 @@ public sealed class LuiServicesBuilder
 
     /// <summary>
     /// Adds an index over a table of the application (<c>Linked</c>):
-    /// <c>AddIndex("tags", index =&gt; index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(5))</c>.
+    /// <c>AddLinkedIndex("tags", index =&gt; index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(5))</c>.
     /// Registered under <paramref name="name"/> as <see cref="ILuiIndex{TKey, TPayload}"/> (with a <see cref="long"/> key)
     /// and <see cref="ILuiLinkedIndex{TPayload}"/>.
     /// </summary>
@@ -73,7 +81,7 @@ public sealed class LuiServicesBuilder
     /// <exception cref="ArgumentException">The name is empty, or it is registered already. A name that is not a valid index
     /// name (<c>^[a-z][a-z0-9_]{0,40}$</c>) fails when the index is ensured — on start.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="applyPendingEvery"/> is not positive.</exception>
-    public LuiServicesBuilder AddIndex<TPayload>(
+    public LuiServicesBuilder AddLinkedIndex<TPayload>(
         string name,
         Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>> index,
         TimeSpan? applyPendingEvery = null)
@@ -88,8 +96,16 @@ public sealed class LuiServicesBuilder
         _registrations.Add(new LinkedIndexRegistration(
             name,
             Ensure: provider => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name),
-            WarmUp: (provider, token) => WarmUp(provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name), token),
-            RebuildIfStale: (provider, token) => RebuildIfStale(provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name), token),
+            WarmUp: (provider, token) =>
+            {
+                var index = provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name);
+                return WarmUp(index.TypoTolerance, index.WarmUpTypoDictionary, token);
+            },
+            RebuildIfStale: (provider, token) =>
+            {
+                var index = provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name);
+                return RebuildIfStale(index.TypoDictionaryState, index.RebuildTypoDictionary, token);
+            },
             ApplyPending: (provider, token) => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name).ApplyPending(token),
             ApplyPendingEvery: applyPendingEvery));
 
@@ -159,16 +175,19 @@ public sealed class LuiServicesBuilder
         return this;
     }
 
-    /// <summary>Rebuilds the typo dictionary of an index if it is stale.</summary>
+    /// <summary>
+    /// Rebuilds the typo dictionary of an index if it is stale. The state is the read side of the index
+    /// (<see cref="ILuiIndex{TKey, TPayload}.TypoDictionaryState"/>), the rebuild the write side — so both come as arguments.
+    /// </summary>
     /// <returns>Whether it was rebuilt.</returns>
-    private static bool RebuildIfStale<TKey, TPayload>(ILuiIndex<TKey, TPayload> index, CancellationToken cancellationToken)
+    private static bool RebuildIfStale(LuiTypoDictionaryState state, Action<CancellationToken> rebuild, CancellationToken cancellationToken)
     {
-        if (index.TypoDictionaryState != LuiTypoDictionaryState.Stale)
+        if (state != LuiTypoDictionaryState.Stale)
         {
             return false;
         }
 
-        index.RebuildTypoDictionary(cancellationToken);
+        rebuild(cancellationToken);
         return true;
     }
 
@@ -177,14 +196,14 @@ public sealed class LuiServicesBuilder
     /// memory for nothing.
     /// </summary>
     /// <returns>Whether it was built.</returns>
-    private static bool WarmUp<TKey, TPayload>(ILuiIndex<TKey, TPayload> index, CancellationToken cancellationToken)
+    private static bool WarmUp(bool typoTolerance, Action<CancellationToken> warmUp, CancellationToken cancellationToken)
     {
-        if (!index.TypoTolerance)
+        if (!typoTolerance)
         {
             return false;
         }
 
-        index.WarmUpTypoDictionary(cancellationToken);
+        warmUp(cancellationToken);
         return true;
     }
 }

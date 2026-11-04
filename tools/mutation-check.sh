@@ -239,7 +239,30 @@ expect_caught "the-old-word-returns-to-the-public-surface" "${ARCHITECTURE_PROJE
   "FullyQualifiedName~Embedded_and_Linked" \
   "grep -rl --include=*.cs CorrectionSkipped src tests | xargs sed -i 's/CorrectionSkipped/OwnedSkipped/g'"
 
-# 20. The clean trees stay green.
+# 20. A setting of the query exists only on one side (review of 2026-11-04, B.2):
+#     LuiQueryOptions gets a property that LuiQuery has no method for.
+expect_caught "an-option-without-a-method-on-the-query" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_option_of_a_query_can_be_set_on_the_query" \
+  "sed -i 's|    public bool TrackTimings { get; init; }|    public bool TrackTimings { get; init; }\n\n    /// <summary>x</summary>\n    public bool Extra { get; init; }|' src/Nordmann.LUI/LuiQueryOptions.cs"
+
+# 21. A member joins the interface that only reads (B.3). A default interface member needs no
+#     implementation, so the tree builds and only the guard can react.
+expect_caught "a-member-joins-the-read-interface" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_read_interface_only_reads" \
+  "sed -i '\$ i\\    /// <summary>x</summary>\n    void Extra() { }' src/Nordmann.LUI/ILuiIndex.cs"
+
+# 22. An event joins the interface that only reads (review of pull request 47, M5): an event
+#     is neither a property nor a method without a special name, so the guard has to ask for events.
+expect_caught "an-event-joins-the-read-interface" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_read_interface_only_reads" \
+  "sed -i '\$ i\\    /// <summary>x</summary>\n    event System.EventHandler? Extra { add { } remove { } }' src/Nordmann.LUI/ILuiIndex.cs"
+
+# 23. A write interface loses a maintenance member (B.3): the class keeps the method, so the tree builds.
+expect_caught "a-write-interface-loses-a-maintenance-member" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_read_interface_only_reads" \
+  "perl -0pi -e 's|    /// <summary>\\n    /// Checks the index against itself and against.*?LuiIntegrityReport Check\\(\\);\\n\\n||s' src/Nordmann.LUI/ILuiLinkedIndex.cs"
+
+# 24. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

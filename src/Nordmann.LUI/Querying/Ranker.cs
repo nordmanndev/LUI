@@ -26,14 +26,14 @@ internal static class Ranker
         int count,
         IReadOnlyList<string> queries,
         LuiRankingOrder order,
-        LuiPriorityRanking priorities,
+        LuiPriorityMode priorities,
         ILuiSimilarity similarity,
         NormalizationOptions normalization,
         int take,
         CancellationToken cancellationToken)
     {
         var wordStartStage = order is LuiRankingOrder.WordStartThenSimilarity or LuiRankingOrder.WordStartThenWeight;
-        var priorityFirst = priorities == LuiPriorityRanking.First;
+        var priorityFirst = priorities == LuiPriorityMode.First;
 
         // weight order with the priority first is the order the candidates came in
         if (order == LuiRankingOrder.WeightOnly && priorityFirst)

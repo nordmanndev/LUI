@@ -42,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Dependency injection, in a second package `Nordmann.LUI.Hosting`** ([ADR-0017](docs/adr/0017-dependency-injection-and-hosted-services.md),
   [ADR-0018](docs/adr/0018-two-packages-core-and-hosting.md)), released with `Nordmann.LUI` under the same version:
   `services.AddLui(connectionString, options?)` (or with delegates that read the container) and
-  `.AddIndex(name, index => …)` for an embedded or a linked index. Every index is a keyed singleton under its name, as
+  `.AddIndex(name, index => …)` for an embedded and `.AddLinkedIndex(name, index => …)` for a linked index. Every index is a keyed singleton under its name, as
   `ILuiIndex<TKey, TPayload>` and as `ILuiEmbeddedIndex`/`ILuiLinkedIndex`; the catalog is a singleton the container
   disposes. A hosted service ensures every index when the host starts (`EnsureOnStart(false)` switches it off) and,
   with `WarmUpTypoDictionariesOnStart()`, builds the typo dictionaries of the indexes with typo tolerance in the
@@ -53,15 +53,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   own implementation of `ILuiIndex` (a test double) has to add it.
 
 - **Sync, check, rebuild and optimize** ([ADR-0016](docs/adr/0016-sync-check-rebuild.md)). An embedded index:
-  `Sync(source, options?, cancellationToken)` (and an overload for an `IAsyncEnumerable` source) adds what is missing,
+  `Sync(entries, options?, cancellationToken)` (and an overload for an `IAsyncEnumerable` source) adds what is missing,
   writes what differs, keeps what is the same and removes the keys that were there when it began and that the source
   does not have — in batches of
   `LuiSyncOptions.BatchSize` (default 10,000), each in a transaction of its own, written in the order of the search
   index and merged once at the end. A sync cancelled while it reads the source keeps its committed batches and removes
   nothing (one cancelled during the removal at the end leaves the rest of it); run again, it skips what is done. It returns a `LuiSyncReport` (`Read`, `Added`, `Changed`, `Unchanged`, `Removed`, `Batches`, `Merged`) and
-  reports the same after every batch to `LuiSyncOptions.Progress`. `Check(source)` compares and changes nothing;
+  reports the same after every batch to `LuiSyncOptions.Progress`. `Check(entries)` compares and changes nothing;
   `Rebuild()` creates the triggers and the search index anew; `Optimize()` merges. Every index has `Check()` (on
-  `ILuiIndex`): the definition, the triggers, FTS5's integrity check — for a linked index also the table and the
+  `ILuiEmbeddedIndex` and `ILuiLinkedIndex`): the definition, the triggers, FTS5's integrity check — for a linked index also the table and the
   entries against its rows. It returns a `LuiIntegrityReport` (`Problems`, `IsHealthy`, `Missing`, `Extra`,
   `Different`). 1,000,000 entries: sync 78 s (batches of 10,000) or 55 s (100,000), query p95 afterwards 3.9 ms
   (5.4 ms after `UpsertMany`).
@@ -74,8 +74,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Optimize()`; triggers only on request: `TriggerScript()`, `CreateTriggers()`, `DropTriggers()` — they only note the
   key of a changed row in an outbox (plain SQL, any SQLite can write the table); `ApplyPending()` brings the noted rows
   into the index, `Pending()` counts them. A payload from columns:
-  `WithPayload(columns, row => …)` with `LuiRow`. `LuiLinkedTableException` when the table is not what the link says.
-  `Sync()` returns a `LuiSyncResult` (indexed, without text, key out of range); `Triggers()` returns a
+  `WithPayload(columns, row => …)` with `LuiPayloadRow`. `LuiLinkedTableException` when the table is not what the link says.
+  `Sync()` returns a `LuiLinkedSyncReport` (indexed, without text, key out of range); `Triggers()` returns a
   `LuiTriggerState` (`None`, `Current`, `Stale`); `DropIndex(name, dropTriggers)` removes the triggers of a linked
   index only when asked. A candidate whose current text no longer matches is not a hit.
   200,000 rows: sync 3.5–3.9 s, query p95 1.11–1.17 ms, refresh p95 0.51–0.58 ms.
@@ -91,8 +91,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   An input without a word start is corrected by one edit with a SymSpell dictionary of the word
   beginnings (3 … 10 letters) of the index; the three best corrections are searched and united with
   the candidates of the input. `LuiResult.CorrectedQuery` says what was searched, `LuiTimings.Correction`
-  what it cost, `ILuiIndex.WarmUpTypoDictionary()` builds the dictionary ahead of the first typo,
-  `RebuildTypoDictionary()` builds it anew (both take a `CancellationToken`); the dictionary is shared by all
+  what it cost, `WarmUpTypoDictionary()` builds the dictionary ahead of the first typo,
+  `RebuildTypoDictionary()` builds it anew (both are on `ILuiEmbeddedIndex` and `ILuiLinkedIndex`, and take a `CancellationToken`); the dictionary is shared by all
   instances of an index and its build never holds up a write. The dictionary of the whole
   German word list takes 4.2 s and 138 MB.
 
@@ -121,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     ([ADR-0009](docs/adr/0009-writes-use-prepared-statements.md)).
   - Queries: the prefix path for one and two characters, FTS5 trigram
     candidates from three, ranked by priority → word start → similarity →
-    weight (`LuiRankingOrder`, `LuiPriorityRanking`, `DistinctText`, `Take`,
+    weight (`LuiRankingOrder`, `LuiPriorityMode`, `DistinctText`, `Take`,
     `Candidates`, `TrackTimings`), fluent (`LuiQuery`) or with
     `Search(text, LuiQueryOptions)`. The answer is a `LuiResult` of `LuiHit`s.
   - `LuiPriority` (`System` … `Normal`) in the rowid: a system tag is a
@@ -159,6 +159,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The public API before the freeze** ([ADR-0024](docs/adr/0024-the-api-polish-before-the-freeze.md), #42, from the
+  architecture review of 2026-11-04). Renamed and tidied before the first release, so nobody has to migrate:
+  - `AddIndex` registers an embedded index, **`AddLinkedIndex`** a linked one (with `applyPendingEvery`); the two were
+    overloads of one name, chosen by the return type of the description.
+  - `LuiPriorityRanking` → `LuiPriorityMode`; `LuiQuery.Priorities(…)` and `LuiQueryOptions.Priorities` → `PriorityMode`.
+  - `LuiTimings.Candidates` → `CandidateRead`: a duration, not the budget (`LuiQueryOptions.Candidates`) and not the count
+    (`LuiResult.CandidatesConsidered`).
+  - `Sync(source, …)` and `Check(source)` of `ILuiEmbeddedIndex` take `entries`.
+  - `LuiRow` → `LuiPayloadRow`. A row that is kept and read after the mapping of `WithPayload` throws an
+    `InvalidOperationException` instead of reading the next hit.
+  - `LuiSyncResult` → `LuiLinkedSyncReport`: the linked index's sync is a different operation from the embedded one, with
+    other counts, and now says so in its name.
+  - New: `LuiException`, abstract and still an `InvalidOperationException`, is the base of `LuiEnvironmentException`,
+    `LuiDefinitionMismatchException` and `LuiLinkedTableException`.
+  - `ILuiIndex` only reads. `Check()`, `WarmUpTypoDictionary()` and `RebuildTypoDictionary()` moved to `ILuiEmbeddedIndex`
+    and `ILuiLinkedIndex`; `TypoTolerance` and `TypoDictionaryState` stay.
+  - `ILuiSimilarity.Name` is gone: nothing read it, and a measure of your own no longer has to invent one.
+
 - **`Owned` is `Embedded`** ([ADR-0023](docs/adr/0023-owned-becomes-embedded.md), #41). The content source in LUI's own
   table, `lui_<index>`, is named after where its rows live, and pairs with `Linked`. In .NET "owned" is the word of
   lifetime (Autofac's `Owned<T>`, an owned `IDisposable`), and the index is a singleton that is never disposed. Renamed
@@ -183,7 +201,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A candidate of a linked index whose current text no longer matches does not count against the candidate budget any
   more: the read goes on past it, up to another budget of such rows (review of PR #16, F1).
 - `Highlight` is not part of 0.1 (owner's decision): the front end marks the match; it comes with a later version (#20).
-- `ILuiIndex<TKey, TPayload>` has `Check()`. Inside, the catalog is taken apart (review DevEx D4, D6): no change to
+- Every index has `Check()` (on `ILuiEmbeddedIndex` and `ILuiLinkedIndex`). Inside, the catalog is taken apart (review DevEx D4, D6): no change to
   the public API besides.
 - **The builder: an embedded index is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;
   `SingleWord()`/`MultiWord()` return a `LuiEmbeddedIndexBuilder<long, LuiNoPayload>` — an embedded index, or with

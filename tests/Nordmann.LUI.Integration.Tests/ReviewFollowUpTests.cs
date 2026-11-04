@@ -307,8 +307,6 @@ public sealed class ReviewFollowUpTests
 
         internal bool Called => Volatile.Read(ref _calls) > 0;
 
-        public string Name => "OnFirstCall";
-
         public double Similarity(string query, string text)
         {
             if (Interlocked.Increment(ref _calls) == 1)
