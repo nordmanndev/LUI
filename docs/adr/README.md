@@ -41,7 +41,7 @@ here — in the **same pull request** as the change it describes.
 | [0007](./0007-the-catalog-checks-the-sqlite-it-runs-on.md) | The catalog checks the SQLite it runs on | Accepted |
 | [0008](./0008-the-query-path.md) | The query path: groups, a lazy similarity, and what the result reserves | Accepted |
 | [0009](./0009-writes-use-prepared-statements.md) | Writes use prepared statements on one writer connection | Accepted |
-| [0010](./0010-the-query-budget-at-three-million-entries.md) | The query budget of §16 does not hold at three million entries on FTS5 alone | Proposed |
+| [0010](./0010-the-query-budget-at-three-million-entries.md) | The query budget of §16 does not hold at three million entries on FTS5 alone | Accepted (owner, 2026-11-04: the budget per input length) |
 | [0011](./0011-the-multi-word-index.md) | The multi-word index: one indexed column, one expression, a Dice that allocates nothing | Accepted |
 | [0012](./0012-typo-tolerance.md) | Typo tolerance: SymSpell over the word beginnings, corrected when nothing stands at a word start | Accepted |
 | [0013](./0013-the-api-shape-before-the-first-release.md) | The API shape before the first release: steps, one namespace, entries, named results | Accepted |

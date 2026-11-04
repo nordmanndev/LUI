@@ -368,7 +368,7 @@ also changed three things the plan did not foresee:
 | A test per target of §16, in its scenario (`PerformanceBudgets`); a target is met and asserted, or waived with a reason | "every §16 target green or explicitly waived with a reason" — four met, four waived, none lowered ([ADR-0020](../adr/0020-the-performance-budgets-measured.md)) |
 | One generated corpus (`Corpus`) for the budget tests and the benchmarks | the same entries, inputs and typos for a seed; the 3 M corpus generator of the plan |
 | The build of 3 M meets 3 min only with `Sync` and batches of 1,000,000 (172.5 s; 190 s with 100,000) | the number of commits, measured in ADR-0016 |
-| The query p95 is the input length: ≤ 3.1 ms up to four characters, 17.5 ms at eight | FTS5's cost at 3 M; ADR-0010 stays the owner's decision, with the new numbers |
+| The query p95 is the input length: ≤ 3.1 ms up to four characters, 17.5 ms at eight | FTS5's cost at 3 M. The owner stated the budget per input length (ADR-0010, option 2), the correction, the allocation (bug #30) and the file size anew (2026-11-04, ADR-0020) |
 | The benchmark project measures the code on 200,000 entries, not the scenario | a benchmark is about the code; the scenario is the budget test's |
 
 ---

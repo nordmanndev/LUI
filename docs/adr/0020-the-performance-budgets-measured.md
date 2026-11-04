@@ -1,6 +1,7 @@
 # 0020 — The performance budgets of §16, measured: a corpus, a test per target, waivers with reasons
 
-- **Status:** Accepted — the four waivers below are open for the owner (ADR-0010 among them)
+- **Status:** Accepted. **Owner's decisions of 2026-11-04** on the four waivers: the targets are stated anew in §16 and
+  asserted — see "The owner's decisions" at the end; the allocation with bug #30
 - **Date:** 2026-11-03
 - **Builds on:** [0010](./0010-the-query-budget-at-three-million-entries.md) (the query budget at 3 M, Proposed),
   [0011](./0011-the-multi-word-index.md) (the file size), [0012](./0012-typo-tolerance.md) (the correction),
@@ -111,3 +112,31 @@ the p95 was 244–249 KB). It is not a leak of the scale but the budget: 500 tex
 **Verified by:** `tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs` (gated; the table above is its output),
 `benchmarks/Nordmann.LUI.Benchmarks` (`dotnet run -c Release --project benchmarks/Nordmann.LUI.Benchmarks -- --filter '*'`),
 and the test map (`Test_Landscape`), which lists the budget test.
+
+## The owner's decisions (2026-11-04)
+
+The four waivers are gone; the targets are stated anew in §16 and `PerformanceBudgets` asserts them. For the long inputs,
+the correction and the file this is a **loosening** of the target, not its meeting — written down as such:
+
+| Target of §16 | Was | Now | Measured |
+|---|---|---|---:|
+| query p95 | ≤ 5 ms | ≤ 5 ms for 1–4 characters, ≤ 20 ms for 5–8 characters (ADR-0010, option 2) | ≤ 3.1 ms · 17.5 ms at eight |
+| query with correction p95 | ≤ 10 ms | ≤ 35 ms | 27.9–29.0 ms |
+| allocation | ≤ 250 KB | p50 ≤ 250 KB, p95 ≤ 350 KB | 83 · 298 KB |
+| file of 1 M titles | ≤ 300 MB | ≤ 500 MB for titles of 36 characters on average | 457 MB |
+
+- **The allocation is a bug** (#30). The owner finds 250–300 KB per query too much; the restated target keeps the test
+  honest until the causes are measured and the allocation is lowered. The candidate budget stays 500 — a smaller one
+  would cost the quality of the ranking.
+- **A real stock** measures the scenario again when there is one (ADR-0010, option 1).
+- The waiver mechanism of `PerformanceBudgets` stays: a target missed in the future is fixed or waived with a reason,
+  never lowered quietly.
+
+**The build is waived again — open for the owner.** Measured with the targets as decided, on a container started anew
+the next day, with the same code: the build of three million entries took **194.9 s and 205.9 s** (the day before
+172.5 s and 174.2 s); the queries were as fast or faster (p50 1.45–1.48 ms, p95 of 5–8 characters 13.4–14.4 ms), the
+corrected query p95 30.5–32.5 ms, the single write p95 0.72–0.78 ms. The build writes a file of 925 MB and follows the
+speed of the disk; the 180 s of §16 are met on one machine and missed on the next. Until the owner decides — the target
+restated for the disk, or a faster first load (a larger checkpoint interval gave 12 % in ADR-0016) — it is waived with
+this reason.
+

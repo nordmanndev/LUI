@@ -7,14 +7,14 @@ describes it. Link the issue; do not repeat the whole plan here.
 
 **Issue:** [#28](https://github.com/nordmanndev/LUI/issues/28) — performance budgets (PR-009)
 **Branch:** `feat/performance-budgets`
-**State:** measured, documented (ADR-0020); waiting for the owner's go to open the pull request.
+**State:** pull request #29 open; the owner's decisions worked in.
 
-## Open for the owner
+## Decided by the owner (2026-11-04)
 
-- The waivers of ADR-0020: the query p95 and the corrected query (ADR-0010, Proposed — budget per input length, a
-  word-start structure, or a real stock), the allocation (the budget of candidates), the file size (ADR-0011).
-- #24 (the version range of Hosting → core), the default `BatchSize` and a shadow build for `Linked.Sync()` (ADR-0016).
+- §16 stated anew (ADR-0010 option 2, ADR-0020): query p95 per length, correction ≤ 35 ms, allocation p50 ≤ 250 /
+  p95 ≤ 350 KB (too much — bug #30), file ≤ 500 MB for 1 M titles of 36 characters. Batch size stays 10,000; the shadow
+  build after 0.1.0 (#31); #24 an exact pin; #19 before 0.1.0.
 
 ## The next step
 
-**PR-010 — docs:** the README outline of plan §7, `docs/benchmarks.md`, the CHANGELOG, the smoke test with the README.
+**Next:** #24 (the exact pin of Hosting → core), #19 (the typo dictionary), then **PR-010 — docs:** the README outline of plan §7, `docs/benchmarks.md`, the CHANGELOG, the smoke test with the README.

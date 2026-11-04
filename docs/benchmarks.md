@@ -7,22 +7,23 @@
 ## Status
 
 **Every target of §16 is measured in its scenario** (PR-009,
-[ADR-0020](./adr/0020-the-performance-budgets-measured.md)): **four are met** — the query median, the single write,
-the build, the typo dictionary —, **four are waived with a reason** — the query p95, the allocation, the corrected
-query, the file size —, and none is lowered. The table is the output of `PerformanceBudgets`; the waivers and their
-options are the owner's ([ADR-0010](./adr/0010-the-query-budget-at-three-million-entries.md), Proposed). The
-benchmark project (`benchmarks/Nordmann.LUI.Benchmarks/`) measures the code on the same corpus.
+[ADR-0020](./adr/0020-the-performance-budgets-measured.md)): seven are met — three of them as draft 2 set them, four as
+the owner stated them anew after the measurement (2026-11-04, ADR-0010, ADR-0020) —, and **the build is waived, open
+for the owner**: 172–174 s on one container, 195–206 s on the next, with the same code. The table is the output of
+`PerformanceBudgets`, which asserts every row. The allocation is met and still a bug (#30). The benchmark project
+(`benchmarks/Nordmann.LUI.Benchmarks/`) measures the code on the same corpus.
 
-| Target | Measured at the scenario | Verdict |
-|---|---:|---|
-| query p50 | 1.34–1.71 ms | met |
-| query p95 | 9.6–10.3 ms (≤ 4 characters: ≤ 3.1 ms) | waived → ADR-0010 |
-| allocation p95 | 298 KB (budget not spent: 173 KB) | waived → ADR-0020 |
-| query with correction p95 | 28.5–29.0 ms | waived → ADR-0010, ADR-0012 |
-| single write p95 | 0.51–0.57 ms | met |
-| build of 3 M | 172.5–174.2 s (`Sync`, batches of 1,000,000) | met |
-| typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | met |
-| file of 1 M titles | 457 MB | waived → ADR-0011 |
+| Target | Measured at the scenario | Limit |
+|---|---:|---:|
+| query p50 | 1.34–1.71 ms | ≤ 2 ms |
+| query p95, 1–4 characters | ≤ 3.1 ms | ≤ 5 ms |
+| query p95, 5–8 characters | 13.4–17.5 ms | ≤ 20 ms |
+| allocation p50 / p95 | 83 / 298 KB | ≤ 250 / ≤ 350 KB (#30) |
+| query with correction p95 | 27.9–32.5 ms | ≤ 35 ms |
+| single write p95 | 0.51–0.78 ms | ≤ 1 ms |
+| build of 3 M | 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 180 s — waived, open |
+| typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| file of 1 M titles | 457 MB | ≤ 500 MB |
 
 ## The targets
 
@@ -31,13 +32,17 @@ measurement has something to contradict.
 
 | Measurement | Scenario | Target |
 |---|---|---|
-| Query without correction | 3 M entries, inputs of 1–8 characters | p50 ≤ 2 ms, p95 ≤ 5 ms |
-| Query with typo correction | the same | p95 ≤ 10 ms |
-| Allocation per query | the same | ≤ 250 KB |
+| Query without correction | 3 M entries, inputs of 1–8 characters | p50 ≤ 2 ms; p95 ≤ 5 ms for 1–4 characters, ≤ 20 ms for 5–8 |
+| Query with typo correction | 3 M entries, a beginning with one typo | p95 ≤ 35 ms |
+| Allocation per query | 3 M entries, inputs of 1–8 characters | p50 ≤ 250 KB, p95 ≤ 350 KB (too much — bug #30) |
 | `Upsert` / `UpdateWeight` / `Remove` | one at a time, own transaction | p95 ≤ 1 ms |
 | Build-up | 3 M entries, `Owned` | ≤ 3 min |
 | Typo dictionary | 700 000 distinct words | ≤ 200 MB, build ≤ 10 s |
-| File size | 1 M entries, `MultiWord` | ≤ 300 MB including the content table |
+| File size | 1 M titles of 36 characters on average, `MultiWord` | ≤ 500 MB including the content table |
+
+The query p95, the correction, the allocation and the file size were stated anew by the owner on 2026-11-04 after
+they were measured (ADR-0010, ADR-0020): for the long inputs, the correction and the file a **loosening**, written
+down as such. The targets of draft 2 were p95 ≤ 5 ms for every length, the correction ≤ 10 ms, ≤ 250 KB, ≤ 300 MB.
 
 ## The rules for a number in this file
 
@@ -341,6 +346,11 @@ LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests --filter Performance
 | single write p95 | 0.57 ms | 0.51 ms | — | 0.57 ms | ≤ 1 ms |
 | file of the 3 M entries | 925 MB | 925 MB | 925 MB | — |
 | typo dictionary of 3 M entries (built for the corrected queries) | 29.8 s | 26.3 s | — | — |
+
+Runs 5 and 6, the next day on a container started anew, with the targets as the owner decided them and the same code:
+build 194.9 / 205.9 s, query p50 1.48 / 1.45 ms, p95 of 1–4 characters 1.88 / 1.89 ms, of 5–8 characters 14.36 / 13.35 ms,
+allocation p50 / p95 82.8 / 297.5 KB, corrected query p95 32.49 / 30.54 ms, single write p95 0.72 / 0.78 ms; the file of
+1 M titles 457 MB, the typo dictionary 138 MB in 4.88 s.
 
 The query p95 by the length of the input (run 2): 1 character 1.21 ms · 2 → 1.45 · 3 → 1.97 · 4 → 3.11 · 5 → 6.90 ·
 6 → 10.06 · 7 → 13.34 · 8 → 17.48 ms. The allocation by the candidates: a query that spends the budget of 500

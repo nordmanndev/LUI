@@ -1,6 +1,7 @@
 # 0010 — The query budget of §16 does not hold at three million entries on FTS5 alone
 
-- **Status:** Proposed
+- **Status:** Accepted — owner's decision of 2026-11-04: option 2 (the budget per input length) now, option 1 (a real
+  stock) when there is one; option 3 only when a real stock asks for it
 - **Date:** 2026-11-02
 - **Supersedes:** —
 - **Affects:** `docs/benchmarks.md`, `docs/spec/LUI-Spezifikation.md` §16, the plan for PR-009
@@ -168,7 +169,21 @@ know whether the synthetic corpus is the adversary. The corrected query (p95 29 
 
 ## Decision
 
-**Proposed — the owner decides.** Options 1 and 5 are cheap and should come first (the original probe of the specification would settle both at once); if
+**Decided by the owner on 2026-11-04, on the numbers of PR-009 (ADR-0020):**
+
+- **Option 2 — the budget per input length.** §16 now reads: p50 ≤ 2 ms; p95 ≤ 5 ms for inputs of 1–4 characters
+  (measured ≤ 3.1 ms), ≤ 20 ms for 5–8 characters (measured 17.5 ms at eight); the corrected query p95 ≤ 35 ms (measured
+  28–29 ms). For the long inputs and the correction this is a **loosening** of the target, written down as such. The
+  reason: a search field waits 100–300 ms between two keys; 20 ms are not felt there, and the median meets the old
+  target.
+- **Option 1 — a real stock.** When there is one, the scenario is measured on it; the synthetic corpus is trigram-dense
+  on purpose and may be the adversary no application has.
+- **Option 3 — a word-start structure for 5–8 characters — not now.** Up to six more indexes cost writes and file size;
+  it is built when a real stock shows that the loosened budget is not enough.
+
+What follows is the record of how the decision came about.
+
+**Before the decision: Proposed — the owner decides.** Options 1 and 5 are cheap and should come first (the original probe of the specification would settle both at once); if
 a real stock confirms the numbers, options 2 and 3 are the real choice. Until
 then the pull request reports the numbers as measured and does not claim the
 budget. The target in `docs/benchmarks.md` is **not** lowered quietly (its own

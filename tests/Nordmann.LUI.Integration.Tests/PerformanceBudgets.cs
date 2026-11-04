@@ -28,25 +28,14 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
     /// <summary>
     /// The targets that are missed on purpose, with the reason and the record that holds it. A target that is not here
-    /// has to be met.
+    /// has to be met. The owner's decisions of 2026-11-04 (ADR-0020) stated four targets anew, and they are asserted — the
+    /// allocation with an open bug (#30). The build is waived until the owner decides on it.
     /// </summary>
     private static readonly Dictionary<string, string> Waivers = new(StringComparer.Ordinal)
     {
-        // measured 9.6–10.3 ms; it grows with the input: p95 1.2 ms at one character, 17 ms at eight — FTS5's own cost
-        // of a long trigram expression over three million entries. The options are the owner's (ADR-0010, Proposed).
-        ["query p95"] = "ADR-0010 (owner's decision): FTS5's cost of long inputs at 3 M",
-
-        // measured 298 KB; it follows the candidates read: a query that spends the budget of 500 allocates p95 306 KB,
-        // one that does not 173 KB, and at three million entries 60 % spend it. The lever is the budget (ADR-0020).
-        ["allocation p95"] = "ADR-0020: the allocation follows the candidates read; the budget is the lever",
-
-        // measured 28.5–29.0 ms; up to three corrections, each one more FTS5 statement of the cost above (ADR-0012:
-        // 8.7 ms at 685,000 entries) — the same lever as the query without a correction.
-        ["query with correction p95"] = "ADR-0010, ADR-0012: up to three more FTS5 statements at 3 M",
-
-        // measured 457 MB (ADR-0011: 445 MB) — titles of 36 characters on average, the table holds the text and two
-        // generated forms, the search index the compact form.
-        ["file size"] = "ADR-0011: the content table holds the text and its forms",
+        // measured 172.5 / 174.2 s on one container, 194.9 / 205.9 s on the next one with the same code: the build writes
+        // a file of 925 MB and follows the disk. Open for the owner (ADR-0020): restate the target, or a faster first load.
+        ["build"] = "ADR-0020 (open for the owner): disk-bound — 172–206 s on two machines",
     };
 
     [PerformanceFact]
@@ -68,17 +57,24 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
         build.Stop();
         Report($"build: {entries:N0} entries by Sync (batches of {batch:N0}) in {build.Elapsed.TotalSeconds:F1} s, file {database.FileMegabytes():N0} MB");
 
-        var (latencies, allocations) = MeasureQueries(index, corpus.Inputs(Queries), typoTolerance: false);
+        var inputs = corpus.Inputs(Queries);
+        var (latencies, allocations) = MeasureQueries(index, inputs, typoTolerance: false);
         budget.AtMost("query p50", "3 M entries, inputs of 1–8 characters, no correction", Percentile(latencies, 50), 2.0, "ms");
-        budget.AtMost("query p95", "3 M entries, inputs of 1–8 characters, no correction", Percentile(latencies, 95), 5.0, "ms");
-        budget.AtMost("allocation p95", "per query, the same inputs", Percentile(allocations, 95) / 1024, 250, "KB");
+
+        // §16 since the owner's decision on ADR-0010: the p95 per length of the input — FTS5's cost grows with it
+        budget.AtMost("query p95, 1–4 characters", "3 M entries, no correction", Percentile(OfLength(inputs, latencies, 1, 4), 95), 5.0, "ms");
+        budget.AtMost("query p95, 5–8 characters", "3 M entries, no correction", Percentile(OfLength(inputs, latencies, 5, 8), 95), 20.0, "ms");
+
+        // §16 since the owner's decision on ADR-0020; the owner finds it too much — bug #30
+        budget.AtMost("allocation p50", "per query, the same inputs", Percentile(allocations, 50) / 1024, 250, "KB");
+        budget.AtMost("allocation p95", "per query, the same inputs (#30)", Percentile(allocations, 95) / 1024, 350, "KB");
 
         // the typo dictionary of three million entries is built before the corrected queries are timed
         var warm = Stopwatch.StartNew();
         index.WarmUpTypoDictionary();
         Report($"typo dictionary of {entries:N0} entries: {warm.Elapsed.TotalSeconds:F1} s");
         var (corrected, _) = MeasureQueries(index, corpus.Typos(Queries / 2), typoTolerance: true);
-        budget.AtMost("query with correction p95", "3 M entries, a beginning of 5–9 letters with one typo", Percentile(corrected, 95), 10.0, "ms");
+        budget.AtMost("query with correction p95", "3 M entries, a beginning of 5–9 letters with one typo", Percentile(corrected, 95), 35.0, "ms");
 
         budget.AtMost("single write p95", "Upsert / UpdateWeight / Remove, own transaction", Percentile(MeasureWrites(index, corpus), 95), 1.0, "ms");
         budget.AtMost("build", "3 M entries, Owned", build.Elapsed.TotalSeconds, 180, "s");
@@ -126,7 +122,8 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
         var megabytes = database.FileMegabytes();
         Report($"titles: {entries:N0} by Sync in {build.Elapsed.TotalSeconds:F1} s, file {megabytes:N0} MB");
-        budget.AtMost("file size", "1 M entries, MultiWord, the content table included", megabytes, 300, "MB");
+        // §16 since the owner's decision on ADR-0011/0020: titles of 36 characters on average, the text and its forms
+        budget.AtMost("file size", "1 M titles of 36 characters on average, MultiWord, the content table included", megabytes, 500, "MB");
 
         budget.Verify();
     }
@@ -211,6 +208,10 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
         return [.. writes];
     }
+
+    /// <summary>The latencies of the inputs of a length between <paramref name="shortest"/> and <paramref name="longest"/>.</summary>
+    private static double[] OfLength(IReadOnlyList<string> inputs, double[] latencies, int shortest, int longest) =>
+        [.. latencies.Where((_, i) => inputs[i].Length >= shortest && inputs[i].Length <= longest)];
 
     private static int Entries(int scenario) =>
         int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? scenario.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
