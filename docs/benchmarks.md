@@ -387,3 +387,31 @@ dotnet run -c Release --project benchmarks/Nordmann.LUI.Benchmarks -- --filter '
 | Jaro-Winkler against `apfelku` | the same | 90 · 152 · 158 ns | 208 · 200 · 232 B |
 | N-gram Dice against `apfelku` | the same | 119 · 172 · 262 ns | 0 B |
 
+### The run of the README (PR-010)
+
+Run on **2026-11-04**, on `main` after #19 (`20bbbde`), with `tools/benchmarks.sh`'s command: BenchmarkDotNet 0.15.8,
+the **default job** (not `ShortRun`), every benchmark, 34 min 40 s. Intel Xeon 2.10 GHz, 4 cores, 15 GB, Ubuntu
+24.04.5, .NET 10.0.14 (SDK 10.0.114), the full German word list, nothing else running. The reports are committed in
+[`benchmarks/results/`](../benchmarks/results/) and the README shows them, rendered by `Readme_Benchmarks`
+([ADR-0022](./adr/0022-the-benchmark-results-in-the-readme.md)).
+
+Against the `ShortRun` above (mean, µs; the error of the default job is 2–8 % of the mean, that of `ShortRun` was up to
+260 % of it):
+
+| Benchmark | `ShortRun` (PR-009) | default job (PR-010) |
+|---|---:|---:|
+| query, single-word: `b` · `ka` · `haus` · `apfelkuc` | 398 · 22 · 688 · 92 | 470 · 24 · 687 · 113 |
+| query, multi-word: the same | 520 · 539 · 1,002 · 158 | 595 · 634 · 1,071 · 192 |
+| corrected query: `kartofel` · `bahmhof` · `fusbal` · `strasee` | 97 · 257 · 481 · 117 | 114 · 275 · 477 · 124 |
+| `UpdateWeight` · the same upsert · an upsert with another text | 279 · 79 · 226 | 343 · 93 · 228 |
+
+The allocations are the same to the kilobyte. The means of the default job are 0–23 % higher. That is not a
+regression the run can name: the queries without a correction take no path that #19 changed, and `ShortRun` measures
+three iterations right after the warm-up, which favours a short mean. The default job is the one the README shows,
+because its interval is narrow enough to compare two rows.
+
+```text
+tools/fetch-wordlist.sh   # once: the full word list
+tools/benchmarks.sh       # runs everything, copies the reports, renders the README, runs the guard
+```
+

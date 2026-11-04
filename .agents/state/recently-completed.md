@@ -5,6 +5,13 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-04 — PR-010 (#36): the README of the first release
+
+- README per plan §7: query options with defaults, ranking and priority, typo tolerance, §16 budgets, BenchmarkDotNet.
+- BenchmarkDotNet default job, all 24 benchmarks, 34:40 min; reports in `benchmarks/results/`; the README section is
+  rendered by `Readme_Benchmarks` (`LUI_UPDATE_README=1`), which also fails on drift; `tools/benchmarks.sh`. ADR-0022.
+- Smoke test runs the new blocks (priority, stale dictionary); mutation `a-readme-benchmark-number-edited-by-hand`.
+
 ## 2026-11-04 — #19: a stale typo dictionary, a query that does not wait
 
 - ADR-0021. An owned `Sync` that changes or removes marks a built dictionary `Stale` (new words are learned at once);

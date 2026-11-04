@@ -28,11 +28,14 @@ public sealed class Readme_Benchmarks
         ("QueryBenchmarks", "A query", "one query through the whole pipeline: the prefix path for one and two characters, FTS5 from three"),
         ("CorrectionBenchmarks", "A query with a typo correction", "a single-word index with typo tolerance, the dictionary built; the input has one typo"),
         ("WriteBenchmarks", "A single write", "one write in a transaction of its own"),
-        ("TextBenchmarks", "The search form and the similarity", "per text, no database: the normalisation of §6 and two similarity measures against `apfelku`"),
+        ("TextBenchmarks", "The search form and the similarity", "per text, no database: the normalisation of §6 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln\", `Größe(...)nahme [23]` „Größenänderungsmaßnahme\""),
     ];
 
     /// <summary>The columns of BenchmarkDotNet's table that the README shows besides the parameters.</summary>
     private static readonly string[] Measured = ["Mean", "Error", "Allocated"];
+
+    /// <summary>The first column of every table.</summary>
+    private static readonly string[] MethodColumn = ["Method"];
 
     private static string ResultsDirectory => Path.Combine(Repository.RootPath, "benchmarks", "results");
 
@@ -55,7 +58,7 @@ public sealed class Readme_Benchmarks
 
         classes.ShouldNotBeEmpty();
         reports.ShouldBe(classes, "benchmarks/results/ holds BenchmarkDotNet's report of every benchmark class — run tools/benchmarks.sh");
-        Sections.Select(section => section.Class).Order(StringComparer.Ordinal).ShouldBe(classes, "every benchmark class has a section in the README");
+        Sections.Select(section => section.Class).Order(StringComparer.Ordinal).ToArray().ShouldBe(classes, "every benchmark class has a section in the README");
     }
 
     [Fact]
@@ -121,7 +124,7 @@ public sealed class Readme_Benchmarks
 
             text.Append(". `").Append(name).Append("`.\n\n");
 
-            var columns = new[] { "Method" }.Concat(report.Parameters.Except(constant, StringComparer.Ordinal)).Concat(Measured).ToArray();
+            var columns = MethodColumn.Concat(report.Parameters.Except(constant, StringComparer.Ordinal)).Concat(Measured).ToArray();
             text.Append("| ").Append(string.Join(" | ", columns)).Append(" |\n");
             text.Append('|').Append(string.Join('|', columns.Select(column => Measured.Contains(column, StringComparer.Ordinal) ? "---:" : "---"))).Append("|\n");
             foreach (var row in report.Rows)
@@ -166,7 +169,7 @@ public sealed class Readme_Benchmarks
             var parameters = header.Skip(1).TakeWhile(column => !Statistics.Contains(column, StringComparer.Ordinal)).ToArray();
             foreach (var column in Measured)
             {
-                header.ShouldContain(column, $"{path}: the report has the column '{column}' — [MemoryDiagnoser] gives 'Allocated'");
+                header.ShouldContain(name => string.Equals(name, column, StringComparison.Ordinal), $"{path}: the report has the column '{column}' — [MemoryDiagnoser] gives 'Allocated'");
             }
 
             var rows = table
