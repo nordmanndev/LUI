@@ -19,16 +19,20 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     private readonly string _name;
     private readonly LuiIndexKind _kind;
     private readonly ILuiPayloadSerializer<TPayload>? _payload;
-    private ILuiSimilarity? _similarity;
-    private bool _germanTransliteration = true;
-    private bool _typoTolerance;
+    private IndexOptions _options;
 
-    internal LuiIndexBuilder(LuiCatalog catalog, string name, LuiIndexKind kind, ILuiPayloadSerializer<TPayload>? payload = null)
+    internal LuiIndexBuilder(
+        LuiCatalog catalog,
+        string name,
+        LuiIndexKind kind,
+        ILuiPayloadSerializer<TPayload>? payload = null,
+        IndexOptions? options = null)
     {
         _catalog = catalog;
         _name = name;
         _kind = kind;
         _payload = payload;
+        _options = options ?? IndexOptions.Default;
     }
 
     /// <summary>The name of the index.</summary>
@@ -40,14 +44,8 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     /// <summary>The catalog of the index.</summary>
     internal LuiCatalog Catalog => _catalog;
 
-    /// <summary>The similarity set so far, or <see langword="null"/> for the default of the kind.</summary>
-    internal ILuiSimilarity? SimilaritySetting => _similarity;
-
-    /// <summary>The transliteration set so far.</summary>
-    internal bool GermanTransliterationSetting => _germanTransliteration;
-
-    /// <summary>The typo tolerance set so far.</summary>
-    internal bool TypoToleranceSetting => _typoTolerance;
+    /// <summary>The options made so far — what <c>WithKey</c>, <c>WithPayload</c> and <c>LinkTo</c> pass on.</summary>
+    internal IndexOptions Options => _options;
 
     /// <summary>
     /// The key of the application: <see cref="long"/> by default, <see cref="string"/> for anything else that names an
@@ -60,12 +58,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     {
         // the key type is checked here, where it is chosen, not when the index is ensured
         _ = KeyCodec<TNewKey>.KeyType;
-        return new LuiIndexBuilder<TNewKey, TPayload>(_catalog, _name, _kind, _payload)
-        {
-            _similarity = _similarity,
-            _germanTransliteration = _germanTransliteration,
-            _typoTolerance = _typoTolerance,
-        };
+        return new LuiIndexBuilder<TNewKey, TPayload>(_catalog, _name, _kind, _payload, _options);
     }
 
     /// <summary>
@@ -85,12 +78,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     public LuiIndexBuilder<TKey, TNewPayload> WithPayload<TNewPayload>(ILuiPayloadSerializer<TNewPayload> serializer)
     {
         ArgumentNullException.ThrowIfNull(serializer);
-        return new LuiIndexBuilder<TKey, TNewPayload>(_catalog, _name, _kind, serializer)
-        {
-            _similarity = _similarity,
-            _germanTransliteration = _germanTransliteration,
-            _typoTolerance = _typoTolerance,
-        };
+        return new LuiIndexBuilder<TKey, TNewPayload>(_catalog, _name, _kind, serializer, _options);
     }
 
     /// <summary>
@@ -104,7 +92,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     public LuiIndexBuilder<TKey, TPayload> Similarity(ILuiSimilarity similarity)
     {
         ArgumentNullException.ThrowIfNull(similarity);
-        _similarity = similarity;
+        _options = _options with { Similarity = similarity };
         return this;
     }
 
@@ -116,7 +104,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     /// <returns>The builder.</returns>
     public LuiIndexBuilder<TKey, TPayload> GermanTransliteration(bool enabled)
     {
-        _germanTransliteration = enabled;
+        _options = _options with { GermanTransliteration = enabled };
         return this;
     }
 
@@ -138,7 +126,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
     /// <returns>The builder.</returns>
     public LuiIndexBuilder<TKey, TPayload> TypoTolerance(bool enabled = true)
     {
-        _typoTolerance = enabled;
+        _options = _options with { TypoTolerance = enabled };
         return this;
     }
 
@@ -153,7 +141,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
             _kind,
             OwnedSource.SourceName,
             KeyCodec<TKey>.KeyType,
-            _germanTransliteration,
+            _options.GermanTransliteration,
             _payload is not null,
             TokenizerFold.Version);
 
@@ -165,7 +153,7 @@ public sealed class LuiIndexBuilder<TKey, TPayload>
             _catalog.TypoDictionaries,
             source,
             _payload,
-            _similarity ?? source.Rules.DefaultSimilarity,
-            _typoTolerance);
+            _options.Similarity ?? source.Rules.DefaultSimilarity,
+            _options.TypoTolerance);
     }
 }

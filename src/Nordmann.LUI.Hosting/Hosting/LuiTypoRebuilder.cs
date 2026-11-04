@@ -22,40 +22,25 @@ internal sealed partial class LuiTypoRebuilder(
             return;
         }
 
-        while (!stoppingToken.IsCancellationRequested)
+        while (await PeriodicRound.Wait(every, timeProvider, stoppingToken).ConfigureAwait(false))
         {
-            try
-            {
-                await Task.Delay(every, timeProvider, stoppingToken).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
-
             foreach (var index in registrations.Indexes)
             {
-                try
-                {
-                    if (index.RebuildIfStale(services, stoppingToken))
+                // each index on its own: one that fails does not hold up the others; the stale dictionary answers meanwhile
+                var goesOn = PeriodicRound.Run(
+                    () =>
                     {
-                        Rebuilt(index.Name);
-                    }
-                }
-                catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+                        if (index.RebuildIfStale(services, stoppingToken))
+                        {
+                            Rebuilt(index.Name);
+                        }
+                    },
+                    exception => Failed(exception, index.Name),
+                    stoppingToken);
+
+                if (!goesOn)
                 {
                     return;
-                }
-                catch (ObjectDisposedException)
-                {
-                    // the catalog or the container is gone: the application ends
-                    return;
-                }
-#pragma warning disable CA1031 // the loop outlives one failure; the stale dictionary answers meanwhile
-                catch (Exception exception)
-#pragma warning restore CA1031
-                {
-                    Failed(exception, index.Name);
                 }
             }
         }

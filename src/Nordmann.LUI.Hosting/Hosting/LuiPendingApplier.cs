@@ -21,59 +21,46 @@ internal sealed partial class LuiPendingApplier(
 {
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
         Task.WhenAll(registrations.Indexes
-            .Where(index => index is { ApplyPending: not null, ApplyPendingEvery: not null })
-            .Select(index => Loop(index, stoppingToken)));
+            .OfType<IOutboxRegistration>()
+            .Where(index => index.ApplyPendingEvery is not null)
+            .Select(index => Loop(index, index.ApplyPendingEvery!.Value, stoppingToken)));
 
-    private async Task Loop(IndexRegistration index, CancellationToken stopping)
+    private async Task Loop(IOutboxRegistration index, TimeSpan every, CancellationToken stopping)
     {
-        var every = index.ApplyPendingEvery!.Value;
         var failed = 0;
-        while (!stopping.IsCancellationRequested)
+        while (await PeriodicRound.Wait(every, timeProvider, stopping).ConfigureAwait(false))
         {
-            try
-            {
-                await Task.Delay(every, timeProvider, stopping).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException)
-            {
-                return;
-            }
+            var goesOn = PeriodicRound.Run(
+                () =>
+                {
+                    var applied = index.ApplyPending(services, stopping);
+                    if (failed > 0)
+                    {
+                        Recovered(index.Name, failed);
+                        failed = 0;
+                    }
 
-            try
-            {
-                var applied = index.ApplyPending!(services, stopping);
-                if (failed > 0)
+                    if (applied > 0)
+                    {
+                        Applied(applied, index.Name);
+                    }
+                },
+                exception =>
                 {
-                    Recovered(index.Name, failed);
-                    failed = 0;
-                }
+                    if (failed++ == 0)
+                    {
+                        Failed(exception, index.Name);
+                    }
+                    else
+                    {
+                        FailedAgain(exception, index.Name, failed);
+                    }
+                },
+                stopping);
 
-                if (applied > 0)
-                {
-                    Applied(applied, index.Name);
-                }
-            }
-            catch (OperationCanceledException) when (stopping.IsCancellationRequested)
+            if (!goesOn)
             {
                 return;
-            }
-            catch (ObjectDisposedException)
-            {
-                // the catalog or the container is gone: the application ends, this is not a failed round
-                return;
-            }
-#pragma warning disable CA1031 // the loop outlives one failure; the failure is logged and the next round tries again
-            catch (Exception exception)
-#pragma warning restore CA1031
-            {
-                if (failed++ == 0)
-                {
-                    Failed(exception, index.Name);
-                }
-                else
-                {
-                    FailedAgain(exception, index.Name, failed);
-                }
             }
         }
     }

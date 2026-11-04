@@ -19,9 +19,7 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
     private readonly LinkDefinition _link;
     private readonly IReadOnlyList<string> _payloadColumns;
     private readonly Func<LuiRow, TPayload>? _payload;
-    private ILuiSimilarity? _similarity;
-    private bool _germanTransliteration = true;
-    private bool _typoTolerance;
+    private IndexOptions _options;
 
     internal LuiLinkedIndexBuilder(
         LuiCatalog catalog,
@@ -29,8 +27,10 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
         LuiIndexKind kind,
         LinkDefinition link,
         IReadOnlyList<string> payloadColumns,
-        Func<LuiRow, TPayload>? payload)
+        Func<LuiRow, TPayload>? payload,
+        IndexOptions options)
     {
+        _options = options;
         _catalog = catalog;
         _name = name;
         _kind = kind;
@@ -64,12 +64,8 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
             _kind,
             _link,
             [.. columns.Select(column => Identifier.ValidateApplicationName(column, nameof(columns)))],
-            map)
-        {
-            _similarity = _similarity,
-            _germanTransliteration = _germanTransliteration,
-            _typoTolerance = _typoTolerance,
-        };
+            map,
+            _options);
     }
 
     /// <summary>
@@ -81,7 +77,7 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
     public LuiLinkedIndexBuilder<TPayload> Similarity(ILuiSimilarity similarity)
     {
         ArgumentNullException.ThrowIfNull(similarity);
-        _similarity = similarity;
+        _options = _options with { Similarity = similarity };
         return this;
     }
 
@@ -90,7 +86,7 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
     /// <returns>The builder.</returns>
     public LuiLinkedIndexBuilder<TPayload> GermanTransliteration(bool enabled)
     {
-        _germanTransliteration = enabled;
+        _options = _options with { GermanTransliteration = enabled };
         return this;
     }
 
@@ -103,17 +99,12 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
     /// <returns>The builder.</returns>
     public LuiLinkedIndexBuilder<TPayload> TypoTolerance(bool enabled = true)
     {
-        _typoTolerance = enabled;
+        _options = _options with { TypoTolerance = enabled };
         return this;
     }
 
-    internal LuiLinkedIndexBuilder<TPayload> WithSettings(ILuiSimilarity? similarity, bool germanTransliteration, bool typoTolerance)
-    {
-        _similarity = similarity;
-        _germanTransliteration = germanTransliteration;
-        _typoTolerance = typoTolerance;
-        return this;
-    }
+    /// <summary>The options made so far — what <c>WithPayload</c> passes on.</summary>
+    internal IndexOptions Options => _options;
 
     /// <summary>
     /// Creates LUI's tables of the index, or opens them if the index exists with the same definition — and checks the
@@ -130,7 +121,7 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
             _kind,
             LinkedSource.SourceName,
             KeyCodec<long>.KeyType,
-            _germanTransliteration,
+            _options.GermanTransliteration,
             Payload: false,
             TokenizerFold.Version,
             _link);
@@ -151,7 +142,7 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
             _catalog.TypoDictionaries,
             source,
             payload,
-            _similarity ?? source.Rules.DefaultSimilarity,
-            _typoTolerance);
+            _options.Similarity ?? source.Rules.DefaultSimilarity,
+            _options.TypoTolerance);
     }
 }

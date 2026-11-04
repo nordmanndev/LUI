@@ -41,7 +41,6 @@ public static class LuiIndexBuilderExtensions
             weight is null ? null : Identifier.ValidateApplicationName(weight, nameof(weight)),
             priority is null ? null : Identifier.ValidateApplicationName(priority, nameof(priority)));
 
-        return new LuiLinkedIndexBuilder<LuiNoPayload>(builder.Catalog, builder.Name, builder.Kind, link, [], null)
-            .WithSettings(builder.SimilaritySetting, builder.GermanTransliterationSetting, builder.TypoToleranceSetting);
+        return new LuiLinkedIndexBuilder<LuiNoPayload>(builder.Catalog, builder.Name, builder.Kind, link, [], null, builder.Options);
     }
 }
