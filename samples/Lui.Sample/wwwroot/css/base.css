@@ -1,0 +1,33 @@
+*, *::before, *::after { box-sizing: border-box; }
+
+html { color-scheme: light dark; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--ink);
+  font: 15px/1.5 var(--font);
+}
+
+h1, h2, p { margin: 0; }
+h1 { font-size: 1.6rem; letter-spacing: -0.01em; }
+h1 span { color: var(--brand); font-weight: 400; }
+h2 { font-size: 1rem; margin-bottom: 8px; }
+a { color: var(--brand); }
+code, pre { font-family: var(--mono); font-size: 0.86em; }
+pre { margin: 8px 0 0; padding: 10px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-s); overflow: auto; max-height: 280px; white-space: pre-wrap; word-break: break-word; }
+small, .muted { color: var(--ink-3); }
+.error { color: var(--bad); }
+
+input, select, button, textarea { font: inherit; color: inherit; }
+input[type="text"], input[type="number"], select {
+  padding: 7px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-s);
+  min-width: 0;
+}
+input:focus-visible, select:focus-visible, button:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 1px;
+}

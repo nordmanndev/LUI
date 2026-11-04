@@ -1,0 +1,9 @@
+{
+  "name": "lui-sample",
+  "private": true,
+  "type": "module",
+  "description": "The sample's client has no dependencies and no build. This file exists for two reasons: Node reads the modules of wwwroot/js as ES modules, and `npm test` runs the tests of the client modules with Node's own runner.",
+  "scripts": {
+    "test": "node --test \"client-tests/*.test.js\""
+  }
+}

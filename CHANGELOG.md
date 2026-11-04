@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The sample** ([ADR-0027](docs/adr/0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md), #51). `samples/Lui.Sample` is an
+  ASP.NET Core application with three autocompletes built with flexdatalist — recipes (embedded, JSON payload), tags (linked to
+  the application's table, column payload, priority System, add-new through triggers and the outbox) and names (typo
+  tolerance, a dictionary of its own) — every query setting as a control, the whole `LuiResult`, the hits as ranked, the
+  write side and the maintenance. The client is plain ES modules with one fetch boundary that aborts a request on every
+  keystroke and escapes everything flexdatalist writes with `innerHTML`. No change to the public API.
+
 - **The freeze** ([ADR-0026](docs/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md), #43). From the tag `v0.1.0` on, the
   public API of `Nordmann.LUI` and `Nordmann.LUI.Hosting` grows only additively. A breaking change — a removed or renamed
   member, a changed signature (a new optional parameter counts), a changed meaning of a documented behaviour — needs a new

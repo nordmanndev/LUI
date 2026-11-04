@@ -1,0 +1,47 @@
+/* The design tokens of the sample. Hand-written; the sample ships no CSS of flexdatalist. */
+:root {
+  --font: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --bg: #f4f5f8;
+  --surface: #ffffff;
+  --surface-2: #f8f9fc;
+  --ink: #1b2233;
+  --ink-2: #4a5468;
+  --ink-3: #7b8498;
+  --line: #e1e5ee;
+  --brand: #3f5bd8;
+  --brand-ink: #ffffff;
+  --brand-soft: #e8ecfd;
+  --good: #1f8a5b;
+  --warn: #b7791f;
+  --bad: #c0392b;
+  --mark: #fff0a8;
+  --mark-ink: #1b2233;
+
+  --radius: 10px;
+  --radius-s: 6px;
+  --shadow: 0 1px 2px rgb(20 30 60 / 6%), 0 8px 24px rgb(20 30 60 / 8%);
+  --gap: 16px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f131c;
+    --surface: #171c28;
+    --surface-2: #1d2331;
+    --ink: #e8ecf5;
+    --ink-2: #b4bccd;
+    --ink-3: #8993a8;
+    --line: #2a3144;
+    --brand: #8097ff;
+    --brand-ink: #0f131c;
+    --brand-soft: #232c4d;
+    --good: #52c28d;
+    --warn: #e0b04a;
+    --bad: #ee7a6c;
+    --mark: #5a4a00;
+    --mark-ink: #ffffff;
+    --shadow: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 35%);
+  }
+}

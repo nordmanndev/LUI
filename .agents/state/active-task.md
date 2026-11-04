@@ -5,10 +5,9 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Epic:** [#39](https://github.com/nordmanndev/LUI/issues/39) — the public API before the freeze of 0.1.0 (architecture review of 2026-11-04)
-**Issue:** [#43](https://github.com/nordmanndev/LUI/issues/43) — the freeze: the public API from 0.1.0 on grows only additively (ADR-0026)
-**Branch:** `docs/api-freeze`
-**State:** written and verified; the pull request waits for the owner's word. No snapshot guard (owner, 2026-11-04).
+**Issue:** [#51](https://github.com/nordmanndev/LUI/issues/51) — PR-011: the sample, flexdatalist against the whole LUI API, a modular client (ADR-0027)
+**Branch:** `feature/sample`
+**State:** implemented and verified; pushed; the pull request waits for the owner's word. After it: PR-012 (the release; ask before publishing).
 
 ## Decided by the owner (2026-11-04)
 
@@ -20,5 +19,5 @@ describes it. Link the issue; do not repeat the whole plan here.
 
 ## The next step
 
-**Next:** PR-011 (the sample, against the final API), then PR-012 (the release; ask before publishing). After 0.1.0: #35, #30
-(with the own Jaro-Winkler), #31, #32, #38, #44, #20, and the `compactLevel` follow-up of #48.
+**Next:** PR-012 — the release (`v0.1.0`; the owner runs the tag, ask before publishing). After 0.1.0: #35, #30 (with the own
+Jaro-Winkler), #31, #32, #38, #44, #20 (`Highlight` — then `fold.js`/`highlight.js` of the sample go away), the `compactLevel` follow-up of #48.

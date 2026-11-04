@@ -1,5 +1,8 @@
 # 0002 — LUI is a library, not an application: the standards delta
 
+> **Note (ADR-0027, 2026-11-04):** the sample's page is no longer "one inline page": it is plain ES modules in folders by
+> concern, with the vendored `flexdatalist` as its only dependency, one fetch boundary and a strict policy. The text below is history.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —

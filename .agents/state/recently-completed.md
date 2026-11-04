@@ -28,6 +28,20 @@ the scratchpad here at the end of a session.
   rendered by `Readme_Benchmarks` (`LUI_UPDATE_README=1`), which also fails on drift; `tools/benchmarks.sh`. ADR-0022.
 - Smoke test runs the new blocks (priority, stale dictionary); mutation `a-readme-benchmark-number-edited-by-hand`.
 
+## 2026-11-04 — PR-011 (#51): the sample
+
+- ADR-0027. `samples/Lui.Sample`: three autocompletes with flexdatalist 3.1.1 (vendored unmodified, SHA-256 in `vendor/README.md`):
+  recipes (embedded, JSON payload, grouped), tags (linked, column payload, priority System, picker, add-new through triggers + outbox),
+  names (typo tolerance, a dictionary of its own). Every `LuiQueryOptions` setting is a control and a parameter; the panels show the
+  whole `LuiResult`, the hits as ranked, the requests, and the indexes with their maintenance.
+- The client is ES modules by concern with the direction of the imports as a table (`Sample_Client`), one fetch boundary
+  (`net/`: abort on every keystroke, the envelope on a bus, the items from a presenter), an escaped `_highlight` twin for every
+  displayed property (flexdatalist writes them with `innerHTML`), a strict CSP, no build, no dependency.
+- Found by checking flexdatalist's source: no abort, no highlight with `searchDisabled`, a cache keyed without `params`, an unescaped
+  `innerHTML`. LUI has no `Highlight` (#20): the page marks the match itself.
+- Tests: 35 `SampleApiTests` (real Kestrel), 16 `Sample_Client`, 45 node tests (`npm test`, a CI lane), five mutations;
+  31 browser assertions by hand (Chromium). The sample's `appsettings.json` is gone (a referencing test project copied it and changed its log level).
+
 ## 2026-11-04 — #43: the freeze
 
 - ADR-0026. From `v0.1.0` on the public API grows only additively; a break needs a minor version, a migration note and an ADR.

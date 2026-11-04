@@ -413,8 +413,32 @@ A single write is a commit of its own; load a stock with `UpsertMany` or `Sync` 
 
 ## Sample application
 
-[`samples/Lui.Sample/`](./samples/Lui.Sample/) is an ASP.NET Core application with a static page: a search field
-over a LUI index. It is the next step of the plan (PR-011); today it is the skeleton the plan started from.
+```bash
+dotnet run --project samples/Lui.Sample      # http://localhost:5000
+```
+
+[`samples/Lui.Sample/`](./samples/Lui.Sample/) is an ASP.NET Core application that serves a page with three autocompletes, built
+with [flexdatalist](https://github.com/sergiodlopes/flexdatalist) and the whole of the API behind them
+([ADR-0027](./docs/adr/0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md)):
+
+| Autocomplete | Index | What it shows |
+|---|---|---|
+| Recipes | embedded, multi-word, **JSON payload** (category, minutes, emoji) | the payload as groups and properties, a priority badge, highlight, typo correction, transliteration |
+| Tags | **linked** to the application's own table, columns as the payload, priority `System` | a tag picker with chips and a colour from the payload; "add a tag" writes a row and tells the index (triggers, outbox) |
+| Names | embedded, multi-word, no payload | the typo tolerance — with a dictionary of its own per index |
+
+![The recipes autocomplete: "kartofel" is corrected to "kartoffel", the hits are grouped by the category of their payload, the match is highlighted](./docs/images/sample-recipes.png)
+
+![The tag picker over the application's own table: chips, a colour from the payload column, the priority System first](./docs/images/sample-tags.png)
+
+Every setting of a query is a control (`Take`, `Candidates`, `Rank`, `PriorityMode`, `DistinctText`, `Similarity`,
+`TypoTolerance`, `TrackTimings`) and a parameter of the request. Beside the input the page shows what flexdatalist drops — the
+whole `LuiResult`: the corrected query, the candidates considered, the timings — the hits as ranked, the requests (a request that is
+abandoned while typing is aborted, and the server stops its work), and the indexes with their maintenance (`Sync`, `Check`,
+`Rebuild`, `Optimize`, the typo dictionary, the outbox, the triggers).
+
+The client is plain ES modules in folders by concern, with one fetch boundary and no build; `npm test` in the sample's folder runs
+the tests of its modules. LUI has no `Highlight` yet (#20), so the page marks the match itself, in the format flexdatalist uses.
 
 ---
 
@@ -426,7 +450,7 @@ src/Nordmann.LUI.Hosting/    ← the dependency injection (package Nordmann.LUI.
 tests/                       ← unit, architecture and integration tests
                               (and the map of them: docs/testing.md)
 benchmarks/                  ← BenchmarkDotNet, and its reports (benchmarks/results/)
-samples/Lui.Sample/          ← ASP.NET Core API + a static page (PR-011)
+samples/Lui.Sample/          ← ASP.NET Core API + a page of ES modules with flexdatalist (ADR-0027)
 tools/                       ← the smoke test, the mutation check, the benchmark run, the word list
 docs/adr/                    ← the decisions, and why
 docs/spec/                   ← the specification this repo implements

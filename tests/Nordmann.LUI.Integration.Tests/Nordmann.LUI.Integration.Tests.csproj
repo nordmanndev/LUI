@@ -19,11 +19,22 @@
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
-    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <!--
+      Since this project hosts the sample, the ASP.NET Core framework brings Microsoft.Extensions.Hosting along, and NuGet
+      says the package is redundant (NU1510). It stays: Directory.Packages.props holds its version for the package smoke test
+      (tools/package-smoke-test.sh reads it) and an architecture test wants every central version referenced.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Hosting" NoWarn="NU1510" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- the sample is hosted by SampleApiTests on a port of its own (PR-011, ADR-0027): the framework, no package -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../src/Nordmann.LUI/Nordmann.LUI.csproj" />
+    <ProjectReference Include="../../samples/Lui.Sample/Lui.Sample.csproj" />
     <ProjectReference Include="../Nordmann.LUI.Testing/Nordmann.LUI.Testing.csproj" />
     <ProjectReference Include="../../src/Nordmann.LUI.Hosting/Nordmann.LUI.Hosting.csproj" />
   </ItemGroup>
