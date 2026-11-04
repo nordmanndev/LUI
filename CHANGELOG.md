@@ -167,11 +167,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `LuiIndexBuilder<TKey, TPayload>` → `LuiEmbeddedIndexBuilder<TKey, TPayload>`, the builder of the embedded route as
     `LuiLinkedIndexBuilder` is that of the linked one; `LuiIndexBuilderExtensions` →
     `LuiEmbeddedIndexBuilderExtensions` (`LinkTo` stays an extension of the embedded builder);
-  - the stored content source, `lui_meta.source`: `Owned` → `Embedded`. A database that a pre-release build created is
-    refused: `Ensure` answers with a `LuiDefinitionMismatchException`, and `DropIndex` with an `InvalidOperationException`,
-    each saying so — open the database with the build that created it, or create it anew. There is no migration, because
-    nothing was released. (`LuiCatalog.DropIndex` is "the way out" of a definition mismatch for every content source this
-    version knows.)
+  - the stored content source, `lui_meta.source`: `Owned` → `Embedded`. Nothing was released, so there is nothing to migrate.
 
 - **The test tree** ([ADR-0019](docs/adr/0019-the-test-tree-three-layers-one-map.md)). The one test project
   becomes three — `Nordmann.LUI.Unit.Tests` (the rules, without a database), `Nordmann.LUI.Integration.Tests`

@@ -14,18 +14,6 @@ internal static class ContentSources
         LinkedSource.SourceName => LinkedSource.Drop(indexName),
         var other => throw new InvalidOperationException(
             $"The index '{indexName}' has the content source '{other}', which this version of LUI does not know; it does not "
-            + "remove what it does not know. " + WayOut),
+            + "remove what it does not know."),
     };
-
-    /// <summary>Whether this version knows the content source of a stored definition (<see langword="null"/>: none was stored).</summary>
-    internal static bool IsKnown(string? source) => source is null or EmbeddedSource.SourceName or LinkedSource.SourceName;
-
-    /// <summary>
-    /// What to do with a database whose index has a content source this version does not know — another build of LUI
-    /// created it, a pre-release one or a newer version (review of pull request 46, ADR-0023). Said where the refusal
-    /// is, because the refusal is all that the person who meets it sees.
-    /// </summary>
-    internal const string WayOut =
-        "The database was created by another build of LUI — a pre-release one, or a newer version: open it with that build, "
-        + "or create the database anew.";
 }

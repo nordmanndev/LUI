@@ -75,17 +75,9 @@ application, in a table of the library) and pairs with `Linked`, which names the
 ## Consequences
 
 - **A breaking change, and a free one.** There is no consumer. After 0.1.0 it would be impossible (epic #39).
-- **Databases that a pre-release build created are refused, not migrated.** `lui_meta.source` holds `Owned` there.
-  A legacy branch for a value that no release ever wrote would stay in the code for good, and the freeze (epic #39)
-  makes "for good" literal. What is refused is refused **with the way out in the message** (review of pull request 46):
-  - `Ensure` answers with a `LuiDefinitionMismatchException`. Its message no longer names `DropIndex` as the way out for
-    a content source this version does not know — `DropIndex` refuses such an index (ADR-0014, N2), so the old text sent
-    the reader into the next exception. It says that `DropIndex` cannot help, and what can: open the database with the
-    build that created it, or create it anew. For every definition this version knows the message is unchanged.
-  - `DropIndex` throws the `InvalidOperationException` of ADR-0014 with the same sentence, and removes nothing.
-  - The documentation of `LuiCatalog.DropIndex` says "whatever the stored definition is — as long as this version knows
-    the content source", so its promise is true.
-  The same holds for a database of a *newer* version of LUI with a source this version has never seen.
+- **Nothing has to be migrated.** `lui_meta.source` changes its stored value, but no release ever wrote the old one and
+  LUI is still in development: there is no database that holds it. For that reason there is no legacy branch either — it
+  would stay in the code for good, and the freeze (epic #39) makes "for good" literal.
 - **A diff of 233 replaced lines and ten renamed files**, made as a rename and nothing else, so that it reads as one:
   files with `git mv`, the identifiers by a script, the specification and the CHANGELOG by hand (the German gloss, and a
   sentence about earlier pre-release names). The only additions are this record, the name notes, the guard and its
@@ -95,9 +87,7 @@ application, in a table of the library) and pairs with `Linked`, which names the
 
 **Verified by:**
 
-- `EmbeddedIndexTests` — `lui_meta.source` is `Embedded`; a database whose stored source is `Owned` is refused by `Ensure`
-  and by `DropIndex`, each with the way out and without a pointer to a dead end; and a known source with another
-  definition still names `DropIndex`;
+- `EmbeddedIndexTests` — `lui_meta.source` is `Embedded`;
 - `SchemaGoldenTests` — the schema is unchanged, byte for byte (`golden/embedded-schema.txt`);
 - `Public_API_Shape` — the guard above, and a test of the guard itself: it reads the parameters of a public constructor and
   the protected members of an open class, and not the private ones, however they are named;
