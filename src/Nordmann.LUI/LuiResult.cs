@@ -28,6 +28,14 @@ public sealed record LuiResult<TKey, TPayload>
     /// </summary>
     public string? CorrectedQuery { get; init; }
 
+    /// <summary>
+    /// Whether a correction was wanted and not searched because the typo dictionary was being built — after the start of
+    /// an application, or while another query builds it (ADR-0021). The query did not wait for the build: it answered with
+    /// what the input found. Ask again once <see cref="ILuiIndex{TKey, TPayload}.TypoDictionaryState"/> is not
+    /// <see cref="LuiTypoDictionaryState.Building"/>.
+    /// </summary>
+    public bool CorrectionSkipped { get; init; }
+
     /// <summary>Where the time went; only set with <see cref="LuiQueryOptions.TrackTimings"/>.</summary>
     public LuiTimings? Timings { get; init; }
 }

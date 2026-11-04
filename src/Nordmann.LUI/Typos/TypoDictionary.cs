@@ -56,6 +56,12 @@ internal sealed class TypoDictionary
     private SymSpell? _symSpell;
     private Queue<(string Text, int Weight)>? _pending;
 
+    // a sync changed or removed entries since the last build (ADR-0021)
+    private volatile bool _stale;
+
+    // the builds that run (0 or 1: one at a time behind the build gate)
+    private int _building;
+
     internal TypoDictionary(NormalizationOptions normalization, Func<IEnumerable<(string Text, int Weight)>> source)
     {
         _normalization = normalization;
@@ -64,6 +70,60 @@ internal sealed class TypoDictionary
 
     /// <summary>Whether the dictionary has been built.</summary>
     internal bool IsBuilt => Volatile.Read(ref _symSpell) is not null;
+
+    /// <summary>Where the dictionary stands (ADR-0021).</summary>
+    internal LuiTypoDictionaryState State =>
+        Volatile.Read(ref _building) > 0 ? LuiTypoDictionaryState.Building
+        : !IsBuilt ? LuiTypoDictionaryState.NotBuilt
+        : _stale ? LuiTypoDictionaryState.Stale
+        : LuiTypoDictionaryState.Current;
+
+    /// <summary>
+    /// Marks a built dictionary as behind the entries — after a sync that changed or removed entries — instead of
+    /// building it anew at once: the build of three million entries takes half a minute, and the sync should not pay for
+    /// it (#19, ADR-0021). Nothing happens to a dictionary that is not built and not being built; a first build that runs
+    /// may have read the table before the sync, so it is marked too.
+    /// </summary>
+    internal void MarkStale()
+    {
+        if (IsBuilt || Volatile.Read(ref _building) > 0)
+        {
+            _stale = true;
+        }
+    }
+
+    /// <summary>
+    /// Builds the dictionary if it is not built and no other build runs; returns whether there is a dictionary to ask. A
+    /// query that needs a correction while another build runs — the warm-up after the start, a lazy build of another
+    /// query — gets <see langword="false"/> at once instead of waiting seconds behind the build gate (review of pull
+    /// request 23, S1; ADR-0021). A rebuild of a built dictionary does not count: the old one answers meanwhile.
+    /// </summary>
+    internal bool TryEnsureBuilt(CancellationToken cancellationToken)
+    {
+        if (IsBuilt)
+        {
+            return true;
+        }
+
+        if (!_buildGate.TryEnter())
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!IsBuilt)
+            {
+                BuildAndPublish(cancellationToken);
+            }
+
+            return true;
+        }
+        finally
+        {
+            _buildGate.Exit();
+        }
+    }
 
     /// <summary>Builds the dictionary from the content table, once; later calls return at once.</summary>
     internal void EnsureBuilt(CancellationToken cancellationToken)
@@ -277,6 +337,10 @@ internal sealed class TypoDictionary
             _pending = new Queue<(string, int)>();
         }
 
+        // what the build reads is the table as it is now: a sync before it is in it
+        var wasStale = _stale;
+        _stale = false;
+        Interlocked.Increment(ref _building);
         try
         {
             var fresh = Build(cancellationToken);
@@ -308,7 +372,17 @@ internal sealed class TypoDictionary
                 _pending = null;
             }
 
+            // a build that did not finish leaves the old dictionary as it was — stale if it was, or if a sync marked it since
+            if (wasStale)
+            {
+                _stale = true;
+            }
+
             throw;
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _building);
         }
     }
 

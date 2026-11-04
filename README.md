@@ -203,9 +203,15 @@ var suggest = host.Services.GetRequiredKeyedService<ILuiIndex<long, LuiNoPayload
 Console.WriteLine(suggest.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
 ```
 
-Without a host — in a console application — the same is three calls of your
+The host also rebuilds, once a minute, a typo dictionary that a `Sync` left
+stale (`RebuildStaleTypoDictionariesEvery`), and no query waits for a build:
+one that would need a correction meanwhile answers without it and says
+`CorrectionSkipped`.
+
+Without a host — in a console application — the same is a few calls of your
 own: `Ensure()` where you open an index, `WarmUpTypoDictionary()` at the start,
-and `ApplyPending()` after your writes or in a `PeriodicTimer` loop.
+`RebuildTypoDictionary()` after a `Sync`, and `ApplyPending()` after your writes
+or in a `PeriodicTimer` loop.
 
 ---
 

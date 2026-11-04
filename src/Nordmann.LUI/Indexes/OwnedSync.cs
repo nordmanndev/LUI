@@ -55,10 +55,13 @@ internal sealed class OwnedSync<TKey, TPayload>(
 
             options.Progress?.Report(report);
 
-            // a removal or a change takes words out that SymSpell cannot forget: a built dictionary is built anew
-            if (typos.IsBuilt && report.Changed + report.Removed > 0)
+            // A removal or a change takes words out that SymSpell cannot forget. The new words are learned already; a built
+            // dictionary is marked stale instead of built anew here — the build of three million entries takes half a
+            // minute, a delta sync should not pay it (#19, ADR-0021). RebuildTypoDictionary(), or the background service
+            // of the hosting package, brings it in step.
+            if (report.Changed + report.Removed > 0)
             {
-                typos.Rebuild(cancellationToken);
+                typos.MarkStale();
             }
 
             return report;

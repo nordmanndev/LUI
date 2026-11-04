@@ -240,6 +240,49 @@ public sealed class DependencyInjectionTests
     }
 
     [Fact]
+    public void A_typo_dictionary_a_sync_left_stale_is_built_anew_in_the_background()
+    {
+        // #19, ADR-0021: the sync marks it stale, the host builds it anew on its interval
+        using var database = new TestDatabase();
+        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
+        var log = new CapturedLog();
+        using var host = Host(
+            database,
+            lui => lui
+                .AddIndex("words", index => index.SingleWord().TypoTolerance())
+                .RebuildStaleTypoDictionariesEvery(TimeSpan.FromSeconds(30)),
+            new LuiCatalogOptions { TimeProvider = clock },
+            builder => builder.Logging.AddProvider(log));
+        host.Start();
+        var words = host.Services.GetRequiredKeyedService<ILuiIndex<long, LuiNoPayload>>("words");
+        var owned = host.Services.GetRequiredKeyedService<ILuiOwnedIndex<long, LuiNoPayload>>("words");
+        owned.Sync([new LuiEntry<long, LuiNoPayload>(1, "kartoffel"), new LuiEntry<long, LuiNoPayload>(2, "tomate")]);
+        words.WarmUpTypoDictionary();
+        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+
+        owned.Sync([new LuiEntry<long, LuiNoPayload>(2, "tomate")]);
+        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Stale);
+
+        Eventually(() =>
+        {
+            clock.Advance(TimeSpan.FromSeconds(30));
+            return words.TypoDictionaryState == LuiTypoDictionaryState.Current;
+        }).ShouldBeTrue("the stale dictionary is built anew on the interval");
+        words.Search("kartofel").CorrectedQuery.ShouldBeNull();
+        Eventually(() => log.Count(LogLevel.Information, "is built anew") == 1).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void The_interval_of_the_rebuild_is_positive_or_off()
+    {
+        var lui = new ServiceCollection().AddLui("Data Source=unused.db");
+
+        Should.Throw<ArgumentOutOfRangeException>(() => lui.RebuildStaleTypoDictionariesEvery(TimeSpan.Zero));
+        Should.Throw<ArgumentOutOfRangeException>(() => lui.RebuildStaleTypoDictionariesEvery(TimeSpan.FromSeconds(-1)));
+        lui.RebuildStaleTypoDictionariesEvery(null).ShouldBeSameAs(lui);
+    }
+
+    [Fact]
     public void A_name_that_is_not_an_index_name_stops_the_start()
     {
         // the rule of the name is the core's (LuiCatalog.Index); the hosting package knows the public API only (ADR-0018)

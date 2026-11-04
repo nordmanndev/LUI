@@ -67,6 +67,12 @@ public static class LuiServiceCollectionExtensions
         services.AddHostedService(provider =>
         {
             provider.GetRequiredService<LuiCatalog>();
+            return new LuiTypoRebuilder(
+                provider, registrations, provider.GetRequiredService<CatalogSettings>().Options.TimeProvider, Logger<LuiTypoRebuilder>(provider));
+        });
+        services.AddHostedService(provider =>
+        {
+            provider.GetRequiredService<LuiCatalog>();
             return new LuiPendingApplier(
                 provider, registrations, provider.GetRequiredService<CatalogSettings>().Options.TimeProvider, Logger<LuiPendingApplier>(provider));
         });

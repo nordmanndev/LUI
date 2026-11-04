@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Microsoft.Data.Sqlite;
 using Nordmann.LUI.Schema;
 using Nordmann.LUI.Storage;
 using Nordmann.LUI.Typos;
@@ -68,15 +69,9 @@ internal sealed class QueryRunner<TKey, TPayload>
         var candidates = _candidates.Read(connection, snapshot, query, options, variant: 0, cancellationToken, out var count, out var truncated);
         var read = Stopwatch.GetTimestamp();
 
-        IReadOnlyList<string> queries = [query.Search];
-        string? corrected = null;
-        var corrections = read;
-        if ((options.TypoTolerance ?? _typoDefault) && !query.IsPrefixPath && TypoCorrection.IsWanted(candidates, count))
-        {
-            (candidates, count, truncated, queries, corrected) =
-                _correction.Apply(connection, snapshot, query, options, candidates, count, truncated, cancellationToken);
-            corrections = Stopwatch.GetTimestamp();
-        }
+        (candidates, count, truncated, var queries, var corrected, var skipped, var ran) =
+            Correct(connection, snapshot, query, options, candidates, count, truncated, cancellationToken);
+        var corrections = ran ? Stopwatch.GetTimestamp() : read;
 
         // A one- or two-character input carries no similarity worth ranking by: the
         // candidates all begin with it, and "the most popular first" is the answer (Anhang B).
@@ -95,8 +90,39 @@ internal sealed class QueryRunner<TKey, TPayload>
             CandidatesConsidered = count,
             Truncated = truncated,
             CorrectedQuery = corrected,
+            CorrectionSkipped = skipped,
             Timings = Timings(options, started, read, corrections, rankedAt, done),
         };
+    }
+
+    /// <summary>
+    /// The typo correction, when it is wanted (§10.2): the candidates of the corrections united with those of the input.
+    /// While another build of the dictionary runs, the query does not wait for it: it answers with what the input found,
+    /// and says so (ADR-0021).
+    /// </summary>
+    private (Scored[] Candidates, int Count, bool Truncated, IReadOnlyList<string> Queries, string? Corrected, bool Skipped, bool Ran) Correct(
+        SqliteConnection connection,
+        SqliteTransaction snapshot,
+        PreparedQuery query,
+        LuiQueryOptions options,
+        Scored[] candidates,
+        int count,
+        bool truncated,
+        CancellationToken cancellationToken)
+    {
+        if (!(options.TypoTolerance ?? _typoDefault) || query.IsPrefixPath || !TypoCorrection.IsWanted(candidates, count))
+        {
+            return (candidates, count, truncated, [query.Search], null, false, false);
+        }
+
+        if (!_correction.IsReady(cancellationToken))
+        {
+            return (candidates, count, truncated, [query.Search], null, true, false);
+        }
+
+        var (united, total, cut, queries, corrected) =
+            _correction.Apply(connection, snapshot, query, options, candidates, count, truncated, cancellationToken);
+        return (united, total, cut, queries, corrected, false, true);
     }
 
     private static LuiTimings? Timings(

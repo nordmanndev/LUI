@@ -5,6 +5,16 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-04 — #19: a stale typo dictionary, a query that does not wait
+
+- ADR-0021. An owned `Sync` that changes or removes marks a built dictionary `Stale` (new words are learned at once);
+  `RebuildTypoDictionary()` makes it `Current`. `ILuiIndex.TypoDictionaryState`, `LuiResult.CorrectionSkipped`: a
+  query does not wait for a build another thread runs. Hosting: `LuiTypoRebuilder`, `RebuildStaleTypoDictionariesEvery`
+  (1 min default, `null` off). Linked `Sync()` still rebuilds.
+- Measured at 300,000 words: delta sync 4.4–4.8 s → 2.6 s; the rebuild alone 2.0–2.3 s.
+
+## 2026-11-04 — #24: the exact pin of the hosting package to the core (merged as #33)
+
 ## 2026-11-03 — PR-009: the performance budgets of §16 (issue #28)
 
 - ADR-0020. `Corpus` (Testing) generates the measurement corpus for a seed; `PerformanceBudgets` measures every §16

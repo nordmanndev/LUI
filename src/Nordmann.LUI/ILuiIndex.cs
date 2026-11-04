@@ -23,6 +23,13 @@ public interface ILuiIndex<TKey, TPayload>
     /// </summary>
     bool TypoTolerance { get; }
 
+    /// <summary>
+    /// Where the typo dictionary of the index stands (ADR-0021): not built, being built, current, or stale after a sync
+    /// that changed or removed entries — a value for a health check, and the question before a rebuild. The dictionary
+    /// belongs to the index of the catalog, so every instance of the index reports the same.
+    /// </summary>
+    LuiTypoDictionaryState TypoDictionaryState { get; }
+
     /// <summary>The number of entries.</summary>
     /// <returns>The count.</returns>
     long Count();

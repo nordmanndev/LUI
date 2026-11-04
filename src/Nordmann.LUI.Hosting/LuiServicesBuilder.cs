@@ -47,7 +47,8 @@ public sealed class LuiServicesBuilder
             Ensure: provider => provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name),
             WarmUp: (provider, token) => WarmUp(provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name), token),
             ApplyPending: null,
-            ApplyPendingEvery: null));
+            ApplyPendingEvery: null,
+            RebuildIfStale: (provider, token) => RebuildIfStale(provider.GetRequiredKeyedService<ILuiOwnedIndex<TKey, TPayload>>(name), token)));
 
         Services.AddKeyedSingleton<ILuiOwnedIndex<TKey, TPayload>>(
             name, (provider, _) => index(provider.GetRequiredService<LuiCatalog>().Index(name)).Ensure());
@@ -91,7 +92,8 @@ public sealed class LuiServicesBuilder
             Ensure: provider => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name),
             WarmUp: (provider, token) => WarmUp(provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name), token),
             ApplyPending: (provider, token) => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name).ApplyPending(token),
-            ApplyPendingEvery: applyPendingEvery));
+            ApplyPendingEvery: applyPendingEvery,
+            RebuildIfStale: (provider, token) => RebuildIfStale(provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name), token)));
 
         Services.AddKeyedSingleton<ILuiLinkedIndex<TPayload>>(
             name, (provider, _) => index(provider.GetRequiredService<LuiCatalog>().Index(name)).Ensure());
@@ -136,6 +138,40 @@ public sealed class LuiServicesBuilder
     {
         _registrations.WarmUpTypoDictionariesOnStart = enabled;
         return this;
+    }
+
+    /// <summary>
+    /// How often the typo dictionaries a sync left stale are rebuilt in the background (default: every minute;
+    /// <see langword="null"/> switches it off). A sync of an owned index that changed or removed entries marks a built
+    /// dictionary stale instead of building it anew — the build of three million entries takes half a minute, and the
+    /// sync should not pay it (ADR-0021). A stale dictionary answers meanwhile: the new words are in it, the words that
+    /// went linger and find nothing. Without a host, <c>RebuildTypoDictionary()</c> does the same.
+    /// </summary>
+    /// <param name="every">The interval, or <see langword="null"/> for never.</param>
+    /// <returns>The builder.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="every"/> is not positive.</exception>
+    public LuiServicesBuilder RebuildStaleTypoDictionariesEvery(TimeSpan? every)
+    {
+        if (every is { } interval && interval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(nameof(every), interval, "The interval of the rebuild is positive.");
+        }
+
+        _registrations.RebuildStaleTypoDictionariesEvery = every;
+        return this;
+    }
+
+    /// <summary>Rebuilds the typo dictionary of an index if it is stale.</summary>
+    /// <returns>Whether it was rebuilt.</returns>
+    private static bool RebuildIfStale<TKey, TPayload>(ILuiIndex<TKey, TPayload> index, CancellationToken cancellationToken)
+    {
+        if (index.TypoDictionaryState != LuiTypoDictionaryState.Stale)
+        {
+            return false;
+        }
+
+        index.RebuildTypoDictionary(cancellationToken);
+        return true;
     }
 
     /// <summary>

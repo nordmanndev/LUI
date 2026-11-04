@@ -1,0 +1,94 @@
+# 0021 — A stale typo dictionary, a query that does not wait, a rebuild in the background
+
+- **Status:** Accepted (owner's decision, 2026-11-04: "#19 before 0.1.0, as proposed")
+- **Date:** 2026-11-04
+- **Issue:** #19
+- **Amends:** [0016](./0016-sync-check-rebuild.md) (a sync rebuilt a built dictionary at its end),
+  [0017](./0017-dependency-injection-and-hosted-services.md) (a correcting query waited for a build another thread ran)
+- **Affects:**
+  - `LuiTypoDictionaryState` (new), `ILuiIndex.TypoDictionaryState` (new), `LuiResult.CorrectionSkipped` (new)
+  - `LuiServicesBuilder.RebuildStaleTypoDictionariesEvery(TimeSpan?)` (new), the hosted service `LuiTypoRebuilder` (new)
+  - `Typos/TypoDictionary.cs`, `Querying/QueryRunner.cs`, `Querying/TypoCorrection.cs`, `Indexes/OwnedSync.cs`
+  - spec §10.1, §10.3a, §12.4, §12.7
+
+## Context
+
+Two costs of the typo dictionary were left open by PR-007 and PR-008:
+
+1. **A delta sync paid a full rebuild.** SymSpell cannot forget a word, so `Sync` of an owned index rebuilt a built
+   dictionary at its end whenever it changed or removed anything — the whole dictionary for one changed entry. The
+   reviewer of pull request 18 measured 12.1 s against 2.3 s for one change among 300,000 words (S2).
+2. **A correcting query waited for a build another thread ran.** The warm-up of the hosting package builds in the
+   background; a query that needed a correction meanwhile waited on the build gate — seconds for a large index — and
+   its token did not end the wait (review of pull request 23, S1; ADR-0017).
+
+## Decision
+
+**A sync marks the dictionary stale instead of building it anew.** An owned sync that changed or removed entries calls
+`MarkStale()`. The new words of its batches are learned as before (`AddRange` after each commit), so a new word is
+corrected at once; a removed or changed-away word lingers, and a correction to it finds nothing — the behaviour of
+`Remove` since ADR-0012. `RebuildTypoDictionary()` brings it in step; the state is `Current` again.
+
+**The state is public:** `ILuiIndex.TypoDictionaryState` is one of
+
+| State | Means |
+|---|---|
+| `NotBuilt` | not built yet — the first correcting query or `WarmUpTypoDictionary()` builds it |
+| `Building` | a build runs |
+| `Current` | built, in step with the index |
+| `Stale` | built, a sync changed or removed entries since — new words are known, removed ones linger |
+
+A build that fails leaves the old dictionary answering, in the state it had. A sync during the first build marks the
+dictionary `Stale` once it is published — the build may have read the table before the sync wrote it.
+
+**A query does not wait for a build that runs.** `TypoDictionary.TryEnsureBuilt` takes the build gate only if it is
+free. A query that wants a correction while another thread builds answers with what its input found, and says so:
+**`LuiResult.CorrectionSkipped`** is `true`. When no build runs and the dictionary is not built, the query builds it
+itself, as before — that is the first correcting query without a warm-up, and only that query waits.
+
+**The host rebuilds a stale dictionary in the background.** `Nordmann.LUI.Hosting` gets a third hosted service,
+`LuiTypoRebuilder`: every `RebuildStaleTypoDictionariesEvery` (default **one minute**; `null` switches it off) it
+rebuilds the dictionaries that are `Stale`. One that is `NotBuilt` it leaves alone — building it is the warm-up's job.
+A failed rebuild is logged as an error, the next round tries again. The core starts no thread of its own (ADR-0018): a
+console application calls `RebuildTypoDictionary()` after its sync, or when `TypoDictionaryState` says `Stale`.
+
+**The sync of a linked index is unchanged.** `ILuiLinkedIndex.Sync()` reads the whole table into the index anew; a
+dictionary built anew with it is in proportion to the work. The shadow build of #31 may revisit it.
+
+## What was measured
+
+`SyncPerformance.A_delta_sync_with_a_built_typo_dictionary` (gated, `LUI_PERF=1 LUI_PERF_ENTRIES=300000`): 300,000
+single words of the German word list (`Corpus`, seed 42), first loaded by `Sync`, the dictionary warmed up, then a sync
+with 100 changes and 100 removals (default batch of 10,000). Two runs each, the measurement machine of
+`docs/benchmarks.md`. "Before" is the same test with the sync rebuilding the dictionary at its end, as on `main`.
+
+| | Before (rebuild in the sync) | After (marked stale) |
+|---|---:|---:|
+| delta sync of 100 changes and 100 removals | 4.4 / 4.8 s | **2.6 / 2.6 s** |
+| `RebuildTypoDictionary()` on its own | — | 2.0 / 2.3 s |
+| state after the sync | `Current` | `Stale` |
+
+The difference is the rebuild — at 300,000 words about two seconds, at the whole word list 4–5 s (ADR-0012), at three
+million entries proportionally more. The sync no longer pays it; the background service or the application does, when
+it chooses. (The reviewer's 12.1 s were on random compounds, whose dictionary is larger.)
+
+## Consequences
+
+- **The correction of a stale dictionary is a little worse for a while:** a removed word still has its beginnings, so a
+  typo near one may be corrected to it and find nothing, where the rebuilt dictionary would have offered the next best
+  word. With the hosting package this lasts at most an interval plus a rebuild.
+- **`CorrectionSkipped` is an honest answer, not an error:** an endpoint may show the uncorrected hits, or ask again. A
+  query that does not need a correction (a word beginning among its candidates) never sets it.
+- `ILuiIndex.TypoDictionaryState` is an addition to the interface; an application's own implementation (a test
+  double) adds a property — the same note as for `TypoTolerance` in ADR-0018.
+- The timings of a query (`TrackTimings`) show no correction time for a query that skipped it.
+
+**Verified by:**
+
+- `TypoDictionaryStateTests` (unit): the states, a second build that does not wait, a failed build that leaves the old
+  dictionary as it was, a sync during the first build;
+- `TypoDictionaryLifecycleTests` (integration): a query during a blocked build skips the correction and says so, and
+  corrects after it; a sync that changes or removes marks stale, one that only adds does not, a rebuild makes current;
+- `DependencyInjectionTests`: `A_typo_dictionary_a_sync_left_stale_is_built_anew_in_the_background` (with a
+  `FakeTimeProvider`), `The_interval_of_the_rebuild_is_positive_or_off`;
+- `SyncPerformance.A_delta_sync_with_a_built_typo_dictionary` (gated): the table above.

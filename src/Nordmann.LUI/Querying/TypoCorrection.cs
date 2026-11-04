@@ -26,6 +26,12 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
     }
 
     /// <summary>
+    /// Whether the dictionary can be asked now: it is built, or this query builds it — not when another build runs, then
+    /// the query answers without a correction instead of waiting for it (ADR-0021).
+    /// </summary>
+    internal bool IsReady(CancellationToken cancellationToken) => typos.TryEnsureBuilt(cancellationToken);
+
+    /// <summary>
     /// The candidates of the input and of its corrections, united; the inputs that were searched (the
     /// input first); and the correction that was searched, if one still has a candidate after the cap.
     /// </summary>
@@ -39,8 +45,6 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
         bool truncated,
         CancellationToken cancellationToken)
     {
-        typos.EnsureBuilt(cancellationToken);
-
         var queries = new List<string> { query.Search };
         var parts = new List<(Scored[] Items, int Count)> { (found, count) };
 
