@@ -518,9 +518,12 @@ Original-Position. Abschaltbar, weil sie pro Treffer Arbeit kostet.
   sie stehen (SymSpell kennt kein Entfernen; eine Korrektur dorthin findet
   schlicht nichts). `RebuildTypoDictionary()` baut neu.
 - **Zustand** (`TypoDictionaryState`, ADR-0021): `NotBuilt`, `Building`, `Current`, `Stale`. Ein `Sync` eines
-  `Owned`-Index, der Einträge ändert oder entfernt, baut das Wörterbuch **nicht** neu, sondern markiert es als
-  `Stale`: die neuen Wörter kennt es schon, die entfernten bleiben stehen, bis `RebuildTypoDictionary()` (oder der
-  Hintergrunddienst aus § 12.7) es neu baut.
+  `Owned`-Index, der Einträge ändert oder entfernt, baut das Wörterbuch **nicht** neu, sondern markiert es nach jedem
+  bestätigten Stapel als `Stale` — auch ein abgebrochener — und sagt es im Bericht (`LuiSyncReport.TypoDictionaryStale`):
+  die neuen Wörter kennt es schon, die entfernten bleiben stehen, bis `RebuildTypoDictionary()` (oder der
+  Hintergrunddienst aus § 12.7) es neu baut. „Stale" ist ein Zähler, kein Flag: Jede Markierung zählt hoch, ein Aufbau
+  merkt sich den Stand, bevor er die Tabelle liest — ein Sync, der während eines Aufbaus schreibt, lässt das
+  Wörterbuch `Stale`, ob der Aufbau gelingt oder scheitert (Review von PR #34, I1, I2).
 
 ### 10.2 Wann korrigiert wird
 
@@ -565,7 +568,11 @@ Wörtern.
   trotzdem korrigiert.
 - **Eine Abfrage wartet nicht auf einen laufenden Aufbau** (ADR-0021): baut ein anderer Thread das Wörterbuch gerade, antwortet eine
   Abfrage, die korrigieren müsste, mit den Treffern ihrer Eingabe und setzt `CorrectionSkipped`. Läuft kein Aufbau und ist das
-  Wörterbuch noch nicht gebaut, baut die Abfrage es selbst — nur die erste korrigierende Abfrage ohne Warm-up wartet.
+  Wörterbuch noch nicht gebaut, baut die Abfrage es selbst — nur die erste korrigierende Abfrage ohne Warm-up wartet. Dieser
+  Aufbau gehört dem Index, nicht der Abfrage: Er nimmt ihr Token nicht (eine Autovervollständigung bricht bei jedem
+  Tastendruck ab, ein daran gebundener Aufbau würde nie fertig); scheitert er, antwortet die Abfrage ohne Korrektur mit
+  `CorrectionSkipped`, und die nächste korrigierende Abfrage versucht es wieder (Review von PR #34, I3). `WarmUpTypoDictionary()`
+  und `RebuildTypoDictionary()` warten auf einen laufenden Aufbau und beenden dieses Warten mit ihrem Token.
 - Das Wörterbuch wird beim ersten Bedarf gebaut (`WarmUpTypoDictionary()` baut es vorab, zum Beispiel beim Start); `RebuildTypoDictionary()`
   baut es neu (nach vielen `Remove`, und für Schreibvorgänge an der Bibliothek vorbei). Beide nehmen ein `CancellationToken`. Ein `Upsert`
   trägt die Wortanfänge sofort ein, auch wenn seine Transaktion später zurückgerollt wird — wie bei `Remove` findet eine Korrektur dorthin
@@ -807,7 +814,9 @@ public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<lon
   setzt `CorrectionSkipped` (ADR-0021, Issue #19; bis dahin wartete sie, ADR-0017).
 - `RebuildStaleTypoDictionariesEvery(TimeSpan?)` — Standard **eine Minute**, `null` schaltet ab — lässt einen
   gehosteten Dienst die Wörterbücher neu bauen, die ein `Sync` als `Stale` markiert hat; ein nicht gebautes baut er
-  nicht. Ein fehlgeschlagener Neubau wird geloggt, die nächste Runde versucht es wieder (ADR-0021).
+  nicht. Ein fehlgeschlagener Neubau wird geloggt, die nächste Runde versucht es wieder; die Indizes einer Runde
+  werden nacheinander gebaut. Ändern die Syncs öfter, als ein Neubau dauert, wird er immer wieder überholt — dann ein
+  längeres Intervall, oder `null` und `RebuildTypoDictionary()` in einer ruhigen Phase (ADR-0021).
 - `applyPendingEvery` lässt einen gehosteten Dienst `ApplyPending()` eines verknüpften Index im Takt aufrufen; ein
   fehlgeschlagener Durchlauf wird geloggt, der nächste versucht es wieder. Die Trigger legt er nicht an (ADR-0015).
 - Das alles liefert das Paket `Nordmann.LUI.Hosting` (§ 17.1, ADR-0018); den Host bringt die Anwendung mit. Ohne

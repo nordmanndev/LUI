@@ -29,10 +29,11 @@ public sealed record LuiResult<TKey, TPayload>
     public string? CorrectedQuery { get; init; }
 
     /// <summary>
-    /// Whether a correction was wanted and not searched because the typo dictionary was being built — after the start of
-    /// an application, or while another query builds it (ADR-0021). The query did not wait for the build: it answered with
-    /// what the input found. Ask again once <see cref="ILuiIndex{TKey, TPayload}.TypoDictionaryState"/> is not
-    /// <see cref="LuiTypoDictionaryState.Building"/>.
+    /// Whether a correction was wanted and not searched (ADR-0021): the typo dictionary was being built — after the start
+    /// of an application, or while another query builds it —, or its build failed. The query did not wait for the build
+    /// and did not fail: it answered with what the input found. Ask again once
+    /// <see cref="ILuiIndex{TKey, TPayload}.TypoDictionaryState"/> is not <see cref="LuiTypoDictionaryState.Building"/>;
+    /// after a failed build, the next query that needs a correction tries again.
     /// </summary>
     public bool CorrectionSkipped { get; init; }
 

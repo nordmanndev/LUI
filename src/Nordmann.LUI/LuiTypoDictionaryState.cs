@@ -6,7 +6,10 @@ namespace Nordmann.LUI;
 /// </summary>
 public enum LuiTypoDictionaryState
 {
-    /// <summary>Not built: the first correction, <c>WarmUpTypoDictionary()</c> or a start with warm-up builds it.</summary>
+    /// <summary>
+    /// Not built: the first correction, <c>WarmUpTypoDictionary()</c> or a start with warm-up builds it — and after a
+    /// build that failed, the next correction tries again.
+    /// </summary>
     NotBuilt,
 
     /// <summary>
@@ -20,7 +23,8 @@ public enum LuiTypoDictionaryState
     Current,
 
     /// <summary>
-    /// Built, and behind: a sync changed or removed entries. The new words are learned, but the words that went stay and
+    /// Built, and behind: a sync changed or removed entries after the build read them — the build of a sync that runs at
+    /// the same time, too, and a rebuild that failed leaves it so. The new words are learned, but the words that went stay and
     /// the frequencies are the old ones — a correction may point at a word that is gone and finds nothing. A rebuild
     /// (<c>RebuildTypoDictionary()</c>, or the hosting package's background service) brings it in step.
     /// </summary>

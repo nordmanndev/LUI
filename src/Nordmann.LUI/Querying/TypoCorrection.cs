@@ -26,14 +26,17 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
     }
 
     /// <summary>
-    /// Whether the dictionary can be asked now: it is built, or this query builds it — not when another build runs, then
-    /// the query answers without a correction instead of waiting for it (ADR-0021).
+    /// Whether the dictionary can be asked now: it is built, or this query builds it — not when another build runs or the
+    /// build fails, then the query answers without a correction (ADR-0021). The build takes no token of the query
+    /// (<see cref="TypoDictionary.TryEnsureBuilt"/>).
     /// </summary>
-    internal bool IsReady(CancellationToken cancellationToken) => typos.TryEnsureBuilt(cancellationToken);
+    internal bool IsReady() => typos.TryEnsureBuilt();
 
     /// <summary>
     /// The candidates of the input and of its corrections, united; the inputs that were searched (the
-    /// input first); and the correction that was searched, if one still has a candidate after the cap.
+    /// input first); and the correction that was searched, if one still has a candidate after the cap. It does not build
+    /// the dictionary: the caller asks <see cref="IsReady"/> first — a dictionary that is not built gives no correction
+    /// (review of pull request 34, M8).
     /// </summary>
     internal (Scored[] Candidates, int Count, bool Truncated, IReadOnlyList<string> Queries, string? Corrected) Apply(
         SqliteConnection connection,

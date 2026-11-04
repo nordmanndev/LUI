@@ -44,6 +44,51 @@ public sealed class TypoDictionaryLifecycleTests
     }
 
     [Fact]
+    public void A_query_whose_build_fails_answers_without_the_correction_and_the_next_one_builds_it()
+    {
+        // review of pull request 34, I3: a failed build is a correction not searched, not a failed query
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var fail = true;
+        catalog.TypoDictionaries.For("words", new NormalizationOptions(), () => fail ? Failing() : [("kartoffel", 1)]);
+        var words = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        words.Upsert(1, "kartoffel");
+
+        var failed = words.Search("kartofel");
+        failed.CorrectionSkipped.ShouldBeTrue();
+        failed.CorrectedQuery.ShouldBeNull();
+        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
+
+        fail = false;
+        words.Search("kartofel").CorrectedQuery.ShouldBe("kartoffel");
+        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+    }
+
+    [Fact]
+    public async Task A_query_that_is_cancelled_while_it_builds_the_dictionary_leaves_it_built()
+    {
+        // review of pull request 34, I3: the build is the index's, not the query's — an autocomplete cancels at every
+        // keystroke, and a build bound to the request would never finish
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        using var reading = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        using var request = new CancellationTokenSource();
+        catalog.TypoDictionaries.For("words", new NormalizationOptions(), () => Blocking(reading, release));
+        var words = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        words.Upsert(1, "kartoffel");
+
+        var query = Task.Run(() => words.Search("kartofel", cancellationToken: request.Token));
+        reading.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the query builds the dictionary");
+        await request.CancelAsync();
+        release.Set();
+
+        await Should.ThrowAsync<OperationCanceledException>(query.WaitAsync(TimeSpan.FromSeconds(10)));
+        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        words.Search("kartofel").CorrectedQuery.ShouldBe("kartoffel");
+    }
+
+    [Fact]
     public void A_sync_that_changes_or_removes_marks_the_dictionary_stale_and_a_rebuild_brings_it_in_step()
     {
         using var database = new TestDatabase();
@@ -53,16 +98,36 @@ public sealed class TypoDictionaryLifecycleTests
         words.WarmUpTypoDictionary();
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
 
-        words.Sync(Entries("kartoffel", "tomate"));
+        words.Sync(Entries("kartoffel", "tomate")).TypoDictionaryStale.ShouldBeFalse();
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current, "a sync that only adds learns the new words");
 
-        words.Sync(Entries("tomate"));
+        words.Sync(Entries("tomate")).TypoDictionaryStale.ShouldBeTrue("the report says it (review of pull request 34, M6)");
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Stale);
         words.Search("tomahe").Hits.ShouldHaveSingleItem().Text.ShouldBe("tomate");
 
         words.RebuildTypoDictionary();
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
         words.Search("kartofel").CorrectedQuery.ShouldBeNull();
+    }
+
+    [Fact]
+    public void A_sync_that_is_cancelled_after_a_change_was_committed_leaves_the_dictionary_stale()
+    {
+        // review of pull request 34, M4: marked after the commit, not at an end a cancellation never reaches
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var words = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        words.Sync(Entries("kartoffel", "tomate"));
+        words.WarmUpTypoDictionary();
+        using var cancellation = new CancellationTokenSource();
+
+        Should.Throw<OperationCanceledException>(() => words.Sync(
+            CancelAfterFirst(Entries("gurke", "tomate"), cancellation),
+            new LuiSyncOptions { BatchSize = 1 },
+            cancellation.Token));
+
+        words.Search("gurke").Hits.ShouldHaveSingleItem("the first batch is committed");
+        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Stale);
     }
 
     [Fact]
@@ -79,6 +144,29 @@ public sealed class TypoDictionaryLifecycleTests
 
     private static IEnumerable<LuiEntry<long, LuiNoPayload>> Entries(params string[] texts) =>
         texts.Select((text, i) => new LuiEntry<long, LuiNoPayload>(i + 1, text));
+
+    private static IEnumerable<LuiEntry<long, LuiNoPayload>> CancelAfterFirst(
+        IEnumerable<LuiEntry<long, LuiNoPayload>> entries,
+        CancellationTokenSource cancellation)
+    {
+        var first = true;
+        foreach (var entry in entries)
+        {
+            if (!first)
+            {
+                cancellation.Cancel();
+            }
+
+            first = false;
+            yield return entry;
+        }
+    }
+
+    private static IEnumerable<(string Text, int Weight)> Failing()
+    {
+        yield return ("tomate", 1);
+        throw new InvalidOperationException("the table is gone");
+    }
 
     private static IEnumerable<(string Text, int Weight)> Blocking(ManualResetEventSlim reading, ManualResetEventSlim release)
     {

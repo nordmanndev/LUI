@@ -16,10 +16,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `LuiTypoDictionaryState` (`NotBuilt`, `Building`, `Current`, `Stale`) and `ILuiIndex.TypoDictionaryState` — an
     application's own implementation of `ILuiIndex` (a test double) adds the property;
   - `LuiResult.CorrectionSkipped`: a query that would correct while another thread builds the dictionary no longer
-    waits for it; it answers with what its input found and sets the flag;
+    waits for it, and one whose own build fails no longer throws; it answers with what its input found and sets the
+    flag. The build a query starts no longer takes the query's token: a cancelled request leaves the dictionary built;
+  - `LuiSyncReport.TypoDictionaryStale`: whether the sync left the dictionary stale;
   - `LuiServicesBuilder.RebuildStaleTypoDictionariesEvery(TimeSpan?)` (hosting): a hosted service rebuilds stale
     dictionaries in the background, every minute by default; `null` switches it off.
-  The sync of a linked index still builds its dictionary anew.
+  The sync of a linked index still builds its dictionary anew. `WarmUpTypoDictionary` and `RebuildTypoDictionary` now
+  end their wait for a build another thread runs when their token is cancelled.
 
 - **The performance budgets of §16, measured** ([ADR-0020](docs/adr/0020-the-performance-budgets-measured.md)): a test per
   target in its scenario (`PerformanceBudgets`, gated), a generated corpus for the measurements, and the benchmark

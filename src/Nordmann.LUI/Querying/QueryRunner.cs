@@ -97,8 +97,8 @@ internal sealed class QueryRunner<TKey, TPayload>
 
     /// <summary>
     /// The typo correction, when it is wanted (§10.2): the candidates of the corrections united with those of the input.
-    /// While another build of the dictionary runs, the query does not wait for it: it answers with what the input found,
-    /// and says so (ADR-0021).
+    /// While another build of the dictionary runs, or when the build fails, the query does not wait for it and does not
+    /// fail: it answers with what the input found, and says so (ADR-0021).
     /// </summary>
     private (Scored[] Candidates, int Count, bool Truncated, IReadOnlyList<string> Queries, string? Corrected, bool Skipped, bool Ran) Correct(
         SqliteConnection connection,
@@ -115,7 +115,7 @@ internal sealed class QueryRunner<TKey, TPayload>
             return (candidates, count, truncated, [query.Search], null, false, false);
         }
 
-        if (!_correction.IsReady(cancellationToken))
+        if (!_correction.IsReady())
         {
             return (candidates, count, truncated, [query.Search], null, true, false);
         }

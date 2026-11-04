@@ -53,17 +53,12 @@ internal sealed class OwnedSync<TKey, TPayload>(
                 report = report with { Merged = true };
             }
 
+            // A removal or a change takes words out that SymSpell cannot forget. The new words are learned already; the
+            // dictionary was marked stale after each commit that changed or removed (WriteBatch, RemoveNotFound) instead of
+            // built anew — the build of three million entries takes half a minute, a delta sync should not pay it (#19,
+            // ADR-0021). RebuildTypoDictionary(), or the background service of the hosting package, brings it in step.
+            report = report with { TypoDictionaryStale = typos.State == LuiTypoDictionaryState.Stale };
             options.Progress?.Report(report);
-
-            // A removal or a change takes words out that SymSpell cannot forget. The new words are learned already; a built
-            // dictionary is marked stale instead of built anew here — the build of three million entries takes half a
-            // minute, a delta sync should not pay it (#19, ADR-0021). RebuildTypoDictionary(), or the background service
-            // of the hosting package, brings it in step.
-            if (report.Changed + report.Removed > 0)
-            {
-                typos.MarkStale();
-            }
-
             return report;
         }
         finally
@@ -113,8 +108,15 @@ internal sealed class OwnedSync<TKey, TPayload>(
             transaction.Commit();
         }
 
-        // the batch is committed: its words join the typo dictionary, if it is built
+        // the batch is committed: its words join the typo dictionary, if it is built; a change leaves the old words behind,
+        // so the dictionary is marked at once — not at the end of the sync, which a cancellation may never reach (review
+        // of pull request 34, M4)
         typos.AddRange(learned);
+        if (changed > 0)
+        {
+            typos.MarkStale();
+        }
+
         return report with
         {
             Read = report.Read + chunk.Length,
@@ -181,6 +183,11 @@ internal sealed class OwnedSync<TKey, TPayload>(
                 }
 
                 transaction.Commit();
+                if (removed > 0)
+                {
+                    typos.MarkStale();
+                }
+
                 report = report with { Removed = report.Removed + removed };
                 if (keys.Count < batchSize)
                 {
