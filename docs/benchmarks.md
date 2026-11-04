@@ -244,10 +244,16 @@ implementation (`SyncPerformance`):
 
 The §16 build target (3 M in ≤ 3 min) is measured with the benchmarks (PR-009).
 
+**A delta sync beside a built typo dictionary** ([ADR-0021](./adr/0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md),
+`SyncPerformance.A_delta_sync_with_a_built_typo_dictionary`, 300,000 words of the German list, two runs): a sync of 100
+changes and 100 removals took **4.4 / 4.8 s** while it rebuilt the dictionary at its end, and takes **2.6 / 2.6 s** now
+that it marks it stale; the rebuild on its own is 2.0 / 2.3 s.
+
 ```text
 LUI_PERF=1 LUI_PERF_ENTRIES=1000000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"
 LUI_PERF=1 LUI_PERF_ENTRIES=1000000 LUI_PERF_BATCH=100000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"
 LUI_PERF=1 LUI_PERF_ENTRIES=1000000 dotnet test --filter OwnedBulkExperiment --logger "console;verbosity=detailed"
+LUI_PERF=1 LUI_PERF_ENTRIES=300000 dotnet test --filter A_delta_sync_with_a_built_typo_dictionary --logger "console;verbosity=detailed"
 ```
 
 ### Opening a catalog

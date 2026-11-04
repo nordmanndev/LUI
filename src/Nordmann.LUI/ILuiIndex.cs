@@ -23,6 +23,13 @@ public interface ILuiIndex<TKey, TPayload>
     /// </summary>
     bool TypoTolerance { get; }
 
+    /// <summary>
+    /// Where the typo dictionary of the index stands (ADR-0021): not built, being built, current, or stale after a sync
+    /// that changed or removed entries — a value for a health check, and the question before a rebuild. The dictionary
+    /// belongs to the index of the catalog, so every instance of the index reports the same.
+    /// </summary>
+    LuiTypoDictionaryState TypoDictionaryState { get; }
+
     /// <summary>The number of entries.</summary>
     /// <returns>The count.</returns>
     long Count();
@@ -56,7 +63,7 @@ public interface ILuiIndex<TKey, TPayload>
     /// (about 5 seconds and 140 MB for 685,000 words). Meant for the start of an application; it builds the
     /// dictionary even when this instance has the typo tolerance off. Nothing happens if it exists.
     /// </summary>
-    /// <param name="cancellationToken">Checked while the entries are read.</param>
+    /// <param name="cancellationToken">Checked while the entries are read, and while it waits for a build that runs.</param>
     void WarmUpTypoDictionary(CancellationToken cancellationToken = default);
 
     /// <summary>
@@ -68,6 +75,6 @@ public interface ILuiIndex<TKey, TPayload>
     /// index); writes that arrive meanwhile are not lost, and queries use the old dictionary until the new one is
     /// ready.
     /// </summary>
-    /// <param name="cancellationToken">Checked while the entries are read.</param>
+    /// <param name="cancellationToken">Checked while the entries are read, and while it waits for a build that runs.</param>
     void RebuildTypoDictionary(CancellationToken cancellationToken = default);
 }

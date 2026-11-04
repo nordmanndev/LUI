@@ -88,8 +88,10 @@ public interface ILuiOwnedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// source was read; it runs in batches too, and a cancellation during it leaves the rest for the next run.
     /// </para>
     /// <para>
-    /// A typo dictionary that is built is <b>built anew</b> at the end when the sync changed or removed anything — a full
-    /// rebuild (seconds for a large index), queries use the old one meanwhile.
+    /// The new words of a sync join a typo dictionary that is built at once. When the sync changed or removed anything, the
+    /// dictionary is marked <see cref="LuiTypoDictionaryState.Stale"/> instead of built anew (ADR-0021): a removed word
+    /// lingers until <see cref="ILuiIndex{TKey, TPayload}.RebuildTypoDictionary"/> — or the background service of the
+    /// hosting package — builds it anew.
     /// </para>
     /// </summary>
     /// <param name="source">The entries; of a key that comes twice the last one stays.</param>

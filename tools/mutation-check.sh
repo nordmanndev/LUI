@@ -212,7 +212,14 @@ expect_caught "the-transliteration-is-gone" "${UNIT_PROJECT}" \
   "FullyQualifiedName~NormalizerTests" \
   "sed -i \"s|\\['ä'\\] = \\\"ae\\\";|['ä'] = \\\"a\\\";|\" src/Nordmann.LUI/Normalization/Normalizer.cs"
 
-# 16. The clean trees stay green.
+# 16. The typo dictionary forgets a mark of a sync that came during its build
+#     (review of pull request 34, I1/I2): the publish takes the count after the
+#     table was read, not before — a stale dictionary would say Current for good.
+expect_caught "a-build-forgets-the-marks-during-it" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~TypoDictionaryStateTests" \
+  "sed -i 's|Volatile.Write(ref _builtAt, marks);|Volatile.Write(ref _builtAt, Volatile.Read(ref _marks));|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
+
+# 17. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

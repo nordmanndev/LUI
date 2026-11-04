@@ -134,7 +134,9 @@ sync 10.5 s, `UpsertMany` 8.1 s, the same sync again 1.8 s, `Check()` 0.3 s, `Re
   forget a word. It is a full rebuild: measured by the reviewer, a sync with one change of 300,000 random words took
   12.1 s with a warm dictionary against 2.3 s without (review of pull request 18, S2). Queries go on with the old
   dictionary while the new one is built. Marking the dictionary stale instead and rebuilding it lazily or in the
-  background is a follow-up.
+  background is a follow-up. *(Done by [ADR-0021](./0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md),
+  issue #19: an owned sync marks the dictionary stale, the hosting package rebuilds it in the background; the sync of a
+  linked index still builds it anew.)*
 - A sync that runs while its index is dropped (`DropIndex` between two batches) fails with the `SqliteException` of
   the missing table (review of pull request 18, N7).
 - A linked index whose triggers noted rows that `ApplyPending()` has not brought in yet is not healthy for `Check()`:

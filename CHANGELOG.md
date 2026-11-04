@@ -9,6 +9,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **A stale typo dictionary, a query that does not wait** ([ADR-0021](docs/adr/0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md),
+  #19). `Sync` of an owned index no longer builds a built typo dictionary anew when it changed or removed entries: it
+  marks it stale — the new words are known at once, removed ones linger until `RebuildTypoDictionary()`. A delta sync
+  of 100 changes at 300,000 words: 4.4–4.8 s before, 2.6 s now. New API:
+  - `LuiTypoDictionaryState` (`NotBuilt`, `Building`, `Current`, `Stale`) and `ILuiIndex.TypoDictionaryState` — an
+    application's own implementation of `ILuiIndex` (a test double) adds the property;
+  - `LuiResult.CorrectionSkipped`: a query that would correct while another thread builds the dictionary no longer
+    waits for it, and one whose own build fails no longer throws; it answers with what its input found and sets the
+    flag. The build a query starts no longer takes the query's token: a cancelled request leaves the dictionary built;
+  - `LuiSyncReport.TypoDictionaryStale`: whether the sync left the dictionary stale;
+  - `LuiServicesBuilder.RebuildStaleTypoDictionariesEvery(TimeSpan?)` (hosting): a hosted service rebuilds stale
+    dictionaries in the background, every minute by default; `null` switches it off.
+  The sync of a linked index still builds its dictionary anew. `WarmUpTypoDictionary` and `RebuildTypoDictionary` now
+  end their wait for a build another thread runs when their token is cancelled.
+
 - **The performance budgets of §16, measured** ([ADR-0020](docs/adr/0020-the-performance-budgets-measured.md)): a test per
   target in its scenario (`PerformanceBudgets`, gated), a generated corpus for the measurements, and the benchmark
   project (`benchmarks/Nordmann.LUI.Benchmarks`, BenchmarkDotNet). At three million entries the query median (1.6 ms),

@@ -56,6 +56,19 @@ internal sealed class TypoDictionary
     private SymSpell? _symSpell;
     private Queue<(string Text, int Weight)>? _pending;
 
+    // The staleness is a generation, not a flag (review of pull request 34, I1, I2): every mark of a sync counts one up,
+    // and the published dictionary remembers the count a build read before it read the table. The dictionary is behind
+    // exactly when a mark came after that — however a mark and a build interleave, and whether the build succeeds or
+    // fails, without a lock between the sync and the build.
+    private long _marks;
+    private long _builtAt;
+
+    // the builds that run (0 or 1: one at a time behind the build gate)
+    private int _building;
+
+    // how long a build waits for the gate before it looks at its token again
+    private const int GatePollMilliseconds = 50;
+
     internal TypoDictionary(NormalizationOptions normalization, Func<IEnumerable<(string Text, int Weight)>> source)
     {
         _normalization = normalization;
@@ -65,7 +78,70 @@ internal sealed class TypoDictionary
     /// <summary>Whether the dictionary has been built.</summary>
     internal bool IsBuilt => Volatile.Read(ref _symSpell) is not null;
 
+    /// <summary>Where the dictionary stands (ADR-0021).</summary>
+    internal LuiTypoDictionaryState State =>
+        Volatile.Read(ref _building) > 0 ? LuiTypoDictionaryState.Building
+        : !IsBuilt ? LuiTypoDictionaryState.NotBuilt
+        : Volatile.Read(ref _marks) != Volatile.Read(ref _builtAt) ? LuiTypoDictionaryState.Stale
+        : LuiTypoDictionaryState.Current;
+
+    /// <summary>
+    /// Marks the dictionary as behind the entries — after a commit of a sync that changed or removed entries — instead of
+    /// building it anew at once: the build of three million entries takes half a minute, and the sync should not pay for
+    /// it (#19, ADR-0021). Always counts: a dictionary that is not built shows it only once a build published one that
+    /// read the table before the mark — and a build that reads after it is not behind.
+    /// </summary>
+    internal void MarkStale() => Interlocked.Increment(ref _marks);
+
+    /// <summary>
+    /// Builds the dictionary if it is not built and no other build runs; returns whether there is a dictionary to ask
+    /// (ADR-0021). The build of a query:
+    /// <list type="bullet">
+    ///   <item>does not wait behind another build — the warm-up after the start, the build of another query: the query
+    ///   gets <see langword="false"/> at once (review of pull request 23, S1). A rebuild of a built dictionary does not
+    ///   count: the old one answers meanwhile;</item>
+    ///   <item>is the index's, not the query's: it takes no token. An autocomplete cancels its request at the next
+    ///   keystroke; a build bound to it would start anew and be thrown away each time, and never finish (review of pull
+    ///   request 34, I3);</item>
+    ///   <item>that fails gives <see langword="false"/> too, not an exception: the query answers without the correction,
+    ///   and the next one that needs it tries again (I3). Only a catalog that is gone ends the query.</item>
+    /// </list>
+    /// </summary>
+    internal bool TryEnsureBuilt()
+    {
+        if (IsBuilt)
+        {
+            return true;
+        }
+
+        if (!_buildGate.TryEnter())
+        {
+            return false;
+        }
+
+        try
+        {
+            if (!IsBuilt)
+            {
+                BuildAndPublish(CancellationToken.None);
+            }
+
+            return true;
+        }
+#pragma warning disable CA1031 // a failed build is a correction not searched, not a failed query (review of pull request 34, I3)
+        catch (Exception exception) when (exception is not ObjectDisposedException)
+#pragma warning restore CA1031
+        {
+            return false;
+        }
+        finally
+        {
+            _buildGate.Exit();
+        }
+    }
+
     /// <summary>Builds the dictionary from the content table, once; later calls return at once.</summary>
+    /// <param name="cancellationToken">Ends the build, and the wait for a build that runs.</param>
     internal void EnsureBuilt(CancellationToken cancellationToken)
     {
         if (IsBuilt)
@@ -73,12 +149,17 @@ internal sealed class TypoDictionary
             return;
         }
 
-        lock (_buildGate)
+        EnterGate(cancellationToken);
+        try
         {
             if (!IsBuilt)
             {
                 BuildAndPublish(cancellationToken);
             }
+        }
+        finally
+        {
+            _buildGate.Exit();
         }
     }
 
@@ -86,11 +167,29 @@ internal sealed class TypoDictionary
     /// Builds the dictionary anew: the beginnings of words that were removed are gone, and the frequencies
     /// are the sums of the weights as they are now.
     /// </summary>
+    /// <param name="cancellationToken">Ends the build, and the wait for a build that runs.</param>
     internal void Rebuild(CancellationToken cancellationToken)
     {
-        lock (_buildGate)
+        EnterGate(cancellationToken);
+        try
         {
             BuildAndPublish(cancellationToken);
+        }
+        finally
+        {
+            _buildGate.Exit();
+        }
+    }
+
+    /// <summary>
+    /// Takes the build gate, looking at the token while it waits: a host that stops is not held up by a build another
+    /// thread runs (review of pull request 34, M3).
+    /// </summary>
+    private void EnterGate(CancellationToken cancellationToken)
+    {
+        while (!_buildGate.TryEnter(GatePollMilliseconds))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
         }
     }
 
@@ -277,8 +376,12 @@ internal sealed class TypoDictionary
             _pending = new Queue<(string, int)>();
         }
 
+        Interlocked.Increment(ref _building);
         try
         {
+            // The count of the marks BEFORE the table is read: a sync that committed before it is in what the build
+            // reads; one that marks after it may not be, and leaves the published dictionary stale (ADR-0021).
+            var marks = Volatile.Read(ref _marks);
             var fresh = Build(cancellationToken);
 
             _lock.EnterWriteLock();
@@ -292,6 +395,7 @@ internal sealed class TypoDictionary
                     }
 
                     // the dictionary first, then the end of the queue: a write sees one or the other
+                    Volatile.Write(ref _builtAt, marks);
                     Volatile.Write(ref _symSpell, fresh);
                     _pending = null;
                 }
@@ -308,7 +412,12 @@ internal sealed class TypoDictionary
                 _pending = null;
             }
 
+            // a build that did not finish leaves the old dictionary and its count: stale if a mark came after it
             throw;
+        }
+        finally
+        {
+            Interlocked.Decrement(ref _building);
         }
     }
 

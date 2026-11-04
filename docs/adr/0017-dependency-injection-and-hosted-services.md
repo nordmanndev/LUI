@@ -107,7 +107,8 @@ correction took 2 ms, one with a correction 11.6 s; `StopAsync` in the middle of
   the outdated candidates in the result would let a health check see why; it is not built (review of pull request 23,
   N1) — `Pending()` is the value to watch.
 - The typo dictionary is still built anew at the end of a sync with changes (ADR-0016), and a correcting query waits for
-  a build that runs; both are issue #19.
+  a build that runs; both are issue #19. *(Done by [ADR-0021](./0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md):
+  the sync marks it stale, a query does not wait for a build another thread runs and says `CorrectionSkipped`.)*
 
 **Verified by:** `tests/Nordmann.LUI.Tests/DependencyInjectionTests.cs` (11 tests, against a real host):
 
