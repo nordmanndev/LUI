@@ -14,4 +14,4 @@ internal sealed record LinkedIndexRegistration(
     Func<IServiceProvider, CancellationToken, bool> RebuildIfStale,
     Func<IServiceProvider, CancellationToken, int> ApplyPending,
     TimeSpan? ApplyPendingEvery)
-    : IndexRegistration(Name, Ensure, WarmUp, RebuildIfStale);
+    : IndexRegistration(Name, Ensure, WarmUp, RebuildIfStale), IOutboxRegistration;

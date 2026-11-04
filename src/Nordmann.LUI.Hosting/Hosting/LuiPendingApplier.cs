@@ -21,11 +21,11 @@ internal sealed partial class LuiPendingApplier(
 {
     protected override Task ExecuteAsync(CancellationToken stoppingToken) =>
         Task.WhenAll(registrations.Indexes
-            .OfType<LinkedIndexRegistration>()
+            .OfType<IOutboxRegistration>()
             .Where(index => index.ApplyPendingEvery is not null)
             .Select(index => Loop(index, index.ApplyPendingEvery!.Value, stoppingToken)));
 
-    private async Task Loop(LinkedIndexRegistration index, TimeSpan every, CancellationToken stopping)
+    private async Task Loop(IOutboxRegistration index, TimeSpan every, CancellationToken stopping)
     {
         var failed = 0;
         while (await PeriodicRound.Wait(every, timeProvider, stopping).ConfigureAwait(false))

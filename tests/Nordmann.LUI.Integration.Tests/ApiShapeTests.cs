@@ -365,18 +365,20 @@ public sealed class ApiShapeTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var similarity = new Constant(0.25);
-        var expected = new IndexSettings(similarity, GermanTransliteration: false, TypoTolerance: true);
+        var expected = new IndexOptions(similarity, GermanTransliteration: false, TypoTolerance: true);
         var described = catalog.Index("words").SingleWord().Similarity(similarity).GermanTransliteration(false).TypoTolerance();
 
-        catalog.Index("plain").SingleWord().Settings.ShouldBe(IndexSettings.Default);
-        described.Settings.ShouldBe(expected);
-        described.WithKey<string>().Settings.ShouldBe(expected, "WithKey");
-        described.WithPayload(ChipJsonContext.Default.Chip).Settings.ShouldBe(expected, "WithPayload(typeInfo)");
-        described.WithPayload(new LuiJsonPayloadSerializer<Chip>(ChipJsonContext.Default.Chip)).Settings.ShouldBe(expected, "WithPayload(serializer)");
+        // the default, pinned: comparing with IndexOptions.Default alone would let a wrong constant pass (review of PR 45, M3)
+        IndexOptions.Default.ShouldBe(new IndexOptions(Similarity: null, GermanTransliteration: true, TypoTolerance: false));
+        catalog.Index("plain").SingleWord().Options.ShouldBe(IndexOptions.Default);
+        described.Options.ShouldBe(expected);
+        described.WithKey<string>().Options.ShouldBe(expected, "WithKey");
+        described.WithPayload(ChipJsonContext.Default.Chip).Options.ShouldBe(expected, "WithPayload(typeInfo)");
+        described.WithPayload(new LuiJsonPayloadSerializer<Chip>(ChipJsonContext.Default.Chip)).Options.ShouldBe(expected, "WithPayload(serializer)");
 
         var linked = described.LinkTo("tag", "id", "name");
-        linked.Settings.ShouldBe(expected, "LinkTo");
-        linked.WithPayload(["name"], row => new Chip(row.GetString("name"))).Settings.ShouldBe(expected, "the linked WithPayload");
+        linked.Options.ShouldBe(expected, "LinkTo");
+        linked.WithPayload(["name"], row => new Chip(row.GetString("name"))).Options.ShouldBe(expected, "the linked WithPayload");
     }
 
     [Fact]
