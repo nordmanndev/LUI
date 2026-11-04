@@ -51,13 +51,13 @@ SemVer allows every minor version of a `0.x` line to break. That is true, and no
    - **Records:** a new property is an `init` property. A new positional parameter changes the constructor and the
      `Deconstruct` and is a break. **`Equals`, `GetHashCode`, `ToString` and deconstruction of the records are not part
      of the promise:** a new property changes them, and an application that asserts on them in its tests will notice.
-6. **ADR-0018's pin stays for now; its reason does not.** `Nordmann.LUI.Hosting x.y.z` depends on `Nordmann.LUI [x.y.z]`. The
-   pin was chosen because "in 0.x every minor may break" and a direct reference of a newer core would have met a changed
-   signature at run time. This record withdraws that premise. The pin's cost, measured in ADR-0018, stays: an
-   application that references `Nordmann.LUI 0.1.1` directly beside `Nordmann.LUI.Hosting 0.1.0` gets `NU1608` (an error
-   with `TreatWarningsAsErrors`) although the combination is safe now. **Open for the owner:** keep the exact pin
-   (the two packages release together, so a fix of either releases both) or relax it to `>= x.y.z, < x.(y+1).0`. Not
-   changed in this record.
+6. **ADR-0018's exact pin stays** (owner's decision, 2026-11-04). `Nordmann.LUI.Hosting x.y.z` depends on `Nordmann.LUI [x.y.z]`.
+   The pin was chosen because "in 0.x every minor may break" and a direct reference of a newer core would have met a
+   changed signature at run time; this record withdraws that premise, and the pin stays for another reason: the two packages
+   release together, so a fix of either releases both, and one version of both is what is tested. Its cost, measured in
+   ADR-0018, stays and is accepted: an application that references `Nordmann.LUI 0.1.1` directly beside
+   `Nordmann.LUI.Hosting 0.1.0` gets `NU1608` (an error with `TreatWarningsAsErrors`) although the combination would be
+   safe. Relaxing it to `>= x.y.z, < x.(y+1).0` was considered and **not done**; it is a change of ADR-0018 and gets its own ADR.
 7. **The first release stays `0.1.0`** (owner's decision). The promise is made at that tag, not at 1.0.0.
 8. **Where it is written down for contributors:** `AGENTS.md` gets the rule as a *Never* (it is the file a contributor reads
    first), and `README.md` and `CHANGELOG.md` say it in the words of this record. There is no gate that checks the tag; the
