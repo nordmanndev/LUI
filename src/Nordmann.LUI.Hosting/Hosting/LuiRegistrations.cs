@@ -14,12 +14,6 @@ internal sealed class LuiRegistrations
     /// <summary>Whether the typo dictionaries are built in the background after the start. Off by default.</summary>
     internal bool WarmUpTypoDictionariesOnStart { get; set; }
 
-    /// <summary>
-    /// How often the stale typo dictionaries are rebuilt in the background — a sync that changed or removed entries leaves
-    /// a built dictionary stale (ADR-0021). Every minute by default; <see langword="null"/> for never.
-    /// </summary>
-    internal TimeSpan? RebuildStaleTypoDictionariesEvery { get; set; } = TimeSpan.FromMinutes(1);
-
     /// <summary>Adds an index; a name can be registered once.</summary>
     /// <exception cref="ArgumentException">An index of that name is registered already.</exception>
     internal void Add(IndexRegistration registration)

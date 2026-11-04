@@ -63,14 +63,14 @@ the test fails with the reason instead of skipping.
 | [`NgramDiceEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/NgramDiceEquivalenceTests.cs) | Unit | LUI's own N-gram Dice gives the same number as the library it replaces, without allocating | ADR-0011 |
 | [`PackageIdentityTests`](../tests/Nordmann.LUI.Unit.Tests/PackageIdentityTests.cs) | Unit | the package identity and the dependency set of the compiled assembly | ADR-0004 |
 | [`LuiJsonPayloadSerializerTests`](../tests/Nordmann.LUI.Unit.Tests/LuiJsonPayloadSerializerTests.cs) | Unit | the JSON payload serialiser: the round trip, the UTF-8, the refused null | ADR-0013 |
-| [`TypoDictionaryStateTests`](../tests/Nordmann.LUI.Unit.Tests/TypoDictionaryStateTests.cs) | Unit | the states of the typo dictionary — not built, being built, current, stale — and that a query's build does not wait behind another one | ADR-0021 |
+| [`TypoDictionaryStateTests`](../tests/Nordmann.LUI.Unit.Tests/TypoDictionaryStateTests.cs) | Unit | the states of the typo dictionary — not built, being built, current —, that it only grows, that every index has its own, and that a query's build does not wait behind another one | ADR-0021, ADR-0025 |
 | [`RankingTests`](../tests/Nordmann.LUI.Unit.Tests/RankingTests.cs) | Unit | the ranking in groups, and the lazy similarity — the promise that a group that cannot reach the hits costs nothing | ADR-0008 |
 
 ## Integration — the library against SQLite
 
 | Test file | Layer | Proves | The rule |
 |---|---|---|
-| [`DependencyInjectionTests`](../tests/Nordmann.LUI.Integration.Tests/DependencyInjectionTests.cs) | Integration | LUI in a host: the catalog and the indexes as keyed services, ensured on start, the outbox applied on a timer, a stale typo dictionary rebuilt in the background | spec §12.7, ADR-0017, ADR-0018, ADR-0021 |
+| [`DependencyInjectionTests`](../tests/Nordmann.LUI.Integration.Tests/DependencyInjectionTests.cs) | Integration | LUI in a host: the catalog and the indexes as keyed services, ensured on start, the outbox applied on a timer, the typo dictionaries warmed up after the start | spec §12.7, ADR-0017, ADR-0018, ADR-0021, ADR-0025 |
 | [`CatalogTests`](../tests/Nordmann.LUI.Integration.Tests/CatalogTests.cs) | Integration | opening a catalog, the meta table, the lifetime, the clock, the disposal while a query runs | spec §12.1, §12.8 |
 | [`EmbeddedIndexTests`](../tests/Nordmann.LUI.Integration.Tests/EmbeddedIndexTests.cs) | Integration | the schema and the write API of an embedded index: `Ensure`, the writes, the payload, the transaction of the application | spec §7.2, §12.4 |
 | [`LinkedIndexTests`](../tests/Nordmann.LUI.Integration.Tests/LinkedIndexTests.cs) | Integration | a linked index over the table of the application: the table is not touched, the sync, the refresh, the triggers, the outbox; a payload row that is kept throws | spec §5, §7.3, ADR-0015 |
@@ -83,7 +83,7 @@ the test fails with the reason instead of skipping.
 | [`QueryPlanTests`](../tests/Nordmann.LUI.Integration.Tests/QueryPlanTests.cs) | Integration | the plan of the candidate query: the search index in the rowid order, no sorter | spec §8.2, §19 |
 | [`SchemaGoldenTests`](../tests/Nordmann.LUI.Integration.Tests/SchemaGoldenTests.cs) | Integration | the schema of an embedded index is the golden one — byte for byte | ADR-0014, ADR-0015 |
 | [`TypoToleranceTests`](../tests/Nordmann.LUI.Integration.Tests/TypoToleranceTests.cs) | Integration | a typo does not lead nowhere: the four kinds of edit, the correction, the limits | spec §10, ADR-0012 |
-| [`TypoDictionaryLifecycleTests`](../tests/Nordmann.LUI.Integration.Tests/TypoDictionaryLifecycleTests.cs) | Integration | a query does not wait for a build that runs and says so; a sync marks the dictionary stale, a rebuild makes it current | spec §10.1, §10.3a, ADR-0021 |
+| [`TypoDictionaryLifecycleTests`](../tests/Nordmann.LUI.Integration.Tests/TypoDictionaryLifecycleTests.cs) | Integration | a query does not wait for a build that runs and says so; a sync teaches the dictionary its new words, a removed word lingers until a rebuild; two indexes never correct towards each other's words | spec §10.1, §10.3a, ADR-0021, ADR-0025 |
 | [`TypoQualityTests`](../tests/Nordmann.LUI.Integration.Tests/TypoQualityTests.cs) | Integration | the quality of the correction against a measured floor, by the length of the beginning | spec §10.4, §19, Anhang A4 |
 | [`ConcurrencyTests`](../tests/Nordmann.LUI.Integration.Tests/ConcurrencyTests.cs) | Integration | reads in parallel, writes serial — neither disturbs the other | spec §15 |
 | [`ApiShapeTests`](../tests/Nordmann.LUI.Integration.Tests/ApiShapeTests.cs) | Integration | the shape of the API before 0.1.0: the entry, the batch, the options that check themselves, the read and the write interface, the options of an index description that every step keeps, the exceptions of the library that are caught as one | ADR-0013, ADR-0024 |

@@ -1,10 +1,10 @@
 namespace Nordmann.LUI.Hosting;
 
 /// <summary>
-/// The loop of the periodic hosted services — <see cref="LuiPendingApplier"/> and <see cref="LuiTypoRebuilder"/> — in one
-/// place (review of 2026-11-04, C.3, issue #40): wait an interval; run a round; a round that fails is reported and the
-/// loop goes on; the stop of the host and a catalog that is gone end it quietly. The services keep what is theirs — the
-/// work and the log messages — and stay two services: a failed round of the outbox must not hold up a rebuild.
+/// The loop of the periodic hosted service <see cref="LuiPendingApplier"/> (review of 2026-11-04, C.3, issue #40): wait an
+/// interval; run a round; a round that fails is reported and the loop goes on; the stop of the host and a catalog that is
+/// gone end it quietly. The service keeps what is its own — the work and the log messages. (A second periodic service, the
+/// rebuild of stale typo dictionaries, shared it until ADR-0025.)
 /// </summary>
 internal static class PeriodicRound
 {

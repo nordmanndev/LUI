@@ -4,9 +4,9 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests;
 
 /// <summary>
-/// The typo dictionary of an index in its life (#19, ADR-0021): a query does not wait for a build another thread runs —
-/// it answers without correction and says so —, a sync marks a built dictionary stale instead of building it anew, and
-/// <c>RebuildTypoDictionary</c> brings it in step.
+/// The typo dictionary of an index in its life (#19, ADR-0021, ADR-0025): a query does not wait for a build another thread
+/// runs — it answers without correction and says so —, a built dictionary only grows (a sync does not build it anew),
+/// <c>RebuildTypoDictionary</c> forgets what is gone, and every index has a dictionary of its own.
 /// </summary>
 public sealed class TypoDictionaryLifecycleTests
 {
@@ -89,7 +89,7 @@ public sealed class TypoDictionaryLifecycleTests
     }
 
     [Fact]
-    public void A_sync_that_changes_or_removes_marks_the_dictionary_stale_and_a_rebuild_brings_it_in_step()
+    public void A_sync_teaches_the_dictionary_its_new_words_and_a_removed_word_lingers_until_a_rebuild()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
@@ -98,36 +98,43 @@ public sealed class TypoDictionaryLifecycleTests
         words.WarmUpTypoDictionary();
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
 
-        words.Sync(Entries("kartoffel", "tomate")).TypoDictionaryStale.ShouldBeFalse();
-        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current, "a sync that only adds learns the new words");
+        words.Sync(Entries("kartoffel", "tomate"));
+        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        words.Search("tomahe").CorrectedQuery.ShouldBe("tomate", "a word a sync added is known at once");
 
-        words.Sync(Entries("tomate")).TypoDictionaryStale.ShouldBeTrue("the report says it (review of pull request 34, M6)");
-        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Stale);
+        words.Sync(Entries("tomate"));
+        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current, "there is no stale state (ADR-0025)");
+        var lingering = words.Search("kartofel");
+        lingering.Hits.ShouldBeEmpty("the index is the filter: the correction finds no candidate and falls away");
         words.Search("tomahe").Hits.ShouldHaveSingleItem().Text.ShouldBe("tomate");
 
         words.RebuildTypoDictionary();
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
-        words.Search("kartofel").CorrectedQuery.ShouldBeNull();
+        words.Search("kartofel").CorrectedQuery.ShouldBeNull("built anew, the removed word is gone");
     }
 
     [Fact]
-    public void A_sync_that_is_cancelled_after_a_change_was_committed_leaves_the_dictionary_stale()
+    public void Every_index_has_a_dictionary_of_its_own_and_a_query_is_never_corrected_towards_the_words_of_another()
     {
-        // review of pull request 34, M4: marked after the commit, not at an end a cancellation never reaches
+        // owner's requirement (#48): a search among tags corrects no name, and a search among names corrects no tag
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
-        words.Sync(Entries("kartoffel", "tomate"));
-        words.WarmUpTypoDictionary();
-        using var cancellation = new CancellationTokenSource();
+        var tags = catalog.Index("tags").SingleWord().TypoTolerance().Ensure();
+        var names = catalog.Index("names").SingleWord().TypoTolerance().Ensure();
+        tags.Sync(Entries("vegan", "glutenfrei"));
+        names.Sync(Entries("megan", "mueller"));
 
-        Should.Throw<OperationCanceledException>(() => words.Sync(
-            CancelAfterFirst(Entries("gurke", "tomate"), cancellation),
-            new LuiSyncOptions { BatchSize = 1 },
-            cancellation.Token));
+        var tagQuery = tags.Search("megn");
+        tagQuery.Hits.ShouldBeEmpty("'megan' is a name, not a tag");
+        tagQuery.CorrectedQuery.ShouldBeNull();
 
-        words.Search("gurke").Hits.ShouldHaveSingleItem("the first batch is committed");
-        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Stale);
+        var nameQuery = names.Search("vegn");
+        nameQuery.Hits.ShouldBeEmpty("'vegan' is a tag, not a name");
+        nameQuery.CorrectedQuery.ShouldBeNull();
+
+        tags.Search("vegn").CorrectedQuery.ShouldBe("vega", "the dictionary holds beginnings; the search finds 'vegan' with it");
+        tags.Search("vegn").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
+        names.Search("megn").Hits.ShouldHaveSingleItem().Text.ShouldBe("megan");
     }
 
     [Fact]
@@ -144,23 +151,6 @@ public sealed class TypoDictionaryLifecycleTests
 
     private static IEnumerable<LuiEntry<long, LuiNoPayload>> Entries(params string[] texts) =>
         texts.Select((text, i) => new LuiEntry<long, LuiNoPayload>(i + 1, text));
-
-    private static IEnumerable<LuiEntry<long, LuiNoPayload>> CancelAfterFirst(
-        IEnumerable<LuiEntry<long, LuiNoPayload>> entries,
-        CancellationTokenSource cancellation)
-    {
-        var first = true;
-        foreach (var entry in entries)
-        {
-            if (!first)
-            {
-                cancellation.Cancel();
-            }
-
-            first = false;
-            yield return entry;
-        }
-    }
 
     private static IEnumerable<(string Text, int Weight)> Failing()
     {

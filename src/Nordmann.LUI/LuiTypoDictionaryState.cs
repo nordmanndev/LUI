@@ -1,8 +1,8 @@
 namespace Nordmann.LUI;
 
 /// <summary>
-/// Where the typo dictionary of an index stands (LUI-Spezifikation §10.1, ADR-0021) — a value for a health check, and the
-/// question a background service asks before it rebuilds.
+/// Where the typo dictionary of an index stands (LUI-Spezifikation §10.1, ADR-0025) — a value for a health check, and the
+/// question whether a correction is possible right now.
 /// </summary>
 public enum LuiTypoDictionaryState
 {
@@ -19,14 +19,10 @@ public enum LuiTypoDictionaryState
     /// </summary>
     Building,
 
-    /// <summary>Built and in step with the entries, as far as LUI wrote them.</summary>
-    Current,
-
     /// <summary>
-    /// Built, and behind: a sync changed or removed entries after the build read them — the build of a sync that runs at
-    /// the same time, too, and a rebuild that failed leaves it so. The new words are learned, but the words that went stay and
-    /// the frequencies are the old ones — a correction may point at a word that is gone and finds nothing. A rebuild
-    /// (<c>RebuildTypoDictionary()</c>, or the hosting package's background service) brings it in step.
+    /// Built. It learns the words of every write through LUI at once and <b>only grows</b>: a word that was removed or
+    /// changed away stays until <c>RebuildTypoDictionary()</c> or a restart. That costs little, because the index is the
+    /// filter — a correction towards a word that is gone finds no candidate and falls away.
     /// </summary>
-    Stale,
+    Current,
 }

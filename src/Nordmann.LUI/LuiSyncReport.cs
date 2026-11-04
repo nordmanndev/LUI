@@ -30,12 +30,4 @@ public sealed record LuiSyncReport
 
     /// <summary>Whether the search index was merged at the end — it is, when the sync changed anything.</summary>
     public bool Merged { get; init; }
-
-    /// <summary>
-    /// Whether the typo dictionary of the index was stale when the sync ended (ADR-0021): it was built, and the sync — or
-    /// an earlier one — changed or removed entries since. <see cref="ILuiEmbeddedIndex{TKey, TPayload}.RebuildTypoDictionary"/>
-    /// brings it in step; the hosting package does it in the background. Always <see langword="false"/> for an index whose
-    /// dictionary is not built.
-    /// </summary>
-    public bool TypoDictionaryStale { get; init; }
 }

@@ -513,17 +513,20 @@ Original-Position. Abschaltbar, weil sie pro Treffer Arbeit kostet.
 - **Inhalt:** alle **Wortanfänge** der Länge 3 … 10 dieser Wörter, jeweils mit
   der Summe der Gewichte als Häufigkeit.
 - **Werkzeug:** SymSpell (`symspell` 6.7.3, MIT), maximal **1** Fehler.
-- **Ort:** im Arbeitsspeicher, pro Index. Aufbau beim ersten Zugriff aus der
-  Inhaltstabelle; danach ergänzt `Upsert` die neuen Wortanfänge. `Remove` lässt
-  sie stehen (SymSpell kennt kein Entfernen; eine Korrektur dorthin findet
-  schlicht nichts). `RebuildTypoDictionary()` baut neu.
-- **Zustand** (`TypoDictionaryState`, ADR-0021): `NotBuilt`, `Building`, `Current`, `Stale`. Ein `Sync` eines
-  `Embedded`-Index, der Einträge ändert oder entfernt, baut das Wörterbuch **nicht** neu, sondern markiert es nach jedem
-  bestätigten Stapel als `Stale` — auch ein abgebrochener — und sagt es im Bericht (`LuiSyncReport.TypoDictionaryStale`):
-  die neuen Wörter kennt es schon, die entfernten bleiben stehen, bis `RebuildTypoDictionary()` (oder der
-  Hintergrunddienst aus § 12.7) es neu baut. „Stale" ist ein Zähler, kein Flag: Jede Markierung zählt hoch, ein Aufbau
-  merkt sich den Stand, bevor er die Tabelle liest — ein Sync, der während eines Aufbaus schreibt, lässt das
-  Wörterbuch `Stale`, ob der Aufbau gelingt oder scheitert (Review von PR #34, I1, I2).
+- **Ort:** im Arbeitsspeicher, **pro Index** (ADR-0025): Die Wörterbücher sind nach dem Namen des Index getrennt — eine
+  Suche in Tags korrigiert nie zu Namen und umgekehrt. Aufbau beim ersten Zugriff aus der Inhaltstabelle (im Stapel:
+  `SuggestionStage` + `CommitStaged`); danach ergänzt jeder Schreibzugriff durch LUI (`Upsert`, `UpsertMany`, das `Sync` eines
+  `Embedded`-Index, `Refresh`) die neuen Wortanfänge sofort.
+- **Es wächst nur.** `Remove`, eine Textänderung und das `Sync` eines `Embedded`-Index lassen entfernte Wörter stehen
+  (SymSpell kennt kein Entfernen); nichts baut das Wörterbuch von selbst neu. **Ausnahme:** `Sync()` eines `Linked`-Index
+  füllt den Index aus der Tabelle der Anwendung neu auf — ein ausdrückliches „von vorn" — und baut ein gebautes Wörterbuch
+  an seinem Ende neu, weil sich die Wörter der Tabelle ändern können, ohne dass LUI es sieht (ADR-0025, Punkt 8). Eine Korrektur zu einem entfernten Wort kostet fast nichts: der
+  Index ist der Filter, die Korrektur findet keinen Kandidaten und fällt weg. `RebuildTypoDictionary()` vergisst die
+  entfernten Wörter und setzt die Häufigkeiten neu; es liest alle Einträge, Schreibzugriffe währenddessen gehen nicht
+  verloren, Abfragen nutzen bis dahin das alte Wörterbuch.
+- **Zustand** (`TypoDictionaryState`, ADR-0021, ADR-0025): `NotBuilt`, `Building`, `Current`. Es gibt keinen Zustand „veraltet"
+  (ADR-0021 hatte `Stale`, einen Zähler und einen Hintergrunddienst; ADR-0025 nimmt sie zurück). Keine Abfrage wartet auf
+  einen Aufbau: Eine, die währenddessen korrigieren müsste, antwortet ohne Korrektur und setzt `CorrectionSkipped`.
 
 ### 10.2 Wann korrigiert wird
 
@@ -817,16 +820,11 @@ public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<lon
 - `WarmUpTypoDictionariesOnStart()` baut die Wörterbücher der Indizes mit Tippfehler-Toleranz nach dem Start im
   Hintergrund. Keine Abfrage wartet darauf: eine, die währenddessen korrigieren müsste, antwortet ohne Korrektur und
   setzt `CorrectionSkipped` (ADR-0021, Issue #19; bis dahin wartete sie, ADR-0017).
-- `RebuildStaleTypoDictionariesEvery(TimeSpan?)` — Standard **eine Minute**, `null` schaltet ab — lässt einen
-  gehosteten Dienst die Wörterbücher neu bauen, die ein `Sync` als `Stale` markiert hat; ein nicht gebautes baut er
-  nicht. Ein fehlgeschlagener Neubau wird geloggt, die nächste Runde versucht es wieder; die Indizes einer Runde
-  werden nacheinander gebaut. Ändern die Syncs öfter, als ein Neubau dauert, wird er immer wieder überholt — dann ein
-  längeres Intervall, oder `null` und `RebuildTypoDictionary()` in einer ruhigen Phase (ADR-0021).
 - `applyPendingEvery` lässt einen gehosteten Dienst `ApplyPending()` eines verknüpften Index im Takt aufrufen; ein
   fehlgeschlagener Durchlauf wird geloggt, der nächste versucht es wieder. Die Trigger legt er nicht an (ADR-0015).
 - Das alles liefert das Paket `Nordmann.LUI.Hosting` (§ 17.1, ADR-0018); den Host bringt die Anwendung mit. Ohne
   Host — in einer Konsolenanwendung — ruft die Anwendung `Ensure()`, `WarmUpTypoDictionary()`, `ApplyPending()` und
-  nach einem `Sync` `RebuildTypoDictionary()` selbst auf.
+  bei Bedarf `RebuildTypoDictionary()` selbst auf.
 
 ### 12.8 Fehler
 

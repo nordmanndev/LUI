@@ -88,10 +88,9 @@ public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// source was read; it runs in batches too, and a cancellation during it leaves the rest for the next run.
     /// </para>
     /// <para>
-    /// The new words of a sync join a typo dictionary that is built at once. When the sync changed or removed anything, the
-    /// dictionary is marked <see cref="LuiTypoDictionaryState.Stale"/> instead of built anew (ADR-0021): a removed word
-    /// lingers until <see cref="RebuildTypoDictionary"/> — or the background service of the
-    /// hosting package — builds it anew.
+    /// The new words of a sync join a typo dictionary that is built at once. A sync does not build it anew (ADR-0025): a word
+    /// that was removed or changed away lingers until <see cref="RebuildTypoDictionary"/> or a restart — the index is the
+    /// filter, so a correction towards it finds no candidate and falls away.
     /// </para>
     /// </summary>
     /// <param name="entries">The entries; of a key that comes twice the last one stays.</param>
@@ -142,7 +141,7 @@ public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// word finds nothing. A rebuild gives the sums of the weights as they are now and forgets the removed
     /// words; it also takes in what was written past the library. It reads every entry (seconds for a large
     /// index); writes that arrive meanwhile are not lost, and queries use the old dictionary until the new one is
-    /// ready. <see cref="ILuiIndex{TKey, TPayload}.TypoDictionaryState"/> says when one is due.
+    /// ready. Nothing rebuilds it on its own (ADR-0025): call it in a quiet phase if removed words should go.
     /// </summary>
     /// <param name="cancellationToken">Checked while the entries are read, and while it waits for a build that runs.</param>
     void RebuildTypoDictionary(CancellationToken cancellationToken = default);
