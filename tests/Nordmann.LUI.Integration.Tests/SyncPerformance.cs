@@ -73,8 +73,9 @@ public sealed class SyncPerformance(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// A delta sync of an index whose typo dictionary is built (#19, ADR-0021): it marks the dictionary stale instead of
-    /// building it anew; the rebuild is measured on its own — the two together are what the sync cost before.
+    /// A delta sync of an index whose typo dictionary is built (#19, ADR-0021, ADR-0025): it teaches the dictionary the
+    /// new words and does not build it anew; the rebuild is measured on its own — the two together are what the sync cost
+    /// in ADR-0016.
     /// </summary>
     [PerformanceFact]
     public void A_delta_sync_with_a_built_typo_dictionary()
@@ -96,7 +97,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
 
         var delta = source.Skip(100).Select((entry, i) => i < 100 ? entry with { Weight = entry.Weight + 1 } : entry).ToList();
         Report($"  {Timed("sync of 100 changes and 100 removals", () => index.Sync(delta))}");
-        index.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Stale);
+        index.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
 
         Timed("rebuild of the typo dictionary", () =>
         {

@@ -212,12 +212,18 @@ expect_caught "the-transliteration-is-gone" "${UNIT_PROJECT}" \
   "FullyQualifiedName~NormalizerTests" \
   "sed -i \"s|\\['ä'\\] = \\\"ae\\\";|['ä'] = \\\"a\\\";|\" src/Nordmann.LUI/Normalization/Normalizer.cs"
 
-# 16. The typo dictionary forgets a mark of a sync that came during its build
-#     (review of pull request 34, I1/I2): the publish takes the count after the
-#     table was read, not before — a stale dictionary would say Current for good.
-expect_caught "a-build-forgets-the-marks-during-it" "${UNIT_PROJECT}" \
+# 16. Two indexes share one typo dictionary (ADR-0025, owner's requirement in #48):
+#     the registry is keyed by a constant, not by the name of the index — a search
+#     among tags would be corrected towards names.
+expect_caught "two-indexes-share-one-typo-dictionary" "${UNIT_PROJECT}" \
   "FullyQualifiedName~TypoDictionaryStateTests" \
-  "sed -i 's|Volatile.Write(ref _builtAt, marks);|Volatile.Write(ref _builtAt, Volatile.Read(ref _marks));|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
+  "sed -i 's|^            indexName,\$|            \"shared\",|' src/Nordmann.LUI/Typos/TypoDictionaries.cs"
+
+# 16b. The bulk build of the typo dictionary forgets to commit its staging area
+#      (ADR-0025): SymSpell has the words, and none of them is searchable.
+expect_caught "a-build-never-commits-its-staging-area" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~TypoDictionaryStateTests" \
+  "sed -i 's|symSpell.CommitStaged(stage);|_ = stage;|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
 
 # 17. A benchmark number in the README is edited by hand (ADR-0022): the
 #     tables are rendered from benchmarks/results/, and the guard notices.

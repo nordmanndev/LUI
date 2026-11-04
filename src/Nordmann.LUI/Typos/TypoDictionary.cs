@@ -56,18 +56,14 @@ internal sealed class TypoDictionary
     private SymSpell? _symSpell;
     private Queue<(string Text, int Weight)>? _pending;
 
-    // The staleness is a generation, not a flag (review of pull request 34, I1, I2): every mark of a sync counts one up,
-    // and the published dictionary remembers the count a build read before it read the table. The dictionary is behind
-    // exactly when a mark came after that — however a mark and a build interleave, and whether the build succeeds or
-    // fails, without a lock between the sync and the build.
-    private long _marks;
-    private long _builtAt;
-
     // the builds that run (0 or 1: one at a time behind the build gate)
     private int _building;
 
     // how long a build waits for the gate before it looks at its token again
     private const int GatePollMilliseconds = 50;
+
+    // the initial capacity of the staging area of a build, the one SymSpell's own loaders use
+    private const int StagingCapacity = 16384;
 
     internal TypoDictionary(NormalizationOptions normalization, Func<IEnumerable<(string Text, int Weight)>> source)
     {
@@ -78,20 +74,14 @@ internal sealed class TypoDictionary
     /// <summary>Whether the dictionary has been built.</summary>
     internal bool IsBuilt => Volatile.Read(ref _symSpell) is not null;
 
-    /// <summary>Where the dictionary stands (ADR-0021).</summary>
+    /// <summary>
+    /// Where the dictionary stands (ADR-0025). A built dictionary is <c>Current</c> and only grows: a word that was removed
+    /// stays until <see cref="Rebuild"/> or a restart — the index is the filter, a suggestion without a candidate falls away.
+    /// </summary>
     internal LuiTypoDictionaryState State =>
         Volatile.Read(ref _building) > 0 ? LuiTypoDictionaryState.Building
         : !IsBuilt ? LuiTypoDictionaryState.NotBuilt
-        : Volatile.Read(ref _marks) != Volatile.Read(ref _builtAt) ? LuiTypoDictionaryState.Stale
         : LuiTypoDictionaryState.Current;
-
-    /// <summary>
-    /// Marks the dictionary as behind the entries — after a commit of a sync that changed or removed entries — instead of
-    /// building it anew at once: the build of three million entries takes half a minute, and the sync should not pay for
-    /// it (#19, ADR-0021). Always counts: a dictionary that is not built shows it only once a build published one that
-    /// read the table before the mark — and a build that reads after it is not behind.
-    /// </summary>
-    internal void MarkStale() => Interlocked.Increment(ref _marks);
 
     /// <summary>
     /// Builds the dictionary if it is not built and no other build runs; returns whether there is a dictionary to ask
@@ -379,9 +369,6 @@ internal sealed class TypoDictionary
         Interlocked.Increment(ref _building);
         try
         {
-            // The count of the marks BEFORE the table is read: a sync that committed before it is in what the build
-            // reads; one that marks after it may not be, and leaves the published dictionary stale (ADR-0021).
-            var marks = Volatile.Read(ref _marks);
             var fresh = Build(cancellationToken);
 
             _lock.EnterWriteLock();
@@ -395,7 +382,6 @@ internal sealed class TypoDictionary
                     }
 
                     // the dictionary first, then the end of the queue: a write sees one or the other
-                    Volatile.Write(ref _builtAt, marks);
                     Volatile.Write(ref _symSpell, fresh);
                     _pending = null;
                 }
@@ -412,7 +398,7 @@ internal sealed class TypoDictionary
                 _pending = null;
             }
 
-            // a build that did not finish leaves the old dictionary and its count: stale if a mark came after it
+            // a build that did not finish leaves the old dictionary as it was
             throw;
         }
         finally
@@ -426,18 +412,22 @@ internal sealed class TypoDictionary
         // one edit, the default prefix length; a count of at least 1 keeps every beginning
         var symSpell = new SymSpell(initialCapacity: 1 << 16, maxDictionaryEditDistance: 1, prefixLength: 7, countThreshold: 1);
 
+        // The bulk path of the package, as its own LoadDictionary uses it: the delete lists are collected and put in place in
+        // one step. 4.0 s → 2.3 s for the whole word list, a fifth less garbage, the same memory (#48).
+        var stage = new SymSpell.SuggestionStage(StagingCapacity);
         foreach (var (text, weight) in _source())
         {
             // a volatile read per row: a build that is cancelled stops at the next row
             cancellationToken.ThrowIfCancellationRequested();
 
-            AddBeginnings(symSpell, text, weight, onlyNew: false);
+            AddBeginnings(symSpell, text, weight, onlyNew: false, stage);
         }
 
+        symSpell.CommitStaged(stage);
         return symSpell;
     }
 
-    private void AddBeginnings(SymSpell symSpell, string text, int weight, bool onlyNew)
+    private void AddBeginnings(SymSpell symSpell, string text, int weight, bool onlyNew, SymSpell.SuggestionStage? stage = null)
     {
         var search = Normalizer.ToSearchForm(text, _normalization);
 
@@ -473,7 +463,7 @@ internal sealed class TypoDictionary
                 }
 
                 // weight + 1: a word with the weight 0 is still a word (SymSpell drops a count of 0)
-                symSpell.CreateDictionaryEntry(beginning, weight + 1L, null);
+                symSpell.CreateDictionaryEntry(beginning, weight + 1L, stage);
             }
         }
     }

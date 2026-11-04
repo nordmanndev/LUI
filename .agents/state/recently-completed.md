@@ -28,6 +28,13 @@ the scratchpad here at the end of a session.
   rendered by `Readme_Benchmarks` (`LUI_UPDATE_README=1`), which also fails on drift; `tools/benchmarks.sh`. ADR-0022.
 - Smoke test runs the new blocks (priority, stale dictionary); mutation `a-readme-benchmark-number-edited-by-hand`.
 
+## 2026-11-04 — #48: the typo dictionary only grows
+
+- ADR-0025 (amends 0021). No `Stale`, no marks counter, no `LuiSyncReport.TypoDictionaryStale`, no `LuiTypoRebuilder`, no
+  `RebuildStaleTypoDictionariesEvery`; the build uses SymSpell's `SuggestionStage` + `CommitStaged` (warm-up 2.8 → 2.3 s,
+  rebuild 2.1 → 1.6 s at 300,000 entries). Every index has its own dictionary — pinned by a unit and an integration test and
+  a mutation. Linked `Sync()` still rebuilds (explicit refill). `compactLevel` untouched (follow-up).
+
 ## 2026-11-04 — #19: a stale typo dictionary, a query that does not wait
 
 - ADR-0021. An owned `Sync` that changes or removes marks a built dictionary `Stale` (new words are learned at once);

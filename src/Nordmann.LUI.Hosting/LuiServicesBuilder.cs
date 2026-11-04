@@ -49,11 +49,6 @@ public sealed class LuiServicesBuilder
             {
                 var index = provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name);
                 return WarmUp(index.TypoTolerance, index.WarmUpTypoDictionary, token);
-            },
-            RebuildIfStale: (provider, token) =>
-            {
-                var index = provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name);
-                return RebuildIfStale(index.TypoDictionaryState, index.RebuildTypoDictionary, token);
             }));
 
         Services.AddKeyedSingleton<ILuiEmbeddedIndex<TKey, TPayload>>(
@@ -101,11 +96,6 @@ public sealed class LuiServicesBuilder
                 var index = provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name);
                 return WarmUp(index.TypoTolerance, index.WarmUpTypoDictionary, token);
             },
-            RebuildIfStale: (provider, token) =>
-            {
-                var index = provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name);
-                return RebuildIfStale(index.TypoDictionaryState, index.RebuildTypoDictionary, token);
-            },
             ApplyPending: (provider, token) => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name).ApplyPending(token),
             ApplyPendingEvery: applyPendingEvery));
 
@@ -137,8 +127,10 @@ public sealed class LuiServicesBuilder
     /// Builds the typo dictionary of every index with typo tolerance in the background once the host has started
     /// (default: off) — about 5 seconds and 140 MB for 685,000 words each, paid on start instead of by the first typo.
     /// <para>
-    /// Queries without a correction do not wait for it. A query that needs a correction waits until the dictionary is
-    /// built, as it would for the lazy build of the first typo; its cancellation token does not interrupt that wait.
+    /// No query waits for it: one that needs a correction meanwhile answers without it and says so
+    /// (<see cref="LuiResult{TKey, TPayload}.CorrectionSkipped"/>, ADR-0021). Every index has a dictionary of its own, built
+    /// from its own texts — tags are never corrected towards names. It only grows afterwards (ADR-0025); an application
+    /// that wants removed words gone calls <c>RebuildTypoDictionary()</c> in a quiet phase, or restarts.
     /// </para>
     /// <para>
     /// An index whose instance has no typo tolerance (<see cref="ILuiIndex{TKey, TPayload}.TypoTolerance"/>) is not
@@ -152,43 +144,6 @@ public sealed class LuiServicesBuilder
     {
         _registrations.WarmUpTypoDictionariesOnStart = enabled;
         return this;
-    }
-
-    /// <summary>
-    /// How often the typo dictionaries a sync left stale are rebuilt in the background (default: every minute;
-    /// <see langword="null"/> switches it off). A sync of an embedded index that changed or removed entries marks a built
-    /// dictionary stale instead of building it anew — the build of three million entries takes half a minute, and the
-    /// sync should not pay it (ADR-0021). A stale dictionary answers meanwhile: the new words are in it, the words that
-    /// went linger and find nothing. Without a host, <c>RebuildTypoDictionary()</c> does the same.
-    /// </summary>
-    /// <param name="every">The interval, or <see langword="null"/> for never.</param>
-    /// <returns>The builder.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="every"/> is not positive.</exception>
-    public LuiServicesBuilder RebuildStaleTypoDictionariesEvery(TimeSpan? every)
-    {
-        if (every is { } interval && interval <= TimeSpan.Zero)
-        {
-            throw new ArgumentOutOfRangeException(nameof(every), interval, "The interval of the rebuild is positive.");
-        }
-
-        _registrations.RebuildStaleTypoDictionariesEvery = every;
-        return this;
-    }
-
-    /// <summary>
-    /// Rebuilds the typo dictionary of an index if it is stale. The state is the read side of the index
-    /// (<see cref="ILuiIndex{TKey, TPayload}.TypoDictionaryState"/>), the rebuild the write side — so both come as arguments.
-    /// </summary>
-    /// <returns>Whether it was rebuilt.</returns>
-    private static bool RebuildIfStale(LuiTypoDictionaryState state, Action<CancellationToken> rebuild, CancellationToken cancellationToken)
-    {
-        if (state != LuiTypoDictionaryState.Stale)
-        {
-            return false;
-        }
-
-        rebuild(cancellationToken);
-        return true;
     }
 
     /// <summary>

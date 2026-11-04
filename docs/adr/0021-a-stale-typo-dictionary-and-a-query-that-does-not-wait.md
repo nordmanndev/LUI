@@ -9,6 +9,11 @@
 > is `CandidateRead`, the linked overload of `AddIndex` is `AddLinkedIndex`, and `Check()`, `WarmUpTypoDictionary` and
 > `RebuildTypoDictionary` are on the write interfaces, not on `ILuiIndex`. The text below is history.
 
+> **Superseded in part by [ADR-0025](./0025-the-typo-dictionary-only-grows.md) (2026-11-04):** the `Stale` state, the marks
+> counter, `LuiSyncReport.TypoDictionaryStale`, `RebuildStaleTypoDictionariesEvery` and the hosted service `LuiTypoRebuilder`
+> were removed before the first release — a built dictionary only grows, and nothing rebuilds it on its own. What stays: a
+> query does not wait for a build, and `CorrectionSkipped`. The text below is history.
+
 - **Status:** Accepted (owner's decision, 2026-11-04: "#19 before 0.1.0, as proposed")
 - **Date:** 2026-11-04
 - **Issue:** #19

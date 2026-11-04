@@ -241,12 +241,14 @@ query. When it triggers, and what it does ([spec §10](./docs/spec/LUI-Spezifika
   `WarmUpTypoDictionary()`. Writes through LUI add their words at once.
 - **No query waits for a build.** While another thread builds the dictionary, a query that needs a correction answers
   without it and sets `CorrectionSkipped`.
-- **A `Sync` that changes or removes entries** marks the dictionary `Stale` instead of building it anew: new words are
-  known, removed ones linger until a rebuild. `TypoDictionaryState` and the sync's report say so; the hosting package
-  rebuilds it in the background.
+- **The dictionary only grows.** It is built once and learns the words of every write; nothing rebuilds it behind your
+  back. A word that was removed lingers — harmless, because the index is the filter: a correction towards a word that
+  is gone finds no candidate and falls away. `RebuildTypoDictionary()` forgets removed words, in a quiet phase if you
+  care for the memory.
+- **Every index has a dictionary of its own**, built from its own texts: a search among tags is never corrected
+  towards names, nor the other way round.
 
 ```csharp
-Console.WriteLine(recipes.TypoDictionaryState);   // Stale — the sync above removed entries
 recipes.RebuildTypoDictionary();
 Console.WriteLine(recipes.TypoDictionaryState);   // Current
 ```
@@ -285,14 +287,13 @@ or without the FTS5 trigram tokenizer) therefore stops the start with a `LuiEnvi
 `LuiDefinitionMismatchException` of an index that exists with another definition and the `LuiLinkedTableException` share
 the base `LuiException` — an `InvalidOperationException`, so a `catch` of that one still catches them.
 
-The host also rebuilds, once a minute, a typo dictionary that a `Sync` left
-stale (`RebuildStaleTypoDictionariesEvery`), and no query waits for a build:
-one that would need a correction meanwhile answers without it and says
-`CorrectionSkipped`.
+The host does not rebuild typo dictionaries on its own (they only grow); `WarmUpTypoDictionariesOnStart()` builds
+them in the background after the start, and no query waits for that build: one that would need a correction meanwhile
+answers without it and says `CorrectionSkipped`.
 
 Without a host — in a console application — the same is a few calls of your
 own: `Ensure()` where you open an index, `WarmUpTypoDictionary()` at the start,
-`RebuildTypoDictionary()` after a `Sync`, and `ApplyPending()` after your writes
+`RebuildTypoDictionary()` in a quiet phase if removed words should go, and `ApplyPending()` after your writes
 or in a `PeriodicTimer` loop.
 
 ---

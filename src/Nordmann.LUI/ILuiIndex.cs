@@ -25,9 +25,9 @@ public interface ILuiIndex<TKey, TPayload>
     bool TypoTolerance { get; }
 
     /// <summary>
-    /// Where the typo dictionary of the index stands (ADR-0021): not built, being built, current, or stale after a sync
-    /// that changed or removed entries — a value for a health check, and the question before a rebuild. The dictionary
-    /// belongs to the index of the catalog, so every instance of the index reports the same.
+    /// Where the typo dictionary of the index stands (ADR-0025): not built, being built, or built (and then it only grows).
+    /// A value for a health check. The dictionary belongs to the index of the catalog, so every instance of the index
+    /// reports the same — and another index has a dictionary of its own: tags are never corrected towards names.
     /// </summary>
     LuiTypoDictionaryState TypoDictionaryState { get; }
 
