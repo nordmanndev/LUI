@@ -891,13 +891,34 @@ veröffentlicht.
 
 | Messung | Szenario | Ziel |
 |---|---|---|
-| Abfrage ohne Korrektur | 3 Mio. Einträge, Eingaben 1–8 Zeichen | p50 ≤ 2 ms, p95 ≤ 5 ms |
-| Abfrage mit Tippfehler-Korrektur | dasselbe | p95 ≤ 10 ms |
-| Allokation pro Abfrage | dasselbe | ≤ 250 KB |
+| Abfrage ohne Korrektur | 3 Mio. Einträge, Eingaben 1–8 Zeichen | p50 ≤ 2 ms; p95 ≤ 5 ms bei 1–4 Zeichen, ≤ 20 ms bei 5–8 Zeichen |
+| Abfrage mit Tippfehler-Korrektur | 3 Mio. Einträge, ein Wortanfang mit einem Tippfehler | p95 ≤ 35 ms |
+| Allokation pro Abfrage | 3 Mio. Einträge, Eingaben 1–8 Zeichen | p50 ≤ 250 KB, p95 ≤ 350 KB (zu viel — Bug #30) |
 | `Upsert` / `UpdateWeight` / `Remove` | einzeln, eigene Transaktion | p95 ≤ 1 ms |
-| Aufbau | 3 Mio. Einträge, `Owned` | ≤ 3 min |
+| Aufbau | 3 Mio. Einträge, `Owned`, ein erster Ladevorgang mit `Sync` | ≤ 4 min |
 | Tippfehler-Wörterbuch | 700.000 verschiedene Wörter | ≤ 200 MB, Aufbau ≤ 10 s |
-| Dateigröße | 1 Mio. Einträge, `MultiWord` | ≤ 300 MB inkl. Inhaltstabelle |
+| Dateigröße | 1 Mio. Titel von im Mittel 36 Zeichen, `MultiWord` | ≤ 500 MB inkl. Inhaltstabelle |
+
+**Geändert gegenüber Entwurf 2 (Entscheidung des Eigentümers, 2026-11-04, ADR-0010, ADR-0020):** Gemessen im Szenario
+(Schritt 9, `PerformanceBudgets`) waren fünf Ziele verfehlt. Sie sind neu formuliert — für lange Eingaben, die
+Korrektur und die Datei ist das eine **Lockerung**, keine Erfüllung:
+
+- **p95 der Abfrage pro Eingabelänge.** Gemessen bei 3 Mio. Einträgen: bis vier Zeichen ≤ 3,1 ms, bei acht Zeichen
+  17,5 ms; über alle Längen 9,6–10,3 ms. Was bleibt, sind die eigenen Kosten von FTS5 für einen langen Trigramm-Ausdruck
+  über drei Millionen Einträge eines synthetischen, trigrammdichten Korpus. Ein Suchfeld wartet 100–300 ms zwischen
+  zwei Tasten; 20 ms sind dort nicht spürbar. Mit einem echten Bestand wird nachgemessen, eine eigene Struktur für
+  Wortanfänge von 5–8 Zeichen erst, wenn er es verlangt.
+- **Korrektur p95 ≤ 35 ms.** Gemessen 28–29 ms: bis zu drei weitere FTS5-Abfragen derselben Kosten.
+- **Allokation p50 ≤ 250 KB, p95 ≤ 350 KB.** Gemessen p50 83 KB, p95 298 KB; sie folgt den gelesenen Kandidaten (wer
+  das Budget von 500 ausschöpft: p95 306 KB, sonst 173 KB). Das Budget bleibt — kleiner kostete Qualität. Der Eigentümer
+  hält 250–300 KB pro Abfrage für zu viel: **Bug #30** misst die Ursachen und senkt die Allokation.
+- **Dateigröße ≤ 500 MB** für Titel von im Mittel 36 Zeichen (gemessen 457 MB): Die Tabelle hält den Text und zwei
+  abgeleitete Formen. Wer große Bestände hat, nimmt `Linked` — dort liegt der Text nicht doppelt in der Datei.
+
+Erfüllt wie in Entwurf 2: der Median der Abfrage (1,3–1,7 ms), der einzelne Schreibvorgang (p95 0,5–0,8 ms) und das
+Wörterbuch (138 MB, 4,1–4,9 s). Der **Aufbau** ist ebenfalls neu formuliert (≤ 4 min statt ≤ 3 min): Mit `Sync` und Stapeln zu 1.000.000 dauerte er
+172–174 s auf einer Maschine und 195–206 s auf der nächsten bei gleichem Code — er schreibt 925 MB und folgt der Platte.
+Ein schnellerer erster Ladevorgang ist Issue #32.
 
 ---
 

@@ -1,6 +1,8 @@
 # 0016 — Sync, check and rebuild: batches that can be run again, a merge at the end, a catalog taken apart
 
-- **Status:** Accepted (the default batch size and the shadow build of a linked sync are open for the owner, see the end)
+- **Status:** Accepted. The owner's decisions of 2026-11-04 on the two open questions at the end: the default batch size
+  **stays 10,000** (a first load is told to use 1,000,000, ADR-0020); the shadow build of a linked sync comes **after
+  0.1.0** (#31); the bookkeeping by key is kept
 - **Date:** 2026-11-03
 - **Affects:** `ILuiIndex.Check()`, `ILuiOwnedIndex.Sync/Check/Rebuild/Optimize`, `ILuiLinkedIndex` (`Check()` through
   `ILuiIndex`), `LuiSyncOptions`, `LuiSyncReport`, `LuiIntegrityReport`; `src/Nordmann.LUI/Storage/`,

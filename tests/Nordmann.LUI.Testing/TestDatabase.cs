@@ -51,6 +51,22 @@ public sealed class TestDatabase : IDisposable
         return connection;
     }
 
+    /// <summary>
+    /// The size of the database file in megabytes, after a checkpoint has moved the write-ahead log into it — what an
+    /// application has on its disk (LUI-Spezifikation §16, "Dateigröße").
+    /// </summary>
+    public double FileMegabytes()
+    {
+        using (var connection = Connect())
+        using (var checkpoint = connection.CreateCommand())
+        {
+            checkpoint.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+            checkpoint.ExecuteNonQuery();
+        }
+
+        return new FileInfo(_path).Length / 1_048_576.0;
+    }
+
     public T Scalar<T>(string sql)
     {
         using var connection = Connect();

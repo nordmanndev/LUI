@@ -1,6 +1,7 @@
 # 0010 — The query budget of §16 does not hold at three million entries on FTS5 alone
 
-- **Status:** Proposed
+- **Status:** Accepted — owner's decision of 2026-11-04: option 2 (the budget per input length) now, option 1 (a real
+  stock) when there is one; option 3 only when a real stock asks for it
 - **Date:** 2026-11-02
 - **Supersedes:** —
 - **Affects:** `docs/benchmarks.md`, `docs/spec/LUI-Spezifikation.md` §16, the plan for PR-009
@@ -149,9 +150,40 @@ bulk path exists.
    index: 1 M entries p50 2.02 → **1.39 ms**, p95 7.4 → **6.1 ms**; 200 k
    entries p50 0.86 → 0.82 ms, p95 2.2 → 1.8 ms.
 
+## Measured again after the bulk path (PR-009, ADR-0020)
+
+Option 5 is built (`Sync`, PR-007, ADR-0016) and measured in the scenario, on the generated corpus of ADR-0020 (the
+word list, then compounds, three million entries, weights with a long tail):
+
+| | row by row (PR-003) | `Sync`, merged (PR-009) | target |
+|---|---:|---:|---:|
+| query p50 | 3.57 ms | **1.61–1.71 ms** | ≤ 2 ms ✓ |
+| query p95 | 26.5 ms | **9.6–10.3 ms** | ≤ 5 ms ✗ |
+| build | 334 s | **172.5 s** (batches of 1,000,000) | ≤ 3 min ✓ |
+| single write p95 | 2.6 ms | **0.51–0.57 ms** | ≤ 1 ms ✓ |
+
+The p95 by the length of the input: **≤ 3.1 ms up to four characters**, 6.9 ms at five, 17.5 ms at eight. What is left
+is FTS5's own cost of a long trigram expression over three million entries — option 2 (a budget per input length) and
+option 3 (a word-start structure for 5–8 characters) are the choices that remain, and option 1 (a real stock) the way to
+know whether the synthetic corpus is the adversary. The corrected query (p95 29 ms, ADR-0012) follows the same cost.
+
 ## Decision
 
-**Proposed — the owner decides.** Options 1 and 5 are cheap and should come first (the original probe of the specification would settle both at once); if
+**Decided by the owner on 2026-11-04, on the numbers of PR-009 (ADR-0020):**
+
+- **Option 2 — the budget per input length.** §16 now reads: p50 ≤ 2 ms; p95 ≤ 5 ms for inputs of 1–4 characters
+  (measured ≤ 3.1 ms), ≤ 20 ms for 5–8 characters (measured 17.5 ms at eight); the corrected query p95 ≤ 35 ms (measured
+  28–29 ms). For the long inputs and the correction this is a **loosening** of the target, written down as such. The
+  reason: a search field waits 100–300 ms between two keys; 20 ms are not felt there, and the median meets the old
+  target.
+- **Option 1 — a real stock.** When there is one, the scenario is measured on it; the synthetic corpus is trigram-dense
+  on purpose and may be the adversary no application has.
+- **Option 3 — a word-start structure for 5–8 characters — not now.** Up to six more indexes cost writes and file size;
+  it is built when a real stock shows that the loosened budget is not enough.
+
+What follows is the record of how the decision came about.
+
+**Before the decision: Proposed — the owner decides.** Options 1 and 5 are cheap and should come first (the original probe of the specification would settle both at once); if
 a real stock confirms the numbers, options 2 and 3 are the real choice. Until
 then the pull request reports the numbers as measured and does not claim the
 budget. The target in `docs/benchmarks.md` is **not** lowered quietly (its own

@@ -5,6 +5,14 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-03 — PR-009: the performance budgets of §16 (issue #28)
+
+- ADR-0020. `Corpus` (Testing) generates the measurement corpus for a seed; `PerformanceBudgets` measures every §16
+  target in its scenario and asserts it, or prints its waiver; `benchmarks/Nordmann.LUI.Benchmarks` has real benchmarks.
+- 3 M entries: query p50 1.6–1.7 ms ✓, p95 9.6–10.3 ms (≤ 3.1 ms up to four characters) waived → ADR-0010; allocation
+  p95 298 KB waived (it follows the 500 candidates); corrected p95 29 ms waived; single write p95 0.5 ms ✓; build
+  172.5 s with batches of 1,000,000 ✓ (190 s with 100,000); typo dictionary 138 MB / 4.4 s ✓; 1 M titles 457 MB waived.
+
 ## 2026-11-03 — fix: hosting lifecycle, Truncated edge (issue #26)
 
 - A code review of `main` after #23: the hosted services now resolve the catalog first (disposed before it; Dispose

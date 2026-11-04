@@ -5,24 +5,16 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** [#21](https://github.com/nordmanndev/LUI/issues/21) — dependency injection, hosted services, stale candidates (PR-008)
-**Branch:** `feat/dependency-injection`
-**State:** merged into `main` (ADR-0017, ADR-0018 — two packages: the core and the hosting).
+**Issue:** [#28](https://github.com/nordmanndev/LUI/issues/28) — performance budgets (PR-009)
+**Branch:** `feat/performance-budgets`
+**State:** pull request #29 open; the owner's decisions worked in.
 
-## Open
+## Decided by the owner (2026-11-04)
 
-- `Highlight` → #20 (a later version, owner's decision: the front end marks the match).
-- The typo dictionary is rebuilt in full at the end of a sync with changes → #19 (a lazy or background rebuild; the
-  hosted services of PR-008 are the place).
-- Owner's decisions still open: the default `LuiSyncOptions.BatchSize`, a shadow build for `Linked.Sync()`, ADR-0010.
-
-## Open in parallel
-
-- **#22 → PR #25, `feat/test-landscape`**: the test tree in three layers
-  (`Nordmann.LUI.Unit.Tests`, `Nordmann.LUI.Integration.Tests`, `Nordmann.LUI.Architecture.Tests`) plus the
-  shared `Nordmann.LUI.Testing`; `docs/testing.md` is the map of the tests and `Test_Landscape` is its guard
-  (ADR-0019). Waiting for the review.
+- §16 stated anew (ADR-0010 option 2, ADR-0020): query p95 per length, correction ≤ 35 ms, allocation p50 ≤ 250 /
+  p95 ≤ 350 KB (too much — bug #30), file ≤ 500 MB for 1 M titles of 36 characters, the build ≤ 4 min (a faster first load: #32). Batch size stays 10,000; the shadow
+  build after 0.1.0 (#31); #24 an exact pin; #19 before 0.1.0.
 
 ## The next step
 
-**PR-009 — performance budgets:** BenchmarkDotNet project, 3 M corpus generator, the §16 targets as tests (with ADR-0010).
+**Next:** #24 (the exact pin of Hosting → core), #19 (the typo dictionary), then **PR-010 — docs:** the README outline of plan §7, `docs/benchmarks.md`, the CHANGELOG, the smoke test with the README.

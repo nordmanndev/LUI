@@ -6,13 +6,23 @@
 
 ## Status
 
-**The single-word index is measured; the budget of §16 is not met at three
-million entries.** The numbers are below, with the machine and the corpus; the
-reason and the options are in
-[ADR-0010](./adr/0010-the-query-budget-at-three-million-entries.md) (Proposed).
-`MultiWord`, typo correction and `Sync` are measured with the pull requests that
-build them (PR-004 … PR-009); the benchmark project
-(`benchmarks/Nordmann.LUI.Benchmarks/`) arrives with PR-009.
+**Every target of §16 is measured in its scenario and met** (PR-009,
+[ADR-0020](./adr/0020-the-performance-budgets-measured.md)) — three of them as draft 2 set them, five as the owner
+stated them anew after the measurement (2026-11-04, ADR-0010, ADR-0020). The table is the output of
+`PerformanceBudgets`, which asserts every row. The allocation is met and still a bug (#30). The benchmark project
+(`benchmarks/Nordmann.LUI.Benchmarks/`) measures the code on the same corpus.
+
+| Target | Measured at the scenario | Limit |
+|---|---:|---:|
+| query p50 | 1.34–1.71 ms | ≤ 2 ms |
+| query p95, 1–4 characters | ≤ 3.1 ms | ≤ 5 ms |
+| query p95, 5–8 characters | 13.4–17.5 ms | ≤ 20 ms |
+| allocation p50 / p95 | 83 / 298 KB | ≤ 250 / ≤ 350 KB (#30) |
+| query with correction p95 | 27.9–32.5 ms | ≤ 35 ms |
+| single write p95 | 0.51–0.78 ms | ≤ 1 ms |
+| build of 3 M | 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 240 s (#32) |
+| typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| file of 1 M titles | 457 MB | ≤ 500 MB |
 
 ## The targets
 
@@ -21,13 +31,17 @@ measurement has something to contradict.
 
 | Measurement | Scenario | Target |
 |---|---|---|
-| Query without correction | 3 M entries, inputs of 1–8 characters | p50 ≤ 2 ms, p95 ≤ 5 ms |
-| Query with typo correction | the same | p95 ≤ 10 ms |
-| Allocation per query | the same | ≤ 250 KB |
+| Query without correction | 3 M entries, inputs of 1–8 characters | p50 ≤ 2 ms; p95 ≤ 5 ms for 1–4 characters, ≤ 20 ms for 5–8 |
+| Query with typo correction | 3 M entries, a beginning with one typo | p95 ≤ 35 ms |
+| Allocation per query | 3 M entries, inputs of 1–8 characters | p50 ≤ 250 KB, p95 ≤ 350 KB (too much — bug #30) |
 | `Upsert` / `UpdateWeight` / `Remove` | one at a time, own transaction | p95 ≤ 1 ms |
-| Build-up | 3 M entries, `Owned` | ≤ 3 min |
+| Build-up | 3 M entries, `Owned`, a first load by `Sync` | ≤ 4 min |
 | Typo dictionary | 700 000 distinct words | ≤ 200 MB, build ≤ 10 s |
-| File size | 1 M entries, `MultiWord` | ≤ 300 MB including the content table |
+| File size | 1 M titles of 36 characters on average, `MultiWord` | ≤ 500 MB including the content table |
+
+The query p95, the correction, the allocation, the file size and the build were stated anew by the owner on 2026-11-04
+after they were measured (ADR-0010, ADR-0020): a **loosening**, written down as such. The targets of draft 2 were p95
+≤ 5 ms for every length, the correction ≤ 10 ms, ≤ 250 KB, ≤ 300 MB, ≤ 3 min.
 
 ## The rules for a number in this file
 
@@ -307,4 +321,63 @@ LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter 
 - **Missed, written down:** the allocation at p95 (408 KB: up to three more candidate lists and their unions) and the ratios of Anhang A4
   (69 / 69 / 86 / 92 %) which are not reached (25 / 53 / 69 / 82 %) because the cases are drawn uniformly here and by popularity there; the
   absolute figures agree. Details in [ADR-0012](./adr/0012-typo-tolerance.md).
+
+---
+
+## Results: the budgets of §16 (PR-009)
+
+[ADR-0020](./adr/0020-the-performance-budgets-measured.md). The measurement machine above; the whole German word list;
+the corpus of `Corpus` (`Nordmann.LUI.Testing`, seed 42): the 685,829 words, then compounds of two of them up to three
+million, weights with a long tail; 2,000 inputs of 1–8 characters, 1,000 beginnings of 5–9 letters with one typo. No
+other load; two runs, a third for the batch size of the build.
+
+```text
+LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests --filter PerformanceBudgets --logger "console;verbosity=detailed"
+```
+
+| Target | Run 1 | Run 2 | Run 3 (batches of 1,000,000) | Run 4 (as committed) | Limit |
+|---|---:|---:|---:|---:|---:|
+| build of 3 M by `Sync` | 180.3 s (100,000) | 189.8 s (100,000) | **172.5 s** | **174.2 s** | ≤ 180 s |
+| query p50 | 1.71 ms | 1.61 ms | 1.67 ms | 1.34 ms | ≤ 2 ms |
+| query p95 | 10.25 ms | 9.64 ms | 9.93 ms | 10.22 ms | ≤ 5 ms |
+| allocation p50 / p95 | 83 / 298 KB | 83 / 298 KB | — | — / 298 KB | ≤ 250 KB |
+| corrected query p50 / p95 | 6.92 / 28.49 ms | 6.93 / 28.98 ms | — | — / 27.89 ms | p95 ≤ 10 ms |
+| single write p95 | 0.57 ms | 0.51 ms | — | 0.57 ms | ≤ 1 ms |
+| file of the 3 M entries | 925 MB | 925 MB | 925 MB | — |
+| typo dictionary of 3 M entries (built for the corrected queries) | 29.8 s | 26.3 s | — | — |
+
+Runs 5 and 6, the next day on a container started anew, with the targets as the owner decided them and the same code:
+build 194.9 / 205.9 s, query p50 1.48 / 1.45 ms, p95 of 1–4 characters 1.88 / 1.89 ms, of 5–8 characters 14.36 / 13.35 ms,
+allocation p50 / p95 82.8 / 297.5 KB, corrected query p95 32.49 / 30.54 ms, single write p95 0.72 / 0.78 ms; the file of
+1 M titles 457 MB, the typo dictionary 138 MB in 4.88 s.
+
+The query p95 by the length of the input (run 2): 1 character 1.21 ms · 2 → 1.45 · 3 → 1.97 · 4 → 3.11 · 5 → 6.90 ·
+6 → 10.06 · 7 → 13.34 · 8 → 17.48 ms. The allocation by the candidates: a query that spends the budget of 500
+(1,204 of 2,000) p50 124 KB, p95 306 KB; the rest p50 62 KB, p95 173 KB.
+
+The two scenarios of their own:
+
+| Target | Measured | Limit |
+|---|---:|---:|
+| typo dictionary of 685,829 distinct words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| file of 1,000,000 titles, `MultiWord`, built by `Sync` in 88.1 s | 457 MB | ≤ 300 MB |
+
+### The benchmarks
+
+BenchmarkDotNet 0.15.8, `ShortRun` (3 iterations — the error column is wide; the means are what to compare), 200,000
+entries of the same corpus.
+
+```text
+dotnet run -c Release --project benchmarks/Nordmann.LUI.Benchmarks -- --filter '*' --job short
+```
+
+| Benchmark | Input | Mean | Allocated |
+|---|---|---:|---:|
+| query, single-word | `b` · `ka` · `haus` · `apfelkuc` | 398 · 22 · 688 · 92 µs | 63 · 25 · 143 · 27 KB |
+| query, multi-word | `b` · `ka` · `haus` · `apfelkuc` | 520 · 539 · 1,002 · 158 µs | 86 · 87 · 185 · 25 KB |
+| corrected query | `kartofel` · `bahmhof` · `fusbal` · `strasee` | 97 · 257 · 481 · 117 µs | 27 · 100 · 80 · 27 KB |
+| `UpdateWeight` · the same upsert · an upsert with another text | — | 279 · 79 · 226 µs | 0.4 · 0.8 · 0.8 KB |
+| search form | `Apfelkuchen` · `Größenänderungsmaßnahme` · a title of 35 characters | 48 · 121 · 131 ns | 144 · 320 · 240 B |
+| Jaro-Winkler against `apfelku` | the same | 90 · 152 · 158 ns | 208 · 200 · 232 B |
+| N-gram Dice against `apfelku` | the same | 119 · 172 · 262 ns | 0 B |
 
