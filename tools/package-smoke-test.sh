@@ -203,7 +203,7 @@ OUTPUT="$(cd "${SMOKE}" && dotnet run --project "${SMOKE}/SmokeTest.csproj" --no
 echo "${OUTPUT}"
 
 # The comments of the quick start say what it prints; they have to stay true.
-for expected in "Gedeckter Apfelkuchen (9000)" "Bratapfelkuchen (800)" "Gedeckter Apfelkuchen" "gedeckter" "vegan"; do
+for expected in "Gedeckter Apfelkuchen (9000)" "Bratapfelkuchen (800)" "Gedeckter Apfelkuchen" "gedeckter" "vegan" "Vegan" "Stale" "Current"; do
   if ! grep -qxF "${expected}" <<<"${OUTPUT}"; then
     echo "package-smoke-test: the README's quick start did not print '${expected}'" >&2
     exit 1

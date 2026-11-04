@@ -387,3 +387,41 @@ dotnet run -c Release --project benchmarks/Nordmann.LUI.Benchmarks -- --filter '
 | Jaro-Winkler against `apfelku` | the same | 90 · 152 · 158 ns | 208 · 200 · 232 B |
 | N-gram Dice against `apfelku` | the same | 119 · 172 · 262 ns | 0 B |
 
+### The run of the README (PR-010)
+
+Run on **2026-11-04**, on `main` after #19 (`20bbbde`), with `tools/benchmarks.sh`'s command: BenchmarkDotNet 0.15.8,
+the **default job** (not `ShortRun`), every benchmark, 34 min 40 s. Intel Xeon 2.10 GHz, 4 cores, 15 GB, Ubuntu
+24.04.5, .NET 10.0.14 (SDK 10.0.114), the full German word list, nothing else running. The reports are committed in
+[`benchmarks/results/`](../benchmarks/results/) and the README shows them, rendered by `Readme_Benchmarks`
+([ADR-0022](./adr/0022-the-benchmark-results-in-the-readme.md)).
+
+Against the `ShortRun` above (mean, µs; the error of the default job is 2–8 % of the mean, that of `ShortRun` was up to
+260 % of it):
+
+| Benchmark | `ShortRun` (PR-009) | default job (PR-010) |
+|---|---:|---:|
+| query, single-word: `b` · `ka` · `haus` · `apfelkuc` | 398 · 22 · 688 · 92 | 470 · 24 · 687 · 113 |
+| query, multi-word: the same | 520 · 539 · 1,002 · 158 | 595 · 634 · 1,071 · 192 |
+| corrected query: `kartofel` · `bahmhof` · `fusbal` · `strasee` | 97 · 257 · 481 · 117 | 114 · 275 · 477 · 124 |
+| `UpdateWeight` · the same upsert · an upsert with another text | 279 · 79 · 226 | 343 · 93 · 228 |
+| search form: `Apfelkuchen` · `Größenänderungsmaßnahme` · the title of 35 characters (ns) | 48 · 121 · 131 | 57 · 135 · 130 |
+| Jaro-Winkler against `apfelku`: the same (ns) | 90 · 152 · 158 | 106 · 185 · 155 |
+| N-gram Dice against `apfelku`: the same (ns) | 119 · 172 · 262 | 106 · 202 · 287 |
+
+*The texts in the order of PR-009 — BenchmarkDotNet's report sorts them otherwise (`Apfelkuchen`, the title, then
+`Größe…`); the allocations, 144 · 320 · 240 B in both runs, pin the rows to their texts (review of pull request 37,
+M1).*
+
+The allocations are the same to the byte. The means of all 24 benchmarks differ by **−11 % to +23 %** — ten of them by
+less than 10 %, five are lower (`haus` in single words, `fusbal`, the search form and Jaro-Winkler of the title,
+N-gram Dice of `Apfelkuchen`). It is not a change the two runs can name in either direction: `ShortRun`'s three
+iterations gave an interval of up to 260 % of the mean, so none of its means is known to better than the spread
+between them, and the queries without a correction take no path that #19 changed. The default job is the one the
+README shows, because its interval (2–8 %) is narrow enough to compare two rows of one run — and a later run against
+this one.
+
+```text
+tools/fetch-wordlist.sh   # once: the full word list
+tools/benchmarks.sh       # runs everything, copies the reports, renders the README, runs the guard
+```
+

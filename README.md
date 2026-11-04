@@ -35,24 +35,25 @@ A user types into a search field  →  LUI answers with the best entries
 
 ## Status
 
-LUI is **under construction**. The design is settled and specified
-([`docs/spec/LUI-Spezifikation.md`](./docs/spec/LUI-Spezifikation.md)); the
-implementation follows the plan in
+LUI is **feature-complete for 0.1.0 and not yet published**. The design is
+specified in [`docs/spec/LUI-Spezifikation.md`](./docs/spec/LUI-Spezifikation.md),
+the contract of this repository; the implementation followed the plan in
 [`docs/plan/2026-11-02-lui-repo-plan.md`](./docs/plan/2026-11-02-lui-repo-plan.md),
-one pull request per step.
+one pull request per step, and every decision is an ADR in [`docs/adr/`](./docs/adr/).
 
 | | |
 |---|---|
-| Package id | `Nordmann.LUI` (one package — [ADR-0001](./docs/adr/0001-single-package.md)) |
+| Packages | `Nordmann.LUI` (the library) and `Nordmann.LUI.Hosting` (the dependency injection), one version — [ADR-0018](./docs/adr/0018-two-packages-core-and-hosting.md) |
 | Target framework | `net10.0` |
+| Dependencies of the core | `Microsoft.Data.Sqlite`, `symspell`, `F23.StringSimilarity` — nothing else ([ADR-0004](./docs/adr/0004-dependencies.md)) |
 | Licence | MIT |
 | Current version | `0.1.0` (not yet published) |
 
 The public API follows the specification: a `LuiCatalog`, an index per
 searchable stock, a fluent query builder, and the two index kinds
-`SingleWord` and `MultiWord`. The quick start below is **executed by the
-package smoke test** — every C# block of this README is — so the README can
-never drift from the code.
+`SingleWord` and `MultiWord`. The code of this README is **executed by the
+package smoke test** — every C# block, in order, against the packed `.nupkg` —
+so the README can never drift from the code.
 
 ## Install
 
@@ -175,6 +176,81 @@ Triggers are opt-in (`tags.TriggerScript()` for your migration, or `tags.CreateT
 a changed row, so any SQLite can still write your table, and `tags.ApplyPending()` brings the noted rows into the
 index — call it regularly; `tags.Pending()` is a good value for a health check.
 
+---
+
+## The query
+
+`index.Search(text)` takes the defaults; `index.Query(text)` is the fluent builder, and `Search(text, options)` takes
+the same settings as a `LuiQueryOptions` — from configuration, for example. Every value is checked where it is set.
+
+| Builder | `LuiQueryOptions` | Default | What it does |
+|---|---|---|---|
+| `.Take(n)` | `MaxResults` | 20 | how many hits come back (1 … 1,000) |
+| `.Candidates(n)` | `Candidates` | 500 | how many candidates are ranked — chosen by priority and weight (1 … 100,000) |
+| `.Rank(order)` | `Rank` | `WordStartThenSimilarity` | the order of the ranking, see below |
+| `.Priorities(mode)` | `Priorities` | `First` | whether the priority comes before everything (`First`) or only makes an entry a certain candidate (`CandidatesOnly`) |
+| `.DistinctText()` | `DistinctText` | off | one hit per normalised text — the one of the highest priority, then weight |
+| `.Similarity(measure)` | `Similarity` | of the index | `LuiSimilarity.JaroWinkler` (the default of `SingleWord`), `NgramDice` (of `MultiWord`), `DamerauLevenshtein`, `Levenshtein` — or your own `ILuiSimilarity` |
+| `.TypoTolerance(bool)` | `TypoTolerance` | of the index | whether an input that no word begins with is corrected |
+| `.TrackTimings()` | `TrackTimings` | off | `result.Timings`: candidates, correction, ranking, payload, total |
+
+A `LuiResult` holds the `Hits` (key, text, weight, priority, payload, whether a word begins with the input, the
+similarity), `CandidatesConsidered`, `Truncated` (the candidate budget was spent), `CorrectedQuery` and
+`CorrectionSkipped`.
+
+## Ranking and priority
+
+What a user feels, in the order it is applied ([spec §9](./docs/spec/LUI-Spezifikation.md)):
+
+| Stage | Rule | Example for `apfelkuch` |
+|---|---|---|
+| 0. Priority | an entry of a higher `LuiPriority` (`System` → `High` → `Elevated` → `Normal`) comes first | the system tag before the user's |
+| 1. Word start | a word of the entry begins with the input — compactly, so spaces do not matter | **Apfelkuch**en, Gedeckter **Apfelkuch**en, **Apfel Kuch**en ✅ · Brat**apfelkuch**en ❌ |
+| 2. Similarity | measured from the word the hit begins at, not from the start of the text | „Gedeckter Apfelkuchen" scores 0.99, not 0.38 |
+| 3. Weight | the more popular first | 9000 before 800 |
+
+`LuiRankingOrder` reorders stages 1–3: `WordStartThenSimilarity` (the default), `WordStartThenWeight`,
+`SimilarityOnly`, `WeightOnly`. A one- or two-character input is ranked by weight alone — every candidate begins with
+it. A tie on every stage is broken by the rowid, so the result is deterministic.
+
+**Why the priority comes first:** the candidates are read in the order of priority, then weight, and only 500 of them
+are ranked. A rare system tag would otherwise lose against thousands of popular entries before the ranking ever saw
+it — with a priority it is a candidate for every input it matches:
+
+```csharp
+var labels = lui.Index("labels").SingleWord().Ensure();
+labels.UpsertMany([
+    new LuiEntry<long, LuiNoPayload>(1, "Vegetarisch") { Weight = 900 },
+    new LuiEntry<long, LuiNoPayload>(2, "Vegan") { Weight = 3, Priority = LuiPriority.System },
+]);
+
+Console.WriteLine(labels.Search("veg").Hits[0].Text);   // Vegan
+```
+
+## Typo tolerance
+
+Off by default — the dictionary costs memory — and switched on per index (`.TypoTolerance()` on the builder) or per
+query. When it triggers, and what it does ([spec §10](./docs/spec/LUI-Spezifikation.md)):
+
+- **When:** no candidate has a word that begins with the input — not only when nothing is found: a third of all typos
+  match somewhere in the middle of another word.
+- **How:** every word of three or more letters is looked up in a SymSpell dictionary of the word *beginnings* of the
+  index (one edit), the three best corrections are searched as well, and the ranking runs with the corrected input.
+  `CorrectedQuery` says what was searched (`gedeckter` for `gedekter`).
+- **The dictionary** is built on the first correction (138 MB and about 4 s for 685,829 words), or ahead of time with
+  `WarmUpTypoDictionary()`. Writes through LUI add their words at once.
+- **No query waits for a build.** While another thread builds the dictionary, a query that needs a correction answers
+  without it and sets `CorrectionSkipped`.
+- **A `Sync` that changes or removes entries** marks the dictionary `Stale` instead of building it anew: new words are
+  known, removed ones linger until a rebuild. `TypoDictionaryState` and the sync's report say so; the hosting package
+  rebuilds it in the background.
+
+```csharp
+Console.WriteLine(recipes.TypoDictionaryState);   // Stale — the sync above removed entries
+recipes.RebuildTypoDictionary();
+Console.WriteLine(recipes.TypoDictionaryState);   // Current
+```
+
 ## In an ASP.NET Core or worker application
 
 `Nordmann.LUI.Hosting` brings the dependency injection: `AddLui` registers the catalog, and every index as a keyed service under its
@@ -215,6 +291,120 @@ or in a `PeriodicTimer` loop.
 
 ---
 
+## Performance
+
+Measured, with the machine named — a number without a machine is a rumour. The full record, the method and every
+earlier run are in [`docs/benchmarks.md`](./docs/benchmarks.md).
+
+**The targets of [spec §16](./docs/spec/LUI-Spezifikation.md)**, each asserted by
+[`PerformanceBudgets`](./tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs) in its scenario — three million
+single words of the German word list (685,829 words, then compounds), one million titles for the file
+([ADR-0020](./docs/adr/0020-the-performance-budgets-measured.md)). Intel Xeon 2.1 GHz, 4 cores, 15 GB, Ubuntu 24.04,
+.NET 10.0.14:
+
+| Target | Measured | Limit |
+|---|---:|---:|
+| query p50 | 1.34–1.71 ms | ≤ 2 ms |
+| query p95, 1–4 characters | ≤ 3.1 ms | ≤ 5 ms |
+| query p95, 5–8 characters | 13.4–17.5 ms | ≤ 20 ms |
+| query with a typo correction, p95 | 27.9–32.5 ms | ≤ 35 ms |
+| allocation per query, p50 / p95 | 83 / 298 KB | ≤ 250 / ≤ 350 KB (too much — #30) |
+| `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms | ≤ 1 ms |
+| first load of 3 M entries (`Sync`) | 172.5–205.9 s | ≤ 4 min (#32) |
+| typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| file of 1 M titles | 457 MB | ≤ 500 MB |
+
+Five of these were stated anew by the owner after they were measured — the query p95, the correction, the
+allocation, the file and the first load; for three of them (long inputs, the correction, the file) a loosening,
+written down as such in ADR-0020.
+
+### BenchmarkDotNet
+
+[`benchmarks/Nordmann.LUI.Benchmarks`](./benchmarks/Nordmann.LUI.Benchmarks/) measures the code, not the scenario:
+an index of 200,000 entries of the same generated corpus (seed 42), built by `Sync`, in a database in the page cache.
+The tables below are **generated** from BenchmarkDotNet's own reports in
+[`benchmarks/results/`](./benchmarks/results/) — a test (`Readme_Benchmarks`) fails when they differ, so a number here
+always has a run behind it. Run them again with `tools/benchmarks.sh`.
+
+<!-- benchmarks:begin -->
+<!-- generated by Readme_Benchmarks from benchmarks/results/ — do not edit by hand -->
+
+```text
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon Processor 2.10GHz, 1 CPU, 4 logical and 4 physical cores
+.NET SDK 10.0.114
+  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  DefaultJob : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+```
+
+#### A query
+
+One query through the whole pipeline: the prefix path for one and two characters, FTS5 from three — Entries = 200000. `QueryBenchmarks`.
+
+| Method | Kind | Input | Mean | Error | Allocated |
+|---|---|---|---:|---:|---:|
+| Search | SingleWord | apfelkuc | 113.19 μs | 3.739 μs | 26.76 KB |
+| Search | SingleWord | b | 470.02 μs | 15.352 μs | 62.98 KB |
+| Search | SingleWord | haus | 687.29 μs | 25.171 μs | 142.73 KB |
+| Search | SingleWord | ka | 23.79 μs | 0.622 μs | 24.53 KB |
+| Search | MultiWord | apfelkuc | 191.86 μs | 4.885 μs | 25.05 KB |
+| Search | MultiWord | b | 595.32 μs | 21.216 μs | 86.31 KB |
+| Search | MultiWord | haus | 1,070.80 μs | 38.348 μs | 185.05 KB |
+| Search | MultiWord | ka | 634.05 μs | 21.595 μs | 86.85 KB |
+
+#### A query with a typo correction
+
+A single-word index with typo tolerance, the dictionary built; the input has one typo — Entries = 200000. `CorrectionBenchmarks`.
+
+| Method | Input | Mean | Error | Allocated |
+|---|---|---:|---:|---:|
+| Search | bahmhof | 274.8 μs | 8.99 μs | 99.78 KB |
+| Search | fusbal | 476.6 μs | 13.83 μs | 80.15 KB |
+| Search | kartofel | 113.5 μs | 3.29 μs | 26.84 KB |
+| Search | strasee | 123.7 μs | 3.58 μs | 26.79 KB |
+
+#### A single write
+
+One write in a transaction of its own — Entries = 200000. `WriteBenchmarks`.
+
+| Method | Mean | Error | Allocated |
+|---|---:|---:|---:|
+| UpdateWeight | 343.48 μs | 11.133 μs | 436 B |
+| UpsertTheSame | 92.93 μs | 1.835 μs | 812 B |
+| UpsertAnotherText | 228.23 μs | 18.042 μs | 812 B |
+
+#### The search form and the similarity
+
+Per text, no database: the normalisation of §6 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln", `Größe(...)nahme [23]` „Größenänderungsmaßnahme". `TextBenchmarks`.
+
+| Method | Text | Mean | Error | Allocated |
+|---|---|---:|---:|---:|
+| SearchForm | Apfelkuchen | 57.31 ns | 1.250 ns | 144 B |
+| JaroWinkler | Apfelkuchen | 106.18 ns | 2.163 ns | 208 B |
+| NgramDice | Apfelkuchen | 106.25 ns | 2.332 ns | - |
+| SearchForm | Gedec(...)useln [35] | 129.86 ns | 3.891 ns | 240 B |
+| JaroWinkler | Gedec(...)useln [35] | 155.27 ns | 4.885 ns | 232 B |
+| NgramDice | Gedec(...)useln [35] | 286.61 ns | 6.816 ns | - |
+| SearchForm | Größe(...)nahme [23] | 135.20 ns | 4.214 ns | 320 B |
+| JaroWinkler | Größe(...)nahme [23] | 185.13 ns | 3.672 ns | 200 B |
+| NgramDice | Größe(...)nahme [23] | 201.63 ns | 4.061 ns | - |
+
+<!-- benchmarks:end -->
+
+**Reading.** These are 200,000 entries on one thread, in the page cache — the code, not the scenario of §16. A query
+takes 24 µs (two letters, the prefix path of a single-word index) to 1.1 ms (`haus` in titles: many candidates to
+rank); its allocation follows the candidates it reads (#30). A correction costs one more search per correction tried.
+A single write is a commit of its own; load a stock with `UpsertMany` or `Sync` instead.
+
+---
+
+## Sample application
+
+[`samples/Lui.Sample/`](./samples/Lui.Sample/) is an ASP.NET Core application with a static page: a search field
+over a LUI index. It is the next step of the plan (PR-011); today it is the skeleton the plan started from.
+
+---
+
 ## Repository layout
 
 ```text
@@ -222,8 +412,9 @@ src/Nordmann.LUI/            ← the library (package Nordmann.LUI)
 src/Nordmann.LUI.Hosting/    ← the dependency injection (package Nordmann.LUI.Hosting, same version)
 tests/                       ← unit, architecture and integration tests
                               (and the map of them: docs/testing.md)
-benchmarks/                  ← BenchmarkDotNet + the corpus generator
-samples/Lui.Sample/          ← ASP.NET Core API + the inline static site
+benchmarks/                  ← BenchmarkDotNet, and its reports (benchmarks/results/)
+samples/Lui.Sample/          ← ASP.NET Core API + a static page (PR-011)
+tools/                       ← the smoke test, the mutation check, the benchmark run, the word list
 docs/adr/                    ← the decisions, and why
 docs/spec/                   ← the specification this repo implements
 docs/plan/                   ← the delivery plan
@@ -234,6 +425,14 @@ docs/plan/                   ← the delivery plan
 Read [`AGENTS.md`](./AGENTS.md) first — it is the contract for this
 repository, and it inherits
 [`nordmanndev/standards`](https://github.com/nordmanndev/standards).
+
+- **One issue, one pull request**, each with its tests, its measurement and — for a decision that changes the public
+  API, the schema or the dependencies — its ADR.
+- **The specification is the contract.** Code that contradicts it is a bug, unless an ADR says the specification is
+  wrong; then both change in the same pull request.
+- **Before a pull request:** `dotnet test`, `dotnet format --verify-no-changes`, `tools/package-smoke-test.sh` and
+  `tools/mutation-check.sh`. The map of the tests ([`docs/testing.md`](./docs/testing.md)) is a guard: a test file it
+  does not list fails the build.
 
 ## Licence
 
