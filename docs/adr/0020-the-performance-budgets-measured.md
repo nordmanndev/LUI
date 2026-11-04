@@ -124,6 +124,7 @@ the correction and the file this is a **loosening** of the target, not its meeti
 | query with correction p95 | ≤ 10 ms | ≤ 35 ms | 27.9–29.0 ms |
 | allocation | ≤ 250 KB | p50 ≤ 250 KB, p95 ≤ 350 KB | 83 · 298 KB |
 | file of 1 M titles | ≤ 300 MB | ≤ 500 MB for titles of 36 characters on average | 457 MB |
+| build of 3 M | ≤ 3 min | ≤ 4 min (a faster first load: #32) | 172.5–205.9 s on two machines |
 
 - **The allocation is a bug** (#30). The owner finds 250–300 KB per query too much; the restated target keeps the test
   honest until the causes are measured and the allocation is lowered. The candidate budget stays 500 — a smaller one
@@ -136,7 +137,7 @@ the correction and the file this is a **loosening** of the target, not its meeti
 the next day, with the same code: the build of three million entries took **194.9 s and 205.9 s** (the day before
 172.5 s and 174.2 s); the queries were as fast or faster (p50 1.45–1.48 ms, p95 of 5–8 characters 13.4–14.4 ms), the
 corrected query p95 30.5–32.5 ms, the single write p95 0.72–0.78 ms. The build writes a file of 925 MB and follows the
-speed of the disk; the 180 s of §16 are met on one machine and missed on the next. Until the owner decides — the target
-restated for the disk, or a faster first load (a larger checkpoint interval gave 12 % in ADR-0016) — it is waived with
-this reason.
+speed of the disk; the 180 s of §16 are met on one machine and missed on the next. **Decided by the owner on the same
+day:** the target is **≤ 4 min** for the first load of three million entries, and a faster first load is issue #32,
+after 0.1.0. `PerformanceBudgets` asserts it; no target of §16 is waived any more.
 

@@ -29,14 +29,9 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
     /// <summary>
     /// The targets that are missed on purpose, with the reason and the record that holds it. A target that is not here
     /// has to be met. The owner's decisions of 2026-11-04 (ADR-0020) stated four targets anew, and they are asserted — the
-    /// allocation with an open bug (#30). The build is waived until the owner decides on it.
+    /// allocation with an open bug (#30), the build at four minutes with an issue for a faster first load (#32). Empty.
     /// </summary>
-    private static readonly Dictionary<string, string> Waivers = new(StringComparer.Ordinal)
-    {
-        // measured 172.5 / 174.2 s on one container, 194.9 / 205.9 s on the next one with the same code: the build writes
-        // a file of 925 MB and follows the disk. Open for the owner (ADR-0020): restate the target, or a faster first load.
-        ["build"] = "ADR-0020 (open for the owner): disk-bound — 172–206 s on two machines",
-    };
+    private static readonly Dictionary<string, string> Waivers = new(StringComparer.Ordinal);
 
     [PerformanceFact]
     public void The_single_word_index_at_three_million_entries()
@@ -77,7 +72,8 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
         budget.AtMost("query with correction p95", "3 M entries, a beginning of 5–9 letters with one typo", Percentile(corrected, 95), 35.0, "ms");
 
         budget.AtMost("single write p95", "Upsert / UpdateWeight / Remove, own transaction", Percentile(MeasureWrites(index, corpus), 95), 1.0, "ms");
-        budget.AtMost("build", "3 M entries, Owned", build.Elapsed.TotalSeconds, 180, "s");
+        // §16 since the owner's decision of 2026-11-04: the build follows the disk — 172–206 s on two machines (#32)
+        budget.AtMost("build", "3 M entries, Owned, a first load by Sync", build.Elapsed.TotalSeconds, 240, "s");
 
         budget.Verify();
     }

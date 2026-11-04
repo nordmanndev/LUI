@@ -12,11 +12,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The performance budgets of §16, measured** ([ADR-0020](docs/adr/0020-the-performance-budgets-measured.md)): a test per
   target in its scenario (`PerformanceBudgets`, gated), a generated corpus for the measurements, and the benchmark
   project (`benchmarks/Nordmann.LUI.Benchmarks`, BenchmarkDotNet). At three million entries the query median (1.6 ms),
-  the single write (p95 0.5–0.8 ms) and the typo dictionary are met; the build (172–206 s by `Sync`, following the disk)
-  is waived and open for the owner. Four targets of §16 are
+  the single write (p95 0.5–0.8 ms) and the typo dictionary are met. Four targets of §16 are
   stated anew by the owner after the measurement: the query p95 per input length (≤ 5 ms for 1–4 characters, ≤ 20 ms
   for 5–8), the corrected query (p95 ≤ 35 ms), the allocation (p50 ≤ 250 KB, p95 ≤ 350 KB — too much, bug #30) and the
-  file of a million titles (≤ 500 MB). Every target is asserted.
+  file of a million titles (≤ 500 MB) and the build (≤ 4 min — it follows the disk, 172–206 s on two machines; a faster
+  first load is #32). Every target is asserted.
 
 - **Dependency injection, in a second package `Nordmann.LUI.Hosting`** ([ADR-0017](docs/adr/0017-dependency-injection-and-hosted-services.md),
   [ADR-0018](docs/adr/0018-two-packages-core-and-hosting.md)), released with `Nordmann.LUI` under the same version:

@@ -12,7 +12,7 @@ describes it. Link the issue; do not repeat the whole plan here.
 ## Decided by the owner (2026-11-04)
 
 - §16 stated anew (ADR-0010 option 2, ADR-0020): query p95 per length, correction ≤ 35 ms, allocation p50 ≤ 250 /
-  p95 ≤ 350 KB (too much — bug #30), file ≤ 500 MB for 1 M titles of 36 characters. Batch size stays 10,000; the shadow
+  p95 ≤ 350 KB (too much — bug #30), file ≤ 500 MB for 1 M titles of 36 characters, the build ≤ 4 min (a faster first load: #32). Batch size stays 10,000; the shadow
   build after 0.1.0 (#31); #24 an exact pin; #19 before 0.1.0.
 
 ## The next step
