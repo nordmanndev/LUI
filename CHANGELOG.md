@@ -10,9 +10,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - **The freeze** ([ADR-0026](docs/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md), #43). From the tag `v0.1.0` on, the
-  public API of `Nordmann.LUI` and `Nordmann.LUI.Hosting` grows only additively. A breaking change needs a new minor version,
-  a migration note in this file and an ADR. The record also lists the points of the architecture review of 2026-11-04 that
-  were decided against, by name, with their reasons.
+  public API of `Nordmann.LUI` and `Nordmann.LUI.Hosting` grows only additively. A breaking change — a removed or renamed
+  member, a changed signature (a new optional parameter counts), a changed meaning of a documented behaviour — needs a new
+  minor version, a migration note in this file and an ADR. A new interface member comes as a default member; a new enum value
+  is a line here ("adds `X` to `Y`"). The record also lists the points of the architecture review of 2026-11-04 that were
+  decided against, by name, with their reasons.
 
 - **The README of the first release** ([ADR-0022](docs/adr/0022-the-benchmark-results-in-the-readme.md), #36): the
   query options with their defaults, the ranking and the priority, the typo tolerance, the §16 budgets and the results
