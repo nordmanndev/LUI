@@ -8,11 +8,14 @@ describes it. Link the issue; do not repeat the whole plan here.
 **Issue:** [#56](https://github.com/nordmanndev/LUI/issues/56) — the read path: an index that is **opened** and not created.
 The catalog reads the definition out of `lui_meta` and writes nothing — no table, no definition, no write lock — so a read
 replica, a file in the mode `ro` and a service that must not write can use LUI.
-**Branch:** `feature/read-path-open` → the pull request is opened against `main` (its number is in the report of the task
-below).
-**State:** implemented in the working tree, **not yet committed** — the sandbox's shell died for a long time in the middle of
-the work (the worker sessions with it), so build, test, commit, push and the pull request are the next step. The plan is
-`docs/plan/2026-11-05-issue-56-the-read-path.md`, the decision is
+**Branch:** `feature/read-path-open` → the pull request **#57** is opened against `main`
+(<https://github.com/nordmanndev/LUI/pull/57>).
+**State:** implemented, committed and pushed — the branch carries three commits on top of `main` (`945729e` the read path,
+`dddecf1` the wording of the documents, `c7de0f3` the test of the payload). The build is green (0 warnings, 0 errors),
+the whole suite is green (243 unit + 73 architecture + 424 integration, 13 skipped, 0 failed), `dotnet pack` and
+`npm test` are green, and the CI on the branch is green. The pull request was verified independently: **PASS**
+(`/workspace/verify-56.md`), with four minor points — two of them are fixed in `dddecf1` and `c7de0f3`.
+The plan is `docs/plan/2026-11-05-issue-56-the-read-path.md`, the decision is
 [ADR-0033](https://github.com/nordmanndev/LUI/blob/main/docs/adr/0033-the-read-path-opens-an-index-without-writing.md).
 
 ## What is done
@@ -35,12 +38,14 @@ the work (the worker sessions with it), so build, test, commit, push and the pul
 
 ## Open
 
-- The build, the test run, the commit, the push and the pull request — the shell of the sandbox was dead
-  (`CLOUD_BASH_SHELL_EXECUTION_FAILED`, `gateway_504`) for a long time; a session was started for it.
+- The pull request #57 waits for the merge — the owner merges it, the CI is green.
 - `SampleApiTests.A_request_the_page_abandons_stops_the_work_of_the_server` is **timing-sensitive** (the client aborts
   after 150 ms; the server has to notice the closed connection during a 1.5 s delay). It failed once under the load of a
   saturated 2-CPU sandbox; the changes of #56 are not on the path the test walks (the probe never calls `OpenIndex`), and
   it has been green in every run since. The test was not changed.
+- Two minor points of the verification are still open: `EnsureOnStart(bool)` keeps the old word although the setting now
+  covers the opened indexes too, and the file in the mode `ro` needs `WriteAheadLog = false` — which the README and the
+  specification now say (§ 12.9).
 
 ## The next step
 
