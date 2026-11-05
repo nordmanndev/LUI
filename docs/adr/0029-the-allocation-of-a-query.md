@@ -1,8 +1,10 @@
 # 0029 — The allocation of a query: what it costs, and what it may cost
 
-> **Name note (ADR-0031, 2026-11-05):** since this record was written, the rule of the pool has changed: the pool
-> keeps twelve buffers, and when there is no place left, **the smallest buffer goes** and the new one takes its place.
-> The text below is history and stays as it was written.
+> **Name note (ADR-0031, 2026-11-05):** since this record was written, the rule of the pool has changed: when there is
+> no place left, **the smallest buffer goes** and the new one takes its place — before, the new buffer was dropped and
+> the next query allocated everything anew. The pool has always had twelve places. The rule in the text below is
+> history and stays as it was written; the figures in "Consequences" are corrected, because they counted a pool of four
+> buffers that never existed.
 
 - **Status:** Accepted
 - **Date:** 2026-11-05
@@ -140,8 +142,15 @@ The shares of the **before** (153.32 KB, single word) — measured as difference
     the key of the set. A hash would be cheaper and would drop a candidate on a collision; the option is off by default.
 - **The public API is unchanged.** `ISpanSimilarity` is internal; the exported types against the base of the branch are
   byte-identical.
-- **The retained memory:** the pool keeps up to four arrays of candidates per thread (about 60 KB at the budget of 500) and
-  the buffer of the search form (256 characters, more for long texts). It is given back to the pool, not to the heap.
+- **The retained memory:** the pool keeps **twelve** buffers per thread (`ScoredBuffer.Slots`). At the default budget
+  of 500 a query without a typo correction holds three of them — the candidates (`Candidates + 1` = 501 entries), the
+  groups (the same number) and the hits (`MaxResults`, 20 by default); a corrected query holds five, the union of the
+  corrections (`4 × (Candidates + 1)` = 2.004 entries) being the longest. An entry of `Scored` is 40 B (a long, two
+  strings, an int, a double, a byte): 40.880 B for the three buffers of the plain query, 141.080 B for the five of the
+  corrected one, and 961.920 B in the worst case — a thread whose pool holds twelve buffers of the longest length. The
+  buffers are given back to the pool, not to the heap. The search form is written into a buffer of 256 characters — on
+  the stack for texts up to 85 characters, from the array pool for longer ones; the similarity is measured in a buffer
+  of 256 characters from the array pool.
 - **Open: the dependency on F23.** The library still uses `F23.StringSimilarity` for `Damerau` and `NormalizedLevenshtein`
   (the measures that are not the default). The owner wants LUI's own measures for them as well, which would take the
   runtime dependencies from three to two. That is not part of the allocation: the two measures are not on the default path
