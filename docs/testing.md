@@ -58,10 +58,10 @@ the test fails with the reason instead of skipping.
 |---|---|---|
 | [`NormalizerTests`](../tests/Nordmann.LUI.Unit.Tests/NormalizerTests.cs) | Unit | the search form and the compact form of a text; the German transliteration, on and off; the separators | spec §6.1, ADR-0005 |
 | [`SimilarityTests`](../tests/Nordmann.LUI.Unit.Tests/SimilarityTests.cs) | Unit | the four measures: identical texts, unrelated texts, the range, the thread safety | spec §11 |
-| [`JaroWinklerEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/JaroWinklerEquivalenceTests.cs) | Unit | LUI's own Jaro-Winkler against the library it replaces: the same number for known pairs, 10,000 random pairs, the lengths 0 … 12 — without a tolerance | issue #30, ADR-0029 |
+| [`JaroWinklerEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/JaroWinklerEquivalenceTests.cs) | Unit | LUI's own Jaro-Winkler against the library it replaces: the same number for known pairs, 10,000 random pairs, the lengths 0 … 12 — without a tolerance | issue #30, ADR-0032 |
 | [`DamerauEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/DamerauEquivalenceTests.cs) | Unit | LUI's own Damerau-Levenshtein against the library it replaces: the same number, without a tolerance, and no allocation | issue #30, ADR-0030 |
 | [`LevenshteinEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/LevenshteinEquivalenceTests.cs) | Unit | LUI's own Levenshtein against the library it replaces: the same number, without a tolerance, and no allocation | issue #30, ADR-0030 |
-| [`SearchFormParityTests`](../tests/Nordmann.LUI.Unit.Tests/SearchFormParityTests.cs) | Unit | the search form in the buffer and as a string: the same form — the ranking measures in the buffer | issue #30, ADR-0029 |
+| [`SearchFormParityTests`](../tests/Nordmann.LUI.Unit.Tests/SearchFormParityTests.cs) | Unit | the search form in the buffer and as a string: the same form — the ranking measures in the buffer | issue #30, ADR-0032 |
 | [`WordStartTests`](../tests/Nordmann.LUI.Unit.Tests/WordStartTests.cs) | Unit | the word-start table — every row of it, and the hashtag and the hyphen | spec §9.1 |
 | [`MultiWordExpressionTests`](../tests/Nordmann.LUI.Unit.Tests/MultiWordExpressionTests.cs) | Unit | the FTS5 expression: the words ANDed, the quoting, the input never copied into the expression raw | spec §8.2 |
 | [`NgramDiceEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/NgramDiceEquivalenceTests.cs) | Unit | LUI's own N-gram Dice gives the same number as the library it replaces, without allocating | ADR-0011 |

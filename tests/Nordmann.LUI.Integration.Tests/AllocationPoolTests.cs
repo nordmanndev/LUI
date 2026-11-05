@@ -3,7 +3,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests;
 
 /// <summary>
-/// The pool of the buffers of the candidates (issue #30, ADR-0029): the buffers of a query are lent
+/// The pool of the buffers of the candidates (issue #30, ADR-0032): the buffers of a query are lent
 /// again on the same thread, so a query allocates almost nothing — but only as long as the lengths
 /// fit. The length of the big buffers follows the <b>candidate budget</b>, and the budget is a query
 /// option: a service that serves several budgets needs several lengths. A pool that keeps twelve

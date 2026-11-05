@@ -616,7 +616,7 @@ public interface ILuiSimilarity
 | `LuiSimilarity.Levenshtein` | — | **0 B** |
 | eigene | — | — |
 
-**LUIs eigene Maße** (ADR-0029, ADR-0030) — die Definitionen von `F23.StringSimilarity` (MIT), ohne deren
+**LUIs eigene Maße** (ADR-0032, ADR-0030) — die Definitionen von `F23.StringSimilarity` (MIT), ohne deren
 Allokation; die Parität ist mit Tests **ohne Toleranz** gegen die Bibliothek bewiesen. Die **Zeiten** sind neu zu
 messen (ADR-0030): die eigenen Maße sind auf derselben Maschine so schnell oder schneller, die Sandbox-Box schwankt
 aber um den Faktor 2. Die Ähnlichkeit wird **nur** für die Kandidaten berechnet (≤ `Candidates`) und nur in Stufe 2
@@ -929,7 +929,7 @@ veröffentlicht.
 |---|---|---|
 | Abfrage ohne Korrektur | 3 Mio. Einträge, Eingaben 1–8 Zeichen | p50 ≤ 2 ms; p95 ≤ 5 ms bei 1–4 Zeichen, ≤ 20 ms bei 5–8 Zeichen |
 | Abfrage mit Tippfehler-Korrektur | 3 Mio. Einträge, ein Wortanfang mit einem Tippfehler | p95 ≤ 35 ms |
-| Allokation pro Abfrage | 3 Mio. Einträge, Eingaben 1–8 Zeichen, **Budget der Kandidaten 500** | p50 ≤ 60 KB, p95 ≤ 100 KB (ADR-0029) |
+| Allokation pro Abfrage | 3 Mio. Einträge, Eingaben 1–8 Zeichen, **Budget der Kandidaten 500** | p50 ≤ 60 KB, p95 ≤ 100 KB (ADR-0032) |
 | `Upsert` / `UpdateWeight` / `Remove` | einzeln, eigene Transaktion | p95 ≤ 1 ms |
 | Aufbau | 3 Mio. Einträge, `Embedded`, ein erster Ladevorgang mit `Sync` | ≤ 4 min |
 | Tippfehler-Wörterbuch | 700.000 verschiedene Wörter | ≤ 200 MB, Aufbau ≤ 10 s |
@@ -949,7 +949,7 @@ Korrektur und die Datei ist das eine **Lockerung**, keine Erfüllung:
   das Budget von 500 ausschöpft: p95 306 KB, sonst 173 KB). Das Budget bleibt — kleiner kostete Qualität. Der Eigentümer
   hält 250–300 KB pro Abfrage für zu viel: **Bug #30** misst die Ursachen und senkt die Allokation.
 
-**Geändert gegenüber der vorigen Fassung (ADR-0029, 2026-11-05, Bug #30):** Die Ursachen sind gemessen, die Allokation
+**Geändert gegenüber der vorigen Fassung (ADR-0032, 2026-11-05, Bug #30):** Die Ursachen sind gemessen, die Allokation
 ist gesenkt. Eine Abfrage mit dem Budget von 500 Kandidaten allokiert **26,6 KB statt 153,3 KB** (SingleWord, −83 %)
 und **105,7 KB statt 185,2 KB** (MultiWord, −43 %); je Kandidat sinkt der Preis von 302 B auf 40 B. Die drei Anteile waren
 die Ähnlichkeit (36 %, F23 baute vier Arrays je Vergleich), die zweite Normalisierung (29 %, die Suchform wurde ein
@@ -966,7 +966,7 @@ Tippfehler-Korrektur (≈ 20 KB, sie liest bis zu dreimal so viele Kandidaten).
   Abfrage 4,2 KB, mit Korrektur 19,6 KB.
 
 - **Geändert gegenüber der vorigen Fassung (ADR-0031, 2026-11-05, das Review von PR #53):** Der Puffer je Thread
-  (ADR-0029) ist gemessen worden und hatte einen Fehler: die Länge der großen Puffer folgt dem Budget der
+  (ADR-0032) ist gemessen worden und hatte einen Fehler: die Länge der großen Puffer folgt dem Budget der
   Kandidaten, und der Pufferplatz reichte nur für ein Budget. Nach einem Wechsel des Budgets war der Pool voll mit
   den Längen der Vergangenheit, jede Abfrage allokierte alles neu — **294,9 KB** bei einem Budget von 1.000
   (die Basis ohne Pool: 83,4 KB). Jetzt verdrängt der kleinste Puffer den neuen. Dieselbe Abfrage allokiert

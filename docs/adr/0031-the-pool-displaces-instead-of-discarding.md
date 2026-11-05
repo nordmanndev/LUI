@@ -2,17 +2,17 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-05
-- **Builds on:** [0029](./0029-the-allocation-of-a-query.md) (the allocation of a query, the pool of the buffers),
+- **Builds on:** [0032](./0032-the-allocation-of-a-query.md) (the allocation of a query, the pool of the buffers),
   [0020](./0020-the-performance-budgets-measured.md) (the budgets of §16, measured)
 - **Affects:**
   - `src/Nordmann.LUI/Querying/ScoredBuffer.cs` (the rule of the pool, the doc comment)
   - `tests/Nordmann.LUI.Integration.Tests/AllocationPoolTests.cs` (new)
-  - spec §16, `docs/testing.md`, CHANGELOG, ADR-0029
+  - spec §16, `docs/testing.md`, CHANGELOG, ADR-0032
 - **Issue:** #30 (the review of PR #53, finding I1)
 
 ## Context
 
-ADR-0029 gave every thread a pool of the buffers of the candidates: a query that reads 500 candidates needs three arrays
+ADR-0032 gave every thread a pool of the buffers of the candidates: a query that reads 500 candidates needs three arrays
 of 500 entries — 60 KB — and they are the same size every time. The pool had twelve places, and one query (with the
 typo correction) needs nine of them at the same time.
 

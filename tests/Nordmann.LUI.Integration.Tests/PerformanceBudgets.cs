@@ -28,7 +28,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
     /// <summary>
     /// The targets that are missed on purpose, with the reason and the record that holds it. A target that is not here
-    /// has to be met. The owner's decisions of 2026-11-04 (ADR-0020) stated four targets anew, and they are asserted; ADR-0029
+    /// has to be met. The owner's decisions of 2026-11-04 (ADR-0020) stated four targets anew, and they are asserted; ADR-0032
     /// lowered the allocation (the causes of #30 are measured, the allocation is 83 % lower) and the build stays at four minutes
     /// with an issue for a faster first load (#32). Empty.
     /// </summary>
@@ -61,7 +61,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
         budget.AtMost("query p95, 1–4 characters", "3 M entries, no correction", Percentile(OfLength(inputs, latencies, 1, 4), 95), 5.0, "ms");
         budget.AtMost("query p95, 5–8 characters", "3 M entries, no correction", Percentile(OfLength(inputs, latencies, 5, 8), 95), 20.0, "ms");
 
-        // §16 since ADR-0029: the causes of #30 are measured and the allocation is lowered — the target is p50 ≤ 40 KB, p95 ≤ 90 KB
+        // §16 since ADR-0032: the causes of #30 are measured and the allocation is lowered — the target is p50 ≤ 40 KB, p95 ≤ 90 KB
         budget.AtMost("allocation p50", "per query, the same inputs", Percentile(allocations, 50) / 1024, 60, "KB");
         budget.AtMost("allocation p95", "per query, the same inputs (#30)", Percentile(allocations, 95) / 1024, 100, "KB");
 

@@ -4,18 +4,18 @@
 - **Date:** 2026-11-05
 - **Builds on:** [0004](./0004-the-dependency-set-and-the-deviation-from-the-closed-library-list.md) (the dependency set),
   [0011](./0011-the-multi-word-index.md) (the measures), [0018](./0018-two-packages-the-core-and-the-hosting-released-together.md)
-  (the runtime of the two packages), [0029](./0029-the-allocation-of-a-query.md) (the allocation of a query),
+  (the runtime of the two packages), [0032](./0032-the-allocation-of-a-query.md) (the allocation of a query),
   [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (the freeze of the public API)
 - **Affects:**
   - `src/Nordmann.LUI/Similarity/DamerauMeasure.cs` (new), `src/Nordmann.LUI/Similarity/LevenshteinMeasure.cs` (new),
-    `src/Nordmann.LUI/Similarity/JaroWinklerMeasure.cs` (ADR-0029)
+    `src/Nordmann.LUI/Similarity/JaroWinklerMeasure.cs` (ADR-0032)
   - `src/Nordmann.LUI/LuiSimilarity.cs`, `src/Nordmann.LUI/Nordmann.LUI.csproj` (the package reference),
     `Directory.Packages.props`
   - `tests/Nordmann.LUI.Unit.Tests/DamerauEquivalenceTests.cs` (new),
     `tests/Nordmann.LUI.Unit.Tests/LevenshteinEquivalenceTests.cs` (new),
     `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs` (the dependencies),
     `tests/Nordmann.LUI.Unit.Tests/Nordmann.LUI.Unit.Tests.csproj` (the package as a test dependency)
-  - spec §11, spec §17.3, ADR-0004, ADR-0018, ADR-0029, `docs/testing.md`, CHANGELOG
+  - spec §11, spec §17.3, ADR-0004, ADR-0018, ADR-0032, `docs/testing.md`, CHANGELOG
 - **Issue:** #30 (the owner's note on the issue)
 
 ## Context
@@ -24,7 +24,7 @@ ADR-0004 gave LUI two packages that the standards' closed library list does not 
 and `F23.StringSimilarity` for the four similarity measures of §11. The owner's note on issue #30: *"own
 Jaro-Winkler/Damerau/Levenshtein ⇒ F23 falls away ⇒ runtime dependencies 3 → 2 ⇒ that needs an ADR."*
 
-Two of the four measures were already LUI's own: the N-gram Dice (ADR-0011) and, since ADR-0029, the Jaro-Winkler. The
+Two of the four measures were already LUI's own: the N-gram Dice (ADR-0011) and, since ADR-0032, the Jaro-Winkler. The
 remaining two — Damerau-Levenshtein and Levenshtein — were still the library's, and the library **allocates per
 comparison**: a dictionary and a matrix of distances for the Damerau-Levenshtein (about 5 KB), two arrays for the
 Levenshtein (about 350 B). A query compares up to 500 candidates (§16), so the measure is on the hot path of every
@@ -84,7 +84,7 @@ machine and are to be measured there anew.
   licence in the dependency list, one less assembly in the output of an application that uses LUI.
 - **The numbers do not change**: a ranking that used `LuiSimilarity.DamerauLevenshtein` or `LuiSimilarity.Levenshtein`
   gives the same hits in the same order as before. The public API is unchanged — the measures are the same four, with
-  the same names and the same semantics; `ISpanSimilarity` (ADR-0029) stays internal.
+  the same names and the same semantics; `ISpanSimilarity` (ADR-0032) stays internal.
 - **`F23.StringSimilarity` remains a test dependency.** The parity tests need the library they replace; that is the
   point of a parity test.
 - **`symspell` stays.** It is the typo tolerance (§10), not a similarity measure; building it is the owner's open

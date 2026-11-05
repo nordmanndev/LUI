@@ -186,7 +186,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **A query allocates far less** ([ADR-0029](docs/adr/0029-the-allocation-of-a-query.md), #30). A single-word query with the
+- **A query allocates far less** ([ADR-0032](docs/adr/0032-the-allocation-of-a-query.md), #30). A single-word query with the
   budget of 500 candidates allocates **26.6 KB instead of 153.3 KB** (−83 %), a multi-word query **105.7 KB instead of
   185.2 KB** (−43 %); the cost per candidate falls from 302 B to 40 B. Three changes, all inside the library:
   - **LUI's own Jaro-Winkler** (`src/Nordmann.LUI/Similarity/JaroWinklerMeasure.cs`), bit-exact to

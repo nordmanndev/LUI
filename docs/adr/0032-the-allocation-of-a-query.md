@@ -1,4 +1,4 @@
-# 0029 — The allocation of a query: what it costs, and what it may cost
+# 0032 — The allocation of a query: what it costs, and what it may cost
 
 > **Name note (ADR-0031, 2026-11-05):** since this record was written, the rule of the pool has changed: when there is
 > no place left, **the smallest buffer goes** and the new one takes its place — before, the new buffer was dropped and
