@@ -195,6 +195,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The public API is unchanged — `ISpanSimilarity` is internal, and the exported types against the base of the branch are
   byte-identical. §16 carries the new target (p50 ≤ 60 KB, p95 ≤ 100 KB; measured p50 42 KB, p95 60 KB).
 
+- **The four similarity measures are LUI's own** ([ADR-0030](docs/adr/0030-the-similarity-measures-are-luis-own.md), #30). With
+  the Jaro-Winkler of the entry above, the **Damerau-Levenshtein** and the **Levenshtein** move into the library too, and
+  the runtime dependency on `F23.StringSimilarity` ends: the core ships **two** runtime dependencies now
+  (`Microsoft.Data.Sqlite`, `symspell`), and the library becomes a **test** dependency — the parity tests compare
+  against it.
+  - The numbers do not change: both measures are **bit-exact** to `F23.StringSimilarity` **7.0.1** — the packed version,
+    not the branch `main` (the two differ) — including the quirks that make up the definition: the Damerau-Levenshtein
+    is the **unrestricted** distance (a substring may be edited more than once), and the division by the longer text
+    and the subtraction from one keep the library's order, because the order decides where the rounding happens.
+  - The proof is a test **without a tolerance**: known pairs, 10,000 random pairs, every length against every length
+    up to 12, a long text — and **zero allocation** per comparison (the library allocated 5 KB for the
+    Damerau-Levenshtein and 350 B for the Levenshtein, per comparison, and a query compares up to 500 candidates).
+  - No change to the public API: the same four measures, with the same names and the same semantics.
+
 - **The public API before the freeze** ([ADR-0024](docs/adr/0024-the-api-polish-before-the-freeze.md), #42, from the
   architecture review of 2026-11-04). Renamed and tidied before the first release, so nobody has to migrate:
   - `AddIndex` registers an embedded index, **`AddLinkedIndex`** a linked one (with `applyPendingEvery`); the two were

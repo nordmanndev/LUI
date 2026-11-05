@@ -1,5 +1,10 @@
 # 0004 — The dependency set, and the deviation from the closed library list
 
+> **Name note (ADR-0030, 2026-11-05):** since this record was written, `F23.StringSimilarity` is **no longer a
+> dependency of the core**: the four similarity measures of §11 are LUI's own (ADR-0029, ADR-0030), and the package
+> remains a test dependency — the parity tests compare against the library they replace. The runtime dependencies of
+> `Nordmann.LUI` are `Microsoft.Data.Sqlite` and `symspell`. The text below is history and stays as it was written.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —

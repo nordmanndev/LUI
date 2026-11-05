@@ -608,17 +608,19 @@ public interface ILuiSimilarity
 }
 ```
 
-| Implementierung | Standard für | pro Vergleich (15 vs. 38 Zeichen) |
+| Implementierung | Standard für | Allokation pro Vergleich (15 vs. 38 Zeichen) |
 |---|---|---:|
-| `LuiSimilarity.JaroWinkler` | `SingleWord` | 4,5 µs, 336 B |
-| `LuiSimilarity.NgramDice` | `MultiWord` | 12,2 µs, 6,5 KB |
-| `LuiSimilarity.DamerauLevenshtein` | Codes, Nummern | 13,3 µs, 3,6 KB |
-| `LuiSimilarity.Levenshtein` | — | 6,4 µs, 352 B |
+| `LuiSimilarity.JaroWinkler` | `SingleWord` | **0 B** |
+| `LuiSimilarity.NgramDice` | `MultiWord` | **0 B** |
+| `LuiSimilarity.DamerauLevenshtein` | Codes, Nummern | **0 B** |
+| `LuiSimilarity.Levenshtein` | — | **0 B** |
 | eigene | — | — |
 
-Implementiert über `F23.StringSimilarity` (MIT). Die Ähnlichkeit wird **nur**
-für die Kandidaten berechnet (≤ `Candidates`) und nur in Stufe 2 des Rankings
-(§ 9.2).
+**LUIs eigene Maße** (ADR-0029, ADR-0030) — die Definitionen von `F23.StringSimilarity` (MIT), ohne deren
+Allokation; die Parität ist mit Tests **ohne Toleranz** gegen die Bibliothek bewiesen. Die **Zeiten** sind neu zu
+messen (ADR-0030): die eigenen Maße sind auf derselben Maschine so schnell oder schneller, die Sandbox-Box schwankt
+aber um den Faktor 2. Die Ähnlichkeit wird **nur** für die Kandidaten berechnet (≤ `Candidates`) und nur in Stufe 2
+des Rankings (§ 9.2).
 
 ---
 
@@ -975,7 +977,7 @@ Ein schnellerer erster Ladevorgang ist Issue #32.
 
 | Paket | Inhalt | Abhängigkeiten |
 |---|---|---|
-| `Nordmann.LUI` | alles, was keinen Host braucht — eine Konsolenanwendung braucht nur dieses | `Microsoft.Data.Sqlite`, `symspell`, `F23.StringSimilarity` |
+| `Nordmann.LUI` | alles, was keinen Host braucht — eine Konsolenanwendung braucht nur dieses | `Microsoft.Data.Sqlite`, `symspell` |
 | `Nordmann.LUI.Hosting` | `AddLui`, Keyed Services, die gehosteten Dienste (§ 12.7) | `Nordmann.LUI` derselben Version, die `Microsoft.Extensions.*`-Abstraktionen von `DependencyInjection`, `Hosting`, `Logging` |
 
 Der Kern startet keinen Thread und keinen Timer: Was im Hintergrund läuft, gehört dem Host. Das Hosting-Paket kennt nur

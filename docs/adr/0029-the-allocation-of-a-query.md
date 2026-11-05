@@ -5,6 +5,8 @@
 - **Builds on:** [0020](./0020-the-performance-budgets-measured.md) (the budgets of §16, measured),
   [0011](./0011-the-multi-word-index.md) (the measures), [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md)
   (the freeze of the public API)
+- **Followed by:** [0030](./0030-the-similarity-measures-are-luis-own.md) (the other three measures become LUI's own
+  too; the runtime dependency on F23 ends)
 - **Affects:**
   - `src/Nordmann.LUI/Similarity/JaroWinklerMeasure.cs` (new), `src/Nordmann.LUI/ISpanSimilarity.cs` (new),
     `src/Nordmann.LUI/Querying/ScoredBuffer.cs` (new)
@@ -39,6 +41,10 @@ every variant.
 of the branch is empty, and ADR-0026 freezes the API from 0.1.0 on.
 
 ### 1. LUI's own Jaro-Winkler, with the same number
+
+> **Superseded in part by ADR-0030:** the Jaro-Winkler was the first of the four measures to become LUI's own; the
+> other three followed, and the runtime dependency on F23 ended with them. The reasoning of this record — measure the
+> shares, then optimize, never without the proof — stayed.
 
 `F23.StringSimilarity.JaroWinkler` builds four arrays per comparison (about 200 B). A query compares up to 500 candidates,
 so the default measure of the library allocated **55.89 KB per query** — 36 % of the total of a single-word query.

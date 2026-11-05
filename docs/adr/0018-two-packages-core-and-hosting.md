@@ -1,5 +1,9 @@
 # 0018 — Two packages: the core and the hosting, released together
 
+> **Name note (ADR-0030, 2026-11-05):** since this record was written, the runtime of the core is
+> `Microsoft.Data.Sqlite` and `symspell` — `F23.StringSimilarity` is no longer among them (ADR-0030). The text below is
+> history and stays as it was written.
+
 > **Name note (ADR-0024, 2026-11-04):** since this record was written, `LuiRow` is `LuiPayloadRow`, `LuiSyncResult` is
 > `LuiLinkedSyncReport`, `LuiPriorityRanking` is `LuiPriorityMode` (`Priorities` → `PriorityMode`), `LuiTimings.Candidates`
 > is `CandidateRead`, the linked overload of `AddIndex` is `AddLinkedIndex`, and `Check()`, `WarmUpTypoDictionary` and

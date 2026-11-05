@@ -1,13 +1,12 @@
 using System.Buffers;
-using F23.StringSimilarity;
 using Nordmann.LUI.Similarity;
 
 namespace Nordmann.LUI;
 
 /// <summary>
-/// The similarity measures LUI ships (LUI-Spezifikation §11), implemented on
-/// <c>F23.StringSimilarity</c>. All of them are stateless and may be shared
-/// between threads.
+/// The similarity measures LUI ships (LUI-Spezifikation §11) — all of them LUI's own now: the
+/// definitions of <c>F23.StringSimilarity</c>, without its allocation (issue #30, ADR-0029). All of
+/// them are stateless and may be shared between threads.
 /// </summary>
 public static class LuiSimilarity
 {
@@ -172,30 +171,17 @@ public static class LuiSimilarity
 
     private sealed class DamerauLevenshteinSimilarity : ILuiSimilarity, ISpanSimilarity
     {
-        private readonly Damerau _measure = new();
+        public double Similarity(string query, string text) => DamerauMeasure.Similarity(query, text);
 
-
-        public double Similarity(string query, string text)
-        {
-            var longest = Math.Max(query.Length, text.Length);
-            return longest == 0 ? 1.0 : 1.0 - (_measure.Distance(query, text) / longest);
-        }
-
-        double ISpanSimilarity.Similarity(ReadOnlySpan<char> query, ReadOnlySpan<char> text)
-        {
-            var longest = Math.Max(query.Length, text.Length);
-            return longest == 0 ? 1.0 : 1.0 - (_measure.Distance(query, text) / longest);
-        }
+        double ISpanSimilarity.Similarity(ReadOnlySpan<char> query, ReadOnlySpan<char> text) =>
+            DamerauMeasure.Similarity(query, text);
     }
 
     private sealed class LevenshteinSimilarity : ILuiSimilarity, ISpanSimilarity
     {
-        private readonly NormalizedLevenshtein _measure = new();
-
-
-        public double Similarity(string query, string text) => _measure.Similarity(query, text);
+        public double Similarity(string query, string text) => LevenshteinMeasure.Similarity(query, text);
 
         double ISpanSimilarity.Similarity(ReadOnlySpan<char> query, ReadOnlySpan<char> text) =>
-            _measure.Similarity(query, text);
+            LevenshteinMeasure.Similarity(query, text);
     }
 }
