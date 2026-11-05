@@ -24,6 +24,13 @@ internal static class SampleSeed
     {
         foreach (var index in indexes.All)
         {
+            // A bulk index is filled by the button of the index panel, not by the seed (ADR-0029): its source is what the user
+            // asks for, and nothing is asked for until then.
+            if (index is IBulkSampleIndex)
+            {
+                continue;
+            }
+
             if (index.Describe().Count == 0)
             {
                 index.Sync(CancellationToken.None);

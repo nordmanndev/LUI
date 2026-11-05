@@ -65,13 +65,20 @@ public static class SampleApp
                     .WithPayload(["kind", "color"], row => new TagPayload(row.GetString("kind"), row.GetString("color")))
                     .TypoTolerance(),
                 applyPendingEvery: TimeSpan.FromSeconds(2))
+            // The bulk indexes (ADR-0029): they hold what a source produces for the number the user asks for. They are empty
+            // until the button of the index panel fills them — a fill of a million entries takes minutes, and nobody pays for it
+            // who does not want it.
+            .AddIndex("words", index => index.SingleWord())
+            .AddIndex("people", index => index.MultiWord().TypoTolerance())
+            .AddIndex("hashtags", index => index.SingleWord())
             .WarmUpTypoDictionariesOnStart();
 
         services.AddSingleton<RequestStats>();
+        services.AddSingleton<FillJobs>();
         services.AddSingleton(provider => new SampleIndexes(Facades(provider, connectionString)));
     }
 
-    /// <summary>The three indexes behind the page, each with the description the index panel shows.</summary>
+    /// <summary>The indexes behind the page, each with the description the index panel shows.</summary>
     private static List<ISampleIndex> Facades(IServiceProvider provider, string connectionString) =>
     [
         new EmbeddedSampleIndex<RecipePayload>(
@@ -91,6 +98,15 @@ public static class SampleApp
             connectionString,
             payloadDescription: "columns kind, color — read from the table",
             description: "Tags in the application's own table. 'vegan' has the priority System and comes first for every input it matches."),
+        new BulkSampleIndex(
+            provider.GetRequiredKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("words"),
+            new WordSource(GermanWordList.Find())),
+        new BulkSampleIndex(
+            provider.GetRequiredKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("people"),
+            new PeopleSource()),
+        new BulkSampleIndex(
+            provider.GetRequiredKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("hashtags"),
+            new HashtagSource()),
     ];
 
     /// <summary>The static client, behind a strict policy: no inline script, no inline style, so the escaping in the client is not the only thing between a hostile entry and the DOM.</summary>

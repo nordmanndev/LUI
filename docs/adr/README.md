@@ -60,3 +60,4 @@ here — in the **same pull request** as the change it describes.
 | [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) | The public API from 0.1.0 on grows only additively: a breaking change needs a minor version, a migration note and an ADR | Accepted |
 | [0027](./0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md) | The sample: flexdatalist against the whole API, a modular client, one fetch boundary | Accepted |
 | [0028](./0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md) | LUI has no Highlight: a correction is shown as a question (#20 struck) | Accepted |
+| [0029](./0029-the-sample-fills-its-own-bulk-indexes-on-demand.md) | The sample fills its own bulk indexes on demand: a word list, Bogus names and tags, behind a button | Accepted |

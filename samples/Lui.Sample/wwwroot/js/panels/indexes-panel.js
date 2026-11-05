@@ -1,6 +1,7 @@
 import { api } from '../net/api.js';
 import { clear, el } from '../core/dom.js';
 import { number } from '../core/format.js';
+import { mountFillForm } from './fill-form.js';
 
 /**
  * The rest of the public surface of LUI, as buttons and forms: what an index is, what the application writes to it, and
@@ -67,6 +68,7 @@ export function mountIndexesPanel({ root, bus, meta }) {
                 button('Warm up typos', 'WarmUpTypoDictionary()', () => api.warmUpTypos(info.name)),
                 button('Rebuild typos', 'RebuildTypoDictionary() — forgets removed words', () => api.rebuildTypos(info.name))),
             info.storage === 'Linked' ? linkedForms(info, run, button) : embeddedForms(info, run),
+            info.source ? mountFillForm({ info, bus }) : null,
             output);
     }
 

@@ -11,4 +11,6 @@ internal sealed record IndexInfo(
     string Payload,
     string Description,
     long? Pending,
-    string? Triggers);
+    string? Triggers,
+    string? Source = null,
+    long? Capacity = null);

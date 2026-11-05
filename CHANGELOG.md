@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The sample fills its own bulk indexes** ([ADR-0029](docs/adr/0029-the-sample-fills-its-own-bulk-indexes-on-demand.md)). Three
+  indexes beside the curated ones — `words` (the German word list, one word per entry), `people` (the full names of Bogus's
+  German locale) and `hashtags` (a place and a surname, joined by a hyphen) — are created and loaded by a button in the index
+  panel: you say how many entries the index should hold, and the fill runs in the background while the page shows its progress.
+  The word list is looked up in `LUI_WORDLIST`, then in `artifacts/wordlist/`, then in the curated subset of the tests; the panel
+  says which one it found. Bogus is a dependency of the sample alone — the two packages keep theirs. The index panel stands in
+  the column of the page instead of across it, and the settings scroll themselves when the window is short: they lay over the
+  indexes otherwise. No change to the public API.
+
 - **The sample** ([ADR-0027](docs/adr/0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md), #51). `samples/Lui.Sample` is an
   ASP.NET Core application with three autocompletes built with flexdatalist — recipes (embedded, JSON payload), tags (linked to
   the application's table, column payload, priority System, add-new through triggers and the outbox) and names (typo

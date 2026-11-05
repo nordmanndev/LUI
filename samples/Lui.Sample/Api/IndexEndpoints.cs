@@ -21,6 +21,7 @@ internal static class IndexEndpoints
         MapEmbedded(index);
         MapLinked(index);
         MapMaintenance(index);
+        MapFill(index);
     }
 
     private static void MapMeta(RouteGroupBuilder api)
@@ -118,6 +119,28 @@ internal static class IndexEndpoints
                 sample.RebuildTypoDictionary(token);
                 return sample.Describe().TypoDictionaryState;
             })));
+    }
+
+    /// <summary>
+    /// The fill of a bulk index (ADR-0029): the button of the index panel. The index is loaded in the background — a fill of a
+    /// million entries takes minutes — and the panel watches it through the status.
+    /// </summary>
+    private static void MapFill(RouteGroupBuilder index)
+    {
+        index.MapPost("/fill", (string name, FillRequest request, SampleIndexes indexes, FillJobs jobs) =>
+            With(indexes, name, sample => sample is IBulkSampleIndex bulk
+                ? Results.Json(jobs.Start(bulk, request.Count), statusCode: StatusCodes.Status202Accepted)
+                : Problems.Conflict($"'{name}' is not a bulk index: its entries are the ones of the sample.")));
+
+        index.MapGet("/fill", (string name, SampleIndexes indexes, FillJobs jobs) =>
+            With(indexes, name, sample => sample is IBulkSampleIndex
+                ? Results.Ok(jobs.Status(name))
+                : Problems.Conflict($"'{name}' is not a bulk index: its entries are the ones of the sample.")));
+
+        index.MapPost("/fill/cancel", (string name, SampleIndexes indexes, FillJobs jobs) =>
+            With(indexes, name, sample => sample is IBulkSampleIndex
+                ? Results.Ok(new { cancelled = jobs.Cancel(name) })
+                : Problems.Conflict($"'{name}' is not a bulk index: its entries are the ones of the sample.")));
     }
 
     private static IResult With(SampleIndexes indexes, string name, Func<ISampleIndex, IResult> action) =>

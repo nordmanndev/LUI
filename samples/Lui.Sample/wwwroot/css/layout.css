@@ -33,6 +33,7 @@
 
 @media (min-width: 1000px) {
   .layout { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
-  .settings { position: sticky; top: 12px; }
-  .wide { grid-column: 1 / -1; }
+  /* The settings are longer than the column they stand in. Sticky, they stay beside the column — and scroll themselves
+     when the window is shorter than they are, so that they never lie over what is below them. */
+  .settings { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
 }

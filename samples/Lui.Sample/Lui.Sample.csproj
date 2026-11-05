@@ -18,6 +18,9 @@
 
   <ItemGroup>
     <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all" />
+    <!-- Bogus, the fake data the bulk indexes are filled with (ADR-0029). The sample is not shipped; the two packages keep
+         their dependency set. -->
+    <PackageReference Include="Bogus" />
   </ItemGroup>
 
 </Project>

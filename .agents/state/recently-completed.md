@@ -5,6 +5,24 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-05 — The sample fills its own bulk indexes (ADR-0029)
+
+- ADR-0029. Three indexes beside the curated ones — `words` (the German word list), `people` (Bogus's German full names),
+  `hashtags` (a place and a surname, joined by a hyphen) — filled by a button in the index panel: a number of entries, a
+  background fill, the progress of the sync polled by the page. The source of a bulk index is a function of the number and is
+  prefix-stable, so a fill with fewer entries removes the rest and a fill with more adds only what is missing.
+- The word list is looked up in `LUI_WORDLIST`, then `artifacts/wordlist/`, then the curated subset of the tests; the panel names
+  the source. Bogus 35.6.5 is a dependency of the sample alone.
+- New: `Data/IBulkSource`, `BulkWeights`, `RepositoryRoot`, `GermanWordList`, `WordSource`, `PeopleSource`, `HashtagSource`;
+  `Indexes/IBulkSampleIndex`, `BulkSampleIndex`; `Api/FillRequest`, `FillStatus`, `FillJob`, `FillJobs`; the client modules
+  `scenarios/words.js`, `people.js`, `hashtags.js`, `panels/fill-form.js`. Changed: `IndexInfo` (source, capacity), the fill
+  routes, `SampleApp`, `SampleSeed` (the bulk indexes are not seeded), `Directory.Packages.props`.
+- Tests: `SampleBulkTests` (the fill, the progress, exactly the number of entries, the numbers that are refused) and the client
+  test of the progress text. The map of the tests (`docs/testing.md`) knows the new file.
+- The page: the index panel stands in the column of the layout instead of across it, and the settings scroll themselves when
+  the window is short. The settings are longer than the column they stand in, so they lay over the index panel otherwise — a
+  bug of ADR-0027's layout, visible for the first time with six cards.
+
 ## 2026-11-04 — #42: the API polish before the freeze
 
 - ADR-0024. `AddLinkedIndex`; `LuiPriorityMode`/`PriorityMode`; `LuiTimings.CandidateRead`; `entries`; `LuiPayloadRow` (a kept
