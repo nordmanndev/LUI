@@ -21,8 +21,8 @@ public sealed class BatchPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var single = catalog.Index("single").SingleWord().Ensure();
-        var batch = catalog.Index("batch").SingleWord().Ensure();
+        var single = catalog.Index("single").SingleWord().Create();
+        var batch = catalog.Index("batch").SingleWord().Create();
 
         var loop = Stopwatch.StartNew();
         for (var i = 0; i < entries; i++)

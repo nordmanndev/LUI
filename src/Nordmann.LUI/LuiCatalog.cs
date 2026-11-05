@@ -1,3 +1,4 @@
+using System.Globalization;
 using Microsoft.Data.Sqlite;
 using Nordmann.LUI.Indexes;
 using Nordmann.LUI.Normalization;
@@ -86,7 +87,7 @@ public sealed class LuiCatalog : IDisposable
     }
 
     /// <summary>
-    /// Starts describing an index: <c>Index("tags").SingleWord().Ensure()</c>. Each step offers only what may
+    /// Starts describing an index: <c>Index("tags").SingleWord().Create()</c>. Each step offers only what may
     /// follow it, so an index without a kind does not compile.
     /// </summary>
     /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
@@ -98,14 +99,169 @@ public sealed class LuiCatalog : IDisposable
     }
 
     /// <summary>
+    /// Opens an index that exists, and writes nothing (ADR-0033): the definition is read out of <c>lui_meta</c>, the
+    /// index is rebuilt from it, and the file is not touched — no table, no definition, no write lock. It is the way
+    /// into a database that is written elsewhere: a replica, a file that is read-only, a service that may not write.
+    /// <para>
+    /// The index comes as the untyped facade: the key as the text it is stored as, the payload as the raw JSON
+    /// (<see langword="null"/> when the index stores none). The similarity is the default of the kind of the index,
+    /// and the typo tolerance is off — a query asks for a correction (<see cref="LuiQueryOptions.TypoTolerance"/>).
+    /// </para>
+    /// </summary>
+    /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
+    /// <returns>The index; it reads and does not write.</returns>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">
+    /// The index was written by another version of the library: another schema version or another folding.
+    /// </exception>
+    public ILuiDocumentIndex OpenIndex(string name)
+    {
+        var entry = ReadEntry(name);
+        var source = BuildSource(name, entry.Definition);
+
+        return new DocumentIndex(Database, TypoDictionaries, new DocumentSource(source), source.Rules.DefaultSimilarity);
+    }
+
+    /// <summary>
+    /// Opens an index that exists, and writes nothing (ADR-0033) — with the types of the application: the key is a
+    /// <see cref="long"/> or a <see cref="string"/>, the payload the object of a serialiser.
+    /// <para>
+    /// The types are checked against the file: a key type the index does not have, or a payload the index does not
+    /// store, is an error that says which one it is. The index is opened, not created: it reads and does not write.
+    /// </para>
+    /// </summary>
+    /// <typeparam name="TKey">The key of the application: <see cref="long"/> or <see cref="string"/>.</typeparam>
+    /// <typeparam name="TPayload">The payload that comes back with a hit.</typeparam>
+    /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
+    /// <param name="payload">The serialiser of the payload; <see langword="null"/> when the index stores none.</param>
+    /// <returns>The index; it reads and does not write.</returns>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">
+    /// The index was written by another version of the library, or it is not the index the caller asked for: another
+    /// schema version, another folding, another key type, another payload.
+    /// </exception>
+    public ILuiEmbeddedIndex<TKey, TPayload> OpenIndex<TKey, TPayload>(
+        string name,
+        ILuiPayloadSerializer<TPayload>? payload = null)
+    {
+        var entry = ReadEntry(name);
+        var definition = entry.Definition;
+        EnsureEmbedded(name, definition);
+        EnsureKeyType<TKey>(name, definition);
+        EnsurePayload<TPayload>(name, definition, payload);
+
+        var source = new EmbeddedSource(name, definition);
+        var index = new EmbeddedIndex<TKey, TPayload>(
+            Database,
+            TypoDictionaries,
+            source,
+            payload,
+            source.Rules.DefaultSimilarity,
+            typoTolerance: false);
+
+        return new ReadOnlyEmbeddedIndex<TKey, TPayload>(index);
+    }
+
+    /// <summary>The stored index of a name, with the two checks every index has to pass: the schema version it was written
+    /// with, and the folding it was stored with.
+    /// </summary>
+    /// <param name="name">The name of the index.</param>
+    /// <returns>What <c>lui_meta</c> holds about the index.</returns>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The schema version or the folding is another one.</exception>
+    private IndexStoreEntry ReadEntry(string name)
+    {
+        var validated = Identifier.ValidateIndexName(name, nameof(name));
+        Database.ThrowIfDisposed();
+
+        var entry = IndexStore.ReadIndex(Database, validated)
+            ?? throw new LuiIndexNotFoundException(validated);
+
+        if (entry.SchemaVersion != Meta.SchemaVersion)
+        {
+            throw Mismatch(
+                validated,
+                $"the schema version {entry.SchemaVersion.ToString(CultureInfo.InvariantCulture)}",
+                $"the schema version {Meta.SchemaVersion.ToString(CultureInfo.InvariantCulture)}");
+        }
+
+        if (!string.Equals(entry.Definition.FoldTable, TokenizerFold.Version, StringComparison.Ordinal))
+        {
+            throw Mismatch(
+                validated,
+                $"the fold table {entry.Definition.FoldTable}",
+                $"the fold table {TokenizerFold.Version}");
+        }
+
+        return entry;
+    }
+
+    /// <summary>The content source of the stored definition: <c>Embedded</c> or <c>Linked</c>.</summary>
+    private static ContentSource BuildSource(string name, IndexDefinition definition) =>
+        definition.Source switch
+        {
+            EmbeddedSource.SourceName => new EmbeddedSource(name, definition),
+            LinkedSource.SourceName => new LinkedSource(name, definition),
+            var other => throw Mismatch(name, $"the content source {other}", "a content source of this version (Embedded or Linked)"),
+        };
+
+    /// <summary>The typed path opens an embedded index; a linked one is read with the untyped facade.</summary>
+    private static void EnsureEmbedded(string name, IndexDefinition definition)
+    {
+        if (!string.Equals(definition.Source, EmbeddedSource.SourceName, StringComparison.Ordinal))
+        {
+            throw Mismatch(name, $"the content source {definition.Source}", $"the content source {EmbeddedSource.SourceName}");
+        }
+    }
+
+    /// <summary>The key type of the caller against the key type of the file.</summary>
+    private static void EnsureKeyType<TKey>(string name, IndexDefinition definition)
+    {
+        var keyType = KeyCodec<TKey>.KeyType;
+        if (!string.Equals(definition.KeyType, keyType, StringComparison.Ordinal))
+        {
+            throw Mismatch(name, $"the key type {definition.KeyType}", $"the key type {keyType}");
+        }
+    }
+
+    /// <summary>The payload of the caller against the payload of the file.</summary>
+    private static void EnsurePayload<TPayload>(
+        string name,
+        IndexDefinition definition,
+        ILuiPayloadSerializer<TPayload>? payload)
+    {
+        var wanted = payload is not null;
+        if (definition.Payload != wanted)
+        {
+            throw Mismatch(
+                name,
+                definition.Payload ? "a payload" : "no payload",
+                wanted ? "a payload" : "no payload");
+        }
+    }
+
+    /// <summary>
+    /// The mismatch of the read path (ADR-0033): an index that is opened is never rebuilt, so the way out is another
+    /// way to open it — or a new index.
+    /// </summary>
+    private static LuiDefinitionMismatchException Mismatch(string name, string stored, string requested) =>
+        new(
+            name,
+            stored,
+            requested,
+            "An index that is opened is never rebuilt silently: ask for the types it has "
+            + "(OpenIndex(name) — the untyped facade — gives the key as the text it is stored as and the payload as the "
+            + "raw JSON), or remove the index with LuiCatalog.DropIndex(name) and create it again.");
+
+    /// <summary>
     /// Removes an index with its tables, indexes and triggers and its row in <c>lui_meta</c>. It works whatever
     /// the stored definition is — it is the way out of a <see cref="LuiDefinitionMismatchException"/>. Index
-    /// objects that were created before do not survive it: ensure the index again and use the new object.
+    /// objects that were created before do not survive it: create the index again and use the new object.
     /// <para>
     /// For a <c>Linked</c> index the application's table and its rows stay. Its triggers, if the index has some on
     /// the table, are removed only with <paramref name="dropTriggers"/>: they write into the tables that go, so they
     /// cannot stay — but a migration of the application may count on them, and their removal is not done silently
-    /// (review of pull request 16, M3). <b>After the drop and a new <c>Ensure()</c> a linked index is empty and has no
+    /// (review of pull request 16, M3). <b>After the drop and a new <c>Create()</c> a linked index is empty and has no
     /// triggers</b>: <c>Sync()</c> fills it, and <c>CreateTriggers()</c> — or the migration — sets them again.
     /// </para>
     /// </summary>

@@ -221,7 +221,7 @@ public sealed class LinkedIndexTests
                 (4, 'veganismus',  999999999, 3);
             """);
         using var catalog = database.Open();
-        var tags = catalog.Index("tags").SingleWord().LinkTo("tag", "id", "name", weight: "usage_count", priority: "priority").Ensure();
+        var tags = catalog.Index("tags").SingleWord().LinkTo("tag", "id", "name", weight: "usage_count", priority: "priority").Create();
         tags.Sync();
 
         var hits = tags.Search("vegan").Hits;
@@ -245,7 +245,7 @@ public sealed class LinkedIndexTests
         var tags = catalog.Index("tags").SingleWord()
             .LinkTo("tag", "id", "name", weight: "usage_count")
             .WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.IsNull("color") ? null : row.GetString("color")))
-            .Ensure();
+            .Create();
         tags.Sync();
 
         var hits = tags.Search("vegan").Hits;
@@ -271,7 +271,7 @@ public sealed class LinkedIndexTests
                 kept.Add(row);
                 return row.GetString("slug");
             })
-            .Ensure();
+            .Create();
         tags.Sync();
 
         var hits = tags.Search("vegan").Hits;
@@ -294,11 +294,11 @@ public sealed class LinkedIndexTests
         using var catalog = database.Open();
 
         Should.Throw<LuiLinkedTableException>(() => catalog.Index("tags").SingleWord()
-                .LinkTo("tag", "id", "name").WithPayload(["shade"], row => row.GetString("shade")).Ensure())
+                .LinkTo("tag", "id", "name").WithPayload(["shade"], row => row.GetString("shade")).Create())
             .Message.ShouldContain("'shade'");
 
         var tags = catalog.Index("tags").SingleWord().LinkTo("tag", "id", "name")
-            .WithPayload(["slug"], row => row.GetString("color")).Ensure();
+            .WithPayload(["slug"], row => row.GetString("color")).Create();
         tags.Sync();
 
         Should.Throw<ArgumentException>(() => tags.Search("vegan")).Message.ShouldContain("WithPayload");
@@ -350,7 +350,7 @@ public sealed class LinkedIndexTests
         Run(database, "CREATE TABLE recipe (id INTEGER PRIMARY KEY, title TEXT NOT NULL, views INTEGER NOT NULL);");
         Run(database, "INSERT INTO recipe VALUES (1, 'Apfel Kuchen', 10), (2, 'Bratapfelkuchen', 1000), (3, 'Gedeckter Apfelkuchen', 500);");
         using var catalog = database.Open();
-        var recipes = catalog.Index("recipes").MultiWord().LinkTo("recipe", "id", "title", weight: "views").Ensure();
+        var recipes = catalog.Index("recipes").MultiWord().LinkTo("recipe", "id", "title", weight: "views").Create();
         recipes.Sync();
 
         recipes.Search("kuchen apfel").Hits[0].Text.ShouldBe("Apfel Kuchen");
@@ -372,7 +372,7 @@ public sealed class LinkedIndexTests
         using var catalog = database.Open();
         var linked = Tags(catalog);
         linked.Sync();
-        var embedded = catalog.Index("embedded").SingleWord().Ensure();
+        var embedded = catalog.Index("embedded").SingleWord().Create();
         embedded.UpsertMany(rows.Select(row => new LuiEntry<long, LuiNoPayload>(row.Item1, row.Item2!) { Weight = row.Item3 }));
 
         foreach (var input in new[] { "a", "ap", "apf", "kuchen", "nka", "veg", "#äpf", "äpfel", "strasse", "torte3", "zimtz" })
@@ -389,7 +389,7 @@ public sealed class LinkedIndexTests
         Run(database, Table);
         Insert(database, (1, "Apfelkuchen", 10));
         using var catalog = database.Open();
-        var tags = catalog.Index("tags").SingleWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count").Ensure();
+        var tags = catalog.Index("tags").SingleWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count").Create();
         tags.Sync();
 
         tags.Search("apflekuchen").CorrectedQuery.ShouldBe("apfelkuchen");
@@ -549,7 +549,7 @@ public sealed class LinkedIndexTests
         using var catalog = database.Open();
         Tags(catalog);
 
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags").SingleWord().LinkTo("tag", "id", "slug").Ensure());
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags").SingleWord().LinkTo("tag", "id", "slug").Create());
         Should.NotThrow(() => Tags(catalog));
     }
 
@@ -574,7 +574,7 @@ public sealed class LinkedIndexTests
         Run(database, "CREATE TABLE \"Tags\" (\"Id\" INTEGER PRIMARY KEY, \"Name\" TEXT NOT NULL, \"UsageCount\" INTEGER NOT NULL);");
         Run(database, "INSERT INTO \"Tags\" VALUES (1, 'vegan', 5);");
         using var catalog = database.Open();
-        var tags = catalog.Index("tags").SingleWord().LinkTo("Tags", "Id", "Name", weight: "UsageCount").Ensure();
+        var tags = catalog.Index("tags").SingleWord().LinkTo("Tags", "Id", "Name", weight: "UsageCount").Create();
 
         tags.Sync().Indexed.ShouldBe(1);
         tags.Search("veg").Hits.ShouldHaveSingleItem().Weight.ShouldBe(5);
@@ -631,7 +631,7 @@ public sealed class LinkedIndexTests
         tags.Triggers().ShouldBe(LuiTriggerState.Current);
 
         // an index whose name begins like this one's has triggers of its own
-        catalog.Index("tags_all").SingleWord().LinkTo("tag", "id", "name").Ensure().CreateTriggers();
+        catalog.Index("tags_all").SingleWord().LinkTo("tag", "id", "name").Create().CreateTriggers();
         tags.Triggers().ShouldBe(LuiTriggerState.Current);
     }
 
@@ -663,7 +663,7 @@ public sealed class LinkedIndexTests
         Run(database, "CREATE TABLE recipe (id INTEGER PRIMARY KEY, title TEXT NOT NULL, views INTEGER NOT NULL);");
         Run(database, "INSERT INTO recipe VALUES (1, 'Apfel Kuchen', 10), (2, 'Kuchen mit Apfel', 5);");
         using var catalog = database.Open();
-        var recipes = catalog.Index("recipes").MultiWord().LinkTo("recipe", "id", "title", weight: "views").Ensure();
+        var recipes = catalog.Index("recipes").MultiWord().LinkTo("recipe", "id", "title", weight: "views").Create();
         recipes.Sync();
 
         Run(database, "UPDATE recipe SET title = 'Birnen Torte' WHERE id = 1;");
@@ -810,9 +810,9 @@ public sealed class LinkedIndexTests
         using var catalog = database.Open();
         Tags(catalog);
 
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags").SingleWord().LinkTo("tag", "id", "slug").Ensure())
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags").SingleWord().LinkTo("tag", "id", "slug").Create())
             .Message.ShouldContain("dropTriggers: true");
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("embedded").SingleWord().Ensure().Count() + catalog.Index("embedded").MultiWord().Ensure().Count())
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("embedded").SingleWord().Create().Count() + catalog.Index("embedded").MultiWord().Create().Count())
             .Message.ShouldNotContain("dropTriggers");
     }
 
@@ -836,7 +836,7 @@ public sealed class LinkedIndexTests
     }
 
     private static ILuiLinkedIndex<LuiNoPayload> Tags(LuiCatalog catalog) =>
-        catalog.Index("tags").SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").Ensure();
+        catalog.Index("tags").SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").Create();
 
     private static void Insert(TestDatabase database, params (long Id, string? Name, int Weight)[] rows)
     {

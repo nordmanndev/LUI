@@ -13,7 +13,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "Apfelkuchen", 10);
         index.Upsert(2, "Birne", 10);
 
@@ -25,7 +25,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "Äpfel", 10);
         index.Upsert(2, "Straße", 10);
         index.Upsert(3, "Café", 10);
@@ -51,7 +51,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().GermanTransliteration(false).Ensure();
+        var index = catalog.Index("tags").SingleWord().GermanTransliteration(false).Create();
         index.Upsert(1, "Müller", 10);
 
         index.Query("mueller").Execute().Hits.ShouldBeEmpty();
@@ -63,7 +63,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "apfel", 5);
         index.Upsert(2, "ananas", 50);
         index.Upsert(3, "aprikose", 30);
@@ -79,7 +79,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "kuchen apfel", 1);
 
         index.Query("ap").Execute().Hits.ShouldBeEmpty();
@@ -90,7 +90,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "#Bahnhof", 10);
         index.Upsert(2, "Äpfel", 10);
 
@@ -107,7 +107,7 @@ public sealed class SingleWordQueryTests
         // more (Ä is transliterated first); another accented capital is found from three characters on.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "Éclair", 10);
 
         index.Query("e").Execute().Hits.ShouldBeEmpty();
@@ -119,7 +119,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "apfel", 10);
 
         var hit = index.Query("ap").Execute().Hits.ShouldHaveSingleItem();
@@ -136,7 +136,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "apfel", 10);
 
         var result = index.Query(input).Execute();
@@ -160,7 +160,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "apfelkuchen", 10);
         index.Upsert(2, "birne", 10);
 
@@ -173,7 +173,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "das \"beste\" rezept", 10);
         index.Upsert(2, "das beste rezept", 10);
 
@@ -185,7 +185,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "bratapfelkuchen", 100_000);
         index.Upsert(2, "apfelkuchen", 10);
         index.Upsert(3, "gedeckter apfelkuchen", 20);
@@ -201,7 +201,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "apfelkuchenrezept", 1_000);
         index.Upsert(2, "apfelkuchen", 10);
         index.Upsert(3, "apfelkuchen mit sahne und zimt", 5_000);
@@ -215,7 +215,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "kuchen" + new string('x', 200), 5);  // word start, but nothing like the input
         index.Upsert(2, "xkuchen", 100);                      // no word start, much like the input
 
@@ -230,7 +230,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "apfelkuchen", 100);
         index.Upsert(2, "bratapfelkuchen", 0, priority: LuiPriority.System);
 
@@ -243,7 +243,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "kuchen a", 100);
         index.Upsert(2, "kuchen b", 1, priority: LuiPriority.High);
 
@@ -257,7 +257,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "Vegan", 900_000);
         index.Upsert(2, "vegan", 5, priority: LuiPriority.System);
         index.Upsert(3, "veganer kuchen", 10);
@@ -275,7 +275,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         for (var i = 1; i <= 30; i++)
         {
             index.Upsert(i, $"kuchen{i:00}", i);
@@ -300,7 +300,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         for (var i = 1; i <= 30; i++)
         {
             index.Upsert(i, $"kuchen{i:00}", i);
@@ -318,7 +318,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         for (var i = 1; i <= 30; i++)
         {
             index.Upsert(i, $"kuchen{i:00}", i);
@@ -336,7 +336,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "apfelkuchen", 10);
 
         var jaro = index.Query("apfelkuchen").Execute().Hits[0].Similarity;
@@ -354,7 +354,7 @@ public sealed class SingleWordQueryTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var index = catalog.Index("tags").SingleWord()
-            .Similarity(new ConstantSimilarity(0.25)).Ensure();
+            .Similarity(new ConstantSimilarity(0.25)).Create();
         index.Upsert(1, "apfelkuchen", 10);
 
         index.Query("apfel").Execute().Hits.ShouldHaveSingleItem().Similarity.ShouldBe(0.25);
@@ -365,7 +365,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "apfelkuchen", 10);
 
         index.Query("apfel").Execute().Timings.ShouldBeNull();
@@ -380,7 +380,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "apfelkuchen", 10);
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
@@ -396,7 +396,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         Should.Throw<ArgumentOutOfRangeException>(() => index.Query("apfel").Take(take).Execute());
     }
@@ -410,7 +410,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         Should.Throw<ArgumentOutOfRangeException>(() => index.Query("apfel").Candidates(candidates).Execute());
     }
@@ -420,7 +420,7 @@ public sealed class SingleWordQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         var result = index.Query("Äpfel").Execute();
 

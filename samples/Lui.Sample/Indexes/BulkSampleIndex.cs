@@ -82,7 +82,7 @@ internal sealed class BulkSampleIndex(LuiCatalog catalog, IBulkSource source) : 
             ? catalog.Index(source.Name).MultiWord()
             : catalog.Index(source.Name).SingleWord();
 
-        return source.TypoTolerance ? builder.TypoTolerance().Ensure() : builder.Ensure();
+        return source.TypoTolerance ? builder.TypoTolerance().Create() : builder.Create();
     }
 
     /// <summary>The entries of the source for the number the index holds.</summary>

@@ -36,7 +36,7 @@ public sealed class LuiServicesBuilder
     /// <param name="index">Describes the index, from its kind on.</param>
     /// <returns>The builder.</returns>
     /// <exception cref="ArgumentException">The name is empty, or it is registered already. A name that is not a valid index
-    /// name (<c>^[a-z][a-z0-9_]{0,40}$</c>) fails when the index is ensured — on start.</exception>
+    /// name (<c>^[a-z][a-z0-9_]{0,40}$</c>) fails when the index is created — on start.</exception>
     public LuiServicesBuilder AddIndex<TKey, TPayload>(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder<TKey, TPayload>> index)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
@@ -44,7 +44,7 @@ public sealed class LuiServicesBuilder
 
         _registrations.Add(new IndexRegistration(
             name,
-            Ensure: provider => provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name),
+            Create: provider => provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name),
             WarmUp: (provider, token) =>
             {
                 var index = provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name);
@@ -52,7 +52,7 @@ public sealed class LuiServicesBuilder
             }));
 
         Services.AddKeyedSingleton<ILuiEmbeddedIndex<TKey, TPayload>>(
-            name, (provider, _) => index(provider.GetRequiredService<LuiCatalog>().Index(name)).Ensure());
+            name, (provider, _) => index(provider.GetRequiredService<LuiCatalog>().Index(name)).Create());
         Services.AddKeyedSingleton<ILuiIndex<TKey, TPayload>>(
             name, (provider, _) => provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name));
         return this;
@@ -74,7 +74,7 @@ public sealed class LuiServicesBuilder
     /// </param>
     /// <returns>The builder.</returns>
     /// <exception cref="ArgumentException">The name is empty, or it is registered already. A name that is not a valid index
-    /// name (<c>^[a-z][a-z0-9_]{0,40}$</c>) fails when the index is ensured — on start.</exception>
+    /// name (<c>^[a-z][a-z0-9_]{0,40}$</c>) fails when the index is created — on start.</exception>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="applyPendingEvery"/> is not positive.</exception>
     public LuiServicesBuilder AddLinkedIndex<TPayload>(
         string name,
@@ -90,7 +90,7 @@ public sealed class LuiServicesBuilder
 
         _registrations.Add(new LinkedIndexRegistration(
             name,
-            Ensure: provider => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name),
+            Create: provider => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name),
             WarmUp: (provider, token) =>
             {
                 var index = provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name);
@@ -100,15 +100,72 @@ public sealed class LuiServicesBuilder
             ApplyPendingEvery: applyPendingEvery));
 
         Services.AddKeyedSingleton<ILuiLinkedIndex<TPayload>>(
-            name, (provider, _) => index(provider.GetRequiredService<LuiCatalog>().Index(name)).Ensure());
+            name, (provider, _) => index(provider.GetRequiredService<LuiCatalog>().Index(name)).Create());
         Services.AddKeyedSingleton<ILuiIndex<long, TPayload>>(
             name, (provider, _) => provider.GetRequiredKeyedService<ILuiLinkedIndex<TPayload>>(name));
         return this;
     }
 
     /// <summary>
-    /// Whether every index is ensured when the host starts (default: on). Off, an index is ensured when it is first
-    /// resolved — a definition that does not match then fails that request, not the start.
+    /// Adds an index that the host <b>opens</b> instead of creating it (ADR-0033): the index has to exist, and the
+    /// file is never written — no table, no definition, no write lock. It is the way into a database that is written
+    /// elsewhere: a replica, a file that is read-only, a service that may not write.
+    /// <para>
+    /// The index comes as the untyped facade: the key as the text it is stored as, the payload as the raw JSON. It is
+    /// registered under <paramref name="name"/> as <see cref="ILuiDocumentIndex"/>.
+    /// </para>
+    /// </summary>
+    /// <param name="name">The name of the index — and the key of its services.</param>
+    /// <returns>The builder.</returns>
+    /// <exception cref="ArgumentException">The name is empty, or it is registered already.</exception>
+    public LuiServicesBuilder AddOpenIndex(string name)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        _registrations.Add(new OpenIndexRegistration(
+            name,
+            Open: provider => provider.GetRequiredKeyedService<ILuiDocumentIndex>(name)));
+
+        Services.AddKeyedSingleton<ILuiDocumentIndex>(
+            name, (provider, _) => provider.GetRequiredService<LuiCatalog>().OpenIndex(name));
+        return this;
+    }
+
+    /// <summary>
+    /// Adds an index that the host <b>opens</b> instead of creating it (ADR-0033) — with the types of the application:
+    /// the key is a <see cref="long"/> or a <see cref="string"/>, the payload the object of a serialiser.
+    /// <para>
+    /// The index has to exist, and the file is never written. It is registered under <paramref name="name"/> as
+    /// <see cref="ILuiEmbeddedIndex{TKey, TPayload}"/> and <see cref="ILuiIndex{TKey, TPayload}"/>; every write
+    /// through it is refused, because it reads and does not write.
+    /// </para>
+    /// </summary>
+    /// <typeparam name="TKey">The key of the application: <see cref="long"/> or <see cref="string"/>.</typeparam>
+    /// <typeparam name="TPayload">The payload that comes back with a hit.</typeparam>
+    /// <param name="name">The name of the index — and the key of its services.</param>
+    /// <param name="payload">The serialiser of the payload; <see langword="null"/> when the index stores none.</param>
+    /// <returns>The builder.</returns>
+    /// <exception cref="ArgumentException">The name is empty, or it is registered already.</exception>
+    public LuiServicesBuilder AddOpenIndex<TKey, TPayload>(
+        string name,
+        ILuiPayloadSerializer<TPayload>? payload = null)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        _registrations.Add(new OpenIndexRegistration(
+            name,
+            Open: provider => provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name)));
+
+        Services.AddKeyedSingleton<ILuiEmbeddedIndex<TKey, TPayload>>(
+            name, (provider, _) => provider.GetRequiredService<LuiCatalog>().OpenIndex<TKey, TPayload>(name, payload));
+        Services.AddKeyedSingleton<ILuiIndex<TKey, TPayload>>(
+            name, (provider, _) => provider.GetRequiredKeyedService<ILuiEmbeddedIndex<TKey, TPayload>>(name));
+        return this;
+    }
+
+    /// <summary>
+    /// Whether every index is created when the host starts (default: on). Off, an index is created — or opened — when
+    /// it is first resolved — a definition that does not match then fails that request, not the start.
     /// <para>
     /// Hosted services start in the order of their registration, and <c>AddLui</c> registers this one: a hosted service
     /// the application adds later — a migration that creates the table of a linked index — starts after it. Register the

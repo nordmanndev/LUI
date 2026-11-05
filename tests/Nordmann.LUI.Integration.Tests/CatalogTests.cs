@@ -96,7 +96,7 @@ public sealed class CatalogTests
         using var catalog = database.Open();
 
         Should.Throw<NotSupportedException>(
-            () => catalog.Index("tags").SingleWord().WithKey<Guid>().Ensure());
+            () => catalog.Index("tags").SingleWord().WithKey<Guid>().Create());
     }
 
     [Fact]
@@ -104,7 +104,7 @@ public sealed class CatalogTests
     {
         using var database = new TestDatabase();
         var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "vegan", 5);
 
         catalog.Dispose();
@@ -131,7 +131,7 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         var catalog = database.Open();
         var blocking = new BlockingSerializer();
-        var index = catalog.Index("tags").SingleWord().WithPayload(blocking).Ensure();
+        var index = catalog.Index("tags").SingleWord().WithPayload(blocking).Create();
         index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan") });
 
         var query = Task.Run(() => index.Query("vegan").Execute());
@@ -154,7 +154,7 @@ public sealed class CatalogTests
         var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2026, 11, 2, 12, 0, 0, TimeSpan.Zero));
         using var catalog = database.Open(new LuiCatalogOptions { TimeProvider = clock });
 
-        catalog.Index("tags").SingleWord().Ensure();
+        catalog.Index("tags").SingleWord().Create();
 
         database.Scalar<string>("SELECT created_at FROM lui_meta WHERE index_name = 'tags'")
             .ShouldStartWith("2026-11-02T12:00:00");

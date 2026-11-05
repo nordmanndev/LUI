@@ -15,7 +15,7 @@ public sealed class EmbeddedIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Index("recipes").SingleWord().Ensure();
+        catalog.Index("recipes").SingleWord().Create();
 
         var tables = Names(database, "type = 'table'");
         tables.Contains("lui_recipes", StringComparer.Ordinal).ShouldBeTrue();
@@ -31,7 +31,7 @@ public sealed class EmbeddedIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Index("recipes").SingleWord().Ensure();
+        catalog.Index("recipes").SingleWord().Create();
 
         database.Scalar<string>("SELECT kind FROM lui_meta WHERE index_name = 'recipes'").ShouldBe("SingleWord");
         database.Scalar<string>("SELECT source FROM lui_meta WHERE index_name = 'recipes'").ShouldBe("Embedded");
@@ -44,10 +44,10 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var first = catalog.Index("tags").SingleWord().Ensure();
+        var first = catalog.Index("tags").SingleWord().Create();
         first.Upsert(1, "vegan", 5);
 
-        var second = catalog.Index("tags").SingleWord().Ensure();
+        var second = catalog.Index("tags").SingleWord().Create();
 
         second.Count().ShouldBe(1);
         database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(1);
@@ -58,10 +58,10 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("tags").SingleWord().Ensure();
+        catalog.Index("tags").SingleWord().Create();
 
         var exception = Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index("tags").SingleWord().GermanTransliteration(false).Ensure());
+            () => catalog.Index("tags").SingleWord().GermanTransliteration(false).Create());
 
         exception.IndexName.ShouldBe("tags");
         exception.Stored.ShouldContain("\"germanTransliteration\":true");
@@ -75,10 +75,10 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("tags").SingleWord().Ensure();
+        catalog.Index("tags").SingleWord().Create();
 
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure());
+            () => catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Create());
     }
 
     [Fact]
@@ -86,10 +86,10 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("tags").SingleWord().Ensure();
+        catalog.Index("tags").SingleWord().Create();
 
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index("tags").SingleWord().WithKey<string>().Ensure());
+            () => catalog.Index("tags").SingleWord().WithKey<string>().Create());
     }
 
     [Fact]
@@ -97,7 +97,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("tags").SingleWord().Ensure();
+        catalog.Index("tags").SingleWord().Create();
 
         using (var connection = database.Connect())
         {
@@ -107,7 +107,7 @@ public sealed class EmbeddedIndexTests
         }
 
         var exception = Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index("tags").SingleWord().Ensure());
+            () => catalog.Index("tags").SingleWord().Create());
         exception.Stored.ShouldContain("old-");
     }
 
@@ -116,7 +116,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("tags").SingleWord().Ensure().Upsert(1, "vegan", 5);
+        catalog.Index("tags").SingleWord().Create().Upsert(1, "vegan", 5);
 
         catalog.DropIndex("tags").ShouldBeTrue();
 
@@ -125,7 +125,7 @@ public sealed class EmbeddedIndexTests
         catalog.DropIndex("tags").ShouldBeFalse();
 
         // and the index can be ensured again, with another definition
-        Should.NotThrow(() => catalog.Index("tags").SingleWord().GermanTransliteration(false).Ensure());
+        Should.NotThrow(() => catalog.Index("tags").SingleWord().GermanTransliteration(false).Create());
     }
 
     [Fact]
@@ -133,8 +133,8 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Index("tags").SingleWord().Ensure();
-        var words = catalog.Index("words").SingleWord().Ensure();
+        var tags = catalog.Index("tags").SingleWord().Create();
+        var words = catalog.Index("words").SingleWord().Create();
 
         tags.Upsert(1, "vegan", 5);
         words.Upsert(1, "apfelkuchen", 5);
@@ -149,7 +149,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         index.Upsert(7, "apfelkuchen", 10);
         index.Upsert(7, "birnenkuchen", 20);
@@ -167,7 +167,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         index.Upsert(1, "#Äpfel", 1);
 
@@ -181,7 +181,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "kuchen a", 10);
         index.Upsert(2, "kuchen b", 20);
         index.Query("kuchen").Rank(LuiRankingOrder.WeightOnly).Execute().Hits[0].Key.ShouldBe(2);
@@ -197,7 +197,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "kuchen a", 10);
         index.Upsert(2, "kuchen b", 20);
 
@@ -213,7 +213,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         index.UpdateWeight(99, 1).ShouldBeFalse();
         index.UpdatePriority(99, LuiPriority.High).ShouldBeFalse();
@@ -225,7 +225,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "apfelkuchen", 10);
 
         index.Remove(1).ShouldBeTrue();
@@ -240,7 +240,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         for (var i = 1; i <= 50; i++)
         {
@@ -272,7 +272,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         Should.Throw<ArgumentOutOfRangeException>(() => index.Upsert(1, "a", -1));
         Should.Throw<ArgumentOutOfRangeException>(() => index.Upsert(1, "a", 536_870_912));
@@ -287,7 +287,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         index.Upsert(1, "vegan", 536_870_911);
 
@@ -299,7 +299,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         Should.Throw<ArgumentException>(() => index.Upsert(1, string.Empty, 1));
         Should.Throw<ArgumentNullException>(() => index.Upsert(1, null!, 1));
@@ -310,7 +310,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().WithKey<string>().Ensure();
+        var index = catalog.Index("tags").SingleWord().WithKey<string>().Create();
 
         index.Upsert("rezept-42", "apfelkuchen", 10);
         index.UpdateWeight("rezept-42", 11).ShouldBeTrue();
@@ -324,7 +324,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        var index = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Create();
 
         index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan", "#0a0") });
         index.Upsert(2, "veganer-kuchen", 4);
@@ -340,7 +340,7 @@ public sealed class EmbeddedIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var serializer = new CountingSerializer();
-        var index = catalog.Index("tags").SingleWord().WithPayload(serializer).Ensure();
+        var index = catalog.Index("tags").SingleWord().WithPayload(serializer).Create();
         for (var i = 1; i <= 200; i++)
         {
             index.Upsert(new(i, $"kuchen{i:000}") { Weight = i, Payload = new Chip($"k{i}") });
@@ -358,7 +358,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "apfelkuchen", 10);
 
         using (var connection = database.Connect())
@@ -390,11 +390,11 @@ public sealed class EmbeddedIndexTests
         using var database = new TestDatabase();
         using (var catalog = database.Open())
         {
-            catalog.Index("tags").SingleWord().Ensure().Upsert(1, "vegan", 5);
+            catalog.Index("tags").SingleWord().Create().Upsert(1, "vegan", 5);
         }
 
         using var again = database.Open();
-        var index = again.Index("tags").SingleWord().Ensure();
+        var index = again.Index("tags").SingleWord().Create();
 
         index.Query("vegan").Execute().Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
     }

@@ -132,7 +132,7 @@ try
 {
     using (var catalog = LuiCatalog.Open($"Data Source={path}"))
     {
-        var tags = catalog.Index("tags").SingleWord().Ensure();
+        var tags = catalog.Index("tags").SingleWord().Create();
         tags.Upsert(1, "Apfelkuchen", weight: 10);
         tags.Upsert(2, "Bratapfelkuchen", weight: 1000);
         tags.Upsert(3, "vegan", weight: 5, priority: LuiPriority.System);
@@ -142,7 +142,7 @@ try
         Console.WriteLine($"apfelkuch -> {first}; gan -> {system}");
 
         // and a multi-word index: the order of the words and the spaces do not matter
-        var titles = catalog.Index("titles").MultiWord().TypoTolerance().Ensure();
+        var titles = catalog.Index("titles").MultiWord().TypoTolerance().Create();
         titles.Upsert(1, "Apfel Kuchen", weight: 10);
         titles.Upsert(2, "Bratapfelkuchen", weight: 1000);
 

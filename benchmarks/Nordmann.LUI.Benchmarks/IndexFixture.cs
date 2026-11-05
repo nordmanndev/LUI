@@ -19,7 +19,7 @@ internal sealed class IndexFixture : IDisposable
 
         var builder = Catalog.Index("bench");
         var described = kind == CorpusKind.MultiWord ? builder.MultiWord() : builder.SingleWord();
-        Index = (typoTolerance ? described.TypoTolerance() : described).Ensure();
+        Index = (typoTolerance ? described.TypoTolerance() : described).Create();
         Index.Sync(Corpus.Entries(), new LuiSyncOptions { BatchSize = 100_000 });
     }
 

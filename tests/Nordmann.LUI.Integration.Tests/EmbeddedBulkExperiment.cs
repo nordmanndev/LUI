@@ -56,7 +56,7 @@ public sealed class EmbeddedBulkExperiment(ITestOutputHelper output)
     {
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
-        var index = catalog.Index("words").SingleWord().Ensure();
+        var index = catalog.Index("words").SingleWord().Create();
 
         // the catalog's writer has the cache of the options; a plain connection would measure SQLite's 2 MB default
         using var connection = database.Connect();

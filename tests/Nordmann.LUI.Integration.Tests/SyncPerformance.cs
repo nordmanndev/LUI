@@ -37,7 +37,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
-        var index = catalog.Index("words").SingleWord().Ensure();
+        var index = catalog.Index("words").SingleWord().Create();
 
         var report = Timed("sync, empty index", () => index.Sync(source, options));
         Report($"  {report}");
@@ -66,7 +66,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
             return 0;
         });
 
-        var upserted = catalog.Index("upserted").SingleWord().Ensure();
+        var upserted = catalog.Index("upserted").SingleWord().Create();
         Timed("UpsertMany of the same entries", () => upserted.UpsertMany(source));
         var (upserted50, upserted95) = QueryTimes(upserted, Inputs(source, random));
         Report($"query after the first sync p50/p95 {synced50:F2}/{synced95:F2} ms · after UpsertMany {upserted50:F2}/{upserted95:F2} ms");
@@ -87,7 +87,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var index = catalog.Index("words").SingleWord().TypoTolerance().Create();
         Timed("sync, empty index", () => index.Sync(source, new LuiSyncOptions { BatchSize = 1_000_000 }));
         Timed("warm-up of the typo dictionary", () =>
         {

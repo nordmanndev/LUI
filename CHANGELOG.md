@@ -9,6 +9,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The read path opens an index without writing** ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md),
+  #56). A second way into an index: the definition is read out of `lui_meta`, the index is rebuilt from it, and the
+  file is not touched — no table, no definition, no write lock. It is the way into a database that is written
+  elsewhere: a replica, a file that is read-only, a service that may not write.
+  - `LuiCatalog.OpenIndex(name)` gives the untyped facade `ILuiDocumentIndex`: the key comes as the text it is stored
+    as, the payload as the raw JSON (`null` when the index stores none). A hit is a `LuiDocumentHit`.
+  - `LuiCatalog.OpenIndex<TKey, TPayload>(name, payload?)` gives the typed index — and every write through it is
+    refused, because it reads and does not write.
+  - The existence of the index, the version of its schema and the version of its folding are checked when it is
+    opened, and a mismatch says what is wrong: the new `LuiIndexNotFoundException` (with the name of the index) and
+    `LuiDefinitionMismatchException`.
+  - The similarity is the default of the kind of the index and the typo tolerance is off; a query asks for a
+    correction (`LuiQueryOptions.TypoTolerance`).
+  - In the container: `AddOpenIndex(name)` and `AddOpenIndex<TKey, TPayload>(name, payload?)` register an index that
+    the host **opens** instead of creating it. `AddIndex` keeps its meaning — it creates the index, or opens it if it
+    is there.
+
 - **The sample fills its own bulk indexes** ([ADR-0029](docs/adr/0029-the-sample-fills-its-own-bulk-indexes-on-demand.md)). Three
   indexes beside the curated ones — `words` (the German word list, one word per entry), `people` (the full names of Bogus's
   German locale) and `hashtags` (a place and a surname, joined by a hyphen) — are created and loaded by a button in the tab of
@@ -132,7 +149,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     (`CacheSizeMegabytes`, `MemoryMapMegabytes`, `BusyTimeout`, `TimeProvider`), and
     `lui_meta`. `Dispose()` waits for the operations that are running.
   - `catalog.Index(name).SingleWord().WithKey<TKey>().WithPayload(…)
-    .Similarity(…).GermanTransliteration(…).Ensure()` and `DropIndex(name)`; the
+    .Similarity(…).GermanTransliteration(…).Create()` and `DropIndex(name)`; the
     result is an `ILuiEmbeddedIndex<TKey, TPayload>`.
   - Writes: `Upsert`, `UpdateWeight`, `UpdatePriority`, `Remove`, `Count` —
     also inside the application's `SqliteTransaction`
@@ -195,6 +212,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Truncated` is no longer set for a linked index when the only row after the budget is an outdated one (#26).
 
 ### Changed
+
+- **`Ensure()` is `Create()`** ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md), #56). The write
+  path of an index creates it — or opens it when it is there with the same definition. The name said "ensure", which
+  is a promise the method cannot keep: it does not create a definition that is missing, it compares it.
+  - **Migration**: `lui.Index(name).SingleWord().Ensure()` → `lui.Index(name).SingleWord().Create()`; the old name is
+    gone, not deprecated. `LuiCatalog.Open(connectionString, options)` stays as it is — it opens the *catalog*, and the
+    read path of an index has the name `OpenIndex` beside it. The read path itself is new and changes nothing that
+    exists.
 
 - **A query allocates far less** ([ADR-0032](docs/adr/0032-the-allocation-of-a-query.md), #30). A single-word query with the
   budget of 500 candidates allocates **26.6 KB instead of 153.3 KB** (−83 %), a multi-word query **105.7 KB instead of
@@ -272,12 +297,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **The builder: an embedded index is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;
   `SingleWord()`/`MultiWord()` return a `LuiEmbeddedIndexBuilder<long, LuiNoPayload>` — an embedded index, or with
   `LinkTo(…)` a linked one (review of PR #16, N1); the builder types and the `…<TKey>()` steps of earlier pre-release
-  builds are gone, `WithKey<string>()` chooses a text key. `lui.Index("tags").SingleWord().Ensure()` is a whole index.
+  builds are gone, `WithKey<string>()` chooses a text key. `lui.Index("tags").SingleWord().Create()` is a whole index.
 - `DropIndex` decides by the stored source and refuses a source it does not know.
 
 - **The API shape before the first release** ([ADR-0013](docs/adr/0013-the-api-shape-before-the-first-release.md)) —
   a break on purpose, while it costs nothing:
-  - A staged builder: `lui.Index(name).SingleWord().WithPayload(…).TypoTolerance().Ensure()`. An index
+  - A staged builder: `lui.Index(name).SingleWord().WithPayload(…).TypoTolerance().Create()`. An index
     without a kind does not compile; the key type is checked at `WithKey<TKey>()`; a payload is optional
     (`LuiNoPayload` until `WithPayload`). `TypoTolerance(int maxEdits)` is `TypoTolerance(bool enabled = true)`.
     `Drop()` is `LuiCatalog.DropIndex(name)`.

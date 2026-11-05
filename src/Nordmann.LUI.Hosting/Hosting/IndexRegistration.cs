@@ -7,9 +7,9 @@ namespace Nordmann.LUI.Hosting;
 /// (review of 2026-11-04, C.2, issue #40 — a type, not two fields that are <see langword="null"/> for the other kind).
 /// </summary>
 /// <param name="Name">The name of the index — the key of its services.</param>
-/// <param name="Ensure">Resolves the index from the container: the first resolution ensures it.</param>
+/// <param name="Create">Resolves the index from the container: the first resolution creates it.</param>
 /// <param name="WarmUp">Builds the typo dictionary of an index with typo tolerance; says whether it did.</param>
 internal record IndexRegistration(
     string Name,
-    Action<IServiceProvider> Ensure,
+    Action<IServiceProvider> Create,
     Func<IServiceProvider, CancellationToken, bool> WarmUp);

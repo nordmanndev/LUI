@@ -4,7 +4,7 @@ namespace Nordmann.LUI.Schema;
 
 /// <summary>
 /// What defines an index: everything that decides what its tables hold. It is
-/// stored in <c>lui_meta</c> as JSON and compared on every <c>Ensure()</c>.
+/// stored in <c>lui_meta</c> as JSON and compared on every <c>Create()</c>.
 /// <para>
 /// The similarity measure is not part of it: it is a default of the query and
 /// changes no table.

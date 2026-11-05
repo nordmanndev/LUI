@@ -8,7 +8,7 @@ namespace Nordmann.LUI;
 /// <summary>
 /// Describes an index whose content lives in a table of the library, <c>lui_&lt;name&gt;</c> — <c>Embedded</c>, the
 /// default (LUI-Spezifikation §5, §12.2): the application writes through the index. Every method is optional and
-/// returns a builder; <see cref="Ensure"/> finishes it. An index over a table of the application starts here too,
+/// returns a builder; <see cref="Create"/> finishes it. An index over a table of the application starts here too,
 /// with <c>LinkTo(…)</c>, as long as no key and no payload are chosen.
 /// </summary>
 /// <typeparam name="TKey">The key of the application: <see cref="long"/> (the default) or <see cref="string"/>.</typeparam>
@@ -84,7 +84,7 @@ public sealed class LuiEmbeddedIndexBuilder<TKey, TPayload>
     /// <summary>
     /// The default similarity measure of the queries of this index. Default: Jaro-Winkler for a single-word
     /// index, N-gram Dice for a multi-word one. It is a property of <b>this instance</b>, not of the stored
-    /// index: it changes no table, so it is not part of the definition, and two <c>Ensure()</c> calls with
+    /// index: it changes no table, so it is not part of the definition, and two <c>Create()</c> calls with
     /// different measures give two instances that rank differently.
     /// </summary>
     /// <param name="similarity">The measure.</param>
@@ -135,7 +135,7 @@ public sealed class LuiEmbeddedIndexBuilder<TKey, TPayload>
     /// </summary>
     /// <returns>The index.</returns>
     /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
-    public ILuiEmbeddedIndex<TKey, TPayload> Ensure()
+    public ILuiEmbeddedIndex<TKey, TPayload> Create()
     {
         var definition = new IndexDefinition(
             _kind,
@@ -146,7 +146,7 @@ public sealed class LuiEmbeddedIndexBuilder<TKey, TPayload>
             TokenizerFold.Version);
 
         var source = new EmbeddedSource(_name, definition);
-        IndexStore.Ensure(_catalog.Database, source, _catalog.TimeProvider.GetUtcNow());
+        IndexStore.Create(_catalog.Database, source, _catalog.TimeProvider.GetUtcNow());
 
         return new EmbeddedIndex<TKey, TPayload>(
             _catalog.Database,

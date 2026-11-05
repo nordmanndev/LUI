@@ -5,8 +5,9 @@ namespace Nordmann.LUI.Hosting;
 
 /// <summary>
 /// Ensures every registered index when the host starts (LUI-Spezifikation §12.7): a definition that does not match, or a
-/// linked table that does not fit, stops the start — not the first request. If asked, it then builds the typo
-/// dictionaries in the background, so the first typo does not pay for them (ADR-0013).
+/// linked table that does not fit, stops the start — not the first request. An index that is opened instead of created
+/// has to exist, and the file stays as it is (ADR-0033). If asked, it then builds the typo dictionaries in the
+/// background, so the first typo does not pay for them (ADR-0013).
 /// </summary>
 internal sealed partial class LuiStartup(IServiceProvider services, LuiRegistrations registrations, ILogger<LuiStartup> logger)
     : IHostedService, IDisposable
@@ -21,7 +22,14 @@ internal sealed partial class LuiStartup(IServiceProvider services, LuiRegistrat
             foreach (var index in registrations.Indexes)
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                index.Ensure(services);
+                index.Create(services);
+            }
+
+            // the indexes that are opened: they have to exist, and the file stays as it is (ADR-0033)
+            foreach (var index in registrations.OpenedIndexes)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                index.Open(services);
             }
         }
 

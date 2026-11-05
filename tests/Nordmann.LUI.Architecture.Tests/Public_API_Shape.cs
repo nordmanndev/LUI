@@ -88,6 +88,7 @@ public sealed class Public_API_Shape
         [
             "LuiHit`2", "LuiResult`2", "LuiTimings", "LuiQueryOptions", "LuiCatalogOptions",
             "LuiLinkedSyncReport", "LuiSyncOptions", "LuiSyncReport", "LuiIntegrityReport",
+            "LuiDocumentHit",
         ];
 
         var offenders = LibraryAssembly
@@ -119,7 +120,11 @@ public sealed class Public_API_Shape
         exceptions.Where(type => !typeof(LuiException).IsAssignableFrom(type)).Select(type => type.Name)
             .ShouldBeEmpty("Every public exception derives from LuiException.");
         exceptions.Select(type => type.Name).Order(StringComparer.Ordinal)
-            .ShouldBe(["LuiDefinitionMismatchException", "LuiEnvironmentException", "LuiException", "LuiLinkedTableException"]);
+            .ShouldBe(
+            [
+                "LuiDefinitionMismatchException", "LuiEnvironmentException", "LuiException",
+                "LuiIndexNotFoundException", "LuiLinkedTableException",
+            ]);
     }
 
     [Fact]
@@ -185,6 +190,78 @@ public sealed class Public_API_Shape
 
         offenders.ShouldBeEmpty("No public type, member or parameter says 'Owned' — the content source is 'Embedded'.");
         types.ShouldContain(type => string.Equals(type.Name, "ILuiEmbeddedIndex`2", StringComparison.Ordinal), "the guard sees the renamed type");
+    }
+
+    [Fact]
+    public void The_catalog_opens_an_index_and_the_write_path_has_its_new_name()
+    {
+        // ADR-0033: the read path has a name of its own — `OpenIndex`, because `Open` is the static factory of the
+        // catalog and a second `Open` would hide it. `Ensure` is gone from the public surface: the write path is
+        // `Create`, and the name is not deprecated but gone (ADR-0026 allows that before 0.1.0).
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+
+        var opened = typeof(LuiCatalog).GetMethods(declared)
+            .Where(method => string.Equals(method.Name, "OpenIndex", StringComparison.Ordinal))
+            .ToArray();
+
+        var untyped = opened.Where(method => !method.IsGenericMethodDefinition).ToArray();
+        untyped.ShouldHaveSingleItem();
+        untyped[0].ReturnType.ShouldBe(typeof(ILuiDocumentIndex));
+        untyped[0].GetParameters().Select(parameter => parameter.ParameterType).ShouldBe([typeof(string)]);
+
+        var typed = opened.Where(method => method.IsGenericMethodDefinition).ToArray();
+        typed.ShouldHaveSingleItem();
+        typed[0].ReturnType.GetGenericTypeDefinition().ShouldBe(typeof(ILuiEmbeddedIndex<,>));
+        typed[0].GetGenericArguments().Length.ShouldBe(2, "the key and the payload");
+
+        var facade = typeof(ILuiDocumentIndex).GetMembers(declared)
+            .Where(member => member is not MethodInfo { IsSpecialName: true })
+            .Select(member => member.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        facade.ShouldBe(["Count", "Kind", "Name", "Search", "TypoTolerance"]);
+
+        var hit = typeof(LuiDocumentHit).GetProperties(declared)
+            .Select(property => property.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        hit.ShouldBe(["AtWordStart", "Key", "Payload", "Priority", "Similarity", "Text", "Weight"]);
+
+        // the retired name of the write path is gone — `EnsureOnStart` of the hosting package is a setting, not the
+        // method that was renamed
+        var retired = PackageAssemblies
+            .SelectMany(assembly => assembly.GetExportedTypes())
+            .SelectMany(type => type.GetMethods(
+                BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly))
+            .Where(method => string.Equals(method.Name, "Ensure", StringComparison.Ordinal))
+            .Select(method => $"{method.DeclaringType?.Name}.{method.Name}")
+            .ToArray();
+        retired.ShouldBeEmpty("Ensure() is Create() now");
+    }
+
+    [Fact]
+    public void The_container_can_open_an_index_instead_of_creating_it()
+    {
+        // ADR-0033: `AddIndex` creates the index (or opens it if it is there), `AddOpenIndex` only opens it — the index
+        // has to exist, and the file is never written.
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+
+        var builder = Assembly.Load("Nordmann.LUI.Hosting").GetExportedTypes()
+            .Single(type => string.Equals(type.Name, "LuiServicesBuilder", StringComparison.Ordinal));
+
+        var methods = builder.GetMethods(declared)
+            .Where(method => string.Equals(method.Name, "AddOpenIndex", StringComparison.Ordinal))
+            .ToArray();
+
+        var untyped = methods.Where(method => !method.IsGenericMethodDefinition).ToArray();
+        untyped.ShouldHaveSingleItem();
+        untyped[0].ReturnType.ShouldBe(builder);
+        untyped[0].GetParameters().Select(parameter => parameter.ParameterType).ShouldBe([typeof(string)]);
+
+        var typed = methods.Where(method => method.IsGenericMethodDefinition).ToArray();
+        typed.ShouldHaveSingleItem();
+        typed[0].ReturnType.ShouldBe(builder);
+        typed[0].GetGenericArguments().Length.ShouldBe(2, "the key and the payload");
     }
 
     [Fact]

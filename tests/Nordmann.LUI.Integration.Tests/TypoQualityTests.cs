@@ -24,7 +24,7 @@ public sealed class TypoQualityTests(ITestOutputHelper output)
         var words = Words();
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var index = catalog.Index("words").SingleWord().TypoTolerance().Create();
         Load(catalog, index, words);
 
         var random = new Random(1000 + length);

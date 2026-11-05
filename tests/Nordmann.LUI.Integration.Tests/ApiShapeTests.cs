@@ -39,7 +39,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        var index = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Create();
 
         index.Upsert(new LuiEntry<long, Chip>(1, "vegan") { Weight = 5, Payload = new Chip("v"), Priority = LuiPriority.System });
         index.Upsert(1, "vegan", 7);
@@ -57,7 +57,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        var index = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Create();
 
         var written = index.UpsertMany(Enumerable.Range(1, 1_000).Select(
             i => new LuiEntry<long, Chip>(i, $"kuchen{i}") { Weight = i, Payload = new Chip($"k{i}") }));
@@ -72,7 +72,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         index.UpsertMany(
         [
@@ -90,7 +90,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         Should.Throw<InvalidOperationException>(() => index.UpsertMany(FailingAfter(10)));
 
@@ -107,7 +107,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         using var cancellation = new CancellationTokenSource();
 
         IEnumerable<LuiEntry<long, LuiNoPayload>> Entries()
@@ -133,7 +133,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
 
         using (var connection = database.Connect())
         using (var transaction = connection.BeginTransaction())
@@ -160,8 +160,8 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var batch = catalog.Index("batch").SingleWord().TypoTolerance().Ensure();
-        var single = catalog.Index("single").SingleWord().TypoTolerance().Ensure();
+        var batch = catalog.Index("batch").SingleWord().TypoTolerance().Create();
+        var single = catalog.Index("single").SingleWord().TypoTolerance().Create();
         foreach (var index in new[] { batch, single })
         {
             index.Upsert(1, "Apfelkuchen", 10);
@@ -182,8 +182,8 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var batch = catalog.Index("batch").SingleWord().Ensure();
-        var single = catalog.Index("single").SingleWord().Ensure();
+        var batch = catalog.Index("batch").SingleWord().Create();
+        var single = catalog.Index("single").SingleWord().Create();
 
         var writer = Task.Run(() =>
         {
@@ -210,7 +210,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         var query = index.Query("vegan");
 
         // the builder throws at the call, not later in Execute()
@@ -285,7 +285,7 @@ public sealed class ApiShapeTests
             .GermanTransliteration(false)
             .Similarity(new Constant(0.25))
             .WithPayload(ChipJsonContext.Default.Chip)
-            .Ensure();
+            .Create();
         index.Upsert(new LuiEntry<long, Chip>(1, "Apfelkuchen") { Weight = 10, Payload = new Chip("a") });
 
         // the typo tolerance
@@ -296,7 +296,7 @@ public sealed class ApiShapeTests
 
         // the transliteration: it is part of the definition, so an index with it on is another index
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index("words").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure());
+            () => catalog.Index("words").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Create());
     }
 
     [Fact]
@@ -306,7 +306,7 @@ public sealed class ApiShapeTests
         // application and learns its words when they are written. The rollback itself is correct.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("titles").MultiWord().TypoTolerance().Ensure();
+        var index = catalog.Index("titles").MultiWord().TypoTolerance().Create();
         index.Upsert(1, "Schifffahrt", 10);
         index.WarmUpTypoDictionary();
         index.Search("schiffb").CorrectedQuery.ShouldBe("schifff");
@@ -335,7 +335,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.UpsertMany(Enumerable.Range(1, 30).Select(i => new LuiEntry<long, LuiNoPayload>(i, $"kuchen{i}") { Weight = i }));
 
         var result = index.Search("kuchen");
@@ -349,7 +349,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var index = catalog.Index("tags").SingleWord().Create();
         index.Upsert(1, "vegan", 5);
 
         ILuiIndex<long, LuiNoPayload> reader = index;
@@ -364,9 +364,9 @@ public sealed class ApiShapeTests
         // Review of 2026-11-04, A.8: a caller that separates LUI's conditions from its own errors had no type for it
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("words").SingleWord().Ensure();
+        catalog.Index("words").SingleWord().Create();
 
-        var mismatch = Record.Exception(() => catalog.Index("words").MultiWord().Ensure());
+        var mismatch = Record.Exception(() => catalog.Index("words").MultiWord().Create());
 
         mismatch.ShouldBeOfType<LuiDefinitionMismatchException>();
         mismatch.ShouldBeAssignableTo<LuiException>();
@@ -403,7 +403,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("tags").SingleWord().Ensure().Upsert(1, "vegan", 5);
+        catalog.Index("tags").SingleWord().Create().Upsert(1, "vegan", 5);
 
         catalog.DropIndex("tags").ShouldBeTrue();
         catalog.DropIndex("tags").ShouldBeFalse();

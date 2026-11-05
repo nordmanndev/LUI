@@ -43,7 +43,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var index = catalog.Index("words").SingleWord().TypoTolerance().Create();
 
         // the build: the bulk path of a sync into an empty index (ADR-0016); LUI_PERF_BATCH measures another batch
         // the first load of a file no other process writes: the largest batch, the fewest commits (ADR-0016, ADR-0020)
@@ -87,7 +87,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var index = catalog.Index("words").SingleWord().TypoTolerance().Create();
         index.Sync(Corpus.Generate(words, words.Count, CorpusKind.SingleWord).Entries(), new LuiSyncOptions { BatchSize = 100_000 });
 
         var before = GC.GetTotalMemory(forceFullCollection: true);
@@ -112,7 +112,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
-        var index = catalog.Index("titles").MultiWord().Ensure();
+        var index = catalog.Index("titles").MultiWord().Create();
         var build = Stopwatch.StartNew();
         index.Sync(Corpus.Generate(Words(), entries, CorpusKind.MultiWord).Entries(), new LuiSyncOptions { BatchSize = 100_000 });
         build.Stop();

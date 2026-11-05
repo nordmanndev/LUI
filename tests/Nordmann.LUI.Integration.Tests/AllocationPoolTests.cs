@@ -26,7 +26,7 @@ public sealed class AllocationPoolTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().TypoTolerance().Ensure();
+        var index = catalog.Index("tags").SingleWord().TypoTolerance().Create();
 
         // a small corpus is enough: the buffers are lent by the budget, not by the number of the
         // candidates that are read

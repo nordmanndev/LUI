@@ -209,9 +209,17 @@ CREATE TABLE IF NOT EXISTS lui_meta (
 );
 ```
 
-`Ensure()` legt einen Index an oder prüft, dass die gespeicherte Definition zur
+`Create()` legt einen Index an oder prüft, dass die gespeicherte Definition zur
 gewünschten passt. Eine Abweichung ist ein Fehler mit klarer Meldung — ein
 Index wird nie stillschweigend umgebaut (§ 12.5).
+
+Die Definition ist JSON und trägt alles, was ein **geöffneter** Index braucht:
+die Art, die Quelle, den Schlüsseltyp, die Faltversion und — bei einem
+verknüpften Index mit Payload — **die Spalten des Payloads in ihrer Reihenfolge**.
+Damit kann ein Index gelesen werden, ohne dass die Anwendung etwas dazutun muss
+(ADR-0033): `OpenIndex` liest die Definition, prüft Schemaversion und Faltversion
+und baut den Index daraus auf — **ohne zu schreiben**: keine Tabelle, keine
+Definition, kein Schreib-Lock.
 
 ### 7.2 Inhaltstabelle bei `Embedded`
 
@@ -274,7 +282,7 @@ Die Formen (`s_norm`, `s_compact`, Präfixe, Rowid) berechnen dieselben SQL-Ausd
 Spalten bei `Embedded`, nur in den Statements, die den Index schreiben. Kandidaten und Treffer lesen Text und
 Payload über den Primärschlüssel aus der Tabelle der Anwendung; der Text liegt nicht doppelt in der Datei.
 
-Voraussetzungen, geprüft bei jedem `Ensure()` (sonst `LuiLinkedTableException`, nichts wird geändert):
+Voraussetzungen, geprüft bei jedem `Create()` (sonst `LuiLinkedTableException`, nichts wird geändert):
 
 - die Schlüsselspalte ist der `INTEGER PRIMARY KEY` der Tabelle (die Rowid, keine `WITHOUT ROWID`-Tabelle);
   sie dient als `doc_id`, Wertebereich 0 … 4.294.967.295;
@@ -654,10 +662,10 @@ ILuiEmbeddedIndex<long, RecipeChip> recipes = lui
     .WithPayload(RecipeJsonContext.Default.RecipeChip)   // System.Text.Json, quellgeneriert (AOT)
     .Similarity(LuiSimilarity.NgramDice)                 // Standard für MultiWord, hier explizit
     .TypoTolerance()
-    .Ensure();
+    .Create();
 
 // ohne Payload, mit einem Text-Schlüssel
-ILuiEmbeddedIndex<string, LuiNoPayload> words = lui.Index("words").SingleWord().WithKey<string>().Ensure();
+ILuiEmbeddedIndex<string, LuiNoPayload> words = lui.Index("words").SingleWord().WithKey<string>().Create();
 
 // verknüpft: liest eine Tabelle der Anwendung, ohne sie zu ändern (ADR-0015)
 ILuiLinkedIndex<TagChip> tags = lui
@@ -665,7 +673,7 @@ ILuiLinkedIndex<TagChip> tags = lui
     .SingleWord()
     .LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count", priority: "priority")
     .WithPayload(["slug", "color"], row => new TagChip(row.GetString("slug"), row.GetString("color")))   // aus Spalten der Tabelle
-    .Ensure();
+    .Create();
 tags.Sync();                                             // füllt den Index aus der Tabelle
 ```
 
@@ -679,12 +687,12 @@ Regeln:
 - **`LinkTo(…)`** wechselt zu einem verknüpften Index — angeboten nur, solange weder `WithKey` noch `WithPayload`
   gewählt ist: Ein verknüpfter Index hat den Schlüssel seiner Tabelle und liest seine Payload aus deren Spalten.
   Der Compiler hält das fest. Gewicht und Priorität sind optional.
-- `Ensure()` ist **idempotent**: Existiert der Index mit gleicher Definition,
+- `Create()` ist **idempotent**: Existiert der Index mit gleicher Definition,
   wird er geöffnet; weicht die Definition ab, wird mit einer Meldung abgebrochen,
   die beide Definitionen nennt. Bei `Linked` gehören Tabelle und Spalten zur Definition.
 - `lui.DropIndex(name)` entfernt einen Index samt **seinen** Tabellen — gleich, welche Definition gespeichert ist.
   Die Tabelle der Anwendung und ihre Zeilen bleiben. Hat ein verknüpfter Index Trigger, verlangt das Entfernen
-  `DropIndex(name, dropTriggers: true)`; danach ist er nach `Ensure()` leer und ohne Trigger.
+  `DropIndex(name, dropTriggers: true)`; danach ist er nach `Create()` leer und ohne Trigger.
 
 ### 12.3 Schlüssel und Payload
 
@@ -804,6 +812,7 @@ services.AddLui("Data Source=app.db")                   // oder AddLui(sp => …
         .AddIndex("recipes", index => index.MultiWord().WithPayload(RecipeJsonContext.Default.RecipeChip))
         .AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"),
                   applyPendingEvery: TimeSpan.FromSeconds(5))   // die Outbox der Trigger, auf einem Timer
+        .AddOpenIndex("recipes_readonly")                 // geöffnet, nicht erstellt: die Datei bleibt unberührt
         .EnsureOnStart()                                  // Standard
         .WarmUpTypoDictionariesOnStart();                 // optional, im Hintergrund
 
@@ -821,17 +830,21 @@ public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<lon
 - **`AddLui` öffnet die Datenbank, wenn der Host startet — auch mit `EnsureOnStart(false)`**: Die gehosteten Dienste lösen den
   Katalog vor sich selbst auf, damit der Container sie vor ihm entsorgt (ADR-0017). Ein SQLite, das LUI nicht tragen kann,
   stoppt deshalb den Start mit einer `LuiEnvironmentException`.
-- `Ensure()` läuft beim Start (als `IHostedService`, abschaltbar mit `EnsureOnStart(false)`), nicht beim ersten
+- `Create()` läuft beim Start (als `IHostedService`, abschaltbar mit `EnsureOnStart(false)`), nicht beim ersten
   Request: Eine abweichende Definition stoppt den Start. Gehostete Dienste starten in der Reihenfolge ihrer
   Registrierung: Eine Migration, die die Tabelle eines verknüpften Index anlegt, wird vor `AddLui` registriert oder vor
   `host.Run()` ausgeführt — sonst `EnsureOnStart(false)`.
+- **`AddOpenIndex(name)`** registriert einen Index, den der Host **öffnet** statt erstellt (ADR-0033): Der Index muss
+  existieren, und die Datei wird nie geschrieben — keine Tabelle, keine Definition, kein Schreib-Lock. Fehlt der
+  Index, stoppt der Start mit einem `LuiIndexNotFoundException`. `AddIndex` behält seine Bedeutung: es legt den Index
+  an, oder öffnet ihn, wenn er da ist.
 - `WarmUpTypoDictionariesOnStart()` baut die Wörterbücher der Indizes mit Tippfehler-Toleranz nach dem Start im
   Hintergrund. Keine Abfrage wartet darauf: eine, die währenddessen korrigieren müsste, antwortet ohne Korrektur und
   setzt `CorrectionSkipped` (ADR-0021, Issue #19; bis dahin wartete sie, ADR-0017).
 - `applyPendingEvery` lässt einen gehosteten Dienst `ApplyPending()` eines verknüpften Index im Takt aufrufen; ein
   fehlgeschlagener Durchlauf wird geloggt, der nächste versucht es wieder. Die Trigger legt er nicht an (ADR-0015).
 - Das alles liefert das Paket `Nordmann.LUI.Hosting` (§ 17.1, ADR-0018); den Host bringt die Anwendung mit. Ohne
-  Host — in einer Konsolenanwendung — ruft die Anwendung `Ensure()`, `WarmUpTypoDictionary()`, `ApplyPending()` und
+  Host — in einer Konsolenanwendung — ruft die Anwendung `Create()`, `WarmUpTypoDictionary()`, `ApplyPending()` und
   bei Bedarf `RebuildTypoDictionary()` selbst auf.
 
 ### 12.8 Fehler
@@ -841,16 +854,51 @@ public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<lon
 | ungültiger Index- oder Spaltenname | `ArgumentException` mit dem erlaubten Muster |
 | Schlüsseltyp weder `long` noch `string` | `NotSupportedException` bei `WithKey<TKey>()` |
 | Definition weicht von `lui_meta` ab | `LuiDefinitionMismatchException` (nennt beide) |
+| Index gibt es nicht (beim Öffnen) | `LuiIndexNotFoundException` (nennt den Namen) |
 | SQLite zu alt, ohne FTS5-Trigram-Tokenizer oder mit anderer Faltung | `LuiEnvironmentException` beim `LuiCatalog.Open` |
 | `Linked`: Tabelle oder Spalte fehlt, Schlüssel ist nicht der `INTEGER PRIMARY KEY`, Schlüssel außerhalb 0 … 2³²−1 beim `Sync` | `LuiLinkedTableException` (nennt, was fehlt; nichts wird geändert) |
 | Gewicht, Priorität oder Option außerhalb des Bereichs | `ArgumentOutOfRangeException`, wenn der Wert gesetzt wird |
 | SQLite meldet `SQLITE_BUSY` nach `busy_timeout` | `SqliteException` wird unverändert weitergereicht |
 | ein `LuiPayloadRow`, der nach der Abbildung von `WithPayload` gelesen wird | `InvalidOperationException` (die Zeile gilt nur, solange die Abbildung läuft) |
 
-Die drei Ausnahmen der Bibliothek — `LuiEnvironmentException`, `LuiDefinitionMismatchException`, `LuiLinkedTableException` —
-haben die gemeinsame, abstrakte Basis `LuiException`, die ihrerseits eine `InvalidOperationException` ist: `catch (LuiException)`
+Die vier Ausnahmen der Bibliothek — `LuiEnvironmentException`, `LuiDefinitionMismatchException`,
+`LuiLinkedTableException` und `LuiIndexNotFoundException` — haben die gemeinsame, abstrakte Basis `LuiException`, die
+ihrerseits eine `InvalidOperationException` ist: `catch (LuiException)`
 trennt die Fälle der Bibliothek von den Fehlern der Anwendung, und ein bestehendes `catch (InvalidOperationException)` fängt sie
 weiter (ADR-0024).
+
+### 12.9 Index öffnen (nur lesen)
+
+`Create()` legt einen Index an, wenn er fehlt, und prüft die Definition, wenn er da ist. **`OpenIndex` liest ihn
+nur** (ADR-0033): Die Definition steht in `lui_meta`, daraus wird der Index aufgebaut — und **nichts wird
+geschrieben**: keine Tabelle, keine Definition, kein Schreib-Lock, kein Wörterbuch. Das ist der Weg in eine Datenbank,
+die anderswo geschrieben wird: eine Replikation, eine Datei im Modus `ro`, ein Dienst, der nicht schreiben darf.
+
+```csharp
+// untypisiert: der Schlüssel kommt als der Text, in dem er gespeichert ist, die Payload als das rohe JSON
+ILuiDocumentIndex tags = lui.OpenIndex("tags");
+
+foreach (var hit in tags.Search("vegan"))
+{
+    Console.WriteLine($"{hit.Key}: {hit.Text}");   // 1: vegan
+}
+
+// typisiert: die Typen der Anwendung — jeder Schreibversuch wird abgelehnt
+ILuiEmbeddedIndex<long, TagChip> opened = lui.OpenIndex<long, TagChip>("tags", TagJsonContext.Default.TagChip);
+```
+
+Regeln:
+
+- **Der Index muss existieren.** Fehlt er, ist es ein `LuiIndexNotFoundException` mit dem Namen — nie ein „no such
+  table" aus SQLite.
+- **Die Datei muss von dieser Version von LUI sein**: Schemaversion und Faltversion der Definition werden geprüft; eine
+  fremde Version ist ein `LuiDefinitionMismatchException`, das die gefundene und die erwartete nennt.
+- **Die Typen werden geprüft** (nur beim typisierten Öffnen): ein Schlüsseltyp, den die Datei nicht hat, oder eine
+  Payload, die der Index nicht speichert, ist ein `LuiDefinitionMismatchException`.
+- **Die Ähnlichkeit ist der Standard der Art** des Index, die **Tippfehler-Toleranz ist aus**: ein geöffneter Index
+  korrigiert nichts. Eine Abfrage fragt danach (`LuiQueryOptions.TypoTolerance`, `LuiQueryOptions.Similarity`).
+- **Ein geöffneter Index schreibt nicht**: Jeder Schreib- und Pflegeaufruf (`Upsert`, `Sync`, `Rebuild`, `Optimize`,
+  `Check`, die Wörterbücher) lehnt mit einem `NotSupportedException` ab.
 
 ---
 
@@ -895,6 +943,10 @@ Suchindex einmal zusammengeführt (ADR-0016). Gemessen an 1 Mio. Einträgen: 78 
 100.000; danach p95 der Abfrage 3,9 ms statt 5,4 ms nach `UpsertMany`. `Sync` (`Linked`) baut den Index in **einer**
 Transaktion neu.
 
+Der **geöffnete** Index (ADR-0033) ist der Sonderfall: Er schreibt nichts — keine Tabelle, keine Definition, kein
+Schreib-Lock — und baut kein Wörterbuch. Seine Richtigkeit ist die der Datei, die er liest; er prüft nur, ob die Datei von
+dieser Version von LUI stammt.
+
 ---
 
 ## 15. Nebenläufigkeit
@@ -911,8 +963,11 @@ Transaktion neu.
   Aufbau hält die Sperre **nicht**: er baut ein eigenes Wörterbuch, spielt die
   Schreibvorgänge nach, die währenddessen eintrafen, und tauscht es ein — ein
   `Upsert` wartet nie auf ihn (ADR-0012). Es gibt **ein** Wörterbuch pro Index
-  eines Katalogs, egal wie oft der Index mit `Ensure()` geöffnet wird. Ein Test
+  eines Katalogs, egal wie oft der Index mit `Create()` geöffnet wird. Ein Test
   mit parallelen Abfragen und gleichzeitigem `Upsert` sichert das ab.
+- **Der geöffnete Index nimmt kein Schreib-Lock** (ADR-0033): `OpenIndex` liest `lui_meta` mit einem einfachen `SELECT`
+  auf einer eigenen Verbindung — ohne Transaktion, ohne Schreibsperre, ohne `CREATE TABLE`. Solange ein Schreiber die Datei
+  sperrt, antwortet ein geöffneter Index sofort; `Create()` wartet in derselben Lage.
 - **Lebensdauer:** `LuiCatalog` und alle `ILuiIndex` sind Singletons;
   `Dispose()` des Katalogs wartet, bis laufende Abfragen fertig sind
   (Zähler pro Abfrage), und gibt dann frei.
@@ -1072,7 +1127,7 @@ Trigram-Tokenizer); getestet mit 3.53.3. Die Bibliothek prüft die Version beim
 |---|---|
 | **Unit** | `Normalizer` (Tabellen aus § 6), Wortanfang (Tabelle § 9.1), Ranking-Reihenfolgen, FTS5-Ausdruck (Escaping, Wörter < 3 Zeichen) |
 | **Gleichheit SQL ↔ C#** | Für alle 685.829 Wörter der deutschen Wortliste und eine Liste von Sonderfällen liefern die SQL-Spalten und der C#-`Normalizer` dieselbe Suchform |
-| **Integration** | `Ensure` (neu, idempotent, Abweichung), `Embedded` und `Linked` (Insert, Update Text, Update Gewicht, Delete), `Sync`/`Check`/`Rebuild`, Payload nur für Treffer, Transaktion der Anwendung (Rollback lässt den Index unverändert) |
+| **Integration** | `Create` (neu, idempotent, Abweichung), `Embedded` und `Linked` (Insert, Update Text, Update Gewicht, Delete), `Sync`/`Check`/`Rebuild`, Payload nur für Treffer, Transaktion der Anwendung (Rollback lässt den Index unverändert); der geöffnete Index: ohne Schreibvorgang, ohne Schreib-Lock, auf einer nur lesbaren Datei (§ 12.9) |
 | **Goldene Abfragen** | die Beispiele aus Anhang B als feste Erwartungen (z. B. `apfelkuch` → Apfelkuchen auf Platz 1, Bratapfelkuchen hinter allen Wortanfängen; `gan` → Systemtag „vegan" auf Platz 1 auch bei 30.000+ Treffern) |
 | **Qualität** | Hit@5 / Hit@20 auf dem Testkorpus (Anhang A), getrennt nach Länge, Tippfehler, Wortreihenfolge; Untergrenzen als Test |
 | **Plan** | `EXPLAIN QUERY PLAN` der Kandidatenabfrage enthält `INDEX 64` und keinen `TEMP B-TREE` |

@@ -63,6 +63,14 @@ internal abstract class ContentSource
     /// </summary>
     internal abstract string HitsSql(string parameters, IReadOnlyList<string> payloadColumns);
 
+    /// <summary>
+    /// The hits of the untyped facade (ADR-0033): the key as the text it is stored as, the payload as the raw JSON —
+    /// the JSON object of the columns of a linked index. The default is the payload column of the content table.
+    /// </summary>
+    /// <param name="parameters">The placeholders of the document ids.</param>
+    /// <returns>The statement that reads the key and the payload of the hits.</returns>
+    internal virtual string DocumentHitsSql(string parameters) => HitsSql(parameters, ["payload"]);
+
     /// <summary>The number of entries.</summary>
     internal abstract string CountSql { get; }
 

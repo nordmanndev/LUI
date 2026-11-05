@@ -37,7 +37,7 @@ public sealed class LinkedLayoutExperiment(ITestOutputHelper output)
         CreateHost(linkedDatabase, stock);
 
         var build = Stopwatch.StartNew();
-        var embedded = catalog.Index("tags").SingleWord().Ensure();
+        var embedded = catalog.Index("tags").SingleWord().Create();
         embedded.UpsertMany(stock.Select(e => new LuiEntry<long, LuiNoPayload>(e.Id, e.Text) { Weight = e.Weight }));
         Report($"embedded:  build {build.Elapsed.TotalSeconds:F1} s");
 

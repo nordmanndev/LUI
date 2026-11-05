@@ -62,7 +62,7 @@ public sealed class SyncCheckRebuildTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        var tags = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Create();
         tags.Sync([new LuiEntry<long, Chip>(1, "vegan") { Payload = new Chip("v", "green") }]);
 
         var report = tags.Sync([new LuiEntry<long, Chip>(1, "vegan") { Payload = new Chip("v", "red") }]);
@@ -171,8 +171,8 @@ public sealed class SyncCheckRebuildTests
         var entries = Enumerable.Range(1, 600)
             .Select(i => Entry(i, $"{(char)('a' + random.Next(5))}{(char)('a' + random.Next(5))}wort{i}", random.Next(0, 50), (LuiPriority)random.Next(0, 4)))
             .ToList();
-        var synced = catalog.Index("synced").SingleWord().Ensure();
-        var upserted = catalog.Index("upserted").SingleWord().Ensure();
+        var synced = catalog.Index("synced").SingleWord().Create();
+        var upserted = catalog.Index("upserted").SingleWord().Create();
 
         synced.Sync(entries, new LuiSyncOptions { BatchSize = 97 });
         foreach (var entry in entries)
@@ -218,7 +218,7 @@ public sealed class SyncCheckRebuildTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var slugs = catalog.Index("slugs").SingleWord().WithKey<string>().Ensure();
+        var slugs = catalog.Index("slugs").SingleWord().WithKey<string>().Create();
         slugs.Upsert("alt", "alt");
 
         var report = slugs.Sync([new LuiEntry<string, LuiNoPayload>("vegan", "vegan")]);
@@ -266,7 +266,7 @@ public sealed class SyncCheckRebuildTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var slugs = catalog.Index("slugs").SingleWord().WithKey<string>().Ensure();
+        var slugs = catalog.Index("slugs").SingleWord().WithKey<string>().Create();
         slugs.Upsert(string.Empty, "leer");
         slugs.Upsert("a", "voll");
 
@@ -281,7 +281,7 @@ public sealed class SyncCheckRebuildTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var words = catalog.Index("words").SingleWord().TypoTolerance().Create();
         words.Sync(Entries("kartoffel"));
         words.WarmUpTypoDictionary();
 
@@ -430,7 +430,7 @@ public sealed class SyncCheckRebuildTests
         catalog.DropIndex("words");
         old.Check().Problems.ShouldHaveSingleItem().ShouldContain("dropped");
 
-        catalog.Index("words").MultiWord().Ensure();
+        catalog.Index("words").MultiWord().Create();
         old.Check().Problems.ShouldHaveSingleItem().ShouldContain("another definition");
     }
 
@@ -528,10 +528,10 @@ public sealed class SyncCheckRebuildTests
 
     private const string TagTable = "CREATE TABLE tag (id INTEGER PRIMARY KEY, name TEXT, usage_count INTEGER NOT NULL DEFAULT 0);";
 
-    private static ILuiEmbeddedIndex<long, LuiNoPayload> Words(LuiCatalog catalog) => catalog.Index("words").SingleWord().Ensure();
+    private static ILuiEmbeddedIndex<long, LuiNoPayload> Words(LuiCatalog catalog) => catalog.Index("words").SingleWord().Create();
 
     private static ILuiLinkedIndex<LuiNoPayload> Tags(LuiCatalog catalog) =>
-        catalog.Index("tags").SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").Ensure();
+        catalog.Index("tags").SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").Create();
 
     private static LuiEntry<long, LuiNoPayload> Entry(long key, string text, int weight = 0, LuiPriority priority = LuiPriority.Normal) =>
         new(key, text) { Weight = weight, Priority = priority };

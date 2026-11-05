@@ -172,13 +172,13 @@ internal sealed class EmbeddedIndex<TKey, TPayload> : ILuiEmbeddedIndex<TKey, TP
 
         return _payload?.Serialize(payload)
             ?? throw new InvalidOperationException(
-                $"The index '{Name}' stores no payload: give it one with WithPayload(…) when it is ensured.");
+                $"The index '{Name}' stores no payload: give it one with WithPayload(…) when it is created.");
     }
 
     private InvalidOperationException DocIdsExhausted(SqliteException exception) =>
         new(
             $"The index '{Name}' has used up its document ids (0 … {RowId.MaxDocId:N0}); a new entry gets the "
-            + "highest id plus one. Export the entries, drop the index (LuiCatalog.DropIndex), ensure it again and "
+            + "highest id plus one. Export the entries, drop the index (LuiCatalog.DropIndex), create it again and "
             + "load them: the ids start from 1 again.",
             exception);
 

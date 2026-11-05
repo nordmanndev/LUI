@@ -82,7 +82,7 @@ using Nordmann.LUI;
 using var lui = LuiCatalog.Open("Data Source=app.db");
 
 // an index of titles: words in any order, spaces optional, one typo forgiven
-var recipes = lui.Index("recipes").MultiWord().TypoTolerance().Ensure();
+var recipes = lui.Index("recipes").MultiWord().TypoTolerance().Create();
 
 recipes.Upsert(1, "Gedeckter Apfelkuchen", weight: 9000);
 recipes.Upsert(2, "Apfelstrudel", weight: 5000);
@@ -172,7 +172,7 @@ using (var app = new SqliteConnection("Data Source=app.db"))
 }
 
 // linked: LUI reads the table and never changes it
-var tags = lui.Index("tags").SingleWord().LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count").Ensure();
+var tags = lui.Index("tags").SingleWord().LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count").Create();
 tags.Sync();                                             // the whole table; then tags.Refresh(id) after a write
 
 Console.WriteLine(tags.Search("veg").Hits[0].Text);     // vegan
@@ -224,7 +224,7 @@ are ranked. A rare system tag would otherwise lose against thousands of popular 
 it — with a priority it is a candidate for every input it matches:
 
 ```csharp
-var labels = lui.Index("labels").SingleWord().Ensure();
+var labels = lui.Index("labels").SingleWord().Create();
 labels.UpsertMany([
     new LuiEntry<long, LuiNoPayload>(1, "Vegetarisch") { Weight = 900 },
     new LuiEntry<long, LuiNoPayload>(2, "Vegan") { Weight = 3, Priority = LuiPriority.System },
@@ -298,9 +298,34 @@ them in the background after the start, and no query waits for that build: one t
 answers without it and says `CorrectionSkipped`.
 
 Without a host — in a console application — the same is a few calls of your
-own: `Ensure()` where you open an index, `WarmUpTypoDictionary()` at the start,
+own: `Create()` where you open an index, `WarmUpTypoDictionary()` at the start,
 `RebuildTypoDictionary()` in a quiet phase if removed words should go, and `ApplyPending()` after your writes
 or in a `PeriodicTimer` loop.
+
+---
+
+## Only read
+
+Sometimes an application may only read: a replica, a file that is read-only, a service that must not write.
+`OpenIndex` reads the definition out of `lui_meta` and **writes nothing** — no table, no definition, no write lock
+([ADR-0033](./docs/adr/0033-the-read-path-opens-an-index-without-writing.md)). The index has to exist, and a mistake
+says what is wrong: `LuiIndexNotFoundException` for an index that is not there, `LuiDefinitionMismatchException` for a
+file of another version of LUI.
+
+The untyped facade needs no types: the key comes as the text it is stored as, the payload as the raw JSON.
+
+```csharp
+// the index is opened, not created: the file is not written
+var openedTags = lui.OpenIndex("tags");
+foreach (var hit in openedTags.Search("vegan"))
+{
+    Console.WriteLine($"{hit.Key}: {hit.Text}");   // 1: vegan
+}
+```
+
+With the types of the application it is `OpenIndex<TKey, TPayload>(name, payload?)` — and every write through it is
+refused, because it reads and does not write. In a container: `AddOpenIndex(name)` registers an index that the host
+opens; `AddIndex` keeps its meaning and creates it.
 
 ---
 

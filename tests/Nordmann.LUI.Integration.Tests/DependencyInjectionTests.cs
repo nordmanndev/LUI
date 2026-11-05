@@ -41,7 +41,7 @@ public sealed class DependencyInjectionTests
         using var database = new TestDatabase();
         using (var catalog = database.Open())
         {
-            catalog.Index("words").MultiWord().Ensure();
+            catalog.Index("words").MultiWord().Create();
         }
 
         using var host = Host(database, lui => lui.AddIndex("words", index => index.SingleWord()));
@@ -173,7 +173,7 @@ public sealed class DependencyInjectionTests
         using var database = new TestDatabase();
         using (var catalog = database.Open())
         {
-            catalog.Index("typos").SingleWord().TypoTolerance().Ensure().Upsert(1, "kartoffel");
+            catalog.Index("typos").SingleWord().TypoTolerance().Create().Upsert(1, "kartoffel");
         }
 
         using var host = Host(database, lui => lui
@@ -195,7 +195,7 @@ public sealed class DependencyInjectionTests
         using (var catalog = database.Open())
         {
             var random = new Random(5);
-            catalog.Index("typos").SingleWord().TypoTolerance().Ensure().UpsertMany(Enumerable.Range(1, 20_000)
+            catalog.Index("typos").SingleWord().TypoTolerance().Create().UpsertMany(Enumerable.Range(1, 20_000)
                 .Select(i => new LuiEntry<long, LuiNoPayload>(i, new string([.. Enumerable.Range(0, 10).Select(_ => (char)('a' + random.Next(26)))]))));
         }
 
@@ -255,8 +255,8 @@ public sealed class DependencyInjectionTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Index("plain").SingleWord().Ensure().TypoTolerance.ShouldBeFalse();
-        catalog.Index("typos").SingleWord().TypoTolerance().Ensure().TypoTolerance.ShouldBeTrue();
+        catalog.Index("plain").SingleWord().Create().TypoTolerance.ShouldBeFalse();
+        catalog.Index("typos").SingleWord().TypoTolerance().Create().TypoTolerance.ShouldBeTrue();
     }
 
     private static IHost Host(

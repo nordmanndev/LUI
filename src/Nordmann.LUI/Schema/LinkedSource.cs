@@ -25,12 +25,18 @@ internal sealed class LinkedSource : ContentSource
     private readonly string _weight;
     private readonly string _priority;
     private readonly string _norm;
+    private readonly IReadOnlyList<string> _payloadColumns;
 
     internal LinkedSource(string indexName, IndexDefinition definition)
         : base(indexName, definition)
     {
         Link = definition.Link
             ?? throw new ArgumentException("A linked index needs the table it is linked to.", nameof(definition));
+
+        // the columns of the payload come out of the definition: they reach SQL, so they are checked again
+        _payloadColumns = Link.PayloadColumns is { } columns
+            ? [.. columns.Select(column => Identifier.ValidateApplicationName(column, "the payload columns of the definition"))]
+            : [];
 
         ContentTable = Identifier.Quote(Link.Table);
         FtsTable = Fts(indexName);
@@ -143,6 +149,24 @@ internal sealed class LinkedSource : ContentSource
     internal override string HitsSql(string parameters, IReadOnlyList<string> payloadColumns) =>
         $"SELECT {_key}, {_key}{string.Concat(payloadColumns.Select(column => $", h.{Identifier.Quote(column)}"))} "
         + $"FROM {ContentTable} h WHERE {_key} IN ({parameters});";
+
+    /// <summary>
+    /// The hits of the untyped facade (ADR-0033): the key as the text it is stored as, and the payload as the JSON
+    /// object of the columns the payload was built from — the columns are in the definition, so the object can be
+    /// built without the application. An index without payload columns has no payload: <c>NULL</c>.
+    /// </summary>
+    internal override string DocumentHitsSql(string parameters)
+    {
+        var payload = PayloadColumns.Count == 0 ? "NULL" : JsonObject();
+        return $"SELECT {_key}, CAST({_key} AS TEXT), {payload} FROM {ContentTable} h WHERE {_key} IN ({parameters});";
+    }
+
+    /// <summary>The columns of the payload, as the definition holds them.</summary>
+    private IReadOnlyList<string> PayloadColumns => _payloadColumns;
+
+    /// <summary>The payload of a hit as the JSON object of the columns of the table of the application.</summary>
+    private string JsonObject() =>
+        $"json_object({string.Join(", ", PayloadColumns.Select(column => $"'{column}', h.{Identifier.Quote(column)}"))})";
 
     internal override IReadOnlyList<string> CreateStatements() =>
     [
