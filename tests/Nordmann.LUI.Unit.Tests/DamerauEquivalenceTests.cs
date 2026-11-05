@@ -1,3 +1,4 @@
+using System.Buffers;
 using F23.StringSimilarity;
 using Shouldly;
 
@@ -100,6 +101,29 @@ public sealed class DamerauEquivalenceTests
 
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
         allocated.ShouldBe(0, "the similarity of a query must not allocate");
+    }
+
+    [Fact]
+    public void The_measure_survives_a_table_that_the_pool_handed_out_before()
+    {
+        // the table of the distances does not fit on the stack any more, so it comes from the pool —
+        // and the pool hands out arrays that still hold what the last tenant wrote in them. Every
+        // cell the measure reads has to be written by the measure itself, or the number is the
+        // rubbish of the pool. (The CI found it: on the runner the pool had an array with a
+        // negative number in its first cell, and the distance overflowed.)
+        const int Length = 506;
+        var size = (Length + 2) * (Length + 2);
+
+        var keeper = ArrayPool<int>.Shared.Rent(size);
+        var poison = ArrayPool<int>.Shared.Rent(size);
+        poison.AsSpan(0, size).Fill(int.MinValue / 2);
+        ArrayPool<int>.Shared.Return(keeper);
+        ArrayPool<int>.Shared.Return(poison);
+
+        var a = "kuchen" + new string('x', 500);
+        var b = "kuchen" + new string('x', 499) + "y";
+
+        LuiSimilarity.DamerauLevenshtein.Similarity(a, b).ShouldBe(ReferenceDistance(a, b), 0);
     }
 
     /// <summary>The similarity of the library: one minus the distance, divided by the longer text.</summary>

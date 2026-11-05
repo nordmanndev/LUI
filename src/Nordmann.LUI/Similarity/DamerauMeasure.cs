@@ -136,6 +136,11 @@ internal static class DamerauMeasure
     /// <summary>The edges of the table: the distance to an empty text is its length.</summary>
     private static void FillEdges(Span<int> table, int width, int rows, int columns, int infinity)
     {
+        // the corner of the table: the cell that the transposition reads when neither text has seen
+        // the character yet. The library it replaces has it at zero — a fresh array — and a table
+        // from the pool still holds what the last tenant wrote in it.
+        table[0] = 0;
+
         for (var i = 0; i <= rows; i++)
         {
             table[(i + 1) * width] = infinity;

@@ -196,6 +196,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The distance of two long texts no longer depends on what the pool handed out before.** The table of the
+  Damerau-Levenshtein distance does not fit on the stack for texts of more than about 45 characters, so it comes from
+  the pool — and the pool hands out arrays that still hold what the last tenant wrote in them. The cell at the corner
+  of the table was never written by the measure, and the transposition reads it when neither text has seen the
+  character yet: the number was then the rubbish of the pool, and on a machine where the pool held a large number in
+  that cell the distance overflowed (the CI found it: the similarity of two long texts came out as 2,404,636 instead of
+  a number between zero and one). The corner is zero now, like in the library the measure replaces. The guard
+  `DamerauEquivalenceTests.The_measure_survives_a_table_that_the_pool_handed_out_before` fills a rented table with
+  rubbish before the comparison (#30).
+
 - **The pool of the buffers no longer fills up** ([ADR-0031](docs/adr/0031-the-pool-displaces-instead-of-discarding.md), #30).
   The length of the buffers follows the budget of the candidates, and the pool had twelve places for one budget: after
   the budget had changed, every query allocated the big buffers anew — 294.9 KB at a budget of 1,000, against 83.4 KB
