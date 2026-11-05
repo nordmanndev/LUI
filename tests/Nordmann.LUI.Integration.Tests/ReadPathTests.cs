@@ -251,6 +251,28 @@ public sealed class ReadPathTests
         Should.Throw<NotSupportedException>(() => index.Upsert(2, "vegetarisch"), "an opened index does not write");
     }
 
+    [Fact]
+    public void The_typed_facade_refuses_a_payload_the_file_does_not_have()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Create()
+            .Upsert(new LuiEntry<long, Chip>(1, "vegan") { Payload = new Chip("gruen") });
+
+        // the file stores a payload, the caller brings none
+        var withoutPayload = Should.Throw<LuiDefinitionMismatchException>(
+            () => catalog.OpenIndex<long, Chip>("tags"));
+        withoutPayload.IndexName.ShouldBe("tags");
+        withoutPayload.Message.ShouldContain("payload");
+
+        // the file stores none, the caller brings one
+        catalog.Index("plain").SingleWord().Create().Upsert(1, "vegan");
+        var withPayload = Should.Throw<LuiDefinitionMismatchException>(
+            () => catalog.OpenIndex<long, Chip>("plain", new LuiJsonPayloadSerializer<Chip>(ChipJsonContext.Default.Chip)));
+        withPayload.IndexName.ShouldBe("plain");
+        withPayload.Message.ShouldContain("payload");
+    }
+
     // ---- the defaults of an opened index ------------------------------------------------------------------------------
 
     [Fact]
