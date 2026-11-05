@@ -162,7 +162,6 @@ public sealed class Repository_Layout
         // not something that sneaks in through a using directive.
         var documented = new[]
         {
-            "F23.StringSimilarity",
             "Meziantou.Analyzer",
             "Microsoft.Data.Sqlite",
             "Microsoft.SourceLink.GitHub",
@@ -199,7 +198,6 @@ public sealed class Repository_Layout
 
         runtime.ShouldBe(
         [
-            "F23.StringSimilarity",
             "Microsoft.Data.Sqlite",
             "symspell"
         ]);

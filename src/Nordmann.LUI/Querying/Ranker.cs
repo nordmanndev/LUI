@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.Diagnostics;
 using Nordmann.LUI.Schema;
 using Nordmann.LUI.Normalization;
 
@@ -38,54 +40,92 @@ internal static class Ranker
         // weight order with the priority first is the order the candidates came in
         if (order == LuiRankingOrder.WeightOnly && priorityFirst)
         {
-            return candidates[..Math.Min(count, take)];
+            var taken = Math.Min(count, take);
+            var ranked = ScoredBuffer.Rent(taken);
+            Array.Copy(candidates, ranked, taken);
+            return ranked;
         }
 
         Span<int> starts = stackalloc int[GroupCount + 1];
-        var grouped = Group(candidates, count, priorityFirst, wordStartStage, starts);
+        // the length of the buffer of the groups is the length of the buffer of the candidates: it is the
+        // budget, and the budget does not change from query to query (the number of candidates read does)
+        var grouped = ScoredBuffer.Rent(candidates.Length);
+        var buffer = ArrayPool<char>.Shared.Rent(BufferLength);
 
-        var comparer = ComparerFor(order);
-        var needsSimilarity = order != LuiRankingOrder.WeightOnly;
-        var result = new List<Scored>(Math.Min(count, take));
-
-        for (var g = 0; g < GroupCount && result.Count < take; g++)
+        try
         {
-            var length = starts[g + 1] - starts[g];
-            if (length == 0)
-            {
-                continue;
-            }
+            Group(candidates, grouped, count, priorityFirst, wordStartStage, starts);
 
-            if (needsSimilarity)
+            var comparer = ComparerFor(order);
+            var needsSimilarity = order != LuiRankingOrder.WeightOnly;
+            var result = new List<Scored>(Math.Min(count, take));
+
+            for (var g = 0; g < GroupCount && result.Count < take; g++)
             {
-                for (var i = starts[g]; i < starts[g + 1]; i++)
+                if (starts[g + 1] == starts[g])
                 {
-                    // the similarity is the part that can be slow — a custom measure, 100,000 candidates
-                    if (((i - starts[g]) & 31) == 0)
-                    {
-                        cancellationToken.ThrowIfCancellationRequested();
-                    }
+                    continue;
+                }
 
-                    grouped[i].Similarity = Measure(grouped[i], queries, similarity, normalization);
+                if (needsSimilarity)
+                {
+                    MeasureGroup(grouped, starts, g, queries, similarity, normalization, ref buffer, cancellationToken);
+                }
+
+                Array.Sort(grouped, starts[g], starts[g + 1] - starts[g], comparer);
+
+                for (var i = starts[g]; i < starts[g + 1] && result.Count < take; i++)
+                {
+                    result.Add(grouped[i]);
                 }
             }
 
-            Array.Sort(grouped, starts[g], length, comparer);
-
-            for (var i = starts[g]; i < starts[g + 1] && result.Count < take; i++)
+            var ranked = ScoredBuffer.Rent(result.Count);
+            for (var i = 0; i < result.Count; i++)
             {
-                result.Add(grouped[i]);
+                ranked[i] = result[i];
             }
-        }
 
-        return [.. result];
+            return ranked;
+        }
+        finally
+        {
+            ScoredBuffer.Return(grouped);
+            ArrayPool<char>.Shared.Return(buffer);
+        }
+    }
+
+    /// <summary>
+    /// The similarity of every candidate of a group — the part that can be slow: a custom measure,
+    /// 100,000 candidates.
+    /// </summary>
+    private static void MeasureGroup(
+        Scored[] grouped,
+        ReadOnlySpan<int> starts,
+        int group,
+        IReadOnlyList<string> queries,
+        ILuiSimilarity similarity,
+        NormalizationOptions normalization,
+        ref char[] buffer,
+        CancellationToken cancellationToken)
+    {
+        for (var i = starts[group]; i < starts[group + 1]; i++)
+        {
+            if (((i - starts[group]) & 31) == 0)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+            }
+
+            grouped[i].Similarity = Measure(grouped[i], queries, similarity, normalization, ref buffer);
+        }
     }
 
     /// <summary>
     /// A stable counting sort of the candidates into their groups; <paramref name="starts"/> receives
-    /// where each group begins (and, in the last place, the end).
+    /// where each group begins (and, in the last place, the end). The candidates are sorted into
+    /// <paramref name="grouped"/> — a buffer of its own, reused between the queries (issue #30).
     /// </summary>
-    private static Scored[] Group(Scored[] candidates, int count, bool priorityFirst, bool wordStartStage, Span<int> starts)
+    private static void Group(Scored[] candidates, Scored[] grouped, int count, bool priorityFirst, bool wordStartStage, Span<int> starts)
     {
         Span<int> sizes = stackalloc int[GroupCount];
         for (var i = 0; i < count; i++)
@@ -98,32 +138,59 @@ internal static class Ranker
             starts[g + 1] = starts[g] + sizes[g];
         }
 
-        var grouped = new Scored[count];
         Span<int> next = stackalloc int[GroupCount];
         starts[..GroupCount].CopyTo(next);
         for (var i = 0; i < count; i++)
         {
             grouped[next[GroupOf(candidates[i], priorityFirst, wordStartStage)]++] = candidates[i];
         }
-
-        return grouped;
     }
 
     /// <summary>
     /// The similarity of the input to the text of an entry, measured from the
     /// word where the match begins — or against the whole text when there is
     /// no word start (§9.2).
+    /// <para>
+    /// A measure of LUI is asked on the search form in <paramref name="buffer"/>: the form is written
+    /// into the buffer and measured there, so neither the form nor the part of it the match begins at
+    /// becomes a string — up to 500 candidates per query (issue #30). A measure of an application that
+    /// only speaks strings is measured the old way.
+    /// </para>
     /// </summary>
     internal static double Measure(
         in Scored candidate,
         IReadOnlyList<string> queries,
         ILuiSimilarity similarity,
-        NormalizationOptions normalization)
+        NormalizationOptions normalization,
+        ref char[] buffer)
     {
+        if (similarity is ISpanSimilarity span)
+        {
+            var needed = (candidate.Text.Length * 3) + 1;
+            if (buffer.Length < needed)
+            {
+                ArrayPool<char>.Shared.Return(buffer);
+                buffer = ArrayPool<char>.Shared.Rent(needed);
+            }
+
+            if (!Normalizer.TryWriteSearchForm(candidate.Text, buffer, out var written, normalization))
+            {
+                // the transliteration at most doubles a text (ä → ae, ß → ss); the buffer holds three times
+                throw new UnreachableException("The search form of a text is longer than three times the text.");
+            }
+
+            var form = buffer.AsSpan(0, written);
+            var from = candidate.WordStart > 0 && candidate.WordStart < form.Length ? form[candidate.WordStart..] : form;
+            return span.Similarity(queries[candidate.Variant].AsSpan(), from);
+        }
+
         var text = Normalizer.ToSearchForm(candidate.Text, normalization);
-        var from = candidate.WordStart > 0 && candidate.WordStart < text.Length ? text[candidate.WordStart..] : text;
-        return similarity.Similarity(queries[candidate.Variant], from);
+        var fromString = candidate.WordStart > 0 && candidate.WordStart < text.Length ? text[candidate.WordStart..] : text;
+        return similarity.Similarity(queries[candidate.Variant], fromString);
     }
+
+    /// <summary>The length of the buffer of the search form to start with.</summary>
+    private const int BufferLength = 256;
 
     private static int GroupOf(in Scored candidate, bool priorityFirst, bool wordStartStage)
     {

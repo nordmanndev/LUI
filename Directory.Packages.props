@@ -11,16 +11,23 @@
   </PropertyGroup>
 
   <!--
-    The runtime of the two packages (ADR-0018): Microsoft.Data.Sqlite, symspell and F23.StringSimilarity are the core's
-    (Nordmann.LUI); the three Microsoft.Extensions abstractions are the hosting package's (Nordmann.LUI.Hosting) only.
+    The runtime of the two packages (ADR-0018): Microsoft.Data.Sqlite and symspell are the core's (Nordmann.LUI); the
+    three Microsoft.Extensions abstractions are the hosting package's (Nordmann.LUI.Hosting) only.
   -->
   <ItemGroup Label="Runtime — shipped inside Nordmann.LUI and Nordmann.LUI.Hosting">
     <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.14" />
     <PackageVersion Include="symspell" Version="6.7.3" />
-    <PackageVersion Include="F23.StringSimilarity" Version="7.0.1" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.14" />
+  </ItemGroup>
+
+  <!--
+    The library whose similarity measures LUI implements itself (ADR-0030): a test dependency, never shipped. The
+    parity tests compare LUI's measures against it — that comparison is the proof.
+  -->
+  <ItemGroup Label="Test — the library that LUI's own measures replace">
+    <PackageVersion Include="F23.StringSimilarity" Version="7.0.1" />
   </ItemGroup>
 
   <ItemGroup Label="Build">

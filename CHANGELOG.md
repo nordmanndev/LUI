@@ -179,6 +179,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The pool of the buffers no longer fills up** ([ADR-0031](docs/adr/0031-the-pool-displaces-instead-of-discarding.md), #30).
+  The length of the buffers follows the budget of the candidates, and the pool had twelve places for one budget: after
+  the budget had changed, every query allocated the big buffers anew — 294.9 KB at a budget of 1,000, against 83.4 KB
+  of the base that has no pool at all. Now the smallest buffer makes room for the new one. The same query allocates
+  59.7 KB; the guard `AllocationPoolTests` measures it after the budget has changed (39.8 KB, limit 64 KB).
+
 - `Nordmann.LUI.Hosting` pins `Nordmann.LUI` exactly (`[x.y.z]`), not as a lower bound: a newer core referenced beside
   an older hosting package is named at restore (`NU1608`, an error with `TreatWarningsAsErrors`) instead of surfacing at
   run time (#24, ADR-0018).
@@ -189,6 +195,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Truncated` is no longer set for a linked index when the only row after the budget is an outdated one (#26).
 
 ### Changed
+
+- **A query allocates far less** ([ADR-0032](docs/adr/0032-the-allocation-of-a-query.md), #30). A single-word query with the
+  budget of 500 candidates allocates **26.6 KB instead of 153.3 KB** (−83 %), a multi-word query **105.7 KB instead of
+  185.2 KB** (−43 %); the cost per candidate falls from 302 B to 40 B. Three changes, all inside the library:
+  - **LUI's own Jaro-Winkler** (`src/Nordmann.LUI/Similarity/JaroWinklerMeasure.cs`), bit-exact to
+    `F23.StringSimilarity.JaroWinkler` 7.0.1 — including its quirks (single precision, a common prefix that is not capped
+    at four characters, a weight that shrinks for long texts) — but without its four arrays per comparison. The default
+    measure of the library allocated 55.9 KB per query; now it allocates 0.9 KB.
+  - **The similarity is measured on spans.** The ranking writes the search form of a candidate into a buffer and measures
+    it there; neither the form nor the part the match begins at becomes a string any more (−44.1 KB per query). A measure
+    of an application that only speaks strings is measured as before — the difference is 40 KB per query.
+  - **The buffers of the candidates are reused** per thread: the arrays of the candidates, of the groups and of the hits
+    are kept instead of being thrown away after every query (−40 KB per query).
+  The public API is unchanged — `ISpanSimilarity` is internal, and the exported types against the base of the branch are
+  byte-identical. §16 carries the new target (p50 ≤ 60 KB, p95 ≤ 100 KB; measured p50 42 KB, p95 60 KB).
+
+- **The four similarity measures are LUI's own** ([ADR-0030](docs/adr/0030-the-similarity-measures-are-luis-own.md), #30). With
+  the Jaro-Winkler of the entry above, the **Damerau-Levenshtein** and the **Levenshtein** move into the library too, and
+  the runtime dependency on `F23.StringSimilarity` ends: the core ships **two** runtime dependencies now
+  (`Microsoft.Data.Sqlite`, `symspell`), and the library becomes a **test** dependency — the parity tests compare
+  against it.
+  - The numbers do not change: both measures are **bit-exact** to `F23.StringSimilarity` **7.0.1** — the packed version,
+    not the branch `main` (the two differ) — including the quirks that make up the definition: the Damerau-Levenshtein
+    is the **unrestricted** distance (a substring may be edited more than once), and the division by the longer text
+    and the subtraction from one keep the library's order, because the order decides where the rounding happens.
+  - The proof is a test **without a tolerance**: known pairs, 10,000 random pairs, every length against every length
+    up to 12, a long text — and **zero allocation** per comparison (the library allocated 5 KB for the
+    Damerau-Levenshtein and 350 B for the Levenshtein, per comparison, and a query compares up to 500 candidates).
+  - No change to the public API: the same four measures, with the same names and the same semantics.
 
 - **The public API before the freeze** ([ADR-0024](docs/adr/0024-the-api-polish-before-the-freeze.md), #42, from the
   architecture review of 2026-11-04). Renamed and tidied before the first release, so nobody has to migrate:

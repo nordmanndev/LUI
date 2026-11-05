@@ -36,7 +36,6 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" />
     <PackageReference Include="symspell" />
-    <PackageReference Include="F23.StringSimilarity" />
   </ItemGroup>
 
   <ItemGroup>
