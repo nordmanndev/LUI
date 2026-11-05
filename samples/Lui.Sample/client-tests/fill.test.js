@@ -9,6 +9,10 @@ test('the progress of a fill says what it is doing', () => {
         'Filling … 2,500 of 10,000 entries, 3 batches.',
     );
     assert.equal(
+        fillProgress({ state: 'running', requested: 10000, read: 0, batches: 0, note: 'downloading the German word list …' }),
+        'downloading the German word list …',
+    );
+    assert.equal(
         fillProgress({ state: 'done', requested: 10000, read: 10000, added: 10000, removed: 0, elapsedMs: 1234.5 }),
         'Filled: 10,000 entries — 10,000 added, 0 removed, 1.2 s.',
     );

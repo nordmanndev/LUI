@@ -6,6 +6,9 @@
   one index based on german words corpus, one for names based on Bogus and tags also based on bogus. Integrate the creation of
   the index (init & load) as a button in the sample app, so the user can start and 'fill' the index he is willing to play with.
   Maybe with num of entries where appropriate."
+- **Revised by:** the owner, 2026-11-05, on the review of the pull request: the settings must be short (the explanation behind
+  a "?"), the sample must download the word list itself, and the indexes must be created on demand — "that is why they should
+  create the index on demand" — so that the page can show the performance of a million entries.
 - **Amends:** [0027](./0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md) (the sample grows three indexes and a
   button); the dependency set of the *sample* — the two packages keep theirs ([0004](./0004-dependencies.md),
   [0018](./0018-two-packages-core-and-hosting.md))
@@ -59,12 +62,12 @@ half a million words has nothing to do with the demonstration of a payload colum
 
    The curated `recipes`, `names` and `tags` keep their entries, their payload and their purpose.
 
-2. **The button loads the index, and the index is an ordinary one.** The three bulk indexes are registered and ensured like the
-   curated ones: they exist, they are empty, and the page shows them with their maintenance from the first second. What the
-   button does is the *load*: `POST /api/indexes/{name}/fill` with a number loads the index with exactly that many entries. The
-   *init* — the tables of the index — is the same as for every other index of the sample: it happens when the host starts, and
-   the fill ensures it again, so a fill into an index that was dropped in between works as well. Nothing of the index is paid for
-   before the button is pressed: the entries are the work, and they are the expensive part.
+2. **The button creates the index and loads it, and the index is an ordinary one.** The three bulk indexes are *not* registered
+   with the host: the index of LUI is created when it is asked for the first time — when the panel describes it or when the button
+   is pressed — and the fill loads it with exactly the number of entries that were asked for. A stock of a million entries is
+   minutes of work (ADR-0020: 3,000,000 entries in 172.5 s), and nobody pays for it who does not want it; that is the whole
+   reason the scale demo cannot live in the startup path. What the index can do afterwards is what every index can do — the query,
+   the check, the maintenance — there is nothing special about it but the way it is loaded.
 
 3. **The fill runs in the background, and the page watches it.** The endpoint answers at once (202) with the state of the fill;
    `GET /api/indexes/{name}/fill` reports what the sync has done so far (`LuiSyncOptions.Progress` tells the report after every
@@ -77,10 +80,19 @@ half a million words has nothing to do with the demonstration of a payload colum
    keys are the positions (1 … count), the weights are a stable hash of the text — so an entry that is already there is *the same*
    entry and not a change.
 
-5. **The word list is looked up in this order:** `LUI_WORDLIST` (the convention of the tests), then
-   `artifacts/wordlist/german-words.txt` (what `tools/fetch-wordlist.sh` writes), then the curated
-   `tests/Nordmann.LUI.TestData/wordlist/german-words.sample.txt`. The index panel says which one it found and how many words it
-   has — a sample that silently offers 7,071 words where 685,829 are available would be a lie by omission.
+5. **The word list is the full list, and the sample downloads it.** The list is looked up in this order:
+   `Sample:WordList` (the configuration of the host — how the tests point the sample at the curated 7,071-word subset), then
+   `LUI_WORDLIST` (the convention of the tests), then `artifacts/wordlist/german-words.txt` (what `tools/fetch-wordlist.sh`
+   writes). If none of them is there, **the sample downloads the list itself** — the same source, the same place, the same
+   number of words (685,829, checked after the download). The download happens in the background of the fill, and the panel says
+   what it is doing while it runs.
+
+   The sample does *not* fall back to the curated subset silently: a sample that offers 7,071 words where 685,829 are available
+   is a lie by omission, and the number of entries the user asked for would not be the number the index holds. The curated subset
+   is what the *tests* use, and the tests point the sample at it (the tests never download 5.5 MB).
+
+   The panel names the source and the size of the list, before it is there: "685,829 words (downloaded when the index is
+   filled)".
 
 6. **Bogus is a dependency of the sample alone.** The sample is not shipped (`IsPackable=false`); the two packages keep their
    dependency set, which is the contract of ADR-0004 and ADR-0018. The version lives in `Directory.Packages.props` like every
@@ -91,25 +103,38 @@ half a million words has nothing to do with the demonstration of a payload colum
    the list, so `words` and `hashtags` correct nothing.
 
 8. **The number of entries is the user's, where it makes sense.** The panel offers a number field per bulk index: for `words`
-   the ceiling is the size of the list, for the two Bogus indexes there is none (1,000,000 is the largest fill the sample
-   offers). The default is 10,000 entries — or the whole list when it is shorter — about a second, enough to see the difference
-   against 25 entries.
+   the ceiling is the size of the list (685,829 words), for the two Bogus indexes there is none — 3,000,000 is the largest fill
+   the sample offers, the scale of the measurements of the specification (§16). The default is 10,000 entries — or the whole
+   list when it is shorter — about a second, enough to see the difference against 25 entries. The user who wants to see the why
+   of LUI asks for a million: the fill takes a minute, the query stays in the milliseconds.
+
+9. **The settings are short.** The panel of the settings is as long as the column it stands in — and the column is short. Every
+   setting explains itself behind a "?" (the explanation is the tooltip of the setting as well), so the panel fits a screen
+   without a scroll of its own and stands beside the autocomplete instead of over it. Nothing is cut off, and nothing is a trap
+   to scroll out of.
+
+10. **The catalog of the sample is configured the way §16 measures it**, and the fill uses the batch of ADR-0016: a page cache of
+    512 MB, a memory-mapped file, and 100,000 entries per batch — a first load into a file that no one else writes is about 30 %
+    faster with that batch than with the default of 10,000. The sample is not a benchmark: it is the demonstration of a big load,
+    and it is configured like one.
 
 ## Consequences
 
-- **The sample shows the why of LUI now**: fill `words` with 685,829 entries and type into it — the query stays in the
-  milliseconds while the index holds half a million rows. That is the motivation of the library, in the page.
+- **The sample shows the why of LUI now**: fill `words` with 685,829 entries — or `people` with a million — and type into it:
+  the query stays in the milliseconds while the index holds a million rows. That is the motivation of the library, in the page.
 - **Nothing is paid for by default.** A fresh clone starts with the three curated indexes; the database file stays small; the
-  memory of the process stays small. The bulk indexes exist only after the user asked for them.
+  memory of the process stays small. The bulk indexes do not even exist until the user asked for them — the fill creates them.
 - **The fill is a background task of the sample** (`Task.Run` on a thread of the pool), not a hosted service of the library:
   the library offers `Sync` with a progress, and the sample decides how the work is scheduled. A fill that is cancelled keeps the
   batches it committed (ADR-0016) — the next fill continues.
 - **The sample depends on Bogus.** The `Repository_Layout` guards keep the versions in one place and every pin referenced; the
   dependency set of the two packages is unchanged, and `PackageIdentityTests` still holds the shipped assemblies to their
   documented set.
-- **The word list is not in the repository** — the sample finds it where the repository's own tools put it, and falls back to
-  the curated subset that is tracked. The panel names the source, so a reader knows which of the two he is playing with.
+- **The word list is not in the repository** — the sample finds it where the repository's own tools put it, and downloads it when
+  it is not there. The panel names the source, so a reader knows which list he is playing with.
+- **The sample needs the internet once** — for the list of 5.5 MB, and only when the `words` index is filled. Everything else
+  works offline, and the two Bogus indexes do as well.
 - **The sample's API grows**: three routes for the fill, and two fields in the description of an index (the source of its
   entries and their ceiling). Nothing of the library's public API changes (ADR-0026): this is the sample's own API.
-- **Reversible:** the three indexes, the three routes and the dependency of the sample can go without a trace; the library does
-  not know them.
+- **Reversible:** the three indexes, the three routes, the download and the dependency of the sample can go without a trace; the
+  library does not know them.

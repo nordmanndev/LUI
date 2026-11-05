@@ -12,6 +12,7 @@ internal sealed class FillJob : IProgress<LuiSyncReport>
     private readonly Stopwatch _clock = Stopwatch.StartNew();
     private string _state = "running";
     private LuiSyncReport _report = new();
+    private string? _note;
     private string? _error;
 
     internal FillJob(string index, int requested)
@@ -48,6 +49,16 @@ internal sealed class FillJob : IProgress<LuiSyncReport>
         lock (_gate)
         {
             _report = report;
+            _note = null;
+        }
+    }
+
+    /// <summary>What the fill is doing before it delivers — the word list downloads itself.</summary>
+    internal void Note(string note)
+    {
+        lock (_gate)
+        {
+            _note = note;
         }
     }
 
@@ -101,6 +112,7 @@ internal sealed class FillJob : IProgress<LuiSyncReport>
                     _report.Removed,
                     _report.Batches,
                     _clock.Elapsed.TotalMilliseconds,
+                    _note,
                     _error);
             }
         }

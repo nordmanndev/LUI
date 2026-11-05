@@ -32,8 +32,9 @@
 .column { display: grid; gap: var(--gap); align-content: start; min-width: 0; }
 
 @media (min-width: 1000px) {
-  .layout { grid-template-columns: minmax(0, 1fr) 340px; align-items: start; }
-  /* The settings are longer than the column they stand in. Sticky, they stay beside the column — and scroll themselves
-     when the window is shorter than they are, so that they never lie over what is below them. */
+  .layout { grid-template-columns: minmax(0, 1fr) 420px; align-items: start; }
+  /* The settings stay beside the column. They are short enough to fit a screen (the explanations are a "?" away), and
+     they scroll themselves only when the window is shorter than they are — never over what is below them. */
   .settings { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
+  .wide { grid-column: 1 / -1; }
 }

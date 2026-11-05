@@ -10,8 +10,8 @@ namespace Nordmann.LUI.Sample.Api;
 /// </summary>
 internal sealed class FillJobs
 {
-    /// <summary>The most entries one fill may ask for.</summary>
-    internal const int Limit = 1_000_000;
+    /// <summary>The most entries one fill may ask for — the scale of the measurements of the specification (§16).</summary>
+    internal const int Limit = 3_000_000;
 
     private readonly ConcurrentDictionary<string, FillJob> _jobs = new(StringComparer.Ordinal);
 
@@ -77,7 +77,11 @@ internal sealed class FillJobs
     {
         try
         {
-            var report = bulk.Fill(job.Requested, job, job.Cancellation.Token);
+            var report = bulk
+                .Fill(job.Requested, job, job.Note, job.Cancellation.Token)
+                .GetAwaiter()
+                .GetResult();
+
             job.MarkDone(report);
         }
         catch (OperationCanceledException)

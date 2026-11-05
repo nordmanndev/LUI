@@ -5,6 +5,20 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-05 — The sample fills its own bulk indexes (ADR-0029), second round
+
+- The owner's review of the pull request, answered: the **settings are short** (the explanation of a setting is behind its "?"
+  and is its tooltip as well; the panel fits a screen, 707 px, without a scroll of its own, and stands beside the autocomplete),
+  the **word list is the full one and the sample downloads it** (685,829 words, CC0 — the same source and the same place as
+  `tools/fetch-wordlist.sh`; the curated 7,071-word subset is what the tests use, and a test never downloads 5.5 MB), the
+  **bulk indexes are created on demand** (not registered with the host: the index of LUI comes into being when the panel asks
+  for it or when the button is pressed), and the **largest fill is three million entries** (the scale of §16).
+- Measured: the fill of the whole German word list took **2 m 15 s** (685,829 entries, 69 batches, 158 MB of database), a
+  million names about the same; the query against a million names stays in the milliseconds.
+- New: `GermanWordList` downloads the list, `WordSource` prepares it, `BulkSampleIndex` creates the index of LUI on demand,
+  `FillJobs.Limit` is three million, the fill has a note ("downloading the German word list …"). The client: the "?" of a
+  setting, `data-index` and `fill-status` on the fill form, the limit of three million in the number field.
+
 ## 2026-11-05 — The sample fills its own bulk indexes (ADR-0029)
 
 - ADR-0029. Three indexes beside the curated ones — `words` (the German word list), `people` (Bogus's German full names),

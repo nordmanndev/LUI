@@ -39,7 +39,7 @@ export function fillProgress(status) {
         return 'Not filled yet.';
     }
     if (status.state === 'running') {
-        return `Filling … ${number(status.read)} of ${number(status.requested)} entries, ${number(status.batches)} batches.`;
+        return status.note ?? `Filling … ${number(status.read)} of ${number(status.requested)} entries, ${number(status.batches)} batches.`;
     }
     if (status.state === 'done') {
         return `Filled: ${number(status.read)} entries — ${number(status.added)} added, ${number(status.removed)} removed, ${duration(status.elapsedMs)}.`;

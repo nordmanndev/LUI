@@ -12,4 +12,5 @@ internal sealed record FillStatus(
     long Removed,
     int Batches,
     double ElapsedMs,
+    string? Note,
     string? Error);

@@ -18,11 +18,16 @@ public sealed class SampleHost : IAsyncLifetime, IDisposable
 
     public HttpClient Client { get; private set; } = null!;
 
+    /// <summary>The services of the running sample — the test looks at what is registered (ADR-0029).</summary>
+    public IServiceProvider Services => _app!.Services;
+
     public async Task InitializeAsync()
     {
         _app = SampleApp.Build(
         [
             $"--{SampleApp.ConnectionStringKey}={_database.ConnectionString};Default Timeout=10",
+            // The curated word list of the tests: the sample must not download 5.5 MB in a test.
+            $"--{SampleApp.WordListKey}={WordList}",
             "--urls=http://127.0.0.1:0",
             $"--contentRoot={Repository.SampleDirectory}",
             "--Logging:LogLevel:Default=Warning",
@@ -32,6 +37,14 @@ public sealed class SampleHost : IAsyncLifetime, IDisposable
         var address = _app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.First();
         Client = new HttpClient { BaseAddress = new Uri(address), Timeout = TimeSpan.FromSeconds(30) };
     }
+
+    /// <summary>The word list the sample of the tests uses — every 97th word of the German word list.</summary>
+    private static string WordList => Path.Combine(
+        Repository.RootPath,
+        "tests",
+        "Nordmann.LUI.TestData",
+        "wordlist",
+        "german-words.sample.txt");
 
     public async Task DisposeAsync()
     {

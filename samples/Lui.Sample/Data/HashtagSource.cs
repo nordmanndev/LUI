@@ -16,6 +16,8 @@ internal sealed class HashtagSource : IBulkSource
 
     public LuiIndexKind Kind => LuiIndexKind.SingleWord;
 
+    public bool TypoTolerance => false;
+
     public string Description =>
         "The tags of Bogus's German locale: a place and a surname, joined by a hyphen — “#Cedrikdorf-Gehrke”. " +
         "A tag of two words is found by either of them.";
@@ -23,6 +25,8 @@ internal sealed class HashtagSource : IBulkSource
     public string Origin => $"Bogus (locale de, seed {Seed}) — deterministic";
 
     public long? Capacity => null;
+
+    public Task PrepareAsync(Action<string>? note, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public IEnumerable<LuiEntry<long, LuiNoPayload>> Entries(int count)
     {

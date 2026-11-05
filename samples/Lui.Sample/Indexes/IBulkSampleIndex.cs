@@ -15,7 +15,8 @@ internal interface IBulkSampleIndex : ISampleIndex
     /// </summary>
     /// <param name="count">The number of entries.</param>
     /// <param name="progress">Told after every batch what the sync has done so far.</param>
+    /// <param name="note">Told what the source is doing before it delivers — the word list downloads itself.</param>
     /// <param name="cancellationToken">Stops the fill; the batches that were committed stay.</param>
     /// <returns>What the sync did.</returns>
-    LuiSyncReport Fill(int count, IProgress<LuiSyncReport>? progress, CancellationToken cancellationToken);
+    Task<LuiSyncReport> Fill(int count, IProgress<LuiSyncReport>? progress, Action<string>? note, CancellationToken cancellationToken);
 }

@@ -430,10 +430,13 @@ with [flexdatalist](https://github.com/sergiodlopes/flexdatalist) and the whole 
 | People | embedded, multi-word, no payload | the **names** of Bogus's German locale, with the typo tolerance of the index |
 | Hashtags | embedded, single-word, no payload | the **tags** of Bogus's German locale — a place and a surname |
 
-The three at the end are the **bulk indexes**: they are empty until the button in the index panel fills them
+The three at the end are the **bulk indexes**: they do not exist before the button in the index panel is pressed
 ([ADR-0029](./docs/adr/0029-the-sample-fills-its-own-bulk-indexes-on-demand.md)). You say how many entries the index should hold —
-as many as the word list has, as many as you like for the two Bogus indexes — and the fill runs in the background while the page
-shows its progress. Nobody pays for a stock of half a million words who does not want one.
+as many as the word list has, as many as you like for the two Bogus indexes (three million is the largest fill) — and the fill runs
+in the background while the page shows its progress. Nobody pays for a stock of half a million words who does not want one.
+
+The word list is the full one: 685,829 words under CC0, which the sample downloads itself when it is not on the machine — the
+same source and the same place as `tools/fetch-wordlist.sh`. The panel says which list it found and how many words it has.
 
 ![The recipes autocomplete: "kartofel" is corrected, the page asks "Did you mean “kartoffel”?", the hits are grouped by the category of their payload](./docs/images/sample-recipes.png)
 

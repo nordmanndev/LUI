@@ -16,6 +16,8 @@ internal sealed class PeopleSource : IBulkSource
 
     public LuiIndexKind Kind => LuiIndexKind.MultiWord;
 
+    public bool TypoTolerance => true;
+
     public string Description =>
         "The full names of Bogus's German locale — the stock of names, with the typo tolerance of the index. " +
         "Nobody knows how “Schröder” is spelled: the dictionary of this index is its own.";
@@ -23,6 +25,8 @@ internal sealed class PeopleSource : IBulkSource
     public string Origin => $"Bogus (locale de, seed {Seed}) — deterministic";
 
     public long? Capacity => null;
+
+    public Task PrepareAsync(Action<string>? note, CancellationToken cancellationToken) => Task.CompletedTask;
 
     public IEnumerable<LuiEntry<long, LuiNoPayload>> Entries(int count)
     {

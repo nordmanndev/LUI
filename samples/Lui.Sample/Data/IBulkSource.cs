@@ -13,6 +13,9 @@ internal interface IBulkSource
     /// <summary>The kind of the index it fills.</summary>
     LuiIndexKind Kind { get; }
 
+    /// <summary>Whether the index corrects a typo — it costs a dictionary of its own (ADR-0021).</summary>
+    bool TypoTolerance { get; }
+
     /// <summary>What the index is for, in the words of the index panel.</summary>
     string Description { get; }
 
@@ -21,6 +24,13 @@ internal interface IBulkSource
 
     /// <summary>The most entries the source can deliver, or <see langword="null"/> when it has no ceiling.</summary>
     long? Capacity { get; }
+
+    /// <summary>
+    /// What the source needs before it can deliver its entries — the word list downloads itself. The fill waits for it.
+    /// </summary>
+    /// <param name="note">Told what the source is doing, for the panel.</param>
+    /// <param name="cancellationToken">Stops the preparation.</param>
+    Task PrepareAsync(Action<string>? note, CancellationToken cancellationToken);
 
     /// <summary>The first <paramref name="count"/> entries — the same ones for the same count, every time.</summary>
     IEnumerable<LuiEntry<long, LuiNoPayload>> Entries(int count);

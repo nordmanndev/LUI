@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.DependencyInjection;
+using Nordmann.LUI;
 using Shouldly;
 
 namespace Nordmann.LUI.Integration.Tests;
@@ -103,13 +105,23 @@ public sealed class SampleBulkTests(SampleHost host) : IClassFixture<SampleHost>
         none.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await none.Content.ReadAsStringAsync()).ShouldContain("at least one");
 
-        var tooMany = await Client.PostAsJsonAsync("/api/indexes/words/fill", new { count = 1_000_001 });
+        var tooMany = await Client.PostAsJsonAsync("/api/indexes/words/fill", new { count = 3_000_001 });
         tooMany.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await tooMany.Content.ReadAsStringAsync()).ShouldContain("largest fill");
 
         var beyondTheList = await Client.PostAsJsonAsync("/api/indexes/words/fill", new { count = 1_000_000 });
         beyondTheList.StatusCode.ShouldBe(HttpStatusCode.BadRequest);
         (await beyondTheList.Content.ReadAsStringAsync()).ShouldContain("holds");
+    }
+
+    [Fact]
+    public void The_bulk_indexes_are_not_registered_at_startup()
+    {
+        // They are created when they are asked for — a stock of a million entries is minutes of work, and nobody pays for
+        // it who does not want it (ADR-0029).
+        host.Services.GetKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("words").ShouldBeNull();
+        host.Services.GetKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("people").ShouldBeNull();
+        host.Services.GetKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("hashtags").ShouldBeNull();
     }
 
     [Fact]

@@ -12,15 +12,16 @@ import { fillProgress, number } from '../core/format.js';
  * @returns {HTMLElement}
  */
 export function mountFillForm({ info, bus }) {
-    const limit = info.capacity ?? 1_000_000;
-    const status = el('p', { class: 'muted', 'aria-live': 'polite', text: fillProgress(null) });
+    // The ceiling of the list, or the largest fill the sample offers (ADR-0029) — the server is the truth about it.
+    const limit = info.capacity ?? 3_000_000;
+    const status = el('p', { class: 'muted fill-status', 'aria-live': 'polite', text: fillProgress(null) });
     const bar = el('progress', { class: 'progress', max: limit, value: 0 });
     const entries = el('input', { type: 'number', min: 1, max: limit, value: defaultCount(info), 'aria-label': 'entries' });
     const button = el('button', { class: 'button', type: 'submit', text: 'Create & fill' });
     const cancel = el('button', { class: 'button danger', type: 'button', text: 'Cancel', disabled: true, on: { click: stopFill } });
     let timer = null;
 
-    const form = el('form', { class: 'form', on: { submit: event => { event.preventDefault(); start(); } } },
+    const form = el('form', { class: 'form fill-form', 'data-index': info.name, on: { submit: event => { event.preventDefault(); start(); } } },
         el('strong', { text: 'Fill the index' }),
         el('span', { class: 'muted', text: info.source }),
         entries,
