@@ -4,7 +4,7 @@ using Microsoft.Extensions.Logging;
 namespace Nordmann.LUI.Hosting;
 
 /// <summary>
-/// Ensures every registered index when the host starts (LUI-Spezifikation §12.7): a definition that does not match, or a
+/// Creates every registered index when the host starts (LUI-Spezifikation §12.7): a definition that does not match, or a
 /// linked table that does not fit, stops the start — not the first request. An index that is opened instead of created
 /// has to exist, and the file stays as it is (ADR-0033). If asked, it then builds the typo dictionaries in the
 /// background, so the first typo does not pay for them (ADR-0013).

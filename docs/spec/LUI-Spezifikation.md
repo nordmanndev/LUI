@@ -899,6 +899,9 @@ Regeln:
   korrigiert nichts. Eine Abfrage fragt danach (`LuiQueryOptions.TypoTolerance`, `LuiQueryOptions.Similarity`).
 - **Ein geöffneter Index schreibt nicht**: Jeder Schreib- und Pflegeaufruf (`Upsert`, `Sync`, `Rebuild`, `Optimize`,
   `Check`, die Wörterbücher) lehnt mit einem `NotSupportedException` ab.
+- **Eine Datei im Modus `ro` braucht `WriteAheadLog = false`** (oder einen Bestand, der schon im WAL-Modus läuft):
+  Der Katalog fragt beim Öffnen sonst SQLite für das WAL — und das ist ein Schreibvorgang, den eine nur lesbare
+  Datei verweigert. Der Index-Weg selbst schreibt nie; der Katalog gehört weiterhin der Datei (§ 14).
 
 ---
 

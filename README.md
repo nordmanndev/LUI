@@ -327,6 +327,9 @@ With the types of the application it is `OpenIndex<TKey, TPayload>(name, payload
 refused, because it reads and does not write. In a container: `AddOpenIndex(name)` registers an index that the host
 opens; `AddIndex` keeps its meaning and creates it.
 
+A file in the mode `ro` needs one thing from the catalog: `WriteAheadLog = false`, or a file that already runs in the
+WAL mode. The catalog otherwise asks SQLite for the WAL on open — and that is a write, which a read-only file refuses.
+
 ---
 
 ## Performance

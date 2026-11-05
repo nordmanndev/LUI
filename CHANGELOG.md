@@ -102,9 +102,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (5.4 ms after `UpsertMany`).
 
 - **The linked index** ([ADR-0015](docs/adr/0015-the-linked-index-is-loosely-coupled.md)), loosely coupled to a table
-  of the application: `lui.Index(name).SingleWord().LinkTo(table, key, text, weight?, priority?).Ensure()` returns an
+  of the application: `lui.Index(name).SingleWord().LinkTo(table, key, text, weight?, priority?).Create()` returns an
   `ILuiLinkedIndex<TPayload>`. LUI never changes the application's table on its own — no column, no index, no trigger;
-  `Ensure()` checks the table and creates LUI's own tables (a contentless FTS5 table, the text is not stored twice).
+  `Create()` checks the table and creates LUI's own tables (a contentless FTS5 table, the text is not stored twice).
   The application keeps it current: `Sync()`, `Refresh(key, transaction = null)`, `RefreshMany(keys, transaction = null)`,
   `Optimize()`; triggers only on request: `TriggerScript()`, `CreateTriggers()`, `DropTriggers()` — they only note the
   key of a changed row in an outbox (plain SQL, any SQLite can write the table); `ApplyPending()` brings the noted rows
@@ -131,7 +131,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instances of an index and its build never holds up a write. The dictionary of the whole
   German word list takes 4.2 s and 138 MB.
 
-- **The multi-word index** (`MultiWord`, `Embedded`): `catalog.Index(name).MultiWord().Ensure()`
+- **The multi-word index** (`MultiWord`, `Embedded`): `catalog.Index(name).MultiWord().Create()`
   for names and titles ([ADR-0011](docs/adr/0011-the-multi-word-index.md)). The input is split
   into words that are ANDed and also searched compactly, so `kuchen apfel` and `apfelkuch` both
   find „Apfel Kuchen"; the word start is decided on the compact form; the default similarity is

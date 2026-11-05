@@ -133,7 +133,7 @@ open.
 ### 5. The payload columns go into the definition
 
 `LinkDefinition` gets the columns of the payload in their order. The definition is written when the index
-is created and compared when it is ensured — so the columns are there, and a linked index with a payload
+is created and compared when it is created again — so the columns are there, and a linked index with a payload
 can be opened.
 
 The definition grows: the files that exist today are free (ADR-0026), never again after 0.1.0.
