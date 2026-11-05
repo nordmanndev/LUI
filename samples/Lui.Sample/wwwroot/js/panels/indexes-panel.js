@@ -3,28 +3,67 @@ import { clear, el } from '../core/dom.js';
 import { number } from '../core/format.js';
 
 /**
- * The rest of the public surface of LUI, as buttons and forms: what an index is, what the application writes to it, and
- * how it is kept in order. The suggest route is the other panels; this is §12.4 – §12.7 of the specification.
+ * The rest of the public surface of LUI, one index at a time: what an index is, what the application writes to it, and how it
+ * is kept in order. The suggest route is the other panels; this is §12.4 – §12.7 of the specification.
  *
  *  - **embedded** (`recipes`, `names`): the entries are LUI's — `Upsert`, `UpdateWeight`, `UpdatePriority`, `Remove`, and
  *    `Sync` against the seed;
  *  - **linked** (`tags`): the text is the application's table — the page writes the row, and tells the index (the triggers
  *    and the outbox, `Refresh`, `ApplyPending`).
  *
+ * Every index has a tab of its own: one card at a time, not six cards in a column. The tab of a bulk index (`words`,
+ * `people`, `hashtags`) holds the button that creates the index and loads it (ADR-0029).
+ *
  * @param {{ root: HTMLElement, bus: ReturnType<typeof import('../core/bus.js').createBus>, meta: any }} options
  */
 export function mountIndexesPanel({ root, bus, meta }) {
-    const cards = el('div', { class: 'index-cards' });
-    /** What the page remembers across a redraw of the cards: the last output and whether a card is open. */
+    const tabs = el('div', { class: 'tabs index-tabs', role: 'tablist', 'aria-label': 'The indexes' });
+    const host = el('div', { class: 'index-host' });
+    const notice = el('p', { class: 'error', hidden: true });
+    /** What the page remembers across a redraw of the card: the last output and which tab is open. */
     const outputs = new Map();
-    const opened = new Map();
-    root.append(el('h2', { text: 'The indexes' }), cards);
+    let selected = null;
+    root.append(el('h2', { text: 'The indexes' }), tabs, host, notice);
 
     async function refresh() {
-        const indexes = await api.indexes();
-        clear(cards);
+        let indexes;
+        try {
+            indexes = await api.indexes();
+        } catch (error) {
+            // The panel keeps what it has: an empty panel would look like "the index lost its data".
+            notice.textContent = `The indexes could not be read: ${error.message}`;
+            notice.hidden = false;
+            return;
+        }
+
+        notice.hidden = true;
+        selected = selected && indexes.some(index => index.name === selected) ? selected : indexes[0]?.name ?? null;
+        drawTabs(indexes);
+        drawCard(indexes);
+    }
+
+    /** The tabs: one per index, with what it holds. */
+    function drawTabs(indexes) {
+        clear(tabs);
         for (const info of indexes) {
-            cards.append(card(info));
+            tabs.append(el('button', {
+                type: 'button',
+                role: 'tab',
+                class: 'tab',
+                'aria-selected': String(info.name === selected),
+                on: { click: () => { selected = info.name; drawTabs(indexes); drawCard(indexes); } },
+            },
+                el('strong', { text: info.name }),
+                el('span', { class: 'tab-count', text: number(info.count) })));
+        }
+    }
+
+    /** The card of the index that is open — only that one. */
+    function drawCard(indexes) {
+        clear(host);
+        const info = indexes.find(index => index.name === selected);
+        if (info) {
+            host.append(card(info));
         }
     }
 
@@ -48,14 +87,16 @@ export function mountIndexesPanel({ root, bus, meta }) {
             ...(info.storage === 'Linked' ? [['Outbox (Pending)', number(info.pending)], ['Triggers', info.triggers]] : []),
         ];
 
-        return el('details', {
-            class: 'index-card',
-            open: opened.get(info.name) ?? (info.name === 'recipes' || info.name === 'tags'),
-            on: { toggle: event => opened.set(info.name, event.target.open) },
-        },
-            el('summary', {}, el('strong', { text: info.name }), el('span', { class: 'badge', text: `${info.storage} · ${info.kind}` })),
-            el('p', { class: 'muted', text: info.description }),
-            el('dl', { class: 'facts' }, ...facts.map(([name, value]) => el('div', { class: 'fact' }, el('dt', { text: name }), el('dd', { text: String(value) })))),
+        return el('div', { class: 'index-card' },
+            info.error
+                ? el('p', { class: 'error', text: `This index could not be read: ${info.error}` })
+                : el('p', { class: 'muted', text: info.description }),
+            info.error
+                ? null
+                : el('dl', { class: 'facts' }, ...facts.map(([name, value]) => el('div', { class: 'fact' }, el('dt', { text: name }), el('dd', { text: String(value) })))),
+            info.source
+                ? el('p', { class: 'muted', text: 'The button that fills this index stands in its tab above, under the input.' })
+                : null,
             el('div', { class: 'buttons' },
                 button('Sync', info.storage === 'Linked' ? 'Sync() — rebuild the index from the application’s table' : 'Sync(entries) — compare with the seed: add, change, remove', () => api.sync(info.name)),
                 button('Check', 'Check() — the index against itself', () => api.check(info.name)),
@@ -66,7 +107,8 @@ export function mountIndexesPanel({ root, bus, meta }) {
                 button('Optimize', 'Optimize() — merge the segments', () => api.optimize(info.name)),
                 button('Warm up typos', 'WarmUpTypoDictionary()', () => api.warmUpTypos(info.name)),
                 button('Rebuild typos', 'RebuildTypoDictionary() — forgets removed words', () => api.rebuildTypos(info.name))),
-            info.storage === 'Linked' ? linkedForms(info, run, button) : embeddedForms(info, run),
+            // The entries of a bulk index are the ones of its source: there is nothing to write into it by hand.
+            info.storage === 'Embedded' ? (info.source ? null : embeddedForms(info, run)) : linkedForms(info, run, button),
             output);
     }
 
@@ -77,7 +119,7 @@ export function mountIndexesPanel({ root, bus, meta }) {
         const payload = info.payload === 'none' ? null : el('input', { type: 'text', value: '{"category":"Kuchen","minutes":30,"emoji":"🍰"}', 'aria-label': 'payload JSON' });
         const key = el('input', { type: 'number', placeholder: 'key', 'aria-label': 'key' });
         const newWeight = el('input', { type: 'number', min: 0, max: 536870911, placeholder: 'weight', 'aria-label': 'new weight' });
-        const newPriority = el('select', { 'aria-label': 'new priority' }, el('option', { value: '', text: '(priority)' }), ...meta.priority.map(name => el('option', { value: name, text: name })));
+        const newPriority = el('select', { 'aria-label': 'priority' }, el('option', { value: '', text: '(priority)' }), ...meta.priority.map(name => el('option', { value: name, text: name })));
         const parse = () => (payload?.value ? JSON.parse(payload.value) : undefined);
 
         return el('div', { class: 'forms' },
@@ -112,5 +154,5 @@ export function mountIndexesPanel({ root, bus, meta }) {
     }
 
     bus.on('index:changed', () => { refresh().catch(() => {}); });
-    refresh().catch(error => root.append(el('p', { class: 'error', text: error.message })));
+    refresh().catch(error => { notice.textContent = `The indexes could not be read: ${error.message}`; notice.hidden = false; });
 }

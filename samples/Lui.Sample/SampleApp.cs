@@ -15,6 +15,9 @@ public static class SampleApp
     /// <summary>The configuration key of the SQLite connection string.</summary>
     public const string ConnectionStringKey = "Sample:ConnectionString";
 
+    /// <summary>The configuration key of the German word list — where the sample looks for it before it downloads it.</summary>
+    public const string WordListKey = "Sample:WordList";
+
     /// <summary>Builds the application, and fills the empty indexes.</summary>
     /// <param name="args">The command line; <c>--Sample:ConnectionString=…</c> and <c>--urls=…</c> are the ones that matter.</param>
     /// <returns>The application, not started.</returns>
@@ -35,7 +38,7 @@ public static class SampleApp
 
         // The application's own table exists before LUI is asked to link an index to it (ADR-0015, ADR-0017).
         SampleDatabase.Initialize(connectionString);
-        AddLui(builder.Services, connectionString);
+        AddLui(builder.Services, connectionString, builder.Configuration[WordListKey]);
 
         var app = builder.Build();
         SampleSeed.Apply(app.Services.GetRequiredService<SampleIndexes>());
@@ -48,10 +51,13 @@ public static class SampleApp
         return app;
     }
 
-    private static void AddLui(IServiceCollection services, string connectionString)
+    private static void AddLui(IServiceCollection services, string connectionString, string? wordList)
     {
         services
-            .AddLui(connectionString)
+            // The catalog is configured the way the measurements of the specification (§16) measure it: a page cache of
+            // 512 MB and a memory-mapped file. A stock of a million entries is a bulk load — the settings are what make
+            // it a bulk load and not a million small writes.
+            .AddLui(connectionString, new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 })
             // Embedded, several words, a JSON payload that LUI stores next to each entry.
             .AddIndex("recipes", index => index.MultiWord().WithPayload(SampleJsonContext.Default.RecipePayload).TypoTolerance())
             // Embedded, several words, no payload: the names, where the typo tolerance matters most.
@@ -68,11 +74,12 @@ public static class SampleApp
             .WarmUpTypoDictionariesOnStart();
 
         services.AddSingleton<RequestStats>();
-        services.AddSingleton(provider => new SampleIndexes(Facades(provider, connectionString)));
+        services.AddSingleton<FillJobs>();
+        services.AddSingleton(provider => new SampleIndexes(Facades(provider, connectionString, wordList)));
     }
 
-    /// <summary>The three indexes behind the page, each with the description the index panel shows.</summary>
-    private static List<ISampleIndex> Facades(IServiceProvider provider, string connectionString) =>
+    /// <summary>The indexes behind the page, each with the description the index panel shows.</summary>
+    private static List<ISampleIndex> Facades(IServiceProvider provider, string connectionString, string? wordList) =>
     [
         new EmbeddedSampleIndex<RecipePayload>(
             provider.GetRequiredKeyedService<ILuiEmbeddedIndex<long, RecipePayload>>("recipes"),
@@ -91,6 +98,12 @@ public static class SampleApp
             connectionString,
             payloadDescription: "columns kind, color — read from the table",
             description: "Tags in the application's own table. 'vegan' has the priority System and comes first for every input it matches."),
+        // The bulk indexes (ADR-0029): they hold what a source produces for the number the user asks for. They are not
+        // registered — an index of a million entries is minutes of work, and nobody pays for it who does not want it. The
+        // index of LUI is created when the panel asks for it, and loaded when the button of the panel is pressed.
+        new BulkSampleIndex(provider.GetRequiredService<LuiCatalog>(), new WordSource(wordList)),
+        new BulkSampleIndex(provider.GetRequiredService<LuiCatalog>(), new PeopleSource()),
+        new BulkSampleIndex(provider.GetRequiredService<LuiCatalog>(), new HashtagSource()),
     ];
 
     /// <summary>The static client, behind a strict policy: no inline script, no inline style, so the escaping in the client is not the only thing between a hostile entry and the DOM.</summary>

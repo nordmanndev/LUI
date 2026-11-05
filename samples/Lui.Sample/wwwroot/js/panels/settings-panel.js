@@ -19,11 +19,50 @@ export function mountSettingsPanel({ root, meta, settings }) {
         type: 'number', min, max, value,
         on: { change: event => onChange(Math.min(max, Math.max(min, Number(event.target.value) || min))) },
     });
-    const select = (value, options, onChange) => el('select', { on: { change: event => onChange(event.target.value) } },
-        ...options.map(([optionValue, label]) => el('option', { value: optionValue, text: label, selected: optionValue === value })));
+    // The value of a select can be longer than the field that shows it (the names of the specification are long): the
+    // tooltip of the field says what it is set to, so that nothing is cut off without a way to know it.
+    const select = (value, options, onChange) => {
+        const label = options.find(([optionValue]) => optionValue === value)?.[1] ?? value;
+
+        return el('select', {
+            title: label,
+            on: {
+                change: event => {
+                    event.target.title = event.target.options[event.target.selectedIndex].text;
+                    onChange(event.target.value);
+                },
+            },
+        },
+            ...options.map(([optionValue, text]) => el('option', { value: optionValue, text, selected: optionValue === value })));
+    };
     const check = (value, onChange) => el('input', { type: 'checkbox', checked: value, on: { change: event => onChange(event.target.checked) } });
-    const row = (member, control, hint) => el('label', { class: 'setting', title: hint },
-        el('code', { text: member }), control, el('small', { text: hint }));
+
+    /**
+     * One setting: its name, its control, and a "?" that shows what it means.
+     *
+     * The explanation is the tooltip of the setting as well — the panel shows it only when it is asked for, so that the
+     * panel fits a screen and stays beside the autocomplete instead of over it (ADR-0027's layout, ADR-0029).
+     */
+    const row = (member, control, hint) => {
+        const text = el('small', { text: hint, hidden: true });
+        const toggle = el('button', {
+            type: 'button',
+            class: 'hint-toggle',
+            text: '?',
+            title: hint,
+            'aria-label': `What ${member} means`,
+            on: {
+                click: event => {
+                    // the button stands inside the label of the control: without this, a click on it would press the
+                    // control as well
+                    event.preventDefault();
+                    text.hidden = !text.hidden;
+                },
+            },
+        });
+
+        return el('label', { class: 'setting', title: hint }, el('code', { text: member }), control, toggle, text);
+    };
 
     const names = values => values.map(value => [value, value]);
 

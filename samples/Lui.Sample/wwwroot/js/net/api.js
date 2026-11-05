@@ -30,4 +30,9 @@ export const api = {
     optimize: name => postJson(`${index(name)}/optimize`),
     warmUpTypos: name => postJson(`${index(name)}/typos/warm-up`),
     rebuildTypos: name => postJson(`${index(name)}/typos/rebuild`),
+
+    // the bulk indexes: the fill that loads them, and its progress (ADR-0029)
+    fill: (name, count) => postJson(`${index(name)}/fill`, { count }),
+    fillStatus: name => getJson(`${index(name)}/fill`),
+    cancelFill: name => postJson(`${index(name)}/fill/cancel`),
 };

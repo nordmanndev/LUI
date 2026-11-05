@@ -5,6 +5,53 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-05 — The sample fills its own bulk indexes (ADR-0029), third round
+
+- The owner's second review: "the ux is still aweful and clunky of building the index and the query settings are overlapping
+  still. Put each index into a tab and make it more clean and aligned." — and a report: the index showed no data and no
+  suggestions after a tab switch.
+- **The page**: two columns, the settings in the right one (they lie over nothing), the index panel back in the left one. The
+  panel of the indexes is a **tab bar with one tab per index** and the count it holds — one card instead of six. The button that
+  fills an index stands **in the tab of that index**, under the input, where the index is used.
+- **The report of the owner could not be reproduced** (a fill, a tab switch, a query — all of it worked). What was found and
+  fixed instead are the fragilities that produce exactly those symptoms: one index that cannot be read emptied the **whole**
+  panel of the indexes (the route described every index in one go), a handler of the bus that threw stopped **all** the other
+  handlers, a scenario that could not be built left an input that never answered. Now: the route describes every index on its
+  own, the bus catches what a handler throws, the panel keeps what it had, the input says what is wrong.
+- Tests: `SampleIndexPanelTests` (one broken index does not empty the panel) and the client test of the bus.
+
+## 2026-11-05 — The sample fills its own bulk indexes (ADR-0029), second round
+
+- The owner's review of the pull request, answered: the **settings are short** (the explanation of a setting is behind its "?"
+  and is its tooltip as well; the panel fits a screen, 707 px, without a scroll of its own, and stands beside the autocomplete),
+  the **word list is the full one and the sample downloads it** (685,829 words, CC0 — the same source and the same place as
+  `tools/fetch-wordlist.sh`; the curated 7,071-word subset is what the tests use, and a test never downloads 5.5 MB), the
+  **bulk indexes are created on demand** (not registered with the host: the index of LUI comes into being when the panel asks
+  for it or when the button is pressed), and the **largest fill is three million entries** (the scale of §16).
+- Measured: the fill of the whole German word list took **2 m 15 s** (685,829 entries, 69 batches, 158 MB of database), a
+  million names about the same; the query against a million names stays in the milliseconds.
+- New: `GermanWordList` downloads the list, `WordSource` prepares it, `BulkSampleIndex` creates the index of LUI on demand,
+  `FillJobs.Limit` is three million, the fill has a note ("downloading the German word list …"). The client: the "?" of a
+  setting, `data-index` and `fill-status` on the fill form, the limit of three million in the number field.
+
+## 2026-11-05 — The sample fills its own bulk indexes (ADR-0029)
+
+- ADR-0029. Three indexes beside the curated ones — `words` (the German word list), `people` (Bogus's German full names),
+  `hashtags` (a place and a surname, joined by a hyphen) — filled by a button in the index panel: a number of entries, a
+  background fill, the progress of the sync polled by the page. The source of a bulk index is a function of the number and is
+  prefix-stable, so a fill with fewer entries removes the rest and a fill with more adds only what is missing.
+- The word list is looked up in `LUI_WORDLIST`, then `artifacts/wordlist/`, then the curated subset of the tests; the panel names
+  the source. Bogus 35.6.5 is a dependency of the sample alone.
+- New: `Data/IBulkSource`, `BulkWeights`, `RepositoryRoot`, `GermanWordList`, `WordSource`, `PeopleSource`, `HashtagSource`;
+  `Indexes/IBulkSampleIndex`, `BulkSampleIndex`; `Api/FillRequest`, `FillStatus`, `FillJob`, `FillJobs`; the client modules
+  `scenarios/words.js`, `people.js`, `hashtags.js`, `panels/fill-form.js`. Changed: `IndexInfo` (source, capacity), the fill
+  routes, `SampleApp`, `SampleSeed` (the bulk indexes are not seeded), `Directory.Packages.props`.
+- Tests: `SampleBulkTests` (the fill, the progress, exactly the number of entries, the numbers that are refused) and the client
+  test of the progress text. The map of the tests (`docs/testing.md`) knows the new file.
+- The page: the index panel stands in the column of the layout instead of across it, and the settings scroll themselves when
+  the window is short. The settings are longer than the column they stand in, so they lay over the index panel otherwise — a
+  bug of ADR-0027's layout, visible for the first time with six cards.
+
 ## 2026-11-04 — #42: the API polish before the freeze
 
 - ADR-0024. `AddLinkedIndex`; `LuiPriorityMode`/`PriorityMode`; `LuiTimings.CandidateRead`; `entries`; `LuiPayloadRow` (a kept

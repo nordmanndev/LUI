@@ -39,6 +39,12 @@
     <PackageVersion Include="Microsoft.Extensions.Hosting" Version="10.0.14" />
   </ItemGroup>
 
+  <ItemGroup Label="Sample">
+    <!-- Bogus, the fake data the bulk indexes of the sample are filled with (ADR-0029). The sample is not shipped: the two
+         packages keep their dependency set (ADR-0004, ADR-0018). -->
+    <PackageVersion Include="Bogus" Version="35.6.5" />
+  </ItemGroup>
+
   <ItemGroup Label="Benchmark">
     <PackageVersion Include="BenchmarkDotNet" Version="0.15.8" />
   </ItemGroup>
