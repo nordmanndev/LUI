@@ -2,29 +2,25 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-05
-- **Builds on:** [0026](./0026-the-public-api-grows-and-never-shrinks.md) (the public API grows and never shrinks),
+- **Builds on:** [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (the public API grows and never shrinks),
   [0029](./0029-the-sample-fills-its-own-bulk-indexes-on-demand.md) (the sample fills its own bulk indexes on demand)
 - **Affects:**
-  - `src/Nordmann.LUI/LuiCatalog.cs` (the read path: `OpenIndex`)
+  - `src/Nordmann.LUI/LuiCatalog.cs` (the entry point: `Create`, `Index`, `Open`)
+  - `src/Nordmann.LUI/Storage/Database.cs` (a catalog that may not write)
   - `src/Nordmann.LUI/Indexes/IndexStore.cs` (reading an index without writing)
-  - `src/Nordmann.LUI/Indexes/DocumentIndex.cs`, `src/Nordmann.LUI/Indexes/ReadOnlyEmbeddedIndex.cs`,
-    `src/Nordmann.LUI/Indexes/IndexStoreEntry.cs` (new — the index that is opened)
-  - `src/Nordmann.LUI/Schema/DocumentSource.cs`, `src/Nordmann.LUI/Querying/RawJsonPayload.cs` (new — the facade)
-  - `src/Nordmann.LUI/Schema/IndexDefinition.cs`, `src/Nordmann.LUI/Schema/LinkDefinition.cs` (the payload columns)
+  - `src/Nordmann.LUI/Schema/IndexDefinition.cs` (the payload type)
   - `src/Nordmann.LUI/LuiEmbeddedIndexBuilder.cs`, `src/Nordmann.LUI/LuiLinkedIndexBuilder.cs` (`Create()` instead of `Ensure()`)
-  - `src/Nordmann.LUI/ILuiDocumentIndex.cs`, `src/Nordmann.LUI/LuiDocumentHit.cs`, `src/Nordmann.LUI/LuiIndexNotFoundException.cs` (new — the untyped facade)
-  - `src/Nordmann.LUI.Hosting/LuiServicesBuilder.cs`, `src/Nordmann.LUI.Hosting/Hosting/OpenIndexRegistration.cs`,
-    `src/Nordmann.LUI.Hosting/Hosting/LuiRegistrations.cs`, `src/Nordmann.LUI.Hosting/Hosting/LuiStartup.cs` (open instead of create)
+  - `src/Nordmann.LUI.Hosting/LuiServicesBuilder.cs` (the container holds the catalog, nothing else)
   - spec §7.1, §12, §14, §15; `docs/testing.md`, CHANGELOG, README
 - **Issue:** #56
 
 ## Context
 
-LUI has one way into an index: the builder. `catalog.Index("tags").SingleWord().Ensure()` describes the
+LUI has one way into an index: the builder. `catalog.Index("tags").SingleWord().Create()` describes the
 index, **creates its tables** and hands out an object that writes as well as reads. Everything about it
 writes:
 
-- `Ensure()` compares the stored definition with the one that was described and **writes** it into
+- `Create()` compares the stored definition with the one that was described and **writes** it into
   `lui_meta` if the index is missing;
 - it **creates** the tables of the index (`lui_tags`, `lui_tags_fts`) if they are missing;
 - it takes the **write lock** of the file while it does so.
@@ -32,10 +28,10 @@ writes:
 That is right for an application that owns the file. It is wrong for the three cases that came up:
 
 1. **A read replica.** The application reads from a copy of the database that is written elsewhere. The
-   copy is read-only — `Data Source=file:…?mode=ro` — and `Ensure()` fails on it with "attempt to write a
+   copy is read-only — `Data Source=file:…?mode=ro` — and `Create()` fails on it with "attempt to write a
    readonly database", even though the application only wants to search.
 2. **A service that must not write.** A service that only reads has no business creating tables or taking
-   the write lock of a database that another service writes. It can even block the writer: `Ensure()`
+   the write lock of a database that another service writes. It can even block the writer: `Create()`
    waits for the lock of the writer, and the writer waits for the reader — two services, one file, a
    deadlock of patience.
 3. **A tool that reads what another tool wrote.** It wants the index as it is — not as the tool would
@@ -56,9 +52,22 @@ What was missing: the payload of a **linked** index is built from the columns of
 and those columns were not in the definition — so a linked index with a payload could not be opened at
 all.
 
+The shape of the API around that read path was decided with the owner of the repository, and it is
+decided **before** 0.1.0 — the rules of ADR-0026 do not protect a version that was never published. The
+decisions are:
+
+1. **The catalog is the entry point, and it is the only thing in the container.** An application injects
+   the catalog and asks it for what it needs. An index is not registered in the container and not
+   injected.
+2. **The creation is not part of the runtime path.** The builder describes an index that is created once,
+   in the migration of the application. The runtime code opens an index that is there.
+3. **The index keeps its APIs.** Querying, writing, synchronising, checking — they all stay on the index.
+   There is one interface per capability, and the difference between a read-only and a writable index is
+   the file, not the type.
+
 ## Decision
 
-**There is a second way into an index: `OpenIndex`. It reads and writes nothing.**
+**The catalog is the entry point. It creates an index once and opens it in the runtime path.**
 
 ### 1. `Ensure()` is renamed `Create()`
 
@@ -70,14 +79,37 @@ definition if it is there — because an application that starts on an empty dat
 The name is gone from the public API, not deprecated: ADR-0026 allows a change of a name **before** 0.1.0
 and forbids it afterwards.
 
-### 2. `LuiCatalog.OpenIndex(name)` opens an index without writing
+### 2. `LuiCatalog.Create(name, index)` creates an index — one call
 
 ```csharp
-var catalog = LuiCatalog.Open("Data Source=app.db");   // the catalog — unchanged
-var tags = catalog.OpenIndex("tags");                   // the index — reads nothing, writes nothing
+var catalog = LuiCatalog.Open("Data Source=app.db");
+var tags = catalog.Create("tags", index => index.SingleWord().WithPayload<TagChip>(TagJsonContext.Default.TagChip));
 ```
 
-`OpenIndex` reads the definition from `lui_meta` with a plain `SELECT` on a connection of its own: no
+The builder chain is the **parameter**, not the way in: the catalog takes a description and does the
+creating itself. The builder is no longer reachable from the catalog — `catalog.Index(name)` is gone — so
+the runtime path *cannot* create an index. There are two overloads, one per content source:
+
+```csharp
+public ILuiEmbeddedIndex<TKey, TPayload> Create<TKey, TPayload>(
+    string name,
+    Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder<TKey, TPayload>> index);
+
+public ILuiLinkedIndex<TPayload> Create<TPayload>(
+    string name,
+    Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>> index);
+```
+
+The type parameters are inferred from the lambda; a name that is already taken is an error that says what
+the stored definition is.
+
+### 3. `LuiCatalog.Index(name, …)` opens an index — and writes nothing
+
+```csharp
+var tags = catalog.Index<long, TagChip>("tags", TagJsonContext.Default.TagChip);
+```
+
+`Index` reads the definition from `lui_meta` with a plain `SELECT` on a connection of its own: no
 transaction, no write lock, no `CREATE TABLE`. It checks three things and says what is wrong when one of
 them fails:
 
@@ -87,74 +119,100 @@ them fails:
 | the schema version is the one this library writes | `LuiDefinitionMismatchException` with the version that was found |
 | the fold table is the one this library folds with | `LuiDefinitionMismatchException` — the index was stored with another folding and has to be rebuilt |
 
-The name is **`OpenIndex`**, not `Open`: `LuiCatalog.Open(string connectionString, …)` is the static
-factory that opens the *catalog* — it is the first line of the quick start in the README and it stays. A
-second `Open` on the same type would hide it (CS0108, an error here) and would ask two different
-questions of one name.
-
-### 3. The typed path: `OpenIndex<TKey, TPayload>(name, payload)`
+A **linked** index is opened with the map of its payload — the columns are in the definition, the map is
+the application's:
 
 ```csharp
-var tags = catalog.OpenIndex<long, TagPayload>("tags", new LuiJsonPayloadSerializer<TagPayload>(typeInfo));
+var tags = catalog.Index<TagChip>("tags", row => new TagChip(row.GetString("name")));
 ```
 
-The typed path returns the same `ILuiEmbeddedIndex<TKey, TPayload>` as the builder — it can query, it can
-count, and it cannot write: the write methods of the interface are not part of the read path (the index
-object it builds is the read-only one).
+The name is **`Index`**, not `Open`: `LuiCatalog.Open(string connectionString, …)` is the static factory
+that opens the *catalog* — it is the first line of the quick start in the README and it stays. A second
+`Open` on the same type would ask two different questions of one name.
 
-The types are checked against the file: a key type the index does not have, or a payload the index does
-not store, is a `LuiDefinitionMismatchException` that says which one it is.
+### 4. One interface per capability — and no untyped facade
 
-### 4. The untyped facade: `ILuiDocumentIndex`
+The interfaces stay as they are:
 
-The caller that does not know — or does not care — whether the key of the index is a number or a text,
-and whether it has a payload, gets the **untyped facade**:
+| The interface | What it is |
+|---|---|
+| `ILuiIndex<TKey, TPayload>` | reads: `Search`, `Count`, `TypoTolerance` |
+| `ILuiEmbeddedIndex<TKey, TPayload>` | the above and writes: `Upsert`, `Remove`, `UpdateWeight`, `UpdatePriority` |
+| `ILuiLinkedIndex<TPayload>` | the above and the sync of the table: `Sync`, `Refresh`, `ApplyPending` |
+
+The **untyped facade** (`ILuiDocumentIndex`, `LuiDocumentHit` — the key as the text it is stored as, the
+payload as the raw JSON) is **not** part of the API. It was a second implementation of the same index:
+the same search, the same writes, the same sync — twice. One implementation path is worth more than the
+convenience of reading an index whose types the caller does not know. A caller that wants the raw JSON
+parses it.
+
+The types of an index are the **types of the application**, not of the library: the key is a `long` or a
+`string` (both are stored as text), the payload is the object of the application's own serialiser. The
+application knows both — they are its own data.
+
+### 5. The types are checked against the file
+
+The **key type** is in the definition since the beginning; the **payload type** joins it now. The
+definition remembers the type of the payload, and `Index` compares it with the one of the caller:
+
+```
+LuiDefinitionMismatchException: the index stores the payload type 'TagChip',
+you asked for 'RecipeChip'
+```
+
+The serialiser itself is not stored — it is an object of the application, not of the file. The application
+hands it over when it opens the index.
+
+### 6. The connection says what may happen — not the index
+
+The index that is opened **writes** if the file allows it. What decides that is the **connection**, as in
+ADO.NET:
 
 ```csharp
-public interface ILuiDocumentIndex
+// the writer
+var catalog = LuiCatalog.Open("Data Source=app.db");
+
+// the reader: the same code, a file that may not be written
+var catalog = LuiCatalog.Open("Data Source=app.db;Mode=ReadOnly");
+```
+
+A catalog on a read-only file:
+
+- does not switch the file to write-ahead logging,
+- does not create `lui_meta` — the table has to be there; if it is not, the catalog says so,
+- refuses every write with a `LuiReadOnlyException` — `Create`, `DropIndex`, `Upsert`, `Sync`.
+
+The same application code therefore runs in the service that writes and in the service that only reads.
+
+### 7. The container holds the catalog — and nothing else
+
+```csharp
+services.AddLui("Data Source=app.db");
+```
+
+The index is **not** registered and **not** injected. `AddIndex`, `AddLinkedIndex` and `AddOpenIndex` are
+gone, and with them the registrations, the startup service and the warm-up of the typo dictionaries that
+belonged to them: an index that is opened is not created on start, and its dictionary is built when a
+query needs it.
+
+An application that wants an index in a constructor asks the catalog for it:
+
+```csharp
+public sealed class SuggestEndpoint(LuiCatalog catalog)
 {
-    string Name { get; }
-    LuiIndexKind Kind { get; }
-    bool TypoTolerance { get; }
-    long Count();
-    IReadOnlyList<LuiDocumentHit> Search(string text, LuiQueryOptions? options = null, CancellationToken cancellationToken = default);
+    public IReadOnlyList<string> Suggest(string q) =>
+        catalog.Index<long, RecipeChip>("recipes", RecipeJsonContext.Default.RecipeChip).Search(q)
+            .Select(hit => hit.Text).ToList();
 }
 ```
 
-The hit carries the **key as the text it is stored as** (`"42"`, not `42`), the text, the weight, the
-priority, the similarity — and the **payload as the raw JSON**: the JSON that was stored, exactly as it
-was written; `null` when the index stores no payload. For a linked index the payload is the JSON object
-of its columns, so the columns are in the definition (see 5).
+### 8. The index is a view, not a resource
 
-The types are named `ILuiDocumentIndex` and `LuiDocumentHit` — "document" is the library's word for a
-stored row (the `doc_id`), and a hit is a hit. **The owner may rename them**; the issue left the names
-open.
+The catalog owns the connections, the writer and the typo dictionaries. An index holds none of them: it
+takes a connection from the pool for the time of an operation. **The index is not disposable** — there is
+nothing in it to release — and the catalog is: the application disposes it, or the container does.
 
-### 5. The payload columns go into the definition
-
-`LinkDefinition` gets the columns of the payload in their order. The definition is written when the index
-is created and compared when it is created again — so the columns are there, and a linked index with a payload
-can be opened.
-
-The definition grows: the files that exist today are free (ADR-0026), never again after 0.1.0.
-
-### 6. The container can open instead of create
-
-```csharp
-services.AddLui("Data Source=app.db")
-        .AddIndex("tags", index => index.SingleWord());          // creates it if it is missing
-        .AddOpenIndex("tags");                                    // opens it — it must exist
-```
-
-`AddIndex` keeps its meaning (create or open, as today). `AddOpenIndex` is the new one: the host opens
-the index, the file is never written. A service that must not write registers its indexes this way.
-
-An opened index needs **no description**: its kind, its source and its payload come from the definition —
-that is the point of the read path. The untyped form registers the facade (`ILuiDocumentIndex`); the typed
-one takes the serialiser of the payload and registers the typed index:
-`AddOpenIndex<long, TagChip>("tags", TagJsonContext.Default.TagChip)`.
-
-### 7. The defaults of an opened index
+### 9. The defaults of an opened index
 
 The similarity and the typo tolerance are not part of the definition (ADR-0029), so an opened index takes
 the **default of its kind** (Jaro-Winkler for a single-word index, N-gram Dice for a multi-word one) and
@@ -165,17 +223,17 @@ it.
 
 ## Consequences
 
-- **The public API changes before 0.1.0** — `Ensure()` is gone, `OpenIndex` and the facade are new. After
-  the tag, none of this may change again (ADR-0026).
+- **The public API changes before 0.1.0** — `Ensure()` is gone, `Index`, `Create` and the read-only
+  connection are new, the facade and the index registrations are gone. After the tag, none of this may
+  change again (ADR-0026).
 - **The read path is honest.** It takes no write lock: a service that only reads never blocks the writer,
   and a reader on a read-only file works.
-- **The definition grows** — the payload columns of a linked index. The files of today are free; the
-  migration of a file that was created before is: an index created by an older version has no columns in
-  its definition, so it is opened by the **untyped** facade (the payload is `null`), or it is dropped and
-  created again (`DropIndex` + `Create()`).
-- **The catalog is still the one that writes.** `LuiCatalog.Open(connectionString)` creates `lui_meta` if
-  it is missing — that is the catalog's business, not the index's. On a file that is read-only *and* has
-  no `lui_meta`, the catalog fails; the file of a database with an index has one.
+- **The runtime path cannot create an index** — the builder is not reachable from the catalog any more.
+- **The definition grows** — the type of the payload. The files of today are free; the migration of a
+  file that was created before is: an index created by an older version has no payload type in its
+  definition, so it is dropped and created again (`DropIndex` + `Create()`).
+- **The container is simpler** — one service, the catalog. The hosting package keeps `AddLui` and loses
+  the rest.
 - **The typo dictionary is not built on open** — the first query that needs a correction waits for it, as
   it does for a created index.
 - The guard map (`docs/testing.md`) and the API shape guard follow the new members; the spec (§7.1, §12,
@@ -185,7 +243,8 @@ it.
 
 | The alternative | Why not |
 |---|---|
-| A `ReadOnly` flag on `LuiCatalogOptions` | One object with two modes: every method would have to ask which mode it is in. The read path is a different operation, so it gets a different name. |
+| A `ReadOnly` flag on `LuiCatalogOptions` | The file says whether it may be written; a second switch could contradict it. The connection string is the one place where the mode of the file belongs. |
 | `Open()` on the builder (`catalog.Index("tags").SingleWord().Open()`) | The kind would have to be stated again — it is in the definition. And a linked index would have to state the table it is linked to, which is also in the definition. |
 | A separate `LuiReader` type | A second entry point into the same file, with a second set of options and a second typo dictionary. The catalog owns the file; it keeps the ownership. |
-| The untyped facade only (no typed path) | The typed path is what an application with a known key type wants — the payload is a typed object, not a JSON text. Both are needed. |
+| The untyped facade next to the typed path | Two implementations of one index — every fix twice, and the facade is the one an application uses least. The application knows its own key type and its own payload; it does not need a second path. |
+| An index in the container (`AddIndex`) | It is the pattern the owner does not want: the application should not have to know which index it gets, and the container should not describe indexes. The catalog does that, from the file. |
