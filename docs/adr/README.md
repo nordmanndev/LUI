@@ -60,3 +60,6 @@ here — in the **same pull request** as the change it describes.
 | [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) | The public API from 0.1.0 on grows only additively: a breaking change needs a minor version, a migration note and an ADR | Accepted |
 | [0027](./0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md) | The sample: flexdatalist against the whole API, a modular client, one fetch boundary | Accepted |
 | [0028](./0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md) | LUI has no Highlight: a correction is shown as a question (#20 struck) | Accepted |
+| [0029](./0029-the-allocation-of-a-query.md) | The allocation of a query: what it costs, and what it may cost | Accepted |
+| [0030](./0030-the-similarity-measures-are-luis-own.md) | The four similarity measures are LUI's own: the runtime dependency on F23 ends | Accepted |
+| [0031](./0031-the-pool-displaces-instead-of-discarding.md) | The pool of the buffers displaces instead of discarding | Accepted |

@@ -929,7 +929,7 @@ veröffentlicht.
 |---|---|---|
 | Abfrage ohne Korrektur | 3 Mio. Einträge, Eingaben 1–8 Zeichen | p50 ≤ 2 ms; p95 ≤ 5 ms bei 1–4 Zeichen, ≤ 20 ms bei 5–8 Zeichen |
 | Abfrage mit Tippfehler-Korrektur | 3 Mio. Einträge, ein Wortanfang mit einem Tippfehler | p95 ≤ 35 ms |
-| Allokation pro Abfrage | 3 Mio. Einträge, Eingaben 1–8 Zeichen | p50 ≤ 60 KB, p95 ≤ 100 KB (ADR-0029) |
+| Allokation pro Abfrage | 3 Mio. Einträge, Eingaben 1–8 Zeichen, **Budget der Kandidaten 500** | p50 ≤ 60 KB, p95 ≤ 100 KB (ADR-0029) |
 | `Upsert` / `UpdateWeight` / `Remove` | einzeln, eigene Transaktion | p95 ≤ 1 ms |
 | Aufbau | 3 Mio. Einträge, `Embedded`, ein erster Ladevorgang mit `Sync` | ≤ 4 min |
 | Tippfehler-Wörterbuch | 700.000 verschiedene Wörter | ≤ 200 MB, Aufbau ≤ 10 s |
@@ -951,7 +951,7 @@ Korrektur und die Datei ist das eine **Lockerung**, keine Erfüllung:
 
 **Geändert gegenüber der vorigen Fassung (ADR-0029, 2026-11-05, Bug #30):** Die Ursachen sind gemessen, die Allokation
 ist gesenkt. Eine Abfrage mit dem Budget von 500 Kandidaten allokiert **26,6 KB statt 153,3 KB** (SingleWord, −83 %)
-und **105,7 KB statt 185,2 KB** (MultiWord, −43 %); je Kandidat sinkt der Preis von 302 B auf 38 B. Die drei Anteile waren
+und **105,7 KB statt 185,2 KB** (MultiWord, −43 %); je Kandidat sinkt der Preis von 302 B auf 40 B. Die drei Anteile waren
 die Ähnlichkeit (36 %, F23 baute vier Arrays je Vergleich), die zweite Normalisierung (29 %, die Suchform wurde ein
 String) und die Kandidentexte samt der `Scored[]` (29 %). Behoben: LUIs eigenes Jaro-Winkler (bit-exakt zu F23 7.0.1,
 ohne Allokation), die Messung der Ähnlichkeit auf Spans (die Suchform bleibt im Puffer) und die Wiederverwendung der
@@ -959,6 +959,19 @@ Kandidaten-Puffer je Thread. Das Ziel ist damit **p50 ≤ 60 KB, p95 ≤ 100 KB*
 Kandidaten (32–64 B je Kandidat, weil der SQLite-Provider nur Strings herausgibt und der Wortanfang die gefaltete Form
 braucht, die nicht in der Datenbank steht), die Treffer (≈ 370 B je Treffer), der Boden einer Abfrage (≈ 7 KB) und die
 Tippfehler-Korrektur (≈ 20 KB, sie liest bis zu dreimal so viele Kandidaten).
+
+  Das Ziel gilt für das **Budget der Kandidaten 500**; die Allokation folgt dem Budget, ein größeres Budget kostet
+  mehr Puffer (bei 1.000 Kandidaten und der Korrektur: 59,7 KB statt 19,6 KB, wenn der Pool zuvor mit den Längen
+  anderer Budgets gefüllt war). Der Weg, den die Abfrage nimmt, zählt ebenso: ohne Korrektur allokiert dieselbe
+  Abfrage 4,2 KB, mit Korrektur 19,6 KB.
+
+- **Geändert gegenüber der vorigen Fassung (ADR-0031, 2026-11-05, das Review von PR #53):** Der Puffer je Thread
+  (ADR-0029) ist gemessen worden und hatte einen Fehler: die Länge der großen Puffer folgt dem Budget der
+  Kandidaten, und der Pufferplatz reichte nur für ein Budget. Nach einem Wechsel des Budgets war der Pool voll mit
+  den Längen der Vergangenheit, jede Abfrage allokierte alles neu — **294,9 KB** bei einem Budget von 1.000
+  (die Basis ohne Pool: 83,4 KB). Jetzt verdrängt der kleinste Puffer den neuen. Dieselbe Abfrage allokiert
+  **59,7 KB** — weniger als die Basis ohne Pool. Der Wächter `AllocationPoolTests` misst das nach einem Wechsel des
+  Budgets (39,8 KB, Grenze 64 KB).
 - **Dateigröße ≤ 500 MB** für Titel von im Mittel 36 Zeichen (gemessen 457 MB): Die Tabelle hält den Text und zwei
   abgeleitete Formen. Wer große Bestände hat, nimmt `Linked` — dort liegt der Text nicht doppelt in der Datei.
 

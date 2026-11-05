@@ -9,7 +9,7 @@ namespace Nordmann.LUI.Integration.Tests;
 /// option: a service that serves several budgets needs several lengths. A pool that keeps twelve
 /// buffers of the exact length and <b>discards</b> a buffer when no place is left fills up with the
 /// lengths of the past — and then every query allocates everything anew, more than before the pool
-/// (the review of PR #53).
+/// (the review of PR #53, ADR-0031).
 /// </summary>
 public sealed class AllocationPoolTests
 {
@@ -40,7 +40,7 @@ public sealed class AllocationPoolTests
 
         // The pool of the buffers is thread-static: the scenario runs on a thread of its own,
         // otherwise the pool that a test before has left behind would decide the number — the
-        // guard would be flaky, and a flaky guard proves nothing (the review of PR #53).
+        // guard would be flaky, and a flaky guard proves nothing (ADR-0031).
         var allocated = OnOwnThread(() =>
         {
             // three different budgets, one after the other, on the same thread
@@ -53,7 +53,7 @@ public sealed class AllocationPoolTests
             return Measure(index, 700);
         });
 
-        // 64 KB: the query allocates 39.8 KB in this state; before the correction (the review of PR #53) it
+        // 64 KB: the query allocates 39.8 KB in this state; before the correction (ADR-0031) it
         // allocated 95.4 KB — the pool had filled up with the lengths of the past and every query
         // allocated the big buffers anew. The target of §16 is p95 ≤ 100 KB; this is the same claim
         // for a single query, measured on the same machine.

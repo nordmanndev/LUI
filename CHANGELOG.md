@@ -169,6 +169,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The pool of the buffers no longer fills up** ([ADR-0031](docs/adr/0031-the-pool-displaces-instead-of-discarding.md), #30).
+  The length of the buffers follows the budget of the candidates, and the pool had twelve places for one budget: after
+  the budget had changed, every query allocated the big buffers anew — 294.9 KB at a budget of 1,000, against 83.4 KB
+  of the base that has no pool at all. Now the smallest buffer makes room for the new one. The same query allocates
+  59.7 KB; the guard `AllocationPoolTests` measures it after the budget has changed (39.8 KB, limit 64 KB).
+
 - `Nordmann.LUI.Hosting` pins `Nordmann.LUI` exactly (`[x.y.z]`), not as a lower bound: a newer core referenced beside
   an older hosting package is named at restore (`NU1608`, an error with `TreatWarningsAsErrors`) instead of surfacing at
   run time (#24, ADR-0018).
@@ -182,7 +188,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **A query allocates far less** ([ADR-0029](docs/adr/0029-the-allocation-of-a-query.md), #30). A single-word query with the
   budget of 500 candidates allocates **26.6 KB instead of 153.3 KB** (−83 %), a multi-word query **105.7 KB instead of
-  185.2 KB** (−43 %); the cost per candidate falls from 302 B to 38 B. Three changes, all inside the library:
+  185.2 KB** (−43 %); the cost per candidate falls from 302 B to 40 B. Three changes, all inside the library:
   - **LUI's own Jaro-Winkler** (`src/Nordmann.LUI/Similarity/JaroWinklerMeasure.cs`), bit-exact to
     `F23.StringSimilarity.JaroWinkler` 7.0.1 — including its quirks (single precision, a common prefix that is not capped
     at four characters, a weight that shrinks for long texts) — but without its four arrays per comparison. The default

@@ -1,12 +1,17 @@
 # 0029 — The allocation of a query: what it costs, and what it may cost
 
+> **Name note (ADR-0031, 2026-11-05):** since this record was written, the rule of the pool has changed: the pool
+> keeps twelve buffers, and when there is no place left, **the smallest buffer goes** and the new one takes its place.
+> The text below is history and stays as it was written.
+
 - **Status:** Accepted
 - **Date:** 2026-11-05
 - **Builds on:** [0020](./0020-the-performance-budgets-measured.md) (the budgets of §16, measured),
   [0011](./0011-the-multi-word-index.md) (the measures), [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md)
   (the freeze of the public API)
 - **Followed by:** [0030](./0030-the-similarity-measures-are-luis-own.md) (the other three measures become LUI's own
-  too; the runtime dependency on F23 ends)
+  too; the runtime dependency on F23 ends), [0031](./0031-the-pool-displaces-instead-of-discarding.md) (the pool
+  displaces instead of discarding)
 - **Affects:**
   - `src/Nordmann.LUI/Similarity/JaroWinklerMeasure.cs` (new), `src/Nordmann.LUI/ISpanSimilarity.cs` (new),
     `src/Nordmann.LUI/Querying/ScoredBuffer.cs` (new)
