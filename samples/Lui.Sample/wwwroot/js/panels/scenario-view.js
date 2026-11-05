@@ -3,12 +3,16 @@ import { Flexdatalist } from '../vendor/flexdatalist.es.js';
 import { buildFlexOptions } from '../suggest/flex-options.js';
 import { showDidYouMean } from '../suggest/did-you-mean.js';
 import { paintSwatches } from '../suggest/swatches.js';
+import { mountFillForm } from './fill-form.js';
 
 /**
  * One autocomplete: the explanation, hints to try, the flexdatalist input, and what was chosen.
  *
  * The input is rebuilt when a setting of the *input* changes (flexdatalist reads its options once); the settings of the
  * *query* need no rebuild — they are a function the library calls for every request (`flex-options.js`).
+ *
+ * A bulk index is filled here, in its own tab: the button that creates the index and loads it stands under the input, where
+ * the index is used (ADR-0029).
  *
  * @param {{
  *   root: HTMLElement,
@@ -17,11 +21,14 @@ import { paintSwatches } from '../suggest/swatches.js';
  *   transport: { cancel(index: string): void },
  *   api: any,
  *   bus: ReturnType<typeof import('../core/bus.js').createBus>,
+ *   index?: any,
  * }} options
  */
-export function mountScenario({ root, scenario, settings, transport, api, bus }) {
+export function mountScenario({ root, scenario, settings, transport, api, bus, index }) {
     const field = el('div', { class: 'field' });
     const selection = el('div', { class: 'selection', 'aria-live': 'polite' });
+    /** The fill of a bulk index: under the input, in the tab of the index it fills. */
+    const fill = el('div', { class: 'scenario-fill' });
     /** @type {Flexdatalist | null} */
     let instance = null;
     /** @type {Map<string, any>} */
@@ -54,7 +61,13 @@ export function mountScenario({ root, scenario, settings, transport, api, bus })
                 on: { click: () => search(hint.text) },
             }, el('code', { text: hint.text }), el('small', { text: hint.note })))),
         field,
-        selection);
+        selection,
+        fill);
+
+    // The bulk indexes are empty until they are filled: the button that loads them stands here, in their own tab.
+    if (index?.source) {
+        fill.append(mountFillForm({ info: index, bus }));
+    }
 
     function renderSelection() {
         clear(selection);
@@ -116,7 +129,14 @@ export function mountScenario({ root, scenario, settings, transport, api, bus })
         paintSwatches(input);
         showDidYouMean(input, { latest: () => latest, choose: corrected => search(corrected) });
 
-        [instance] = await Flexdatalist.init(input, buildFlexOptions(scenario, settings));
+        try {
+            [instance] = await Flexdatalist.init(input, buildFlexOptions(scenario, settings));
+        } catch (error) {
+            // An input that does not work says so: a silent input looks like an index without data.
+            clear(field);
+            field.append(el('p', { class: 'error', text: `The input could not be built: ${error.message}` }));
+            throw error;
+        }
 
         // The abort: flexdatalist debounces but cancels nothing. A keystroke ends the request in flight now, before its
         // answer can be drawn for an input the user has already left.

@@ -417,7 +417,7 @@ A single write is a commit of its own; load a stock with `UpsertMany` or `Sync` 
 dotnet run --project samples/Lui.Sample      # http://localhost:5000
 ```
 
-[`samples/Lui.Sample/`](./samples/Lui.Sample/) is an ASP.NET Core application that serves a page with three autocompletes, built
+[`samples/Lui.Sample/`](./samples/Lui.Sample/) is an ASP.NET Core application that serves a page with six autocompletes, built
 with [flexdatalist](https://github.com/sergiodlopes/flexdatalist) and the whole of the API behind them
 ([ADR-0027](./docs/adr/0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md)):
 
@@ -426,6 +426,20 @@ with [flexdatalist](https://github.com/sergiodlopes/flexdatalist) and the whole 
 | Recipes | embedded, multi-word, **JSON payload** (category, minutes, emoji) | the payload as groups and properties, a priority badge, typo correction as "Did you mean …?", transliteration |
 | Tags | **linked** to the application's own table, columns as the payload, priority `System` | a tag picker with chips and a colour from the payload; "add a tag" writes a row and tells the index (triggers, outbox) |
 | Names | embedded, multi-word, no payload | the typo tolerance — with a dictionary of its own per index |
+| Words | embedded, single-word, no payload | the German **word list** — the stock of short texts LUI is built for |
+| People | embedded, multi-word, no payload | the **names** of Bogus's German locale, with the typo tolerance of the index |
+| Hashtags | embedded, single-word, no payload | the **tags** of Bogus's German locale — a place and a surname |
+
+The three at the end are the **bulk indexes**: they do not exist before the button is pressed
+([ADR-0029](./docs/adr/0029-the-sample-fills-its-own-bulk-indexes-on-demand.md)). You say how many entries the index should hold —
+as many as the word list has, as many as you like for the two Bogus indexes (three million is the largest fill) — and the fill runs
+in the background while the page shows its progress. Nobody pays for a stock of half a million words who does not want one.
+
+The button stands in the tab of the index it fills — under the input, where the index is used. The panel of the indexes is a tab
+bar with one tab per index and the count it holds; the settings of the query keep their own column beside the page.
+
+The word list is the full one: 685,829 words under CC0, which the sample downloads itself when it is not on the machine — the
+same source and the same place as `tools/fetch-wordlist.sh`. The panel says which list it found and how many words it has.
 
 ![The recipes autocomplete: "kartofel" is corrected, the page asks "Did you mean “kartoffel”?", the hits are grouped by the category of their payload](./docs/images/sample-recipes.png)
 
@@ -451,7 +465,7 @@ src/Nordmann.LUI.Hosting/    ← the dependency injection (package Nordmann.LUI.
 tests/                       ← unit, architecture and integration tests
                               (and the map of them: docs/testing.md)
 benchmarks/                  ← BenchmarkDotNet, and its reports (benchmarks/results/)
-samples/Lui.Sample/          ← ASP.NET Core API + a page of ES modules with flexdatalist (ADR-0027)
+samples/Lui.Sample/          ← ASP.NET Core API + a page of ES modules with flexdatalist (ADR-0027, ADR-0029)
 tools/                       ← the smoke test, the mutation check, the benchmark run, the word list
 docs/adr/                    ← the decisions, and why
 docs/spec/                   ← the specification this repo implements

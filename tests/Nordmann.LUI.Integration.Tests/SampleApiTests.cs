@@ -48,19 +48,30 @@ public sealed class SampleApiTests(SampleHost host) : IClassFixture<SampleHost>
     }
 
     [Fact]
-    public async Task The_three_indexes_show_the_three_ways_an_application_uses_LUI()
+    public async Task The_indexes_show_the_three_ways_an_application_uses_LUI_and_the_bulk_indexes_beside_them()
     {
         var indexes = (await Get("/api/indexes")).AsArray().ToDictionary(index => index!["name"]!.GetValue<string>(), index => index!, StringComparer.Ordinal);
 
-        indexes.Keys.OrderBy(name => name, StringComparer.Ordinal).ShouldBe(["names", "recipes", "tags"]);
+        indexes.Keys.OrderBy(name => name, StringComparer.Ordinal).ShouldBe(["hashtags", "names", "people", "recipes", "tags", "words"]);
         indexes["recipes"]["storage"]!.GetValue<string>().ShouldBe("Embedded");
         indexes["recipes"]["kind"]!.GetValue<string>().ShouldBe("MultiWord");
         indexes["names"]["payload"]!.GetValue<string>().ShouldBe("none");
         indexes["tags"]["storage"]!.GetValue<string>().ShouldBe("Linked");
         indexes["tags"]["kind"]!.GetValue<string>().ShouldBe("SingleWord");
         indexes["tags"]["triggers"]!.GetValue<string>().ShouldBe("Current", "the application created them, on purpose");
-        indexes.Values.ShouldAllBe(index => index["count"]!.GetValue<long>() > 0);
-        indexes.Values.ShouldAllBe(index => index["typoTolerance"]!.GetValue<bool>());
+
+        // the curated indexes are filled by the seed; the bulk ones are empty until the button of the panel fills them (ADR-0029)
+        foreach (var name in new[] { "recipes", "names", "tags" })
+        {
+            indexes[name]!["count"]!.GetValue<long>().ShouldBeGreaterThan(0, name);
+            indexes[name]!["typoTolerance"]!.GetValue<bool>().ShouldBeTrue(name);
+            indexes[name]!["source"].ShouldBeNull(name);
+        }
+
+        foreach (var name in new[] { "words", "people", "hashtags" })
+        {
+            indexes[name]!["count"]!.GetValue<long>().ShouldBe(0, name);
+        }
     }
 
     [Fact]

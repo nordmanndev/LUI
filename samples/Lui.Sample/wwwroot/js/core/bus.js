@@ -25,7 +25,13 @@ export function createBus() {
 
         emit(type, detail) {
             for (const handler of [...(handlers.get(type) ?? [])]) {
-                handler(detail);
+                try {
+                    handler(detail);
+                } catch (error) {
+                    // One panel that breaks must not take the others down with it: the hits of a query do not vanish
+                    // because the index panel could not be read.
+                    console.error(`The handler of '${type}' failed:`, error);
+                }
             }
         },
     };

@@ -22,3 +22,13 @@ test('a handler that leaves while the event is delivered does not skip the other
     bus.emit('a');
     assert.deepEqual(seen, ['first', 'second']);
 });
+
+test('a handler that breaks does not take the others down with it', () => {
+    // One panel that cannot read its data must not make the hits of a query vanish: the panels are independent.
+    const bus = createBus();
+    const seen = [];
+    bus.on('a', () => { throw new Error('the index panel could not be read'); });
+    bus.on('a', () => seen.push('the hits are still there'));
+    bus.emit('a');
+    assert.deepEqual(seen, ['the hits are still there']);
+});
