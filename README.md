@@ -430,10 +430,13 @@ with [flexdatalist](https://github.com/sergiodlopes/flexdatalist) and the whole 
 | People | embedded, multi-word, no payload | the **names** of Bogus's German locale, with the typo tolerance of the index |
 | Hashtags | embedded, single-word, no payload | the **tags** of Bogus's German locale — a place and a surname |
 
-The three at the end are the **bulk indexes**: they do not exist before the button in the index panel is pressed
+The three at the end are the **bulk indexes**: they do not exist before the button is pressed
 ([ADR-0029](./docs/adr/0029-the-sample-fills-its-own-bulk-indexes-on-demand.md)). You say how many entries the index should hold —
 as many as the word list has, as many as you like for the two Bogus indexes (three million is the largest fill) — and the fill runs
 in the background while the page shows its progress. Nobody pays for a stock of half a million words who does not want one.
+
+The button stands in the tab of the index it fills — under the input, where the index is used. The panel of the indexes is a tab
+bar with one tab per index and the count it holds; the settings of the query keep their own column beside the page.
 
 The word list is the full one: 685,829 words under CC0, which the sample downloads itself when it is not on the machine — the
 same source and the same place as `tools/fetch-wordlist.sh`. The panel says which list it found and how many words it has.

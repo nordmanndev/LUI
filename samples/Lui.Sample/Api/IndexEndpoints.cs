@@ -36,7 +36,7 @@ internal static class IndexEndpoints
             defaults = new LuiQueryOptions(),
         }));
 
-        api.MapGet("/indexes", (SampleIndexes indexes) => Results.Ok(indexes.All.Select(index => index.Describe())));
+        api.MapGet("/indexes", (SampleIndexes indexes) => Results.Ok(indexes.DescribeAll()));
     }
 
     /// <summary>The write side of an embedded index: the entries.</summary>

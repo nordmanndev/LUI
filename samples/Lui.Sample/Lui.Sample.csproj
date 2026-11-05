@@ -12,6 +12,11 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The tests of the sample reach into it: they hold what its routes answer (ADR-0027, ADR-0029). -->
+    <InternalsVisibleTo Include="Nordmann.LUI.Integration.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="../../src/Nordmann.LUI/Nordmann.LUI.csproj" />
     <ProjectReference Include="../../src/Nordmann.LUI.Hosting/Nordmann.LUI.Hosting.csproj" />
   </ItemGroup>

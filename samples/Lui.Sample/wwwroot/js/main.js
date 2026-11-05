@@ -19,6 +19,8 @@ import { clear, el } from './core/dom.js';
 async function main() {
     const bus = createBus();
     const meta = await api.meta();
+    // What the page knows about the indexes: the bulk ones are filled in their own tab, and the fill needs their ceiling.
+    const indexes = new Map((await api.indexes()).map(index => [index.name, index]));
 
     const transport = installSuggestTransport({ bus, presenters: presenters() });
     const defaults = defaultSettings(meta.defaults);
@@ -31,7 +33,7 @@ async function main() {
     mountActivityPanel({ root: region('activity'), bus });
     mountIndexesPanel({ root: region('indexes'), bus, meta });
 
-    const views = mountScenarios({ settings, transport, bus });
+    const views = mountScenarios({ settings, transport, bus, indexes });
     // the input is rebuilt only when a setting of the input moved; a setting of the query — and the demo latency, which is a
     // parameter — is read at the next request
     const inputKey = ({ ui }) => JSON.stringify({ ...ui, delayMs: 0 });
@@ -47,7 +49,7 @@ async function main() {
 }
 
 /** The tabs of the autocompletes, one scenario visible at a time. */
-function mountScenarios({ settings, transport, bus }) {
+function mountScenarios({ settings, transport, bus, indexes }) {
     const tabs = document.getElementById('tabs');
     const stage = document.getElementById('scenario');
     const mounted = new Map();
@@ -60,10 +62,19 @@ function mountScenarios({ settings, transport, bus }) {
             tab.setAttribute('aria-selected', String(tab.dataset.id === id));
         }
         clear(stage);
-        const view = mountScenario({ root: stage, scenario: scenarios.find(scenario => scenario.id === id), settings, transport, api, bus });
+        const view = mountScenario({
+            root: stage,
+            scenario: scenarios.find(scenario => scenario.id === id),
+            settings,
+            transport,
+            api,
+            bus,
+            index: indexes.get(id),
+        });
         mounted.clear();
         mounted.set(id, view);
-        return view.start();
+        // The input is built asynchronously; a failure says so in the field instead of leaving an input that never answers.
+        return view.start().catch(error => console.error(`The scenario '${id}' could not be started:`, error));
     }
 
     for (const scenario of scenarios) {
@@ -80,7 +91,7 @@ function mountScenarios({ settings, transport, bus }) {
 
     return {
         startActive: () => show(active),
-        restartAll: () => mounted.get(active)?.start(),
+        restartAll: () => mounted.get(active)?.start().catch(error => console.error('The input could not be rebuilt:', error)),
     };
 }
 

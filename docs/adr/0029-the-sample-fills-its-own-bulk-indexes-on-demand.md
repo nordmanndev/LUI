@@ -108,20 +108,36 @@ half a million words has nothing to do with the demonstration of a payload colum
    list when it is shorter — about a second, enough to see the difference against 25 entries. The user who wants to see the why
    of LUI asks for a million: the fill takes a minute, the query stays in the milliseconds.
 
-9. **The settings are short.** The panel of the settings is as long as the column it stands in — and the column is short. Every
-   setting explains itself behind a "?" (the explanation is the tooltip of the setting as well), so the panel fits a screen
-   without a scroll of its own and stands beside the autocomplete instead of over it. Nothing is cut off, and nothing is a trap
-   to scroll out of.
+9. **The page is two columns, and the settings have the right one.** The autocomplete and everything that belongs to it stand
+   on the left; the settings of the query stand on the right, in their own column, and stay there while the page scrolls — a
+   sticky panel that lies over what is below it is the one thing the panel must not do. The panel of the settings is 690 px
+   tall (the explanation of a setting is behind its "?" and is its tooltip as well), so it fits a screen without a scroll of
+   its own, and every field is wide enough for what it shows (`WordStartThenSimilarity` fits; a select that cannot show its
+   value says it in its tooltip).
 
-10. **The catalog of the sample is configured the way §16 measures it**, and the fill uses the batch of ADR-0016: a page cache of
+10. **Every index has a tab, and the button that fills it stands in that tab.** The panel of the indexes is a tab bar with one
+    tab per index and the count it holds — six cards in a column are six things to read, one card is one thing. The tab of the
+    autocomplete of an index holds what fills it: the number of entries, the button, and the progress — where the index is
+    used, not somewhere below it. The panel of the indexes keeps the maintenance of every index (`Sync`, `Check`, `Rebuild`,
+    `Optimize`, the typo dictionary) — and the entries of a bulk index are the ones of its source: there is nothing to write
+    into it by hand.
+
+11. **One thing that breaks does not take the rest of the page down.** A panel that cannot read its data says so and keeps
+    what it had; the handler of an event that throws does not stop the other handlers (the hits of a query do not vanish
+    because the panel of the indexes could not be read); an input that cannot be built says so instead of standing there
+    silent; and the route of the indexes describes every index separately, so one broken index does not empty the panel. An
+    empty panel looks like data that was lost — the failure must be visible, and it must be local.
+
+12. **The catalog of the sample is configured the way §16 measures it**, and the fill uses the batch of ADR-0016: a page cache of
     512 MB, a memory-mapped file, and 100,000 entries per batch — a first load into a file that no one else writes is about 30 %
     faster with that batch than with the default of 10,000. The sample is not a benchmark: it is the demonstration of a big load,
     and it is configured like one.
 
 ## Consequences
 
-- **The sample shows the why of LUI now**: fill `words` with 685,829 entries — or `people` with a million — and type into it:
-  the query stays in the milliseconds while the index holds a million rows. That is the motivation of the library, in the page.
+- **The sample shows the why of LUI now**: open the tab of an index, fill it with 685,829 words — or a million names — and
+  type into it: the query stays in the milliseconds while the index holds a million rows. That is the motivation of the
+  library, in the page.
 - **Nothing is paid for by default.** A fresh clone starts with the three curated indexes; the database file stays small; the
   memory of the process stays small. The bulk indexes do not even exist until the user asked for them — the fill creates them.
 - **The fill is a background task of the sample** (`Task.Run` on a thread of the pool), not a hosted service of the library:
@@ -134,7 +150,8 @@ half a million words has nothing to do with the demonstration of a payload colum
   it is not there. The panel names the source, so a reader knows which list he is playing with.
 - **The sample needs the internet once** — for the list of 5.5 MB, and only when the `words` index is filled. Everything else
   works offline, and the two Bogus indexes do as well.
-- **The sample's API grows**: three routes for the fill, and two fields in the description of an index (the source of its
-  entries and their ceiling). Nothing of the library's public API changes (ADR-0026): this is the sample's own API.
+- **The sample's API grows**: three routes for the fill, and three fields in the description of an index (the source of its
+  entries, their ceiling and what is wrong with it). Nothing of the library's public API changes (ADR-0026): this is the
+  sample's own API.
 - **Reversible:** the three indexes, the three routes, the download and the dependency of the sample can go without a trace; the
   library does not know them.

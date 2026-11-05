@@ -32,9 +32,8 @@
 .column { display: grid; gap: var(--gap); align-content: start; min-width: 0; }
 
 @media (min-width: 1000px) {
+  /* Two columns: the page on the left, the settings on the right. The settings keep their own column, so they never lie
+     over the page — they stay beside it while the page scrolls (ADR-0029). */
   .layout { grid-template-columns: minmax(0, 1fr) 420px; align-items: start; }
-  /* The settings stay beside the column. They are short enough to fit a screen (the explanations are a "?" away), and
-     they scroll themselves only when the window is shorter than they are — never over what is below them. */
   .settings { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
-  .wide { grid-column: 1 / -1; }
 }

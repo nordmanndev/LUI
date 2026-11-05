@@ -89,9 +89,17 @@ details > summary { cursor: pointer; color: var(--ink-2); }
 .entry.write b { color: var(--brand); }
 
 /* indexes */
-.index-cards { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); align-items: start; }
-.index-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 10px 12px; background: var(--surface-2); min-width: 0; }
-.index-card summary { display: flex; gap: 10px; align-items: center; }
+.index-tabs { margin: 0 0 12px; flex-wrap: wrap; }
+.index-tabs .tab { display: flex; align-items: baseline; gap: 6px; }
+.index-tabs .tab-count { color: var(--ink-3); font-weight: 400; font-size: 0.78rem; font-variant-numeric: tabular-nums; }
+.index-tabs .tab[aria-selected="true"] .tab-count { color: var(--brand); }
+.index-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 12px 14px; background: var(--surface-2); min-width: 0; }
+/* The fill: the number, the two buttons and the progress — one block, not a row that wraps into pieces. */
+.form.fill-form { display: block; margin: 12px 0; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.fill-head { display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; margin-bottom: 10px; }
+.fill-row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.fill-row input[type="number"] { width: 9em; }
+.fill-status { margin: 10px 0 6px; }
 .buttons, .forms { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
 .form { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; flex: 1 1 100%; }
 .form input[type="text"] { flex: 1 1 8em; }

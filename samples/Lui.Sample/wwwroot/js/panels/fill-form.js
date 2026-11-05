@@ -22,12 +22,14 @@ export function mountFillForm({ info, bus }) {
     let timer = null;
 
     const form = el('form', { class: 'form fill-form', 'data-index': info.name, on: { submit: event => { event.preventDefault(); start(); } } },
-        el('strong', { text: 'Fill the index' }),
-        el('span', { class: 'muted', text: info.source }),
-        entries,
-        el('span', { class: 'muted', text: `entries (at most ${number(limit)})` }),
-        button,
-        cancel,
+        el('div', { class: 'fill-head' },
+            el('strong', { text: 'Fill the index' }),
+            el('span', { class: 'muted', text: info.source })),
+        el('div', { class: 'fill-row' },
+            entries,
+            el('span', { class: 'muted', text: `entries (at most ${number(limit)})` }),
+            button,
+            cancel),
         status,
         bar);
 

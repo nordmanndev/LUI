@@ -11,7 +11,7 @@ export const hashtags = {
     title: 'Hashtags',
     kind: 'Embedded · SingleWord · no payload · bulk',
     summary:
-        'The tags of Bogus’s German locale: "#Cedrikdorf-Gehrke". The index is empty until the button in the index panel below ' +
+        'The tags of Bogus’s German locale: "#Cedrikdorf-Gehrke". The index is empty until the button below ' +
         'fills it — and a tag of two words is found by either of them.',
     hints: [
         { text: 'Cedrikdorf', note: 'the place of a tag' },

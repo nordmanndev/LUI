@@ -11,9 +11,10 @@ also based on bogus. Integrate the creation of the index (init & load) as a butt
 'fill' the index he is willing to play with. Maybe with num of entries where appropriate."
 **Branch:** `feature/sample-bulk-indexes` → the pull request is [#55](https://github.com/nordmanndev/LUI/pull/55), open against
 `main`.
-**State:** implemented, verified and pushed; the owner's review of 2026-11-05 is answered in the same branch (the second round:
-short settings, the word list downloaded by the sample, the indexes created on demand, a fill of up to three million entries).
-The owner decides about the merge; the release (PR-012) is the step after it.
+**State:** implemented, verified and pushed; the owner's reviews of 2026-11-05 are answered in the same branch (the second
+round: short settings, the word list downloaded by the sample, the indexes created on demand, a fill of up to three million
+entries; the third round: a tab per index, the settings in their own column, and a page where one thing that breaks does not
+take the rest down). The owner decides about the merge; the release (PR-012) is the step after it.
 
 ## Decided by the owner (2026-11-05, second round — the review of the pull request)
 

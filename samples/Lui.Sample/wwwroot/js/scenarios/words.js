@@ -11,7 +11,7 @@ export const words = {
     title: 'Words',
     kind: 'Embedded · SingleWord · no payload · bulk',
     summary:
-        'The German word list, one word per entry. The index is empty until it is filled — the button in the index panel below ' +
+        'The German word list, one word per entry. The index is empty until it is filled — the button below ' +
         'loads it with the number of entries you ask for, and the query stays in the milliseconds while it grows.',
     hints: [
         { text: 'aalf', note: 'prefix' },

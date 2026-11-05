@@ -5,6 +5,21 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-05 — The sample fills its own bulk indexes (ADR-0029), third round
+
+- The owner's second review: "the ux is still aweful and clunky of building the index and the query settings are overlapping
+  still. Put each index into a tab and make it more clean and aligned." — and a report: the index showed no data and no
+  suggestions after a tab switch.
+- **The page**: two columns, the settings in the right one (they lie over nothing), the index panel back in the left one. The
+  panel of the indexes is a **tab bar with one tab per index** and the count it holds — one card instead of six. The button that
+  fills an index stands **in the tab of that index**, under the input, where the index is used.
+- **The report of the owner could not be reproduced** (a fill, a tab switch, a query — all of it worked). What was found and
+  fixed instead are the fragilities that produce exactly those symptoms: one index that cannot be read emptied the **whole**
+  panel of the indexes (the route described every index in one go), a handler of the bus that threw stopped **all** the other
+  handlers, a scenario that could not be built left an input that never answered. Now: the route describes every index on its
+  own, the bus catches what a handler throws, the panel keeps what it had, the input says what is wrong.
+- Tests: `SampleIndexPanelTests` (one broken index does not empty the panel) and the client test of the bus.
+
 ## 2026-11-05 — The sample fills its own bulk indexes (ADR-0029), second round
 
 - The owner's review of the pull request, answered: the **settings are short** (the explanation of a setting is behind its "?"
