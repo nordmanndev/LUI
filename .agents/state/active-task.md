@@ -10,11 +10,13 @@ The catalog reads the definition out of `lui_meta` and writes nothing — no tab
 replica, a file in the mode `ro` and a service that must not write can use LUI.
 **Branch:** `feature/read-path-open` → the pull request **#57** is opened against `main`
 (<https://github.com/nordmanndev/LUI/pull/57>).
-**State:** implemented, committed and pushed — the branch carries three commits on top of `main` (`945729e` the read path,
-`dddecf1` the wording of the documents, `c7de0f3` the test of the payload). The build is green (0 warnings, 0 errors),
-the whole suite is green (243 unit + 73 architecture + 424 integration, 13 skipped, 0 failed), `dotnet pack` and
-`npm test` are green, and the CI on the branch is green. The pull request was verified independently: **PASS**
-(`/workspace/verify-56.md`), with four minor points — two of them are fixed in `dddecf1` and `c7de0f3`.
+**State:** implemented, committed and pushed — the branch carries five commits on top of `main` (`945729e` the read path,
+`dddecf1` the wording of the documents, `c7de0f3` the test of the payload, `5049e52` this note, `2fb05ca` the fix of
+the distance table that the CI found). The build is green (0 warnings, 0 errors), the whole suite is green (244 unit +
+73 architecture + 424 integration, 13 skipped, 0 failed), `dotnet pack` and `npm test` are green. The pull request was
+verified independently: **PASS** (`/workspace/verify-56.md`), with four minor points — two of them are fixed in
+`dddecf1` and `c7de0f3`, the third one (`WriteAheadLog = false` for a file in the mode `ro`) is now in the README and
+in § 12.9.
 The plan is `docs/plan/2026-11-05-issue-56-the-read-path.md`, the decision is
 [ADR-0033](https://github.com/nordmanndev/LUI/blob/main/docs/adr/0033-the-read-path-opens-an-index-without-writing.md).
 
@@ -43,9 +45,11 @@ The plan is `docs/plan/2026-11-05-issue-56-the-read-path.md`, the decision is
   after 150 ms; the server has to notice the closed connection during a 1.5 s delay). It failed once under the load of a
   saturated 2-CPU sandbox; the changes of #56 are not on the path the test walks (the probe never calls `OpenIndex`), and
   it has been green in every run since. The test was not changed.
-- Two minor points of the verification are still open: `EnsureOnStart(bool)` keeps the old word although the setting now
-  covers the opened indexes too, and the file in the mode `ro` needs `WriteAheadLog = false` — which the README and the
-  specification now say (§ 12.9).
+  `SampleApiTests.A_row_written_to_the_application_s_table_reaches_the_linked_index_through_the_triggers_and_the_outbox`
+  is timing-sensitive too: it failed once under the same load (the outbox was not applied in time) and is green in
+  isolation and in the next full run.
+- One minor point of the verification is still open: `EnsureOnStart(bool)` keeps the old word although the setting now
+  covers the opened indexes too.
 
 ## The next step
 
