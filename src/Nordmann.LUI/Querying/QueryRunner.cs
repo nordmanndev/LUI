@@ -66,24 +66,67 @@ internal sealed class QueryRunner<TKey, TPayload>
         using var snapshot = connection.BeginTransaction(deferred: true);
 
         var similarity = options.Similarity ?? _defaultSimilarity;
+
+        // the buffers of the candidates are reused between the queries of a thread (issue #30)
         var candidates = _candidates.Read(connection, snapshot, query, options, variant: 0, cancellationToken, out var count, out var truncated);
-        var read = Stopwatch.GetTimestamp();
+        var original = candidates;
+        Scored[]? ranked = null;
 
-        (candidates, count, truncated, var queries, var corrected, var skipped, var ran) =
-            Correct(connection, snapshot, query, options, candidates, count, truncated, cancellationToken);
-        var corrections = ran ? Stopwatch.GetTimestamp() : read;
+        try
+        {
+            var read = Stopwatch.GetTimestamp();
 
-        // A one- or two-character input carries no similarity worth ranking by: the
-        // candidates all begin with it, and "the most popular first" is the answer (Anhang B).
-        var order = query.IsPrefixPath ? LuiRankingOrder.WeightOnly : options.Rank;
-        var ranked = Ranker.Rank(
-            candidates, count, queries, order, options.PriorityMode, similarity, _source.Normalization, options.MaxResults, cancellationToken);
-        var rankedAt = Stopwatch.GetTimestamp();
+            (candidates, count, truncated, var queries, var corrected, var skipped, var ran) =
+                Correct(connection, snapshot, query, options, candidates, count, truncated, cancellationToken);
+            var corrections = ran ? Stopwatch.GetTimestamp() : read;
 
-        var hits = _hits.Read(connection, snapshot, ranked, queries, similarity, order);
-        var done = Stopwatch.GetTimestamp();
+            // A one- or two-character input carries no similarity worth ranking by: the
+            // candidates all begin with it, and "the most popular first" is the answer (Anhang B).
+            var order = query.IsPrefixPath ? LuiRankingOrder.WeightOnly : options.Rank;
+            ranked = Ranker.Rank(
+                candidates, count, queries, order, options.PriorityMode, similarity, _source.Normalization, options.MaxResults, cancellationToken);
+            var rankedAt = Stopwatch.GetTimestamp();
 
-        return new LuiResult<TKey, TPayload>
+            var hits = _hits.Read(connection, snapshot, ranked, queries, similarity, order);
+            var done = Stopwatch.GetTimestamp();
+
+            return Result(input, hits, count, truncated, corrected, skipped, Timings(options, started, read, corrections, rankedAt, done));
+        }
+        finally
+        {
+            ReturnBuffers(original, candidates, ranked);
+        }
+    }
+
+    /// <summary>
+    /// Gives the buffers of the candidates back to the thread (issue #30).
+    /// </summary>
+    private static void ReturnBuffers(Scored[] original, Scored[] current, Scored[]? ranked)
+    {
+        ScoredBuffer.Return(original);
+        if (!ReferenceEquals(current, original))
+        {
+            ScoredBuffer.Return(current);
+        }
+
+        if (ranked is not null)
+        {
+            ScoredBuffer.Return(ranked);
+        }
+    }
+
+    /// <summary>
+    /// The result of a query: the hits and what the query did.
+    /// </summary>
+    private static LuiResult<TKey, TPayload> Result(
+        string input,
+        IReadOnlyList<LuiHit<TKey, TPayload>> hits,
+        int count,
+        bool truncated,
+        string? corrected,
+        bool skipped,
+        LuiTimings? timings) =>
+        new()
         {
             Query = input,
             Hits = hits,
@@ -91,9 +134,8 @@ internal sealed class QueryRunner<TKey, TPayload>
             Truncated = truncated,
             CorrectedQuery = corrected,
             CorrectionSkipped = skipped,
-            Timings = Timings(options, started, read, corrections, rankedAt, done),
+            Timings = timings,
         };
-    }
 
     /// <summary>
     /// The typo correction, when it is wanted (§10.2): the candidates of the corrections united with those of the input.

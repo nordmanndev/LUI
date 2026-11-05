@@ -1,3 +1,4 @@
+using System.Buffers;
 using Microsoft.Data.Sqlite;
 using Nordmann.LUI.Normalization;
 using Nordmann.LUI.Schema;
@@ -46,29 +47,39 @@ internal sealed class HitReader<TKey, TPayload>(ContentSource source, PayloadRea
 
         ReadKeysAndPayloads(command, slot, keys, payloads);
 
-        for (var i = 0; i < ranked.Length; i++)
+        // the measure of a hit whose rank was the weight alone: the ranking did not measure it (issue #30)
+        var buffer = ArrayPool<char>.Shared.Rent(256);
+
+        try
         {
-            // an entry that was removed between the candidates and the hits is not a hit
-            if (keys[i] is not { } key)
+            for (var i = 0; i < ranked.Length; i++)
             {
-                continue;
+                // an entry that was removed between the candidates and the hits is not a hit
+                if (keys[i] is not { } key)
+                {
+                    continue;
+                }
+
+                ref var entry = ref ranked[i];
+                var measured = order == LuiRankingOrder.WeightOnly
+                    ? Ranker.Measure(entry, queries, similarity, _normalization, ref buffer)
+                    : entry.Similarity;
+
+                hits.Add(new LuiHit<TKey, TPayload>
+                {
+                    Key = KeyCodec<TKey>.FromText(key),
+                    Text = entry.Text,
+                    Payload = payloads[i],
+                    Weight = RowId.WeightOf(entry.RowId),
+                    Priority = RowId.PriorityOf(entry.RowId),
+                    Similarity = measured,
+                    AtWordStart = entry.WordStart >= 0,
+                });
             }
-
-            ref var entry = ref ranked[i];
-            var measured = order == LuiRankingOrder.WeightOnly
-                ? Ranker.Measure(entry, queries, similarity, _normalization)
-                : entry.Similarity;
-
-            hits.Add(new LuiHit<TKey, TPayload>
-            {
-                Key = KeyCodec<TKey>.FromText(key),
-                Text = entry.Text,
-                Payload = payloads[i],
-                Weight = RowId.WeightOf(entry.RowId),
-                Priority = RowId.PriorityOf(entry.RowId),
-                Similarity = measured,
-                AtWordStart = entry.WordStart >= 0,
-            });
+        }
+        finally
+        {
+            ArrayPool<char>.Shared.Return(buffer);
         }
 
         return hits;

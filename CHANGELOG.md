@@ -180,6 +180,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **A query allocates far less** ([ADR-0029](docs/adr/0029-the-allocation-of-a-query.md), #30). A single-word query with the
+  budget of 500 candidates allocates **26.6 KB instead of 153.3 KB** (−83 %), a multi-word query **105.7 KB instead of
+  185.2 KB** (−43 %); the cost per candidate falls from 302 B to 38 B. Three changes, all inside the library:
+  - **LUI's own Jaro-Winkler** (`src/Nordmann.LUI/Similarity/JaroWinklerMeasure.cs`), bit-exact to
+    `F23.StringSimilarity.JaroWinkler` 7.0.1 — including its quirks (single precision, a common prefix that is not capped
+    at four characters, a weight that shrinks for long texts) — but without its four arrays per comparison. The default
+    measure of the library allocated 55.9 KB per query; now it allocates 0.9 KB.
+  - **The similarity is measured on spans.** The ranking writes the search form of a candidate into a buffer and measures
+    it there; neither the form nor the part the match begins at becomes a string any more (−44.1 KB per query). A measure
+    of an application that only speaks strings is measured as before — the difference is 40 KB per query.
+  - **The buffers of the candidates are reused** per thread: the arrays of the candidates, of the groups and of the hits
+    are kept instead of being thrown away after every query (−40 KB per query).
+  The public API is unchanged — `ISpanSimilarity` is internal, and the exported types against the base of the branch are
+  byte-identical. §16 carries the new target (p50 ≤ 60 KB, p95 ≤ 100 KB; measured p50 42 KB, p95 60 KB).
+
 - **The public API before the freeze** ([ADR-0024](docs/adr/0024-the-api-polish-before-the-freeze.md), #42, from the
   architecture review of 2026-11-04). Renamed and tidied before the first release, so nobody has to migrate:
   - `AddIndex` registers an embedded index, **`AddLinkedIndex`** a linked one (with `applyPendingEvery`); the two were

@@ -77,6 +77,16 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
 
         var united = Union(parts, options.Candidates, options.DistinctText, out var total, out var capped);
 
+        // the candidates of the variants are in the union now: their buffers go back to the thread
+        // (the buffer of the input itself belongs to the caller)
+        foreach (var (items, itemCount) in parts)
+        {
+            if (!ReferenceEquals(items, found))
+            {
+                ScoredBuffer.Return(items);
+            }
+        }
+
         // what was searched: the first correction that still has a candidate after the cap (review M2)
         byte best = 0;
         for (var i = 0; i < total; i++)
@@ -91,7 +101,12 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
     }
 
     /// <summary>
-    /// The candidates of several inputs as one list in the order of the rowid. A document found with more than
+    /// The candidates of several inputs as one list in the order of the rowid.
+    /// <para>
+    /// The buffer of the union has always the same length: the budget times the number of the inputs
+    /// (the input and up to three corrections). A length that changes from query to query would miss
+    /// the pool every time and cost the union anew — 32 KB per corrected query.
+    /// </para> A document found with more than
     /// one input keeps the version that stands at a word start (§10.3: the best value per <c>doc_id</c>); with
     /// <paramref name="distinct"/> one entry per normalised text remains, again the one at a word start first. At
     /// most <paramref name="limit"/> remain, and the cap keeps the word starts first — they are what the
@@ -99,42 +114,100 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
     /// </summary>
     private static Scored[] Union(List<(Scored[] Items, int Count)> parts, int limit, bool distinct, out int count, out bool cut)
     {
-        var all = new List<Scored>();
-        foreach (var (items, found) in parts)
+        var total = 0;
+        foreach (var (_, found) in parts)
         {
-            all.AddRange(items.AsSpan(0, found));
+            total += found;
         }
 
-        all.Sort(static (a, b) =>
+        // the buffers are reused between the queries of a thread (issue #30): four lists of the size of
+        // the candidates would have cost four times the budget of 500 — about 200 KB per corrected query
+        //
+        var all = ScoredBuffer.Rent(limit * 4);
+        if (all.Length < total)
         {
-            var byRowId = a.RowId.CompareTo(b.RowId);
-            return byRowId != 0 ? byRowId : BestFirst(a, b);
-        });
+            // more corrections than the dictionary gives — the buffer has to grow
+            ScoredBuffer.Return(all);
+            all = ScoredBuffer.Rent(total);
+        }
 
-        var united = new List<Scored>(all.Count);
-        foreach (var candidate in all)
+        var kept = ScoredBuffer.Rent(limit);
+
+        try
         {
-            if (united.Count == 0 || united[^1].RowId != candidate.RowId)
+            var at = 0;
+            foreach (var (items, found) in parts)
             {
-                united.Add(candidate);
+                items.AsSpan(0, found).CopyTo(all.AsSpan(at));
+                at += found;
+            }
+
+            Array.Sort(all, 0, total, ByRowIdAndWordStart);
+
+            // one entry per document: the first after the sort is the one at a word start
+            var united = 0;
+            for (var i = 0; i < total; i++)
+            {
+                if (united == 0 || all[united - 1].RowId != all[i].RowId)
+                {
+                    all[united++] = all[i];
+                }
+            }
+
+            if (distinct)
+            {
+                united = DistinctByKey(all, united);
+            }
+
+            cut = united > limit;
+
+            var taken = Keep(all, united, kept, limit);
+            Array.Sort(kept, 0, taken, ByRowId);
+
+            count = taken;
+            return kept;
+        }
+        finally
+        {
+            ScoredBuffer.Return(all);
+        }
+    }
+
+    /// <summary>
+    /// The candidates that remain: the word starts first — they are what the correction was for (review M2):
+    /// hits in the middle of words, in rowid order, fill what is left.
+    /// </summary>
+    private static int Keep(Scored[] all, int united, Scored[] kept, int limit)
+    {
+        var taken = 0;
+        for (var i = 0; i < united && taken < limit; i++)
+        {
+            if (all[i].WordStart >= 0)
+            {
+                kept[taken++] = all[i];
             }
         }
 
-        if (distinct)
+        for (var i = 0; i < united && taken < limit; i++)
         {
-            united = DistinctByKey(united);
+            if (all[i].WordStart < 0)
+            {
+                kept[taken++] = all[i];
+            }
         }
 
-        cut = united.Count > limit;
-
-        var kept = new List<Scored>(Math.Min(united.Count, limit));
-        kept.AddRange(united.Where(static c => c.WordStart >= 0).Take(limit));
-        kept.AddRange(united.Where(static c => c.WordStart < 0).Take(limit - kept.Count));
-        kept.Sort(static (a, b) => a.RowId.CompareTo(b.RowId));
-
-        count = kept.Count;
-        return [.. kept];
+        return taken;
     }
+
+    /// <summary>The order of the candidates: the rowid, and for the same rowid the word start first.</summary>
+    private static readonly IComparer<Scored> ByRowIdAndWordStart = Comparer<Scored>.Create(static (a, b) =>
+    {
+        var byRowId = a.RowId.CompareTo(b.RowId);
+        return byRowId != 0 ? byRowId : BestFirst(a, b);
+    });
+
+    /// <summary>The order of the rowid.</summary>
+    private static readonly IComparer<Scored> ByRowId = Comparer<Scored>.Create(static (a, b) => a.RowId.CompareTo(b.RowId));
 
     /// <summary>A word start first, then the earlier input.</summary>
     private static int BestFirst(in Scored a, in Scored b)
@@ -143,12 +216,17 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
         return byStart != 0 ? byStart : a.Variant.CompareTo(b.Variant);
     }
 
-    /// <summary>One entry per normalised text: the one at a word start, then the better rowid (§9.2).</summary>
-    private static List<Scored> DistinctByKey(List<Scored> candidates)
+    /// <summary>
+    /// One entry per normalised text: the one at a word start, then the better rowid (§9.2). The
+    /// candidates are in <paramref name="candidates"/>; the result is written back into it, and its
+    /// number is returned.
+    /// </summary>
+    private static int DistinctByKey(Scored[] candidates, int count)
     {
         var best = new Dictionary<string, Scored>(StringComparer.Ordinal);
-        foreach (var candidate in candidates)
+        for (var i = 0; i < count; i++)
         {
+            var candidate = candidates[i];
             var key = candidate.Key ?? candidate.Text;
             if (!best.TryGetValue(key, out var kept)
                 || (candidate.WordStart >= 0 && kept.WordStart < 0)
@@ -158,8 +236,13 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
             }
         }
 
-        var result = new List<Scored>(best.Values);
-        result.Sort(static (a, b) => a.RowId.CompareTo(b.RowId));
+        var result = 0;
+        foreach (var candidate in best.Values)
+        {
+            candidates[result++] = candidate;
+        }
+
+        Array.Sort(candidates, 0, result, ByRowId);
         return result;
     }
 }

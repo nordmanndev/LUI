@@ -56,7 +56,8 @@ internal sealed class CandidateReader
         var limit = options.Candidates + 1;
         using var command = Command(connection, snapshot, query, limit, _verify ? limit + options.Candidates : limit);
 
-        var candidates = new Scored[Math.Min(limit, 512)];
+        // the buffer of the candidates is reused between the queries of a thread (issue #30)
+        var candidates = ScoredBuffer.Rent(Math.Min(limit, 512));
 
         // one entry per text within this input; across the inputs it is decided after the union
         var seen = options.DistinctText ? new HashSet<string>(StringComparer.Ordinal) : null;
