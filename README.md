@@ -26,8 +26,10 @@ use Lucene, SeekStorm or FTS5 directly. Not a key–value store. Not a server wi
 
 ## Contents
 
-- [What LUI is](#what-lui-is) · [The problem](#the-problem) · [Highlights](#highlights) · [Install](#install) · [Quick start](#quick-start) · [Performance](#performance) · [The two index kinds and the two content sources](#the-two-index-kinds-and-the-two-content-sources)
-- [A payload](#a-payload) · [In an ASP.NET Core application](#in-an-aspnet-core-application) · [Only read](#only-read) · [The most important types](#the-most-important-types) · [The sample application](#the-sample-application) · [The documentation](#the-documentation) · [Status](#status) · [Working on LUI](#working-on-lui) · [Licence](#licence)
+- [What LUI is](#what-lui-is) · [The problem](#the-problem) · [Highlights](#highlights) · [Install](#install) · [Quick start](#quick-start)
+- [Loading many entries](#loading-many-entries) · [Performance](#performance) · [The kinds of an index](#the-kinds-of-an-index) · [Embedded or linked](#embedded-or-linked)
+- [A payload](#a-payload) · [In an ASP.NET Core application](#in-an-aspnet-core-application) · [Only read](#only-read) · [The API](#the-api)
+- [The sample application](#the-sample-application) · [The documentation](#the-documentation) · [Status](#status) · [Working on LUI](#working-on-lui) · [Licence](#licence)
 
 ## Install
 
@@ -68,12 +70,45 @@ gedeckter
 
 `Create` writes — it belongs in the migration of your application; in the runtime path the index is **opened**: `lui.Index("recipes")` reads the definition out of the file and writes nothing.
 
+## Loading many entries
+
+An index that holds more than a few hundred entries is **loaded**, not written one by one. `Sync` makes the index equal
+to a set of entries: it reads them in batches, writes them in one transaction per batch, and removes what is gone.
+
+```csharp
+// many records at once: Sync makes the index equal to the entries, in batches
+using var bulkCatalog = LuiCatalog.Open("Data Source=bulk.db");
+var words = bulkCatalog.Create("words", index => index.SingleWord());
+
+var report = words.Sync(
+    Enumerable.Range(0, 50_000).Select(i => new LuiEntry(i, $"Wort {i}")),
+    new LuiSyncOptions { BatchSize = 10_000 });
+
+Console.WriteLine($"{report.Read} read, {report.Added} added, {report.Batches} batches");
+```
+
+```text
+50000 read, 50000 added, 5 batches
+```
+
+- **`Sync`** is the bulk path: one transaction per batch of `BatchSize` entries, a report at the end, and a
+  `IProgress<LuiSyncReport>` for the progress of the load.
+- **`UpsertMany`** is the same without the removal: it writes the entries it is given and leaves the rest alone.
+- **`Sync`** also takes a stream: `await index.Sync(entries.AsAsyncEnumerable(), …)`.
+- **The cost** of a load of a million entries is measured — see [Performance](#performance).
+
+A `Linked` index is loaded differently: its content is the table of the application, so `Sync()` reads the table and
+indexes it. The rows that are written afterwards are taken in with `Refresh(id)`, `RefreshMany(ids)` or the triggers the
+application asks for.
+
 ## Performance
 
-Measured on the CI machine — Intel Xeon 2.10 GHz, 4 cores, 15 GB, Ubuntu 24.04, .NET 10.0.14 — with three million
-single words of the German word list and one million titles, each target asserted by
-[`PerformanceBudgets`](./tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs) in its scenario
-([ADR-0020](./docs/adr/0020-the-performance-budgets-measured.md)); the full record is in [`docs/benchmarks.md`](./docs/benchmarks.md).
+Two measurements, two machines — and both name the machine they stand on.
+
+**The budgets** below are the targets of the specification, measured in their scenario — three million single words of the
+German word list and one million titles — on the CI machine: Intel Xeon 2.10 GHz, 4 cores, 15 GB, Ubuntu 24.04,
+.NET 10.0.14. Every target is asserted by a test in its scenario; the method and the corpus are in
+[`docs/benchmarks.md`](./docs/benchmarks.md).
 
 | Target | Measured | Limit |
 |---|---:|---:|
@@ -87,17 +122,132 @@ single words of the German word list and one million titles, each target asserte
 | typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
 
-## The two index kinds and the two content sources
+**The tables** below are the output of [BenchmarkDotNet](https://benchmarkdotnet.org/) — the code on the corpus of the
+measurement, not the scenario of the budgets. They are rendered from the reports of the run in
+[`benchmarks/results/`](./benchmarks/results/) by a test, so they cannot drift from them; the machine of the run stands
+above them.
 
-| | | What it is | What it is for | What the application does | What LUI keeps |
-|---|---|---|---|---|---|
-| **`SingleWord`** | the kind of an index | tags, single words, compounds, hashtags | searches the whole text as one unit | the text as it is |
-| **`MultiWord`** | the kind of an index | names, recipe and book titles | searches the words of the text, ANDed — the order and the spaces do not matter | the text, word by word |
-| **`Embedded`** | the source of the content (the default) | the library's own table `lui_<index>` | writes with `Upsert`, `UpsertMany`, `Remove` | a copy of the text, beside the search index |
-| **`Linked`** | the source of the content | a table of your application | writes with ordinary SQL, then `Refresh(id)`, `Sync()` or the triggers it asks for | **no copy of the row**: the normalised text in the search index, the weight and the priority in the order of the candidates |
+<!-- benchmarks:begin -->
+<!-- generated by Readme_Benchmarks from benchmarks/results/ — do not edit by hand -->
 
-The kinds and the sources are independent — every combination of them exists. A `Linked` index never changes your
-schema: no column, no index, no trigger, unless you ask for one ([ADR-0015](./docs/adr/0015-the-linked-index-is-loosely-coupled.md)).
+```text
+BenchmarkDotNet v0.15.8, Linux Debian GNU/Linux 12 (bookworm)
+Intel Xeon 6982P-C 3.80GHz, 1 CPU, 2 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  DefaultJob : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+```
+
+#### A query
+
+One query through the whole pipeline: the prefix path for one and two characters, FTS5 from three — Entries = 200000. `QueryBenchmarks`.
+
+| Method | Kind | Input | Mean | Error | Allocated |
+|---|---|---|---:|---:|---:|
+| Search | SingleWord | apfelkuc | 89.42 μs | 1.719 μs | 6.73 KB |
+| Search | SingleWord | b | 375.32 μs | 6.873 μs | 36.4 KB |
+| Search | SingleWord | haus | 504.50 μs | 9.855 μs | 27.04 KB |
+| Search | SingleWord | ka | 16.46 μs | 0.275 μs | 4.94 KB |
+| Search | MultiWord | apfelkuc | 238.05 μs | 48.295 μs | 5.44 KB |
+| Search | MultiWord | b | 463.08 μs | 8.753 μs | 60.54 KB |
+| Search | MultiWord | haus | 867.40 μs | 17.324 μs | 65.67 KB |
+| Search | MultiWord | ka | 507.16 μs | 10.049 μs | 61.78 KB |
+
+#### A query with a typo correction
+
+A single-word index with typo tolerance, the dictionary built; the input has one typo — Entries = 200000. `CorrectionBenchmarks`.
+
+| Method | Input | Mean | Error | Allocated |
+|---|---|---:|---:|---:|
+| Search | bahmhof | 201.66 μs | 3.842 μs | 23.61 KB |
+| Search | fusbal | 371.00 μs | 7.259 μs | 21.33 KB |
+| Search | kartofel | 85.87 μs | 1.370 μs | 7.22 KB |
+| Search | strasee | 94.57 μs | 1.089 μs | 7.17 KB |
+
+#### A single write
+
+One write in a transaction of its own — Entries = 200000. `WriteBenchmarks`.
+
+| Method | Mean | Error | Allocated |
+|---|---:|---:|---:|
+| UpdateWeight | 1,868.1 μs | 36.99 μs | 436 B |
+| UpsertTheSame | 688.0 μs | 3.93 μs | 820 B |
+| UpsertAnotherText | 1,496.3 μs | 29.42 μs | 820 B |
+
+#### The search form and the similarity
+
+Per text, no database: the normalisation of §6 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln", `Größe(...)nahme [23]` „Größenänderungsmaßnahme". `TextBenchmarks`.
+
+| Method | Text | Mean | Error | Allocated |
+|---|---|---:|---:|---:|
+| SearchForm | Apfelkuchen | 43.72 ns | 0.408 ns | 144 B |
+| JaroWinkler | Apfelkuchen | 41.64 ns | 0.861 ns | - |
+| NgramDice | Apfelkuchen | 95.53 ns | 1.229 ns | - |
+| SearchForm | Gedec(...)useln [35] | 97.19 ns | 1.462 ns | 240 B |
+| JaroWinkler | Gedec(...)useln [35] | 78.58 ns | 1.509 ns | - |
+| NgramDice | Gedec(...)useln [35] | 251.99 ns | 5.046 ns | - |
+| SearchForm | Größe(...)nahme [23] | 100.69 ns | 2.073 ns | 320 B |
+| JaroWinkler | Größe(...)nahme [23] | 70.50 ns | 1.447 ns | - |
+| NgramDice | Größe(...)nahme [23] | 182.70 ns | 3.655 ns | - |
+
+<!-- benchmarks:end -->
+
+## The kinds of an index
+
+The kind is decided **once**, when the index is created, and it decides how a query searches. The caller of a query does
+not have to know it.
+
+| | **`SingleWord`** | **`MultiWord`** |
+|---|---|---|
+| **For** | tags, single words, compounds, hashtags | names, recipe and book titles |
+| **Examples** | `Apfelkuchen`, `#Bahnhof`, `vegan` | `Anna Müller`, `Gedeckter Apfelkuchen` |
+| **The input is** | one unit | split into words, **ANDed** |
+| **The order of the words** | — | does not matter: `kuchen apfel` finds what `apfel kuchen` finds |
+| **The spaces** | — | do not matter: `apfelkuch` finds “Apfel Kuchen” |
+| **The default similarity** | Jaro-Winkler | N-gram Dice |
+
+### The four combinations
+
+The typo tolerance is a decision of the application: the dictionary of the words of an index costs 138 MB for 685,829
+words, so it is **off by default** and switched on with `TypoTolerance()`.
+
+| | **Typo tolerance off** (the default) | **Typo tolerance on** |
+|---|---|---|
+| **`SingleWord`** | the text as one unit: `apfelkuch` finds *Apfelkuchen* | + one error in the word: `apfelkuh` finds *Apfelkuchen* |
+| **`MultiWord`** | the words ANDed: `apfelkuch` finds *Apfel Kuchen*, `kuchen apfel` finds it too | + one error in one of the words: `apfle kuchen` finds *Apfel Kuchen* |
+
+A correction happens only when **no candidate** matches the input at the beginning of a word — 34 % of the typos would
+find hits in the middle of other words. The dictionary belongs to the index: a query in a tag index never corrects
+towards the words of a name index.
+
+## Embedded or linked
+
+The content of an index comes either from the library's own table or from a table of the application. Three questions
+decide it.
+
+1. **Do the rows already live in a table of your application?**
+   **Yes** → take **Linked**: the library indexes your table and keeps no copy of the text.
+   **No** → take **Embedded**: the library keeps the text in its own table `lui_<index>`.
+2. **Who writes those rows?**
+   **You, with SQL or with your ORM** → with **Embedded** you write the text twice: once into your table, once into
+   the index. With **Linked** you write it once and tell the index afterwards.
+   **Nobody yet — the texts come from a file, an API or a list** → **Embedded**; the index is the only place the text is.
+3. **Do you need a weight of your own — clicks, a popularity, a stock?**
+   **Yes** → with **Embedded** the weight is a property of the entry. With **Linked** it is a column of your table, and
+   the index reads it.
+
+| | **`Embedded`** (the default) | **`Linked`** |
+|---|---|---|
+| **The text lives in** | the table of the library, `lui_<index>` | your own table |
+| **You write it with** | `Upsert`, `UpsertMany`, `Remove` | ordinary SQL — then `Refresh(id)`, `Sync()` or the triggers you ask for |
+| **A copy of the text** | yes | **no** |
+| **Your schema** | untouched | untouched — no column, no index, no trigger unless you ask for one |
+| **A hit reads** | the copy in the index | your row, live |
+| **Your own file** | possible | not possible — the index is in the file of your table |
+
+The two are independent of the kind of the index: every combination of them exists. A `Linked` index keeps the
+normalised text in the search index and the weight and the priority in the order of the candidates — your row itself
+is never copied.
 
 ## A payload
 
@@ -128,8 +278,8 @@ public sealed record TagChip(string Colour, string Group);
 public sealed partial class TagJson : JsonSerializerContext;
 ```
 
-The index knows no types ([ADR-0035](./docs/adr/0035-the-index-knows-no-types.md)): the file stores the payload as
-bytes, and the type stands where the payload is used — a payload that cannot be read is a `LuiPayloadException`.
+The index knows no types: the file stores the payload as bytes, and the type stands where the payload is used — a
+payload that cannot be read is a `LuiPayloadException`.
 
 ## In an ASP.NET Core application
 
@@ -152,8 +302,7 @@ var suggest = catalog.Index("recipes");
 Console.WriteLine(suggest.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
 ```
 
-The hosting package carries the dependency injection and nothing else
-([ADR-0034](./docs/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md)) — no background service, no timer.
+The hosting package carries the dependency injection and nothing else — no background service, no timer.
 
 ## Only read
 
@@ -171,20 +320,25 @@ foreach (var hit in opened.Search("apfelkuch").Hits)
 }
 ```
 
-`Index` reads the definition out of the file and writes nothing — no table, no definition, no write lock
-([ADR-0033](./docs/adr/0033-the-read-path-opens-an-index-without-writing.md)). The file decides what may happen.
+`Index` reads the definition out of the file and writes nothing — no table, no definition, no write lock. The file
+decides what may happen.
 
-## The most important types
+## The API
 
 | Type | What it is |
 |---|---|
 | `LuiCatalog` | the entry point: `Open`, `Create`, `Index`, `LinkedIndex`, `DropIndex` |
 | `LuiEntry` | what is written: a key, a text, a weight, a priority, a payload |
 | `LuiKey` | the key of the application: a number or a text — `1` and `"1"` are different keys |
-| `LuiQueryOptions` | the settings of a query, for the configuration: `MaxResults`, `Candidates`, `Rank`, `PriorityMode`, `DistinctText`, `Similarity`, `TypoTolerance`, `TrackTimings` |
+| `LuiQuery` | a query that is configured step by step: `Take`, `Candidates`, `Rank`, `PriorityMode`, `DistinctText`, `Similarity`, `TypoTolerance`, `TrackTimings` |
+| `LuiQueryOptions` | the same settings as a record, for the configuration of an application |
+| `LuiResult` | the answer of a query: the hits, the candidates it considered, the query it corrected |
+| `LuiHit` | one hit: the key, the text, the weight, the priority, the similarity — and `GetPayload<T>()` |
 | `LuiCatalogOptions` | the settings of the catalog: the cache, the memory map, the busy timeout, the WAL, the payload serialiser, the clock |
 
-A query answers with a `LuiResult`: the hits, the candidates it considered and the query it corrected.
+**Every public type of the package is listed in [`docs/api.md`](./docs/api.md)** — the catalogue, the builders, the
+index, the entry, the query, the payload, the similarity, the enumerations, the exceptions and the hosting extension,
+with a sentence for each.
 
 ## The sample application
 
@@ -193,7 +347,10 @@ dotnet run --project samples/Lui.Sample      # http://localhost:5000
 ```
 
 [`samples/Lui.Sample/`](./samples/Lui.Sample/) is an ASP.NET Core application with six autocompletes: recipes with
-a JSON payload, tags **linked** to your own table, names, the German word list and two bulk indexes.
+a JSON payload, tags **linked** to your own table, names, the German word list and two bulk indexes. The bulk indexes
+are **created on demand** — the page fills them when you ask for it, and shows the progress while it does.
+
+![The sample application: the index of the words, the autocomplete of the names, the fill of a bulk index](./docs/images/sample.gif)
 
 ![The recipes autocomplete: "kartofel" is corrected, the page asks "Did you mean “kartoffel”?", the hits are grouped by the category of their payload](./docs/images/sample-recipes.png)
 
@@ -203,24 +360,22 @@ a JSON payload, tags **linked** to your own table, names, the German word list a
 
 | | |
 |---|---|
-| **[The map of the documentation](./docs/README.md)** | what lies where: the contract, the way, the history — and who reads what |
+| **[The map of the documentation](./docs/README.md)** | what lies where: the entrance, the way, the API, the numbers — and who reads what |
 | **[The tutorial](./docs/tutorial/README.md)** | the way: from an empty database to a working autocomplete, in five steps |
-| **[The specification](./docs/spec/LUI-Spezifikation.md)** | the contract: the kinds of index, the sources of the content, the query path, the ranking, the typo tolerance, the API |
+| **[The API](./docs/api.md)** | every public type of the package, with a sentence for each |
 | **[The benchmarks](./docs/benchmarks.md)** | every measured number, with the machine, the corpus and the method |
 | **[The normalisation](./docs/normalization.md)** | the rule that turns a text into a searchable form — and what was measured about it |
-| **[The decisions](./docs/adr/README.md)** | the ADRs: why the API looks the way it does |
 | **[The test map](./docs/testing.md)** | which test proves which rule |
 | **[The alignment](./docs/architecture/alignment.md)** and **[the domain](./docs/domain/lui.md)** | which rules of the standards apply to a library — and the terms the library speaks |
 
 ## Status
 
-LUI is **feature-complete for 0.1.0 and not yet published**. The design is specified in the
-[`specification`](./docs/spec/LUI-Spezifikation.md), the contract of this repository; every decision is an ADR in [`docs/adr/`](./docs/adr/).
+LUI is **feature-complete for 0.1.0 and not yet published**. The design is specified, and the implementation follows
+it; every decision of the repository is written down and dated.
 
-Two packages, one version: `Nordmann.LUI` (the library) and `Nordmann.LUI.Hosting` (the dependency injection)
-([ADR-0018](./docs/adr/0018-two-packages-core-and-hosting.md)). The core takes `Microsoft.Data.Sqlite` and
-`symspell` and nothing else ([ADR-0004](./docs/adr/0004-dependencies.md)); the target framework is `net10.0`, the licence
-is MIT, and the public API grows only additively from `0.1.0` on ([ADR-0026](./docs/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)).
+Two packages, one version: `Nordmann.LUI` (the library) and `Nordmann.LUI.Hosting` (the dependency injection). The core
+takes `Microsoft.Data.Sqlite` and `symspell` and nothing else; the target framework is `net10.0`, the licence is MIT,
+and the public API grows only additively from `0.1.0` on.
 
 ## Working on LUI
 
@@ -228,9 +383,7 @@ Read [`AGENTS.md`](./AGENTS.md) first — it is the contract for this repository
 [`nordmanndev/standards`](https://github.com/nordmanndev/standards).
 
 - **One issue, one pull request**, each with its tests, its measurement and — for a decision that changes the public
-  API, the schema or the dependencies — its ADR.
-- **The specification is the contract.** Code that contradicts it is a bug, unless an ADR says the specification is
-  wrong; then both change in the same pull request.
+  API, the schema or the dependencies — its record.
 - **Before a pull request:** `dotnet test`, `dotnet format --verify-no-changes`, `tools/package-smoke-test.sh`,
   `tools/mutation-check.sh` — the test map ([`docs/testing.md`](./docs/testing.md)) is a guard: an unlisted test file fails the build.
 - **The code of this README runs.** Every C# block above is executed by the package smoke test, against the packed

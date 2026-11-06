@@ -1,7 +1,7 @@
 # Alignment with nordmanndev/standards
 
 > Which standards rules apply to LUI, which do not, and why. The short form is
-> [ADR-0002](../adr/0002-library-not-an-application.md); this file is the long
+> ADR-0002; this file is the long
 > form, with the pointers.
 
 The standards were written for **applications**. LUI is a **library**. The
@@ -24,7 +24,7 @@ at `c63d696` (v2.5.5).
 | `Meziantou.Analyzer` from day one | `architecture/stack.md` entry 9 | analyzer package, `TreatWarningsAsErrors` | the build itself |
 | Test pyramid | `architecture/operations.md` | unit · architecture · integration, three projects, plus the shared `Nordmann.LUI.Testing` (ADR-0019) | the test run itself; `Test_Landscape` (the map of the tests agrees with the tree) |
 | NetArchTest for architectural rules | `architecture/operations.md` | `Nordmann.LUI.Architecture.Tests` | `Public_API_Shape` |
-| ADR discipline | `architecture/meta.md` | `docs/adr/`, one ADR per decision | — (review) |
+| ADR discipline | `architecture/meta.md` | one ADR per decision, in the papers of the work | — (review) |
 | The test map is a guard | `AGENTS.md`, ADR-0019 | `docs/testing.md` says which test holds which rule up | `Test_Landscape` |
 | `CHANGELOG.md` on public API change | `AGENTS.md` | `CHANGELOG.md` | — (review) |
 | Closed library list | `architecture/stack.md`, ADR-0008 | every deviation gets an ADR | `The_library_references_only_the_documented_dependencies` |
@@ -48,7 +48,7 @@ at `c63d696` (v2.5.5).
 
 | Rule | Why |
 |---|---|
-| The specification lives in the repository (`docs/spec/`) | the standards' ADR-0048 prefers carried knowledge over reference-by-URL; here the *contract* is the code's reference |
+| The specification lives in the repository | the standards' ADR-0048 prefers carried knowledge over reference-by-URL; here the *contract* is the code's reference |
 | Every ADR of the specification's §3 (E1–E10) becomes an ADR here | the specification asks for it: *"Jede Entscheidung bekommt in der Umsetzung ein ADR."* |
 | The performance budgets are tests, not prose | Anhang A's numbers are measurements on a machine that is not the consumer's machine |
 | The dependency set is asserted | a library's dependency list is a public contract (ADR-0004) |

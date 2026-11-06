@@ -9,13 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **The read path opens an index without writing** ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md),
+- **The read path opens an index without writing** ([ADR-0033](.agents/adr/0033-the-read-path-opens-an-index-without-writing.md),
   #56). A second way into an index: the definition is read out of `lui_meta`, the index is rebuilt from it, and the
   file is not touched — no table, no definition, no write lock. It is the way into a database that is written
   elsewhere: a replica, a file that is read-only, a service that may not write.
   - `LuiCatalog.Index(name)` opens an embedded index, `LuiCatalog.LinkedIndex(name)` and
     `LuiCatalog.LinkedIndex(name, map)` a linked one — the columns of the payload are in the definition, the map is the
-    one of the application. None of them names a type ([ADR-0035](docs/adr/0035-the-index-knows-no-types.md), below).
+    one of the application. None of them names a type ([ADR-0035](.agents/adr/0035-the-index-knows-no-types.md), below).
   - The existence of the index, the version of its schema, the version of its folding and its content source are
     checked when it is opened, and a mismatch says what is wrong: the new `LuiIndexNotFoundException` (with the name of
     the index) and `LuiDefinitionMismatchException`.
@@ -27,7 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `DropIndex`, `Upsert`, `Sync`). The same application code therefore runs in the service that writes and in the
     service that only reads.
 
-- **The sample fills its own bulk indexes** ([ADR-0029](docs/adr/0029-the-sample-fills-its-own-bulk-indexes-on-demand.md)). Three
+- **The sample fills its own bulk indexes** ([ADR-0029](.agents/adr/0029-the-sample-fills-its-own-bulk-indexes-on-demand.md)). Three
   indexes beside the curated ones — `words` (the German word list, one word per entry), `people` (the full names of Bogus's
   German locale) and `hashtags` (a place and a surname, joined by a hyphen) — are created and loaded by a button in the tab of
   the index: you say how many entries it should hold, and the fill runs in the background while the page shows its progress.
@@ -37,7 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the panel of the indexes, the settings of the query keep their own column and never lie over the page, and one thing that
   breaks says so instead of taking the rest of the page down with it. No change to the public API.
 
-- **The sample** ([ADR-0027](docs/adr/0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md), #51). `samples/Lui.Sample` is an
+- **The sample** ([ADR-0027](.agents/adr/0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md), #51). `samples/Lui.Sample` is an
   ASP.NET Core application with three autocompletes built with flexdatalist — recipes (embedded, JSON payload), tags (linked to
   the application's table, column payload, priority System, add-new through triggers and the outbox) and names (typo
   tolerance, a dictionary of its own) — every query setting as a control, the whole `LuiResult`, the hits as ranked, the
@@ -45,14 +45,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keystroke and escapes everything flexdatalist writes with `innerHTML`; a corrected input is shown as "Did you mean …?".
   No change to the public API.
 
-- **The README of the first release** ([ADR-0022](docs/adr/0022-the-benchmark-results-in-the-readme.md), #36): the
+- **The README of the first release** ([ADR-0022](.agents/adr/0022-the-benchmark-results-in-the-readme.md), #36): the
   query options with their defaults, the ranking and the priority, the typo tolerance, the §16 budgets and the results
   of BenchmarkDotNet. The benchmark tables are rendered from BenchmarkDotNet's reports in `benchmarks/results/` by the
   architecture test `Readme_Benchmarks`, which fails when the README and the reports differ; `tools/benchmarks.sh`
   makes a new run.
 
-- **A typo dictionary that only grows, a query that does not wait** ([ADR-0021](docs/adr/0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md),
-  [ADR-0025](docs/adr/0025-the-typo-dictionary-only-grows.md), #19, #48). A built typo dictionary learns the words of every
+- **A typo dictionary that only grows, a query that does not wait** ([ADR-0021](.agents/adr/0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md),
+  [ADR-0025](.agents/adr/0025-the-typo-dictionary-only-grows.md), #19, #48). A built typo dictionary learns the words of every
   write at once and is never built anew by itself: `Sync` of an embedded index does not touch it, a removed word lingers
   until `RebuildTypoDictionary()` (the index is the filter, so a correction towards it falls away), and the build uses
   SymSpell's bulk path (the warm-up of a 300,000-entry index: 2.8 → 2.3 s). Every index has a dictionary of its own — a search among tags is
@@ -66,7 +66,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `WarmUpTypoDictionary` and `RebuildTypoDictionary` now end their wait for a build another thread runs when their token
   is cancelled.
 
-- **The performance budgets of §16, measured** ([ADR-0020](docs/adr/0020-the-performance-budgets-measured.md)): a test per
+- **The performance budgets of §16, measured** ([ADR-0020](.agents/adr/0020-the-performance-budgets-measured.md)): a test per
   target in its scenario (`PerformanceBudgets`, gated), a generated corpus for the measurements, and the benchmark
   project (`benchmarks/Nordmann.LUI.Benchmarks`, BenchmarkDotNet). At three million entries the query median (1.6 ms),
   the single write (p95 0.5–0.8 ms) and the typo dictionary are met. Four targets of §16 are
@@ -75,11 +75,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   file of a million titles (≤ 500 MB) and the build (≤ 4 min — it follows the disk, 172–206 s on two machines; a faster
   first load is #32). Every target is asserted.
 
-- **Dependency injection, in a second package `Nordmann.LUI.Hosting`** ([ADR-0017](docs/adr/0017-dependency-injection-and-hosted-services.md),
-  [ADR-0018](docs/adr/0018-two-packages-core-and-hosting.md),
-  [ADR-0034](docs/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md)), released with `Nordmann.LUI` under the same version:
+- **Dependency injection, in a second package `Nordmann.LUI.Hosting`** ([ADR-0017](.agents/adr/0017-dependency-injection-and-hosted-services.md),
+  [ADR-0018](.agents/adr/0018-two-packages-core-and-hosting.md),
+  [ADR-0034](.agents/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md)), released with `Nordmann.LUI` under the same version:
   `services.AddLui(connectionString, options?)` (or with delegates that read the container) puts the **catalog** into the
-  container — and nothing else ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md)): an index is
+  container — and nothing else ([ADR-0033](.agents/adr/0033-the-read-path-opens-an-index-without-writing.md)): an index is
   not registered and not injected, the application asks the catalog for what it needs — `catalog.Create(name, …)` in its
   migration, `catalog.Index(…)` in the runtime path. The catalog is a singleton the container disposes. The package
   references `Microsoft.Extensions.DependencyInjection.Abstractions` (10.0.14) and nothing else: the abstractions of the
@@ -88,7 +88,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `ILuiIndex.TypoTolerance`: whether a query of the instance corrects typos unless it says otherwise. An application's
   own implementation of `ILuiIndex` (a test double) has to add it.
 
-- **Sync, check, rebuild and optimize** ([ADR-0016](docs/adr/0016-sync-check-rebuild.md)). An embedded index:
+- **Sync, check, rebuild and optimize** ([ADR-0016](.agents/adr/0016-sync-check-rebuild.md)). An embedded index:
   `Sync(entries, options?, cancellationToken)` (and an overload for an `IAsyncEnumerable` source) adds what is missing,
   writes what differs, keeps what is the same and removes the keys that were there when it began and that the source
   does not have — in batches of
@@ -102,7 +102,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `Different`). 1,000,000 entries: sync 78 s (batches of 10,000) or 55 s (100,000), query p95 afterwards 3.9 ms
   (5.4 ms after `UpsertMany`).
 
-- **The linked index** ([ADR-0015](docs/adr/0015-the-linked-index-is-loosely-coupled.md)), loosely coupled to a table
+- **The linked index** ([ADR-0015](.agents/adr/0015-the-linked-index-is-loosely-coupled.md)), loosely coupled to a table
   of the application: `lui.Create(name, index => index.SingleWord().LinkTo(table, key, text, weight?, priority?))`
   returns an `ILuiLinkedIndex<TPayload>`. LUI never changes the application's table on its own — no column, no index, no trigger;
   `Create()` checks the table and creates LUI's own tables (a contentless FTS5 table, the text is not stored twice).
@@ -122,7 +122,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   them there until `RebuildTypoDictionary()` (documented and pinned by a test).
 - A quick start in the README, run by the package smoke test.
 
-- **Typo tolerance** ([ADR-0012](docs/adr/0012-typo-tolerance.md)): `TypoTolerance()` on the builder
+- **Typo tolerance** ([ADR-0012](.agents/adr/0012-typo-tolerance.md)): `TypoTolerance()` on the builder
   (off unless asked for), `LuiQuery.TypoTolerance(bool)` and `LuiQueryOptions.TypoTolerance`.
   An input without a word start is corrected by one edit with a SymSpell dictionary of the word
   beginnings (3 … 10 letters) of the index; the three best corrections are searched and united with
@@ -133,7 +133,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   German word list takes 4.2 s and 138 MB.
 
 - **The multi-word index** (`MultiWord`, `Embedded`): `catalog.Create(name, index => index.MultiWord())`
-  for names and titles ([ADR-0011](docs/adr/0011-the-multi-word-index.md)). The input is split
+  for names and titles ([ADR-0011](.agents/adr/0011-the-multi-word-index.md)). The input is split
   into words that are ANDed and also searched compactly, so `kuchen apfel` and `apfelkuch` both
   find „Apfel Kuchen"; the word start is decided on the compact form; the default similarity is
   N-gram Dice. A multi-word index has a compact column `s_compact`, and its search index holds
@@ -144,8 +144,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   3.6 MB at the 95th percentile, now 263 KB; the number is the one of `F23.SorensenDice(2)`.
 
 - **The single-word index** (`SingleWord`, `Embedded`) — the first index that
-  answers a query ([ADR-0006](docs/adr/0006-the-single-word-index.md),
-  [ADR-0008](docs/adr/0008-the-query-path.md)):
+  answers a query ([ADR-0006](.agents/adr/0006-the-single-word-index.md),
+  [ADR-0008](.agents/adr/0008-the-query-path.md)):
   - `LuiCatalog.Open(connectionString, options)` with `LuiCatalogOptions`
     (`CacheSizeMegabytes`, `MemoryMapMegabytes`, `BusyTimeout`, `TimeProvider`), and
     `lui_meta`. `Dispose()` waits for the operations that are running.
@@ -154,7 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     result is an `ILuiEmbeddedIndex` (no type parameter, ADR-0035).
   - Writes: `Upsert`, `UpdateWeight`, `UpdatePriority`, `Remove`, `Count` —
     also inside the application's `SqliteTransaction`
-    ([ADR-0009](docs/adr/0009-writes-use-prepared-statements.md)).
+    ([ADR-0009](.agents/adr/0009-writes-use-prepared-statements.md)).
   - Queries: the prefix path for one and two characters, FTS5 trigram
     candidates from three, ranked by priority → word start → similarity →
     weight (`LuiRankingOrder`, `LuiPriorityMode`, `DistinctText`, `Take`,
@@ -172,24 +172,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `LuiDefinitionMismatchException` and `LuiEnvironmentException`.
 - **The catalog checks the SQLite it runs on** — the version and the folding
   of the tokenizer against the measured table
-  ([ADR-0007](docs/adr/0007-the-catalog-checks-the-sqlite-it-runs-on.md)).
+  ([ADR-0007](.agents/adr/0007-the-catalog-checks-the-sqlite-it-runs-on.md)).
 
 - The (internal) `Normalizer` — the C# side of the normalisation
   rule: the search form, the compact form and the map back to the original
   text, with the German transliteration on or off.
 - The measured fold table that keeps the C# side and SQLite's tokenizer in
   step — see [`docs/normalization.md`](./docs/normalization.md) and
-  [ADR-0005](docs/adr/0005-measured-normalisation.md).
+  [ADR-0005](.agents/adr/0005-measured-normalisation.md).
 - `Normalizer.TryWriteSearchForm` / `TryWriteCompactForm` — the same two
   forms without an allocation, for the path that normalises every candidate.
 
 ### Removed
 
-- **`Highlight` is struck from the specification** ([ADR-0028](docs/adr/0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md), #20
+- **`Highlight` is struck from the specification** ([ADR-0028](.agents/adr/0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md), #20
   closed): LUI delivers no found positions (`LuiHit.Highlight`, `.Highlight(…)`, a map from the search form to the original). It never
   existed in the code; spec §9.3 now says "entfällt". An application shows a correction with `LuiResult.CorrectedQuery`.
 
-- **The freeze** ([ADR-0026](docs/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md), #43). From the tag `v0.1.0` on, the
+- **The freeze** ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md), #43). From the tag `v0.1.0` on, the
   public API of `Nordmann.LUI` and `Nordmann.LUI.Hosting` grows only additively. A breaking change — a removed or renamed
   member, a changed signature (a new optional parameter counts), a changed meaning of a documented behaviour — needs a new
   minor version, a migration note in this file and an ADR. A new interface member comes as a default member; a new enum value
@@ -208,7 +208,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `DamerauEquivalenceTests.The_measure_survives_a_table_that_the_pool_handed_out_before` fills a rented table with
   rubbish before the comparison (#30).
 
-- **The pool of the buffers no longer fills up** ([ADR-0031](docs/adr/0031-the-pool-displaces-instead-of-discarding.md), #30).
+- **The pool of the buffers no longer fills up** ([ADR-0031](.agents/adr/0031-the-pool-displaces-instead-of-discarding.md), #30).
   The length of the buffers follows the budget of the candidates, and the pool had twelve places for one budget: after
   the budget had changed, every query allocated the big buffers anew — 294.9 KB at a budget of 1,000, against 83.4 KB
   of the base that has no pool at all. Now the smallest buffer makes room for the new one. The same query allocates
@@ -226,25 +226,54 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **The documentation has an entrance, a contract and a way** ([ADR-0036](docs/adr/0036-the-readme-the-specification-and-the-tutorial.md),
-  [ADR-0022](docs/adr/0022-the-benchmark-results-in-the-readme.md), #61). The README is rewritten: 571 lines with two
+- **The entrance shows the measurement, the bulk path, the kinds and the sources**
+  ([ADR-0039](.agents/adr/0039-the-entrance-shows-the-measurement.md),
+  [ADR-0038](.agents/adr/0038-the-public-api-has-a-page-of-its-own.md),
+  [ADR-0037](.agents/adr/0037-the-papers-of-the-work-live-under-agents.md), #61). The review of the README of the release:
+  - **The measurement is in the entrance.** The tables of a **fresh** BenchmarkDotNet run are rendered into the README
+    between two markers, and the guard follows them: `Readme_Benchmarks` fails when the file and the committed reports
+    differ ([ADR-0022](.agents/adr/0022-the-benchmark-results-in-the-readme.md)). The record,
+    [`docs/benchmarks.md`](docs/benchmarks.md), keeps the method, the corpus and the budgets.
+  - **The bulk path has an example.** `Sync` with a `BatchSize`, the report it returns and the difference to
+    `UpsertMany` — a C# block that the package smoke test executes, with the output it prints.
+  - **The kinds are a matrix and the sources are a decision.** `SingleWord` and `MultiWord` with the typo tolerance on
+    and off, so that the four combinations can be read off directly; and "embedded or linked" as three questions with an
+    answer, before the table that compares them. Every example of the matrix was run against the library before it was
+    written down.
+  - **The sample moves.** A GIF of the page: the autocompletes, the correction of a typo and the fill of a bulk index on
+    demand.
+  - **The public API has a page of its own.** [`docs/api.md`](docs/api.md) describes every public type of the two
+    packages — thirty-eight in the core, one in the hosting — with a sentence for each. A new test
+    (`Public_API_Documentation`) fails when a public type is missing on the page, or when the page or the README names a
+    type the code does not have.
+  - **No change to the public API.**
+
+- **The papers of the work live under `.agents/`**
+  ([ADR-0037](.agents/adr/0037-the-papers-of-the-work-live-under-agents.md)). The ADRs, the delivery plans and the
+  specification are not the documentation of the package: they move to [`.agents/`](.agents/README.md), with an index of
+  their own, and neither the README nor the documentation under [`docs/`](docs/README.md) links them any more. The
+  documentation of the library is the map, the tutorial, the API, the benchmarks, the normalisation, the test map, the
+  alignment and the domain. The paths of every link in the repository follow.
+
+- **The documentation has an entrance, a contract and a way** ([ADR-0036](.agents/adr/0036-the-readme-the-specification-and-the-tutorial.md),
+  [ADR-0022](.agents/adr/0022-the-benchmark-results-in-the-readme.md), #61). The README is rewritten: 571 lines with two
   truths for one rule become 241 lines — what LUI is, what it is **not**, the problem, the highlights, a linked table
   of contents, the install, one quick start with its output, the budgets of §16, one table for the two index kinds and
   the two content sources, the payload, `AddLui` in a host, reading only, the most important types, the sample and the
   map of the documentation.
   - The five concept sections (the kinds of index, the sources of the content, the query, the ranking and the
-    priority, the typo tolerance) leave the README: the [specification](docs/spec/LUI-Spezifikation.md) has them, in
+    priority, the typo tolerance) leave the README: the [specification](.agents/spec/LUI-Spezifikation.md) has them, in
     full, and it is the contract.
   - The raw tables of a BenchmarkDotNet run move to [`docs/benchmarks.md`](docs/benchmarks.md) — with the machine, the
     corpus and the method. The guard follows them: `Readme_Benchmarks` renders the section there and fails when the
     file and the committed reports differ; the README keeps the budgets (target, measured value, limit) and links to
-    the record.
+    the record. *(They moved back into the README with ADR-0039, above.)*
   - A new [tutorial](docs/tutorial/README.md) takes the reader from an empty database to a working autocomplete, in
     five steps, with code that compiles.
   - Every C# block of the README is still executed by the package smoke test, against the packed `.nupkg`.
   - **No change to the public API.**
 
-- **The index knows no types** ([ADR-0035](docs/adr/0035-the-index-knows-no-types.md), #58). The file stores a key as
+- **The index knows no types** ([ADR-0035](.agents/adr/0035-the-index-knows-no-types.md), #58). The file stores a key as
   text and a payload as bytes, so the index has no type parameters any more: `ILuiIndex`, `ILuiEmbeddedIndex`,
   `ILuiLinkedIndex`, `LuiEntry`, `LuiHit`, `LuiResult`, `LuiQuery` and the builders. The serialiser of the payloads
   belongs to the catalog (`LuiCatalogOptions.PayloadSerializer`), and the type of a payload stands where it is used —
@@ -288,7 +317,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     index, the weight and the priority in the order of the candidates; the text and the payload of a hit are read from
     the table when the hit is read.
 
-- **The catalog creates and opens an index** ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md), #56).
+- **The catalog creates and opens an index** ([ADR-0033](.agents/adr/0033-the-read-path-opens-an-index-without-writing.md), #56).
   The catalog is the entry point: it creates an index once — in the migration of the application — and opens it in the
   runtime path. The builder is no longer reachable from the catalog, so the runtime path cannot create an index. The
   write path of an index creates it — or opens it when it is there with the same definition. The name said "ensure",
@@ -309,7 +338,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       calls `catalog.Create(…)` in its migration and `WarmUpTypoDictionary()` itself, when it wants to.
 
 
-- **A query allocates far less** ([ADR-0032](docs/adr/0032-the-allocation-of-a-query.md), #30). A single-word query with the
+- **A query allocates far less** ([ADR-0032](.agents/adr/0032-the-allocation-of-a-query.md), #30). A single-word query with the
   budget of 500 candidates allocates **26.6 KB instead of 153.3 KB** (−83 %), a multi-word query **105.7 KB instead of
   185.2 KB** (−43 %); the cost per candidate falls from 302 B to 40 B. Three changes, all inside the library:
   - **LUI's own Jaro-Winkler** (`src/Nordmann.LUI/Similarity/JaroWinklerMeasure.cs`), bit-exact to
@@ -324,7 +353,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   The public API is unchanged — `ISpanSimilarity` is internal, and the exported types against the base of the branch are
   byte-identical. §16 carries the new target (p50 ≤ 60 KB, p95 ≤ 100 KB; measured p50 42 KB, p95 60 KB).
 
-- **The four similarity measures are LUI's own** ([ADR-0030](docs/adr/0030-the-similarity-measures-are-luis-own.md), #30). With
+- **The four similarity measures are LUI's own** ([ADR-0030](.agents/adr/0030-the-similarity-measures-are-luis-own.md), #30). With
   the Jaro-Winkler of the entry above, the **Damerau-Levenshtein** and the **Levenshtein** move into the library too, and
   the runtime dependency on `F23.StringSimilarity` ends: the core ships **two** runtime dependencies now
   (`Microsoft.Data.Sqlite`, `symspell`), and the library becomes a **test** dependency — the parity tests compare
@@ -338,10 +367,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     Damerau-Levenshtein and 350 B for the Levenshtein, per comparison, and a query compares up to 500 candidates).
   - No change to the public API: the same four measures, with the same names and the same semantics.
 
-- **The public API before the freeze** ([ADR-0024](docs/adr/0024-the-api-polish-before-the-freeze.md), #42, from the
+- **The public API before the freeze** ([ADR-0024](.agents/adr/0024-the-api-polish-before-the-freeze.md), #42, from the
   architecture review of 2026-11-04). Renamed and tidied before the first release, so nobody has to migrate:
   - The registrations of the indexes — an embedded one and a linked one — are gone with #56
-    ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md)): the container holds the catalog and
+    ([ADR-0033](.agents/adr/0033-the-read-path-opens-an-index-without-writing.md)): the container holds the catalog and
     nothing else.
   - `LuiPriorityRanking` → `LuiPriorityMode`; `LuiQuery.Priorities(…)` and `LuiQueryOptions.Priorities` → `PriorityMode`.
   - `LuiTimings.Candidates` → `CandidateRead`: a duration, not the budget (`LuiQueryOptions.Candidates`) and not the count
@@ -357,7 +386,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     and `ILuiLinkedIndex`; `TypoTolerance` and `TypoDictionaryState` stay.
   - `ILuiSimilarity.Name` is gone: nothing read it, and a measure of your own no longer has to invent one.
 
-- **`Owned` is `Embedded`** ([ADR-0023](docs/adr/0023-owned-becomes-embedded.md), #41). The content source in LUI's own
+- **`Owned` is `Embedded`** ([ADR-0023](.agents/adr/0023-owned-becomes-embedded.md), #41). The content source in LUI's own
   table, `lui_<index>`, is named after where its rows live, and pairs with `Linked`. In .NET "owned" is the word of
   lifetime (Autofac's `Owned<T>`, an owned `IDisposable`), and the index is a singleton that is never disposed. Renamed
   before the first release, so nobody has to migrate:
@@ -367,7 +396,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `LuiEmbeddedIndexBuilderExtensions` (`LinkTo` stays an extension of the embedded builder);
   - the stored content source, `lui_meta.source`: `Owned` → `Embedded`. Nothing was released, so there is nothing to migrate.
 
-- **The test tree** ([ADR-0019](docs/adr/0019-the-test-tree-three-layers-one-map.md)). The one test project
+- **The test tree** ([ADR-0019](.agents/adr/0019-the-test-tree-three-layers-one-map.md)). The one test project
   becomes three — `Nordmann.LUI.Unit.Tests` (the rules, without a database), `Nordmann.LUI.Integration.Tests`
   (the library against a real SQLite file) and `Nordmann.LUI.Architecture.Tests` — plus
   `Nordmann.LUI.Testing`, a library that holds the shared setup: the database, the corpora, the fixtures. The
@@ -387,11 +416,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   return a `LuiEmbeddedIndexBuilder<long, LuiNoPayload>` — an embedded index, or with
   `LinkTo(…)` a linked one (review of PR #16, N1); the builder types and the `…<TKey>()` steps of earlier pre-release
   builds are gone, `WithKey<string>()` chooses a text key. The builder is the **parameter** of `Create` now
-  ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md)): `lui.Create("tags", index => index.SingleWord())`
+  ([ADR-0033](.agents/adr/0033-the-read-path-opens-an-index-without-writing.md)): `lui.Create("tags", index => index.SingleWord())`
   is a whole index.
 - `DropIndex` decides by the stored source and refuses a source it does not know.
 
-- **The API shape before the first release** ([ADR-0013](docs/adr/0013-the-api-shape-before-the-first-release.md)) —
+- **The API shape before the first release** ([ADR-0013](.agents/adr/0013-the-api-shape-before-the-first-release.md)) —
   a break on purpose, while it costs nothing:
   - A staged builder: `lui.Create(name, index => index.SingleWord().WithPayload(…).TypoTolerance())`. An index
     without a kind does not compile; the key type is checked at `WithKey<TKey>()`; a payload is optional
@@ -419,7 +448,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [0.1.0] — not published
 
 The first release. It ships the packages `Nordmann.LUI` and `Nordmann.LUI.Hosting` with the API of the
-specification ([`docs/spec/LUI-Spezifikation.md`](./docs/spec/LUI-Spezifikation.md)):
+specification ([`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md)):
 
 - `SingleWord` and `MultiWord` indices, `Embedded` and `Linked` content sources
 - FTS5 trigram search with priority-first candidates, word-start ranking and

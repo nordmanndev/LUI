@@ -4,7 +4,7 @@
   stock) when there is one; option 3 only when a real stock asks for it
 - **Date:** 2026-11-02
 - **Supersedes:** —
-- **Affects:** `docs/benchmarks.md`, `docs/spec/LUI-Spezifikation.md` §16, the plan for PR-009
+- **Affects:** `docs/benchmarks.md`, `.agents/spec/LUI-Spezifikation.md` §16, the plan for PR-009
 
 ## Context
 

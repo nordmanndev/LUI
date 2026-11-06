@@ -1,5 +1,11 @@
 # 0036 — The README is the entrance, the specification the contract, the tutorial the way
 
+> **Note (ADR-0039, 2026-11-06, issue #61):** the entrance grows. Decision 1 — "at most 250 lines" — and decision 4 —
+> "the raw tables move to the record" — are superseded: the entrance of the release carries the tables of the
+> BenchmarkDotNet measurement, the example of the bulk path, the matrix of the kinds and the decision guide of the
+> sources. The rule that stays is the one that mattered: the entrance may not say what the specification says. The
+> decisions 2, 3, 5, 6, 7, 8 and 9 stand as they are written.
+
 - **Status:** Accepted
 - **Date:** 2026-11-06
 - **Builds on:** [0022](./0022-the-benchmark-results-in-the-readme.md) (the benchmark tables and their guard),
@@ -9,7 +15,7 @@
   - `README.md` (rewritten: 571 → 241 lines), `docs/tutorial/` (new), `docs/benchmarks.md` (the rendered tables)
   - `tests/Nordmann.LUI.Architecture.Tests/Readme_Benchmarks.cs` (the target of the guard), `tools/package-smoke-test.sh`,
     `tools/benchmarks.sh`, `tools/mutation-check.sh`
-  - `docs/adr/0022-the-benchmark-results-in-the-readme.md` (restated), `docs/adr/README.md`, `docs/testing.md`, `CHANGELOG.md`
+  - `.agents/adr/0022-the-benchmark-results-in-the-readme.md` (restated), `.agents/adr/README.md`, `docs/testing.md`, `CHANGELOG.md`
 - **Issue:** #61
 
 ## Context
@@ -20,7 +26,7 @@ sections, and it said the same things in two places:
 | | Befund |
 |---|---|
 | Umfang | 571 lines, 18 sections |
-| Die fünf Konzeptabschnitte (182–311) | ein Duplikat von `docs/spec/LUI-Spezifikation.md` — zwei Orte für eine Wahrheit |
+| Die fünf Konzeptabschnitte (182–311) | ein Duplikat von `.agents/spec/LUI-Spezifikation.md` — zwei Orte für eine Wahrheit |
 | Performance (ab 387) | das Vertrauensargument steht nach zwei Dritteln der Datei |
 | BenchmarkDotNet-Tabellen (414–494) | 80 Zeilen Rohdaten im falschen Dokument |
 | Inhaltsverzeichnis, Abzeichen | keine |

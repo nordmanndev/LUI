@@ -75,7 +75,7 @@ decided about the query path" without opening 36 files.
 | [0019](./0019-the-test-tree-three-layers-one-map.md) | The test tree: three layers, one shared infrastructure, one map that is a guard | Testing | Accepted |
 | [0020](./0020-the-performance-budgets-measured.md) | The performance budgets of §16, measured: a corpus, a test per target, waivers with reasons | Measurement | Accepted |
 | [0021](./0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md) | A stale typo dictionary, a query that does not wait, a rebuild in the background | Typo tolerance | Accepted |
-| [0022](./0022-the-benchmark-results-in-the-readme.md) | The BenchmarkDotNet results: the raw data in the record, the budgets in the README — committed reports, a rendered section, a guard | Documentation | Accepted (restated 2026-11-06, issue #61) |
+| [0022](./0022-the-benchmark-results-in-the-readme.md) | The BenchmarkDotNet results: the raw data in the record, the budgets in the README — committed reports, a rendered section, a guard | Documentation | Accepted (restated 2026-11-06, issue #61, ADR-0039) |
 | [0023](./0023-owned-becomes-embedded.md) | `Owned` becomes `Embedded`: the name of the content source in LUI's own table | API | Accepted |
 | [0024](./0024-the-api-polish-before-the-freeze.md) | The API polish before the freeze: `AddLinkedIndex`, `entries`, `CandidateRead`, `LuiPayloadRow`, `LuiException`, a read interface that only reads | API | Accepted |
 | [0025](./0025-the-typo-dictionary-only-grows.md) | The typo dictionary only grows: no `Stale`, no background rebuild, one dictionary per index | Typo tolerance | Accepted |
@@ -89,4 +89,7 @@ decided about the query path" without opening 36 files.
 | [0033](./0033-the-read-path-opens-an-index-without-writing.md) | The read path opens an index without writing: `Create()` and `Index()` in the catalog, the file that decides what may be written | API | Accepted |
 | [0034](./0034-the-hosting-package-carries-only-the-dependency-injection.md) | The hosting package carries only the dependency injection: the abstractions of the host are gone | Packages | Accepted |
 | [0035](./0035-the-index-knows-no-types.md) | The index knows no types: the serialiser belongs to the catalog, the type stands where the payload is used | API | Accepted |
-| [0036](./0036-the-readme-the-specification-and-the-tutorial.md) | The README is the entrance, the specification the contract, the tutorial the way | Documentation | Accepted |
+| [0036](./0036-the-readme-the-specification-and-the-tutorial.md) | The README is the entrance, the specification the contract, the tutorial the way | Documentation | Accepted (decisions 1 and 4 superseded 2026-11-06, ADR-0039) |
+| [0037](./0037-the-papers-of-the-work-live-under-agents.md) | The papers of the work live under `.agents/`, the documentation of the library under `docs/` | Documentation | Accepted |
+| [0038](./0038-the-public-api-has-a-page-of-its-own.md) | The public API has a page of its own, and a test holds it up | Documentation | Accepted |
+| [0039](./0039-the-entrance-shows-the-measurement.md) | The entrance shows the measurement, the bulk path, the kinds and the sources | Documentation | Accepted |

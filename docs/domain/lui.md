@@ -2,7 +2,7 @@
 
 > The design before the code. Anyone may edit this file; the agent typically
 > drafts the inventory, the domain expert refines the language. This file and
-> [`../spec/LUI-Spezifikation.md`](../spec/LUI-Spezifikation.md) are the two
+> the specification are the two
 > artifacts: this one is the *context*, the specification is the *contract*.
 > Where they disagree, the specification wins and this file gets corrected.
 
@@ -123,7 +123,7 @@ Each finding of a check names its repair.
 ## 7. Out of scope for 1.0
 
 Everything in §21 of the specification, with the reason and the revival
-condition in [ADR-0003](../adr/0003-defer-the-open-questions.md): multi-word
+condition in ADR-0003: multi-word
 prefix matching (O1), virtual normalised columns (O2), hashtags as word
 beginnings (O3), weight expressions (O4), languages beyond German (O5),
 filters on linked indices (O6), soft ranking (O7), suggestions for an empty

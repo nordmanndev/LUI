@@ -101,7 +101,7 @@ never refused.
 > text of a hit is read from your table when the hit is read. A second copy of
 > your data is the most expensive thing an autocomplete can do — it doubles
 > the storage and it is always out of date. See
-> [ADR-0015](../../docs/adr/0015-the-linked-index-is-loosely-coupled.md).
+> ADR-0015.
 
 ## A write of the application: `Refresh`
 

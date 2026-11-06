@@ -199,8 +199,8 @@ sorted and merges it at the end, and `UpsertMany` builds it row by row.
 > between two keystrokes, so it is not felt there. The allocation per query
 > follows the candidate budget — 500 candidates is a decision, not an
 > accident. See
-> [ADR-0020](../../docs/adr/0020-the-performance-budgets-measured.md) and
-> [ADR-0032](../../docs/adr/0032-the-allocation-of-a-query.md).
+> ADR-0020 and
+> ADR-0032.
 
 ## What you have now
 

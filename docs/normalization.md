@@ -7,7 +7,7 @@
 >
 > The specification (LUI-Spezifikation §6.2) demands the parity; this
 > document is the evidence. The decisions behind it are in
-> [ADR-0005](../adr/0005-measured-normalisation.md).
+> ADR-0005.
 
 ---
 

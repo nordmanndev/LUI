@@ -84,18 +84,15 @@ opinions.
 > in it. Splitting it — a catalog that opens the file, an index service that
 > holds the indexes — would mean two things that have to agree on the file.
 > The decision and its reasons are in
-> [ADR-0033](../../docs/adr/0033-the-read-path-opens-an-index-without-writing.md)
-> and [ADR-0035](../../docs/adr/0035-the-index-knows-no-types.md).
+> ADR-0033
+> and ADR-0035.
 
 ## Where to go next
 
-- **[The specification](../../docs/spec/LUI-Spezifikation.md)** — the contract.
-  It defines the kinds of index, the sources of content, the query path, the
-  ranking and the typo tolerance. This tutorial shows you the way; the
-  specification is what the code must do.
 - **[The README](../../README.md)** — what LUI is, in a page.
+- **[The API](../../docs/api.md)** — every public type of the package, with a
+  sentence for each.
 - **[The benchmarks](../../docs/benchmarks.md)** — every measured number, with
   the machine, the corpus and the method.
 - **[The sample](../../samples/Lui.Sample/)** — the whole application behind
   this tutorial, with a page you can click through.
-- **[The decisions](../../docs/adr/)** — why the API looks the way it does.

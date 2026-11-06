@@ -151,7 +151,7 @@ Probe, nicht im Container.
   `PayloadType` in der Definition, der Container ohne Indizes.
 - **README**: der Schnellstart (`AddLui`, `Create`, `Index`).
 - **CHANGELOG**: die Migrationsliste (was von `Ensure`/`OpenIndex`/`AddIndex` nach was).
-- **ADR-0033** ist geschrieben (liegt im Branch) — die Zeile in `docs/adr/README.md` anpassen, wenn
+- **ADR-0033** ist geschrieben (liegt im Branch) — die Zeile in `.agents/adr/README.md` anpassen, wenn
   sich der Titel ändert.
 
 ## Die Regeln des Repos

@@ -1,7 +1,15 @@
 # 0022 — The BenchmarkDotNet results: the raw data in the record, the budgets in the README
 
+> **Restated (2026-11-06, issue #61, [ADR-0039](./0039-the-entrance-shows-the-measurement.md)):** the raw tables of a
+> BenchmarkDotNet run live in the **README** again — the owner read the entrance and wants the measurement itself, not a
+> link to it. The guard renders and checks the section between `<!-- benchmarks:begin -->` and `<!-- benchmarks:end -->`
+> in `README.md`; [`docs/benchmarks.md`](../../docs/benchmarks.md) keeps the machine, the corpus, the method and the budgets, and points at the
+> tables of the entrance. Only the **place** of the tables changes; every other rule of this record — the committed
+> reports, one run on one machine, the default job, the guard that renders — stands. The text below is the decision as
+> it stood after [ADR-0036](./0036-the-readme-the-specification-and-the-tutorial.md) and stays as it was written.
+>
 > **Restated (2026-11-06, issue #61, [ADR-0036](./0036-the-readme-the-specification-and-the-tutorial.md)):** the raw
-> tables of a BenchmarkDotNet run live in [`docs/benchmarks.md`](../benchmarks.md) since the README became the entrance
+> tables of a BenchmarkDotNet run live in [`docs/benchmarks.md`](../../docs/benchmarks.md) since the README became the entrance
 > of the documentation; the README shows the budgets of the specification and links to the record. The guard renders and
 > checks the section in the record. The decision below is written as it stands now.
 

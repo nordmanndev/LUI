@@ -70,9 +70,9 @@ app.Run();
 > index is a change in two places, and a name that is wrong in one of them is
 > an exception at run time. One catalog, asked for what it needs, cannot
 > drift. See
-> [ADR-0033](../../docs/adr/0033-the-read-path-opens-an-index-without-writing.md)
+> ADR-0033
 > and
-> [ADR-0034](../../docs/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md).
+> ADR-0034.
 
 ## The catalog from the container
 
@@ -203,7 +203,7 @@ internal sealed class OutboxWorker(LuiCatalog catalog) : BackgroundService
 - The background work in the application, where it belongs.
 
 That is the whole road: from an empty file to a search that answers. The
-[specification](../../docs/spec/LUI-Spezifikation.md) is the contract behind
-every step, the [benchmarks](../../docs/benchmarks.md) hold every number, and
-the [sample](../../samples/Lui.Sample/) is the application behind this tutorial
+[API](../../docs/api.md) says what every call does, the
+[benchmarks](../../docs/benchmarks.md) hold every number, and the
+[sample](../../samples/Lui.Sample/) is the application behind this tutorial
 — with a page you can click through.

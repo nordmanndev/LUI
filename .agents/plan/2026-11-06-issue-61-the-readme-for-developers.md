@@ -18,7 +18,7 @@ die wichtigsten Typen, wo es weitergeht).
 | | Befund |
 |---|---|
 | Umfang | 571 Zeilen, 18 Abschnitte |
-| Die fünf Konzeptabschnitte (182–311) | ein Duplikat von `docs/spec/LUI-Spezifikation.md` — zwei Orte für eine Wahrheit |
+| Die fünf Konzeptabschnitte (182–311) | ein Duplikat von `.agents/spec/LUI-Spezifikation.md` — zwei Orte für eine Wahrheit |
 | Performance (ab 387) | das Vertrauensargument steht nach zwei Dritteln der Datei |
 | BenchmarkDotNet-Tabellen (414–494) | 80 Zeilen Rohdaten im falschen Dokument |
 | Inhaltsverzeichnis, Abzeichen | keine |
@@ -79,11 +79,11 @@ BenchmarkDotNet-Tabellen (sie gehören nach `docs/benchmarks.md`), der lange „
 ### 3. Die Karte der Dokumentation
 
 - `docs/README.md` — neu: was liegt wo, was ist der Vertrag, was ist die Historie, wer liest was.
-- `docs/adr/README.md` — eine Spalte „Thema" (API / Speicher / Messung / Betrieb / Probe), damit ein
+- `.agents/adr/README.md` — eine Spalte „Thema" (API / Speicher / Messung / Betrieb / Probe), damit ein
   Entwickler „was wurde entschieden" findet, ohne 36 Dateien zu öffnen.
 - Die verwaisten Dokumente (`normalization.md`, `architecture/alignment.md`, `domain/lui.md`) werden aus
   der README verlinkt.
-- `docs/plan/` — eine `README.md`, die die Lieferpläne als die Geschichte des Repos erklärt.
+- `.agents/plan/` — eine `README.md`, die die Lieferpläne als die Geschichte des Repos erklärt.
 
 ### 4. Die Wächter und das Papier
 

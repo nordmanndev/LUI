@@ -30,7 +30,7 @@ pass around.
 > text differently from the one the library was measured with is refused with
 > a message that says which version is needed. Better once, at the door, than
 > in the middle of a query. See
-> [ADR-0007](../../docs/adr/0007-the-catalog-checks-the-sqlite-it-runs-on.md).
+> ADR-0007.
 
 ## The first index
 
@@ -64,15 +64,13 @@ The output:
 ```
 
 `SingleWord` searches the input as a whole; `MultiWord` splits it into words.
-Which one is right for your data is in
-[the specification](../../docs/spec/LUI-Spezifikation.md) — the short version is
-in the [README](../../README.md).
+Which one is right for your data — the short version is in the
+[README](../../README.md).
 
 An entry carries the key (the number or the text your application knows the row
 by), the text (what is searched and shown) and the weight (the popularity). A
 fourth value — the priority — decides where an entry stands when the text
-matches equally well; the
-[specification](../../docs/spec/LUI-Spezifikation.md) has the order.
+matches equally well; the README has the order.
 
 The key is a `LuiKey`: a number or a text, and it is made from a `long` or a
 `string` without a cast. `1` and `"1"` are two different keys.
@@ -106,8 +104,8 @@ Console.WriteLine($"{result.Hits.Count} of {result.CandidatesConsidered} candida
 
 Every knob of the builder has a counterpart in `LuiQueryOptions`, which you
 can bind from a configuration file and hand to `Search(text, options)`. The
-list is in the [README](../../README.md); the meaning of the values is in
-[specification §12.5](../../docs/spec/LUI-Spezifikation.md).
+list is in the [README](../../README.md); the meaning of the values is in the
+[API](../../docs/api.md).
 
 > **Why so?**
 > The builder and the options are the same thing in two shapes. A builder is
@@ -205,7 +203,7 @@ rebuilds an index silently.
 > process that is not allowed to write — must not have to know that. If
 > opening an index wrote anything, every read-only deployment would need a
 > second code path, and the two paths would drift. See
-> [ADR-0033](../../docs/adr/0033-the-read-path-opens-an-index-without-writing.md).
+> ADR-0033.
 
 ## A key that is not a number
 

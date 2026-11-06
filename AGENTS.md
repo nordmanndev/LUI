@@ -14,16 +14,20 @@ difference where they do not.
 ## Read these next, in order
 
 1. [`README.md`](./README.md) — what LUI is, and what it is not
-2. [`docs/spec/LUI-Spezifikation.md`](./docs/spec/LUI-Spezifikation.md) — **the
+2. [`.agents/README.md`](./.agents/README.md) — the index of the **papers of the
+   work**: the specification, the decisions, the plans, the state
+3. [`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md) — **the
    contract**. The implementation follows it; when code and spec disagree, the
    spec wins and the difference becomes an ADR
-3. [`docs/plan/2026-11-02-lui-repo-plan.md`](./docs/plan/2026-11-02-lui-repo-plan.md)
+4. [`.agents/plan/2026-11-02-lui-repo-plan.md`](./.agents/plan/2026-11-02-lui-repo-plan.md)
    — the delivery plan, one pull request per step
-4. [`docs/normalization.md`](./docs/normalization.md) — the normalisation
+5. [`docs/normalization.md`](./docs/normalization.md) — the normalisation
    rule, and what was *measured* about the half of it that lives inside SQLite
-5. [`docs/architecture/alignment.md`](./docs/architecture/alignment.md) — which
+6. [`docs/architecture/alignment.md`](./docs/architecture/alignment.md) — which
    standards rules apply here, and which do not
-6. [`docs/adr/`](./docs/adr/) — the decisions, and why
+7. [`.agents/adr/`](./.agents/adr/) — the decisions, and why
+8. [`docs/api.md`](./docs/api.md) — the public API, described member by member;
+   a test holds it up against the assemblies
 
 ## Project-level deltas
 
@@ -41,9 +45,12 @@ The standards' five non-negotiable rules, and how they read here:
 
 ## Always / Never / Ask
 
-- ✅ Always keep `docs/adr/` current: a decision that changes the public API,
+- ✅ Always keep `.agents/adr/` current: a decision that changes the public API,
   the schema or the dependency set gets an ADR **in the same pull request**.
 - ✅ Always update `CHANGELOG.md` when the public API changes.
+- ✅ Always update [`docs/api.md`](./docs/api.md) when the public API changes: a
+  public type that is not on the page fails the build
+  (`Public_API_Documentation`).
 - ✅ Always measure: a performance claim without a measurement is a rumour.
   The budgets live in [`docs/benchmarks.md`](./docs/benchmarks.md).
 - ✅ Always run `dotnet test` **and** `dotnet pack` before opening a pull request.
@@ -86,7 +93,7 @@ Every pull request has:
 ## The one rule that is specific to this repository
 
 **The specification is the contract, and the specification is in this
-repository.** [`docs/spec/LUI-Spezifikation.md`](./docs/spec/LUI-Spezifikation.md)
+repository.** [`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md)
 is the source of truth for behaviour, schema and API shape. Code that
 contradicts it is a bug in the code — unless an ADR says the spec is wrong,
 in which case the ADR is the newer truth and the spec gets corrected in the

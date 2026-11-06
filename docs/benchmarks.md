@@ -7,7 +7,7 @@
 ## Status
 
 **Every target of §16 is measured in its scenario and met** (PR-009,
-[ADR-0020](./adr/0020-the-performance-budgets-measured.md)) — three of them as draft 2 set them, five as the owner
+ADR-0020) — three of them as draft 2 set them, five as the owner
 stated them anew after the measurement (2026-11-04, ADR-0010, ADR-0020). The table is the output of
 `PerformanceBudgets`, which asserts every row. The allocation is met and still a bug (#30). The benchmark project
 (`benchmarks/Nordmann.LUI.Benchmarks/`) measures the code on the same corpus.
@@ -108,7 +108,7 @@ LUI_PERF=1 LUI_PERF_ENTRIES=3000000 \
 | *target (§16), 3,000,000* | *≤ 2 ms* | *≤ 5 ms* | | *≤ 250 KB* |
 
 **After the join was moved to the primary key** (`doc_id = f.rowid & 4294967295`
-instead of a seek on `s_rowid`, [ADR-0006](./adr/0006-the-single-word-index.md)),
+instead of a seek on `s_rowid`, ADR-0006),
 same index, same queries: 200,000 entries p50 **0.82 ms**, p95 **1.8 ms**;
 1,000,000 entries p50 **1.39 ms**, p95 **6.1 ms**. The 3,000,000 row above was
 measured before and has not been repeated.
@@ -163,7 +163,7 @@ segment merges that a write now and then triggers. **Missed at 1 M and 3 M.**
 
 ### The linked index
 
-A `Linked` index over a table of the application ([ADR-0015](./adr/0015-the-linked-index-is-loosely-coupled.md)):
+A `Linked` index over a table of the application (ADR-0015):
 a contentless FTS5 table and LUI's table without text; the text comes from the application's table by its primary
 key. Against an `Embedded` index of the same entries, single-word, the whole word list:
 
@@ -187,7 +187,7 @@ LUI_PERF=1 dotnet test -c Release --filter LinkedLayoutExperiment --logger "cons
 
 ### The batch
 
-`UpsertMany` ([ADR-0013](./adr/0013-the-api-shape-before-the-first-release.md)) against a loop of single `Upsert`s,
+`UpsertMany` (ADR-0013) against a loop of single `Upsert`s,
 each in a transaction of its own, 100,000 single-word entries:
 
 | | Time | Rate |
@@ -209,7 +209,7 @@ on a connection with a 512 MB cache. What moved it:
 | Per entry | |
 |---|---:|
 | `Upsert` through a fresh command (first version) | 184 µs |
-| `Upsert` through a prepared statement (this version, [ADR-0009](./adr/0009-writes-use-prepared-statements.md)) | 59 µs at 50 k |
+| `Upsert` through a prepared statement (this version, ADR-0009) | 59 µs at 50 k |
 | the same without the three triggers (content table, generated columns, four indexes) | 11 µs |
 
 The rest is the search index, whose segments are merged as it grows. The bulk
@@ -218,7 +218,7 @@ path — rowid-ordered loading, one merge at the end — belongs to `Sync` and
 
 ### The sync, the check and the rebuild (PR-007)
 
-[ADR-0016](./adr/0016-sync-check-rebuild.md). Single-word, the whole word list, 1,000,000 entries in random order,
+ADR-0016. Single-word, the whole word list, 1,000,000 entries in random order,
 cache 512 MB. First the experiment that decided the bulk path (`EmbeddedBulkExperiment`, batches of 10,000 unless said):
 
 | Load | Time | query p95 before / after the merge |
@@ -244,7 +244,7 @@ implementation (`SyncPerformance`):
 
 The §16 build target (3 M in ≤ 3 min) is measured with the benchmarks (PR-009).
 
-**A delta sync beside a built typo dictionary** ([ADR-0021](./adr/0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md),
+**A delta sync beside a built typo dictionary** (ADR-0021,
 `SyncPerformance.A_delta_sync_with_a_built_typo_dictionary`, 300,000 words of the German list, two runs): a sync of 100
 changes and 100 removals took **4.4 / 4.8 s** while it rebuilt the dictionary at its end, and takes **2.6 / 2.6 s** now
 that it marks it stale; the rebuild on its own is 2.0 / 2.3 s.
@@ -259,7 +259,7 @@ LUI_PERF=1 LUI_PERF_ENTRIES=300000 dotnet test --filter A_delta_sync_with_a_buil
 ### Opening a catalog
 
 `LuiCatalog.Open` probes the folding of the loaded SQLite once per process
-([ADR-0007](./adr/0007-the-catalog-checks-the-sqlite-it-runs-on.md)): **110 ms**
+(ADR-0007): **110 ms**
 cold (JIT included), **37 ms** warm, 2,466 code points. Every further `Open` in
 the process skips it.
 
@@ -287,7 +287,7 @@ LUI_PERF=1 LUI_PERF_KIND=multi LUI_PERF_ENTRIES=1000000 \
 | *target (§16)* | | *3 M ≤ 3 min* | *1 M ≤ 300 MB* | *3 M ≤ 2 / 5 ms* | *≤ 250 KB* | *≤ 1 ms p95* |
 
 - **Allocation.** With `F23`'s Dice the 95th percentile was **3,651 KB** (a dictionary per comparison, 500
-  comparisons); with the allocation-free Dice of this PR it is 263 KB ([ADR-0011](./adr/0011-the-multi-word-index.md)).
+  comparisons); with the allocation-free Dice of this PR it is 263 KB (ADR-0011).
 - **Missed:** the query at 1 M (p50 3.2 ms, p95 14.1 ms — the two-word inputs of frequent trigrams, `Rent Schwe` 54 ms
   for 38 candidates; the mechanism of ADR-0010), the file size (1.5× the target; long titles), the 3 M build
   (extrapolated: about eight minutes). Held: the query at 200 k (p50 1.3 ms, p95 3.4 ms), the allocation, the write p95
@@ -326,13 +326,13 @@ LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter 
   at 3 M), the allocation at the median, the absolute quality (like Anhang A4).
 - **Missed, written down:** the allocation at p95 (408 KB: up to three more candidate lists and their unions) and the ratios of Anhang A4
   (69 / 69 / 86 / 92 %) which are not reached (25 / 53 / 69 / 82 %) because the cases are drawn uniformly here and by popularity there; the
-  absolute figures agree. Details in [ADR-0012](./adr/0012-typo-tolerance.md).
+  absolute figures agree. Details in ADR-0012.
 
 ---
 
 ## Results: the budgets of §16 (PR-009)
 
-[ADR-0020](./adr/0020-the-performance-budgets-measured.md). The measurement machine above; the whole German word list;
+ADR-0020. The measurement machine above; the whole German word list;
 the corpus of `Corpus` (`Nordmann.LUI.Testing`, seed 42): the 685,829 words, then compounds of two of them up to three
 million, weights with a long tail; 2,000 inputs of 1–8 characters, 1,000 beginnings of 5–9 letters with one typo. No
 other load; two runs, a third for the batch size of the build.
@@ -393,7 +393,7 @@ Run on **2026-11-04**, on `main` after #19 (`20bbbde`), with `tools/benchmarks.s
 the **default job** (not `ShortRun`), every benchmark, 34 min 40 s. Intel Xeon 2.10 GHz, 4 cores, 15 GB, Ubuntu
 24.04.5, .NET 10.0.14 (SDK 10.0.114), the full German word list, nothing else running. The reports are committed in
 [`benchmarks/results/`](../benchmarks/results/) and the tables below are rendered from them by `Readme_Benchmarks`
-([ADR-0022](./adr/0022-the-benchmark-results-in-the-readme.md)).
+(ADR-0022).
 
 Against the `ShortRun` above (mean, µs; the error of the default job is 2–8 % of the mean, that of `ShortRun` was up to
 260 % of it):
@@ -422,73 +422,13 @@ this one.
 
 ## The tables of the run
 
-The tables below are **generated** from BenchmarkDotNet's own reports in
-[`benchmarks/results/`](../benchmarks/results/) — a test (`Readme_Benchmarks`) fails when they differ, so a number here
-always has a run behind it. Run them again with `tools/benchmarks.sh`.
+The tables of the BenchmarkDotNet run are **generated** from BenchmarkDotNet's own reports in
+[`benchmarks/results/`](../benchmarks/results/) — and they stand in the [README](../README.md), between the markers
+`<!-- benchmarks:begin -->` and `<!-- benchmarks:end -->`, where a test (`Readme_Benchmarks`) fails when they differ. A
+number there always has a run behind it. Run them again with `tools/benchmarks.sh`.
 
 <!-- benchmarks:begin -->
-<!-- generated by Readme_Benchmarks from benchmarks/results/ — do not edit by hand -->
-
-```text
-BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
-Intel Xeon Processor 2.10GHz, 1 CPU, 4 logical and 4 physical cores
-.NET SDK 10.0.114
-  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
-  DefaultJob : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
-```
-
-#### A query
-
-One query through the whole pipeline: the prefix path for one and two characters, FTS5 from three — Entries = 200000. `QueryBenchmarks`.
-
-| Method | Kind | Input | Mean | Error | Allocated |
-|---|---|---|---:|---:|---:|
-| Search | SingleWord | apfelkuc | 113.19 μs | 3.739 μs | 26.76 KB |
-| Search | SingleWord | b | 470.02 μs | 15.352 μs | 62.98 KB |
-| Search | SingleWord | haus | 687.29 μs | 25.171 μs | 142.73 KB |
-| Search | SingleWord | ka | 23.79 μs | 0.622 μs | 24.53 KB |
-| Search | MultiWord | apfelkuc | 191.86 μs | 4.885 μs | 25.05 KB |
-| Search | MultiWord | b | 595.32 μs | 21.216 μs | 86.31 KB |
-| Search | MultiWord | haus | 1,070.80 μs | 38.348 μs | 185.05 KB |
-| Search | MultiWord | ka | 634.05 μs | 21.595 μs | 86.85 KB |
-
-#### A query with a typo correction
-
-A single-word index with typo tolerance, the dictionary built; the input has one typo — Entries = 200000. `CorrectionBenchmarks`.
-
-| Method | Input | Mean | Error | Allocated |
-|---|---|---:|---:|---:|
-| Search | bahmhof | 274.8 μs | 8.99 μs | 99.78 KB |
-| Search | fusbal | 476.6 μs | 13.83 μs | 80.15 KB |
-| Search | kartofel | 113.5 μs | 3.29 μs | 26.84 KB |
-| Search | strasee | 123.7 μs | 3.58 μs | 26.79 KB |
-
-#### A single write
-
-One write in a transaction of its own — Entries = 200000. `WriteBenchmarks`.
-
-| Method | Mean | Error | Allocated |
-|---|---:|---:|---:|
-| UpdateWeight | 343.48 μs | 11.133 μs | 436 B |
-| UpsertTheSame | 92.93 μs | 1.835 μs | 812 B |
-| UpsertAnotherText | 228.23 μs | 18.042 μs | 812 B |
-
-#### The search form and the similarity
-
-Per text, no database: the normalisation of §6 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln", `Größe(...)nahme [23]` „Größenänderungsmaßnahme". `TextBenchmarks`.
-
-| Method | Text | Mean | Error | Allocated |
-|---|---|---:|---:|---:|
-| SearchForm | Apfelkuchen | 57.31 ns | 1.250 ns | 144 B |
-| JaroWinkler | Apfelkuchen | 106.18 ns | 2.163 ns | 208 B |
-| NgramDice | Apfelkuchen | 106.25 ns | 2.332 ns | - |
-| SearchForm | Gedec(...)useln [35] | 129.86 ns | 3.891 ns | 240 B |
-| JaroWinkler | Gedec(...)useln [35] | 155.27 ns | 4.885 ns | 232 B |
-| NgramDice | Gedec(...)useln [35] | 286.61 ns | 6.816 ns | - |
-| SearchForm | Größe(...)nahme [23] | 135.20 ns | 4.214 ns | 320 B |
-| JaroWinkler | Größe(...)nahme [23] | 185.13 ns | 3.672 ns | 200 B |
-| NgramDice | Größe(...)nahme [23] | 201.63 ns | 4.061 ns | - |
-
+<!-- the tables of the run are rendered into the README of the release (ADR-0039) -->
 <!-- benchmarks:end -->
 
 **Reading.** These are 200,000 entries on one thread, in the page cache — the code, not the scenario of §16. A query

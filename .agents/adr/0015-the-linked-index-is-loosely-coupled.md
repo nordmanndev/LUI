@@ -16,7 +16,7 @@
 - **Affects:** `src/Nordmann.LUI/Schema/LinkedSource.cs`, `Schema/ContentSources.cs`, `Schema/LinkDefinition.cs`,
   `Indexes/LinkedIndex.cs`, `Indexes/LinkedTable.cs`, `Querying/ColumnPayload.cs`, `LuiLinkedIndexBuilder.cs`,
   `LuiIndexBuilderExtensions.cs`, `ILuiLinkedIndex.cs`, `LuiRow.cs`, `LuiLinkedTableException.cs`, `LuiIndexKindBuilder.cs`,
-  `LuiIndexBuilder.cs`; `docs/spec/LUI-Spezifikation.md` §5, §7.3, §12, §14, §20; `AGENTS.md`; `README.md`
+  `LuiIndexBuilder.cs`; `.agents/spec/LUI-Spezifikation.md` §5, §7.3, §12, §14, §20; `AGENTS.md`; `README.md`
 
 ## Context
 

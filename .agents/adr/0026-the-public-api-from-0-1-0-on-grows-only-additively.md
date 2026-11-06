@@ -6,7 +6,7 @@
 - **Builds on:** [0018](./0018-two-packages-core-and-hosting.md) (two packages, one version), [0023](./0023-owned-becomes-embedded.md),
   [0024](./0024-the-api-polish-before-the-freeze.md) and [0025](./0025-the-typo-dictionary-only-grows.md) (the changes before the freeze)
 - **Tightens:** the sentence of ADR-0018 that "in 0.x every minor version may break the API (SemVer)"
-- **Affects:** `README.md` (Status), `CHANGELOG.md`, `AGENTS.md` (a *Never*), `docs/architecture/alignment.md`, `docs/adr/0018-…md` (a note)
+- **Affects:** `README.md` (Status), `CHANGELOG.md`, `AGENTS.md` (a *Never*), `docs/architecture/alignment.md`, `.agents/adr/0018-…md` (a note)
 
 ## Context
 
