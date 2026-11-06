@@ -350,7 +350,7 @@ dotnet run --project samples/Lui.Sample      # http://localhost:5000
 a JSON payload, tags **linked** to your own table, names, the German word list and two bulk indexes. The bulk indexes
 are **created on demand** — the page fills them when you ask for it, and shows the progress while it does.
 
-![The sample application: the index of the words, the autocomplete of the names, the fill of a bulk index](./docs/images/sample.gif)
+![The sample application: the recipes with the correction of a typo, the tags over the table of the application, and the fill of a bulk index on demand — with its progress and the query on the index it just filled](./docs/images/sample.gif)
 
 ![The recipes autocomplete: "kartofel" is corrected, the page asks "Did you mean “kartoffel”?", the hits are grouped by the category of their payload](./docs/images/sample-recipes.png)
 
