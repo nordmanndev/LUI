@@ -14,7 +14,7 @@
 
 1. **The query does not build the typo dictionary any more** — direction 2 of #35. The query answers with
    `CorrectionSkipped` while there is no dictionary; the build belongs to the warm-up, to the writes and to the
-   service of task 6. A documented behaviour changes ⇒ ADR-0041, a note in the CHANGELOG, §10 of the specification
+   service of task 6. A documented behaviour changes ⇒ ADR-0042, a note in the CHANGELOG, §10 of the specification
    and the README in the same commit.
 2. **The scope of the round is the six tasks** — the three heavy performance points of the review (the memory of the
    dictionary, the path of 5–8 characters, the floor of the allocation) are each a change of the query path and get
@@ -28,13 +28,13 @@
 | | The task | The issue | The decision | The test delta |
 |---|---|---|---|---|
 | 0 | **The house:** the epic issue, the four sub-issues, the branch, the pull request, this plan, the state of the session | #64 | — | 0 (no code) |
-| 1 | **The §16 table of the README and of the benchmarks agrees with the specification — and a guard keeps it there** | #38 | the issue is the record | **+1** architecture test, +1 map row, +1 mutation |
-| 2 | **A lane of the CI checks the budgets of §16** (the allocations are asserted, the times are reported) | #65 | ADR-0040 (Measurement) | 0 new tests, +1 lane, +1 ADR |
+| 1 | **The §16 table of the README and of the benchmarks agrees with the specification — and a guard keeps it there** | #38 | ADR-0040 (the owner's round) | **taken over** — see "What actually happened" |
+| 2 | **A lane of the CI checks the budgets of §16** (the allocations are asserted, the times are reported) | #65 | ADR-0041 (Measurement) | 0 new tests, +1 lane, +1 ADR |
 | 3 | **The link check runs in the CI** | #66 | — | 0 new tests, +1 step |
-| 4 | **A query does not build the typo dictionary any more** | #35 | ADR-0041 (Typo tolerance) | **+2** integration tests, 1 ADR, spec + CHANGELOG |
+| 4 | **A query does not build the typo dictionary any more** | #35 | ADR-0042 (Typo tolerance) | **+2** integration tests, 1 ADR, spec + CHANGELOG |
 | 5 | **The concurrency is hardened:** a soak, a second connection on one file, a dispose during a build, a Windows lane | #67 | — | **+3** integration tests, +1 CI lane |
-| 6 | **The warm-up is a service of the host — opt-in** (`AddLuiWarmup`) | #68 | ADR-0042 (Runtime) | **+3** integration tests, +1 ADR, `docs/api.md` |
-| 7 | **A typed view over the untyped index: `index.As()`** | #59 | ADR-0043 (API) | **+2** integration tests, +1 ADR, `docs/api.md` |
+| 6 | **The warm-up is a service of the host — opt-in** (`AddLuiWarmup`) | #68 | ADR-0043 (Runtime) | **+3** integration tests, +1 ADR, `docs/api.md` |
+| 7 | **A typed view over the untyped index: `index.As()`** | #59 | ADR-0044 (API) | **+2** integration tests, +1 ADR, `docs/api.md` |
 
 ## The checklist
 
@@ -45,24 +45,23 @@
   - [ ] The pull request, base `main`, head `feat/production-readiness` — **this pull request carries the whole plan**;
         its body is the live checklist.
   - [x] This plan in `.agents/plan/`, named after the epic issue.
-  - [ ] `.agents/state/active-task.md` — the state of the round, per `AGENTS.md` ("Session start").
+  - [x] **The state file stays with the session in flight.** `.agents/state/active-task.md` belongs to the session that
+        is running; this round keeps its state in this plan, in issue #64 and in the body of the pull request. The file
+        was taken out of this branch again — a pull request that overwrites the note of another session is a pull
+        request against a dead tree.
   - **Test delta:** 0. **Proof:** the pull request exists and its first CI run is green.
 
-- [ ] **Task 1 — The §16 table agrees with the specification (#38)**
-  - [ ] **Rot first:** a new architecture test reads the target table of §16 in the specification and compares it with
-        the limit column of the README's budget table and of the one in `docs/benchmarks.md`. Seen red before the fix:
-        a limit edited by hand ⇒ the test fails.
-  - [ ] The stale row corrected: the limits of ADR-0032 (**p50 ≤ 60 KB, p95 ≤ 100 KB**), and no pointer to #30, which
-        has been closed since 2026-11-05.
-  - [ ] The measured column carries a number that exists — the measured values of ADR-0032 (p50 18,09 KB, p95 38,80 KB
-        at 200.000 entries), named with the scenario they were measured in.
-  - [ ] The new test in the map (`docs/testing.md`) — the map is a guard; an unlisted test file fails the build.
-  - [ ] A mutation in `tools/mutation-check.sh`: a limit in the README edited by hand ⇒ the guard bites.
-  - **Test delta:** +1 architecture test, +1 map row, +1 mutation. **Proof:** the CI run of the commit; #38 gets the
-        comment and is closed.
+- [x] **Task 1 — The §16 table agrees with the specification (#38)** — **taken over by the owner's pull request #63**
+      (`feature/budget-table-guard`, green on 2026-11-06): the guard `Readme_Budgets` reads the target table of §16 out
+      of the specification and compares it with the budget table of the README and with the target table of the record;
+      it found the real drift (≤ 250 / ≤ 350 KB against the contract's ≤ 60 / ≤ 100 KB) and both tables carry the limits
+      of the contract now, with the measured values of the run of 2026-11-06 (46 / 51 KB). The mutation
+      `a-budget-limit-in-the-readme-edited-by-hand` gives the guard teeth, ADR-0040 is the decision, and the plan of
+      the task is `.agents/plan/2026-11-06-issue-38-the-budget-table-of-the-entrance.md`.
+      **Nothing of this round touches it** — the issue, the tables, the guard and the ADR belong to that round.
 
 - [ ] **Task 2 — A lane of the CI checks the budgets of §16 (#65)**
-  - [ ] The decision written down: **ADR-0040** — what runs, when, what is asserted against what is only reported.
+  - [ ] The decision written down: **ADR-0041** — what runs, when, what is asserted against what is only reported.
   - [ ] **The rule of the measurement:** the *allocations* are machine-independent and are asserted; the *times* belong
         to the machine they were measured on and are only reported, with the machine named.
   - [ ] A job `performance` in `.github/workflows/ci.yml`: a schedule (nightly) and `workflow_dispatch` with an input
@@ -87,7 +86,7 @@
   - [ ] The build path leaves the query (`TypoCorrection.IsReady`, `TypoDictionary.TryEnsureBuilt`); the build stays
         where it belongs: `WarmUpTypoDictionary`, `RebuildTypoDictionary`, the writes.
   - [ ] The specification (§10.1) and the README are updated in the same commit; the CHANGELOG says what changes.
-  - [ ] **ADR-0041** — why the query does not build, and what replaces it.
+  - [ ] **ADR-0042** — why the query does not build, and what replaces it.
   - [ ] `docs/api.md` if a public member disappears — the guard `Public_API_Documentation` says so.
   - **Test delta:** +2 integration tests, the existing `TypoDictionaryLifecycleTests` brought to the new contract.
         **Proof:** the CI run; #35 gets the comment and is closed.
@@ -102,7 +101,7 @@
 
 - [ ] **Task 6 — The warm-up is a service of the host (opt-in) (#68)**
   - [ ] `AddLuiWarmup()` — the dictionaries are warmed at the start, the outbox is brought in; **off by default**.
-  - [ ] **ADR-0042** — the hosting package still carries only the dependency injection (ADR-0034); this is a service the
+  - [ ] **ADR-0043** — the hosting package still carries only the dependency injection (ADR-0034); this is a service the
         host registers, not a thread the library starts.
   - [ ] `docs/api.md` carries the new public types — otherwise `Public_API_Documentation` fails the build.
   - [ ] The CHANGELOG (additive), the README (the ASP.NET section), the tutorial.
@@ -111,18 +110,31 @@
 - [ ] **Task 7 — A typed view over the untyped index (#59)**
   - [ ] `index.As<T>()` — a thin, allocation-free view that delegates to the one index and calls `GetPayload<T>()` for
         the caller; the index keeps no type, the file keeps no type name.
-  - [ ] The open questions of #59 are decided in **ADR-0043**: the name is `As<T>()`, the key stays `LuiKey` (a second
+  - [ ] The open questions of #59 are decided in **ADR-0044**: the name is `As<T>()`, the key stays `LuiKey` (a second
         typed key view would be a second concept), and the payload is **not** cached (a cache per hit is memory and an
         invalidation).
   - [ ] `docs/api.md` carries the new public types — otherwise `Public_API_Documentation` fails the build.
   - [ ] The CHANGELOG (additive — allowed by ADR-0026), the README, the tutorial.
   - **Test delta:** +2 integration tests. **Proof:** the CI run; #59 gets the comment and is closed.
 
+## What actually happened
+
+The ground moved while the plan was written — the owner opened pull request #63 (`feature/budget-table-guard`) at
+2026-11-06 23:07 UTC, green at 23:12, and took **issue #38** with it: the guard for the budget table, the correction
+of both tables, the mutation and **ADR-0040**. Task 1 is therefore not done twice: the round of #63 is the round of the
+budget table, and this plan keeps its place in the history. Two consequences for this round:
+
+- the ADR numbers move by one — the lane of the CI is **ADR-0041**, the dictionary **ADR-0042**, the warm-up
+  **ADR-0043**, the typed view **ADR-0044**;
+- **the state file belongs to the session in flight.** `.agents/state/active-task.md` is the owner's; this branch does
+  not touch it, and the state of this round lives in this plan, in #64 and in the body of the pull request.
+
 ## The steps of every task
 
 The same eight steps, every time — the order is part of the contract:
 
-1. **The issue** carries the task (#64 for the round; #38, #65, #66, #35, #67, #68 and #59 for the tasks).
+1. **The issue** carries the task (#64 for the round; #65, #66, #35, #67, #68 and #59 for the tasks — #38 belongs to
+   the round of the owner, pull request #63).
 2. **Rot first**: the new rule gets its test, and the test is seen red before the fix.
 3. The fix — the code, the documentation, the specification, the CHANGELOG, the ADR: **in the same commit**.
 4. The map of the tests (`docs/testing.md`) carries the new test file — it is a guard.
