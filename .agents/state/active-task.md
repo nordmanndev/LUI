@@ -12,8 +12,10 @@ replica, a file in the mode `ro` and a service that must not write can use LUI.
 (<https://github.com/nordmanndev/LUI/pull/57>).
 **State:** the rebuild is on the same branch, PR #57 stays open and is **not** merged. The branch carries the five
 commits of the first shape of the issue (`945729e` the read path, `dddecf1` the wording of the documents, `c7de0f3` the
-test of the payload, `5049e52` a note, `2fb05ca` the fix of the distance table that the CI found) and the commit of the
-rebuild on top of them — no force push.
+test of the payload, `5049e52` a note, `2fb05ca` the fix of the distance table that the CI found) and three commits of
+the rebuild on top of them (`fe3454c` a note, `37095f6` the plan and ADR-0033, `6e751f3` the rebuild itself) — no force
+push. The CI on `6e751f3` is green, and the independent verification of the pull request is **PASS**
+(`/workspace/verify-56-redesign.md`, read-only, plus a second verification `/workspace/verify-56-redesign-v2.md`).
 The plan is `docs/plan/2026-11-05-issue-56-the-catalog-is-the-entry-point.md`, the decisions are
 [ADR-0033](https://github.com/nordmanndev/LUI/blob/main/docs/adr/0033-the-read-path-opens-an-index-without-writing.md)
 (the read path) and
@@ -54,6 +56,12 @@ entfallen; und die **Datei** entscheidet, was erlaubt ist: eine nur lesbare Verb
 - The rebuild is **committed** and pushed — the documents, the library, the callers and the hosting package are in one
   commit on top of the five commits above (no force push), and PR #57 carries the body of the new shape.
 - The pull request #57 waits for the merge — the owner merges it, the CI is green.
+- The verification names four minor findings; the first one is worth closing before the release:
+  `catalog.Index<TKey, TPayload>(name, null)` is ambiguous — the overload with `JsonTypeInfo<TPayload>` and the one with
+  `ILuiPayloadSerializer<TPayload>?` both accept `null`. Every documented form compiles and works; only the explicit
+  `null` literal fails. The other three are imprecisions in the pull request body (it counts 19 instead of 18 tests in
+  `ReadPathTests`, and it lists `OpenIndexHostingTests.cs` as removed although the file never was on `main`) and the
+  package smoke test, which fails in the sandbox on `main` as well — no regression.
 - `SampleApiTests.A_request_the_page_abandons_stops_the_work_of_the_server` is **timing-sensitive** (the client aborts
   after 150 ms; the server has to notice the closed connection during a 1.5 s delay). It failed once under the load of a
   saturated 2-CPU sandbox; the changes of #56 are not on the path the test walks (the probe never opens an index), and
