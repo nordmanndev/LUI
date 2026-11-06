@@ -100,6 +100,7 @@ the test fails with the reason instead of skipping.
 | [`RowIdTests`](../tests/Nordmann.LUI.Integration.Tests/RowIdTests.cs) | Integration | the rowid carries the priority and the weight — and the SQL and the C# agree on it | spec §7.2 |
 | [`ReviewFollowUpTests`](../tests/Nordmann.LUI.Integration.Tests/ReviewFollowUpTests.cs) | Integration | the findings of the review of pull request 6, each reproduced red before it was fixed | review of PR #6 |
 | [`TypoReviewTests`](../tests/Nordmann.LUI.Integration.Tests/TypoReviewTests.cs) | Integration | the findings of the review of pull request 10, each reproduced red before it was fixed | review of PR #10 |
+| [`PerformanceBudget_Machine`](../tests/Nordmann.LUI.Integration.Tests/PerformanceBudget_Machine.cs) | Integration | the two kinds of target of §16: a time belongs to the machine it was measured on and is reported elsewhere; a size is the same everywhere and is asserted | spec §16, ADR-0041 |
 
 ### The measurements — they run on purpose
 
