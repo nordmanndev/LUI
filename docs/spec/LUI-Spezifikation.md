@@ -211,15 +211,24 @@ CREATE TABLE IF NOT EXISTS lui_meta (
 
 `Create()` legt einen Index an oder prüft, dass die gespeicherte Definition zur
 gewünschten passt. Eine Abweichung ist ein Fehler mit klarer Meldung — ein
-Index wird nie stillschweigend umgebaut (§ 12.5).
+Index wird nie stillschweigend umgebaut (§ 12.2).
 
 Die Definition ist JSON und trägt alles, was ein **geöffneter** Index braucht:
-die Art, die Quelle, den Schlüsseltyp, die Faltversion und — bei einem
-verknüpften Index mit Payload — **die Spalten des Payloads in ihrer Reihenfolge**.
-Damit kann ein Index gelesen werden, ohne dass die Anwendung etwas dazutun muss
-(ADR-0033): `OpenIndex` liest die Definition, prüft Schemaversion und Faltversion
-und baut den Index daraus auf — **ohne zu schreiben**: keine Tabelle, keine
-Definition, kein Schreib-Lock.
+die Art, die Quelle, den Schlüsseltyp, die Faltversion, **den Typ der Payload**
+(`null` ohne Payload) und — bei einem verknüpften Index mit Payload — **die
+Spalten des Payloads in ihrer Reihenfolge**. Damit kann ein Index gelesen
+werden, ohne dass die Anwendung etwas dazutun muss (ADR-0033): `Index` liest
+die Definition, prüft Schemaversion, Faltversion und die Typen und baut den
+Index daraus auf — **ohne zu schreiben**: keine Tabelle, keine Definition, kein
+Schreib-Lock.
+
+**Die Datei entscheidet, was geschrieben werden darf — nicht der Index.** Eine
+Datei, die nicht geschrieben werden darf, wird über die **Verbindungszeichenkette**
+geöffnet (`Mode=ReadOnly`); der Katalog schaltet dann **kein WAL** um, legt
+**kein `lui_meta` an** — die Tabelle muss da sein, fehlt sie, sagt der Katalog
+das — und **verweigert jeden Schreibvorgang** mit einem `LuiReadOnlyException`
+(§ 12.8): `Create`, `DropIndex`, `Upsert`, `Sync`. Dieselbe Anwendung läuft
+damit im schreibenden und im nur lesenden Dienst (§ 12.9, § 14).
 
 ### 7.2 Inhaltstabelle bei `Embedded`
 
@@ -592,7 +601,7 @@ Wörtern.
   Tastendruck ab, ein daran gebundener Aufbau würde nie fertig); scheitert er, antwortet die Abfrage ohne Korrektur mit
   `CorrectionSkipped`, und die nächste korrigierende Abfrage versucht es wieder (Review von PR #34, I3). `WarmUpTypoDictionary()`
   und `RebuildTypoDictionary()` warten auf einen laufenden Aufbau und beenden dieses Warten mit ihrem Token.
-- Das Wörterbuch wird beim ersten Bedarf gebaut (`WarmUpTypoDictionary()` baut es vorab, zum Beispiel beim Start); `RebuildTypoDictionary()`
+- Das Wörterbuch wird beim ersten Bedarf gebaut (`WarmUpTypoDictionary()` baut es vorab — die Anwendung ruft es auf, zum Beispiel beim Start); `RebuildTypoDictionary()`
   baut es neu (nach vielen `Remove`, und für Schreibvorgänge an der Bibliothek vorbei). Beide nehmen ein `CancellationToken`. Ein `Upsert`
   trägt die Wortanfänge sofort ein, auch wenn seine Transaktion später zurückgerollt wird — wie bei `Remove` findet eine Korrektur dorthin
   dann nichts.
@@ -652,30 +661,42 @@ using var lui = LuiCatalog.Open("Data Source=app.db", new LuiCatalogOptions
 Die Optionen sind ein Record mit `init`-Eigenschaften — aus der Konfiguration bindbar — und prüfen jeden Wert,
 wenn er gesetzt wird (ADR-0013).
 
+**Die Verbindungszeichenkette sagt, was die Datei hergibt** (ADR-0033): Eine Datei, die nicht geschrieben werden
+darf, wird mit `Mode=ReadOnly` geöffnet — dann schreibt der Katalog nichts, legt kein `lui_meta` an und verweigert
+jeden Schreibvorgang (§ 7.1, § 12.8). Dieselbe Anwendung läuft damit im schreibenden und im nur lesenden Dienst.
+
 ### 12.2 Index anlegen (fluent)
 
 ```csharp
 // eingebettet — der Standard: eigene Inhaltstabelle, Schlüssel long
-ILuiEmbeddedIndex<long, RecipeChip> recipes = lui
-    .Index("recipes")                                    // der Name
-    .MultiWord()                                         // die Art; danach: Embedded mit long-Schlüssel
-    .WithPayload(RecipeJsonContext.Default.RecipeChip)   // System.Text.Json, quellgeneriert (AOT)
-    .Similarity(LuiSimilarity.NgramDice)                 // Standard für MultiWord, hier explizit
-    .TypoTolerance()
-    .Create();
+ILuiEmbeddedIndex<long, RecipeChip> recipes = lui.Create("recipes", index =>   // der Name
+    index.MultiWord()                                                          // die Art; danach: Embedded mit long-Schlüssel
+        .WithPayload(RecipeJsonContext.Default.RecipeChip)                      // System.Text.Json, quellgeneriert (AOT)
+        .Similarity(LuiSimilarity.NgramDice)                                    // Standard für MultiWord, hier explizit
+        .TypoTolerance());
 
 // ohne Payload, mit einem Text-Schlüssel
-ILuiEmbeddedIndex<string, LuiNoPayload> words = lui.Index("words").SingleWord().WithKey<string>().Create();
+ILuiEmbeddedIndex<string, LuiNoPayload> words = lui.Create("words", index => index.SingleWord().WithKey<string>());
 
 // verknüpft: liest eine Tabelle der Anwendung, ohne sie zu ändern (ADR-0015)
-ILuiLinkedIndex<TagChip> tags = lui
-    .Index("tags")
-    .SingleWord()
-    .LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count", priority: "priority")
-    .WithPayload(["slug", "color"], row => new TagChip(row.GetString("slug"), row.GetString("color")))   // aus Spalten der Tabelle
-    .Create();
-tags.Sync();                                             // füllt den Index aus der Tabelle
+ILuiLinkedIndex<TagChip> labels = lui.Create("labels", index =>   // der Name
+    index.SingleWord()
+        .LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count", priority: "priority")
+        .WithPayload(["slug", "color"], row => new TagChip(row.GetString("slug"), row.GetString("color")))   // aus Spalten der Tabelle
+);
+labels.Sync();                                           // füllt den Index aus der Tabelle
 ```
+
+`Create` ist der **Schreibweg** und gehört in die Migration der Anwendung: Der
+Index wird angelegt, wenn er fehlt, und die gespeicherte Definition wird
+geprüft, wenn er da ist (ADR-0033). Im Betrieb wird der Index **geöffnet**
+(§ 12.9) — `catalog.Index(…)` schreibt nichts.
+
+Die Beschreibung ist der **Parameter**, nicht der Weg hinein: der Katalog nimmt
+eine Beschreibung entgegen und legt den Index selbst an. Der Builder ist über
+den Katalog **sonst nicht erreichbar** — der Betriebspfad kann keinen Index
+mehr anlegen. Auf einer nur lesbaren Datei verweigert `Create` den Dienst
+(§ 12.8).
 
 Regeln:
 
@@ -690,6 +711,8 @@ Regeln:
 - `Create()` ist **idempotent**: Existiert der Index mit gleicher Definition,
   wird er geöffnet; weicht die Definition ab, wird mit einer Meldung abgebrochen,
   die beide Definitionen nennt. Bei `Linked` gehören Tabelle und Spalten zur Definition.
+  Der Typ der Payload gehört zur Definition: Ein Index, der `TagChip` speichert,
+  wird nicht mit `RecipeChip` angelegt (§ 12.3).
 - `lui.DropIndex(name)` entfernt einen Index samt **seinen** Tabellen — gleich, welche Definition gespeichert ist.
   Die Tabelle der Anwendung und ihre Zeilen bleiben. Hat ein verknüpfter Index Trigger, verlangt das Entfernen
   `DropIndex(name, dropTriggers: true)`; danach ist er nach `Create()` leer und ohne Trigger.
@@ -705,6 +728,10 @@ Regeln:
   Treffern gelesen, in dieser Reihenfolge; `LuiPayloadRow` kennt nur sie und gilt nur, solange die Abbildung läuft.
 - In beiden Fällen: Payload **nur für die Treffer**, eine Abfrage
   `WHERE key IN (…)` bzw. `WHERE id IN (…)`.
+- **Die Definition merkt sich den Typ der Payload** (ADR-0033): Beim Erstellen wird er aus dem Typparameter des
+  Builders geschrieben, beim Öffnen wird er geprüft. Ein Index, der `TagChip` speichert, wird nicht mit
+  `RecipeChip` geöffnet — das ist ein `LuiDefinitionMismatchException`, das beide Typen nennt. Der **Serialisierer**
+  wird nicht gespeichert: er ist ein Objekt der Anwendung, und die Anwendung übergibt ihn beim Öffnen (§ 12.9).
 
 ### 12.4 Schreiben (`Embedded`)
 
@@ -720,8 +747,8 @@ recipes.UpdateWeight(42, 9500);
 recipes.Remove(42);
 
 // Kurzform ohne Payload; reservierter Systemtag: immer zuerst, wenn er zur Eingabe passt
-words.Upsert(1, "vegan", weight: 0, priority: LuiPriority.System);
-words.UpdatePriority(1, LuiPriority.Normal);
+words.Upsert("vegan", "vegan", weight: 0, priority: LuiPriority.System);
+words.UpdatePriority("vegan", LuiPriority.Normal);
 
 // in der Transaktion der Anwendung — Fachdaten und Index ändern sich atomar
 using var tx = connection.BeginTransaction();
@@ -749,17 +776,24 @@ führt den Index nach (§ 7.3):
 ```csharp
 using var tx = connection.BeginTransaction();
 // … eigenes INSERT/UPDATE/DELETE in "tag" …
-tags.Refresh(42, tx);                              // in ihrer Transaktion: atomar mit der Änderung
+labels.Refresh(42, tx);                             // in ihrer Transaktion: atomar mit der Änderung
 tx.Commit();
 
-tags.Refresh(42);                                  // ohne Transaktion: eine eigene
-tags.RefreshMany(changedIds);                      // viele, in einer Transaktion
-tags.Sync();                                       // alles aus der Tabelle
+labels.Refresh(42);                                 // ohne Transaktion: eine eigene
+labels.RefreshMany(changedIds);                     // viele, in einer Transaktion
+labels.Sync();                                      // alles aus der Tabelle
 
-string sql = tags.TriggerScript();                 // oder Trigger — für die eigene Migration
-tags.CreateTriggers();                             // … oder direkt, nur auf Aufruf
-tags.ApplyPending();                               // die notierten Zeilen in den Index bringen
+string sql = labels.TriggerScript();                // oder Trigger — für die eigene Migration
+labels.CreateTriggers();                            // … oder direkt, nur auf Aufruf
+labels.ApplyPending();                              // die notierten Zeilen in den Index bringen
 ```
+
+**Die Datei entscheidet, was geschrieben werden darf — nicht der Index**
+(ADR-0033): Ein Katalog auf einer nur lesbaren Datei (`Mode=ReadOnly`) verweigert
+**jeden** Schreibvorgang mit einem `LuiReadOnlyException`: `Upsert`, `UpsertMany`,
+`Remove`, `UpdateWeight`, `UpdatePriority`, `Sync`, `Rebuild`, `Optimize`,
+`Refresh`, `ApplyPending` — und `Create` und `DropIndex` (§ 12.2, § 12.9).
+Derselbe Anwendungscode läuft damit im schreibenden und im nur lesenden Dienst.
 
 ### 12.5 Abfragen (fluent)
 
@@ -792,10 +826,10 @@ wird (ganz / in Wörtern / kompakt), der Präfix-Pfad, die Regel *Wortanfang*.
 
 ```csharp
 LuiIntegrityReport check = recipes.Check(entries);   // Embedded: Abweichungen zur Quelle (fehlt / überzählig / anders)
-LuiIntegrityReport self  = recipes.Check();         // beide: Definition = lui_meta, Trigger, FTS5 integrity-check
-LuiIntegrityReport tags  = tagIndex.Check();        // Linked: dazu die Einträge gegen die Zeilen der Tabelle
-recipes.Rebuild();                                  // Embedded: Trigger und Suchindex neu aus der Inhaltstabelle, zusammengeführt
-recipes.Optimize();                                 // FTS5 'optimize'
+LuiIntegrityReport self  = recipes.Check();           // beide: Definition = lui_meta, Trigger, FTS5 integrity-check
+LuiIntegrityReport linked = labels.Check();           // Linked: dazu die Einträge gegen die Zeilen der Tabelle
+recipes.Rebuild();                                    // Embedded: Trigger und Suchindex neu aus der Inhaltstabelle, zusammengeführt
+recipes.Optimize();                                   // FTS5 'optimize'
 ```
 
 Ein Bericht nennt jeden Befund in einem Satz mit der Reparatur (`Sync(entries)`, `Rebuild()`, `Sync()`, `ApplyPending()`,
@@ -808,44 +842,33 @@ speichert ihn nicht; eine Abfrage zeigt ihn trotzdem nie (§ 7.3), und `Sync()` 
 ### 12.7 Dependency Injection
 
 ```csharp
-services.AddLui("Data Source=app.db")                   // oder AddLui(sp => …Verbindungszeichenfolge aus der Konfiguration…)
-        .AddIndex("recipes", index => index.MultiWord().WithPayload(RecipeJsonContext.Default.RecipeChip))
-        .AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"),
-                  applyPendingEvery: TimeSpan.FromSeconds(5))   // die Outbox der Trigger, auf einem Timer
-        .AddOpenIndex("recipes_readonly")                 // geöffnet, nicht erstellt: die Datei bleibt unberührt
-        .EnsureOnStart()                                  // Standard
-        .WarmUpTypoDictionariesOnStart();                 // optional, im Hintergrund
+services.AddLui("Data Source=app.db");   // oder AddLui(sp => …Verbindungszeichenfolge aus der Konfiguration…)
 
-// Verwendung: Keyed Services — der Suggest-Endpunkt braucht nur die Lese-Schnittstelle
-public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<long, RecipeChip> recipes) { … }
+// Verwendung: der Katalog wird injiziert — der Index wird beim Bedarf geholt
+public sealed class SuggestEndpoint(LuiCatalog catalog)
+{
+    public IReadOnlyList<string> Suggest(string q) =>
+        catalog.Index<long, RecipeChip>("recipes", RecipeJsonContext.Default.RecipeChip)
+            .Search(q).Hits.Select(hit => hit.Text).ToList();
+}
 ```
 
+- **Der Container kennt nur den Katalog** (ADR-0033): `AddLui` registriert den Katalog und sonst nichts. Ein Index wird
+  **nicht registriert und nicht injiziert** — die Anwendung fragt den Katalog, was sie braucht: `catalog.Create(name, …)`
+  in der Migration, `catalog.Index(…)` im Betrieb.
 - Der Katalog ist ein Singleton, das der Container beim ersten Bedarf öffnet und mit sich entsorgt; `AddLui` einmal
-  pro Container.
-- Jeder Index ist ein **Keyed Singleton unter seinem Namen**, als Lese- (`ILuiIndex<TKey, TPayload>`) und als
-  Schreibschnittstelle (`ILuiEmbeddedIndex` bzw. `ILuiLinkedIndex`) — dieselbe Instanz. Der Rückgabetyp der
-  Beschreibung ist je Art eine eigene Methode: `AddIndex` nimmt die Beschreibung eines `Embedded`-Index
-  (`LuiEmbeddedIndexBuilder`), `AddLinkedIndex` die eines `Linked`-Index (`LuiLinkedIndexBuilder`, dazu `applyPendingEvery`;
-  ADR-0024).
-- **`AddLui` öffnet die Datenbank, wenn der Host startet — auch mit `EnsureOnStart(false)`**: Die gehosteten Dienste lösen den
-  Katalog vor sich selbst auf, damit der Container sie vor ihm entsorgt (ADR-0017). Ein SQLite, das LUI nicht tragen kann,
-  stoppt deshalb den Start mit einer `LuiEnvironmentException`.
-- `Create()` läuft beim Start (als `IHostedService`, abschaltbar mit `EnsureOnStart(false)`), nicht beim ersten
-  Request: Eine abweichende Definition stoppt den Start. Gehostete Dienste starten in der Reihenfolge ihrer
-  Registrierung: Eine Migration, die die Tabelle eines verknüpften Index anlegt, wird vor `AddLui` registriert oder vor
-  `host.Run()` ausgeführt — sonst `EnsureOnStart(false)`.
-- **`AddOpenIndex(name)`** registriert einen Index, den der Host **öffnet** statt erstellt (ADR-0033): Der Index muss
-  existieren, und die Datei wird nie geschrieben — keine Tabelle, keine Definition, kein Schreib-Lock. Fehlt der
-  Index, stoppt der Start mit einem `LuiIndexNotFoundException`. `AddIndex` behält seine Bedeutung: es legt den Index
-  an, oder öffnet ihn, wenn er da ist.
-- `WarmUpTypoDictionariesOnStart()` baut die Wörterbücher der Indizes mit Tippfehler-Toleranz nach dem Start im
-  Hintergrund. Keine Abfrage wartet darauf: eine, die währenddessen korrigieren müsste, antwortet ohne Korrektur und
-  setzt `CorrectionSkipped` (ADR-0021, Issue #19; bis dahin wartete sie, ADR-0017).
-- `applyPendingEvery` lässt einen gehosteten Dienst `ApplyPending()` eines verknüpften Index im Takt aufrufen; ein
-  fehlgeschlagener Durchlauf wird geloggt, der nächste versucht es wieder. Die Trigger legt er nicht an (ADR-0015).
-- Das alles liefert das Paket `Nordmann.LUI.Hosting` (§ 17.1, ADR-0018); den Host bringt die Anwendung mit. Ohne
-  Host — in einer Konsolenanwendung — ruft die Anwendung `Create()`, `WarmUpTypoDictionary()`, `ApplyPending()` und
-  bei Bedarf `RebuildTypoDictionary()` selbst auf.
+  pro Container. Ein zweites `AddLui` ist ein `InvalidOperationException`.
+- `AddLui` liefert die `IServiceCollection` zurück — es gibt keine weiteren Registrierungen.
+- **Der Katalog wird beim ersten Bedarf geöffnet, nicht beim Start des Hosts**: Ein SQLite, das LUI nicht tragen kann
+  (älter als 3.45 oder ohne den FTS5-Trigram-Tokenizer), wirft dann eine `LuiEnvironmentException` (§ 12.8). Die
+  Migration der Anwendung — sie legt die Indizes mit `catalog.Create(…)` an — läuft **vor** dem ersten Zugriff:
+  Eine abweichende Definition bricht sie ab, nicht der erste Request.
+- Das Paket `Nordmann.LUI.Hosting` trägt **nur die Dependency-Injection** (ADR-0034): keine gehosteten Dienste, kein
+  Timer, kein Aufwärmen der Wörterbücher. Wer die Wörterbücher vorab bauen will, ruft `WarmUpTypoDictionary()` selbst
+  auf — im Hintergrund, ohne dass eine Abfrage darauf wartet (ADR-0021, Issue #19). Wer die Outbox der Trigger eines
+  verknüpften Index im Takt anwenden will, ruft `ApplyPending()` selbst auf (ADR-0015).
+- Ohne Host — in einer Konsolenanwendung — ruft die Anwendung `Create()`, `Index()`, `WarmUpTypoDictionary()`,
+  `ApplyPending()` und bei Bedarf `RebuildTypoDictionary()` selbst auf.
 
 ### 12.8 Fehler
 
@@ -860,32 +883,41 @@ public sealed class SuggestEndpoint([FromKeyedServices("recipes")] ILuiIndex<lon
 | Gewicht, Priorität oder Option außerhalb des Bereichs | `ArgumentOutOfRangeException`, wenn der Wert gesetzt wird |
 | SQLite meldet `SQLITE_BUSY` nach `busy_timeout` | `SqliteException` wird unverändert weitergereicht |
 | ein `LuiPayloadRow`, der nach der Abbildung von `WithPayload` gelesen wird | `InvalidOperationException` (die Zeile gilt nur, solange die Abbildung läuft) |
+| die Datei darf nicht geschrieben werden (`Mode=ReadOnly`) | `LuiReadOnlyException` (nennt den verweigerten Vorgang; § 7.1) |
 
-Die vier Ausnahmen der Bibliothek — `LuiEnvironmentException`, `LuiDefinitionMismatchException`,
-`LuiLinkedTableException` und `LuiIndexNotFoundException` — haben die gemeinsame, abstrakte Basis `LuiException`, die
-ihrerseits eine `InvalidOperationException` ist: `catch (LuiException)`
+Die fünf Ausnahmen der Bibliothek — `LuiEnvironmentException`, `LuiDefinitionMismatchException`,
+`LuiLinkedTableException`, `LuiIndexNotFoundException` und `LuiReadOnlyException` — haben die gemeinsame, abstrakte
+Basis `LuiException`, die ihrerseits eine `InvalidOperationException` ist: `catch (LuiException)`
 trennt die Fälle der Bibliothek von den Fehlern der Anwendung, und ein bestehendes `catch (InvalidOperationException)` fängt sie
 weiter (ADR-0024).
 
-### 12.9 Index öffnen (nur lesen)
+### 12.9 Index öffnen (ohne Schreibvorgang)
 
-`Create()` legt einen Index an, wenn er fehlt, und prüft die Definition, wenn er da ist. **`OpenIndex` liest ihn
+`Create()` legt einen Index an, wenn er fehlt, und prüft die Definition, wenn er da ist. **`Index` liest ihn
 nur** (ADR-0033): Die Definition steht in `lui_meta`, daraus wird der Index aufgebaut — und **nichts wird
 geschrieben**: keine Tabelle, keine Definition, kein Schreib-Lock, kein Wörterbuch. Das ist der Weg in eine Datenbank,
 die anderswo geschrieben wird: eine Replikation, eine Datei im Modus `ro`, ein Dienst, der nicht schreiben darf.
 
 ```csharp
-// untypisiert: der Schlüssel kommt als der Text, in dem er gespeichert ist, die Payload als das rohe JSON
-ILuiDocumentIndex tags = lui.OpenIndex("tags");
+// typisiert: die Typen der Anwendung — der Schlüssel und die Payload
+ILuiEmbeddedIndex<long, TagChip> opened = lui.Index<long, TagChip>("tags", TagJsonContext.Default.TagChip);
 
-foreach (var hit in tags.Search("vegan"))
+foreach (var hit in opened.Search("vegan").Hits)
 {
     Console.WriteLine($"{hit.Key}: {hit.Text}");   // 1: vegan
 }
 
-// typisiert: die Typen der Anwendung — jeder Schreibversuch wird abgelehnt
-ILuiEmbeddedIndex<long, TagChip> opened = lui.OpenIndex<long, TagChip>("tags", TagJsonContext.Default.TagChip);
+// verknüpft: die Spalten stehen in der Definition, die Abbildung ist die der Anwendung
+ILuiLinkedIndex<TagChip> openedLabels = lui.Index<TagChip>("labels", row => new TagChip(row.GetString("slug"), row.GetString("color")));
+
+// verknüpft ohne Payload
+ILuiLinkedIndex<LuiNoPayload> openedTagWords = lui.Index("tagwords");
 ```
+
+Die **Payload** kommt mit der `JsonTypeInfo` der Anwendung — quellgeneriert, also sicher fürs Trimming und AOT. Eine
+Payload, die kein JSON ist, bringt ihren eigenen Serialisierer mit:
+`lui.Index<long, TagChip>("tags", new MySerializer())`. Ein Index ohne Payload wird ohne Argument geöffnet:
+`lui.Index<string, LuiNoPayload>("words")`.
 
 Regeln:
 
@@ -893,15 +925,17 @@ Regeln:
   table" aus SQLite.
 - **Die Datei muss von dieser Version von LUI sein**: Schemaversion und Faltversion der Definition werden geprüft; eine
   fremde Version ist ein `LuiDefinitionMismatchException`, das die gefundene und die erwartete nennt.
-- **Die Typen werden geprüft** (nur beim typisierten Öffnen): ein Schlüsseltyp, den die Datei nicht hat, oder eine
-  Payload, die der Index nicht speichert, ist ein `LuiDefinitionMismatchException`.
+- **Die Typen werden geprüft** (nur beim typisierten Öffnen): ein Schlüsseltyp, den die Datei nicht hat, eine Payload,
+  die der Index nicht speichert, oder ein **anderer Typ der Payload** als der in der Definition gespeicherte ist ein
+  `LuiDefinitionMismatchException` — er nennt beide (§ 12.3).
 - **Die Ähnlichkeit ist der Standard der Art** des Index, die **Tippfehler-Toleranz ist aus**: ein geöffneter Index
   korrigiert nichts. Eine Abfrage fragt danach (`LuiQueryOptions.TypoTolerance`, `LuiQueryOptions.Similarity`).
-- **Ein geöffneter Index schreibt nicht**: Jeder Schreib- und Pflegeaufruf (`Upsert`, `Sync`, `Rebuild`, `Optimize`,
-  `Check`, die Wörterbücher) lehnt mit einem `NotSupportedException` ab.
-- **Eine Datei im Modus `ro` braucht `WriteAheadLog = false`** (oder einen Bestand, der schon im WAL-Modus läuft):
-  Der Katalog fragt beim Öffnen sonst SQLite für das WAL — und das ist ein Schreibvorgang, den eine nur lesbare
-  Datei verweigert. Der Index-Weg selbst schreibt nie; der Katalog gehört weiterhin der Datei (§ 14).
+- **Ein geöffneter Index schreibt, wenn die Datei es erlaubt**: Der Index ist ein Blick auf die Datei, keine Kopie
+  davon — wer schreiben darf, entscheidet die Datei, nicht der Index (der nächste Punkt).
+- **Die Datei entscheidet, was geschehen darf — nicht der Index**: Eine Datei, die nicht geschrieben werden darf, wird
+  über die **Verbindungszeichenkette** geöffnet (`Mode=ReadOnly`); der Katalog schaltet dann kein WAL um, legt kein
+  `lui_meta` an und verweigert jeden Schreibvorgang mit einem `LuiReadOnlyException` — `Create`, `DropIndex`, `Upsert`,
+  `Sync`. Dieselbe Anwendung läuft damit im schreibenden und im nur lesenden Dienst (§ 14).
 
 ---
 
@@ -946,9 +980,12 @@ Suchindex einmal zusammengeführt (ADR-0016). Gemessen an 1 Mio. Einträgen: 78 
 100.000; danach p95 der Abfrage 3,9 ms statt 5,4 ms nach `UpsertMany`. `Sync` (`Linked`) baut den Index in **einer**
 Transaktion neu.
 
-Der **geöffnete** Index (ADR-0033) ist der Sonderfall: Er schreibt nichts — keine Tabelle, keine Definition, kein
-Schreib-Lock — und baut kein Wörterbuch. Seine Richtigkeit ist die der Datei, die er liest; er prüft nur, ob die Datei von
-dieser Version von LUI stammt.
+Der **geöffnete** Index (ADR-0033) ist der Sonderfall: Beim **Öffnen** schreibt er nichts — keine Tabelle, keine
+Definition, kein Schreib-Lock — und er baut kein Wörterbuch. Seine Richtigkeit ist die der Datei, die er liest; er
+prüft nur, ob die Datei von dieser Version von LUI stammt. **Danach schreibt er, wenn die Datei es erlaubt**: Der
+Index ist ein Blick auf die Datei, keine Kopie davon. Auf einer Datei, die nicht geschrieben werden darf, verweigert
+**jeder** Schreibvorgang den Dienst (`LuiReadOnlyException`, § 12.8) — die Datei entscheidet das, nicht der Index
+(§ 7.1, § 12.9).
 
 ---
 
@@ -966,14 +1003,18 @@ dieser Version von LUI stammt.
   Aufbau hält die Sperre **nicht**: er baut ein eigenes Wörterbuch, spielt die
   Schreibvorgänge nach, die währenddessen eintrafen, und tauscht es ein — ein
   `Upsert` wartet nie auf ihn (ADR-0012). Es gibt **ein** Wörterbuch pro Index
-  eines Katalogs, egal wie oft der Index mit `Create()` geöffnet wird. Ein Test
+  eines Katalogs, egal wie oft der Index mit `Create()` oder `Index()` geöffnet
+  wird; es gehört dem **Katalog**, nicht dem Index (ADR-0033). Ein Test
   mit parallelen Abfragen und gleichzeitigem `Upsert` sichert das ab.
-- **Der geöffnete Index nimmt kein Schreib-Lock** (ADR-0033): `OpenIndex` liest `lui_meta` mit einem einfachen `SELECT`
+- **Der geöffnete Index nimmt kein Schreib-Lock** (ADR-0033): `Index` liest `lui_meta` mit einem einfachen `SELECT`
   auf einer eigenen Verbindung — ohne Transaktion, ohne Schreibsperre, ohne `CREATE TABLE`. Solange ein Schreiber die Datei
   sperrt, antwortet ein geöffneter Index sofort; `Create()` wartet in derselben Lage.
-- **Lebensdauer:** `LuiCatalog` und alle `ILuiIndex` sind Singletons;
-  `Dispose()` des Katalogs wartet, bis laufende Abfragen fertig sind
+- **Lebensdauer:** Der `LuiCatalog` ist die langlebige Instanz — im Container ein Singleton, sonst eine, die die
+  Anwendung selbst hält. `Dispose()` des Katalogs wartet, bis laufende Abfragen fertig sind
   (Zähler pro Abfrage), und gibt dann frei.
+- **Ein Index ist keine Ressource** (ADR-0033): Er hält keine Verbindung, keine Sperre und kein Wörterbuch — er wird
+  beim Öffnen aus der Datei gebaut und ist **nicht entsorgbar**. Die Anwendung fragt den Katalog, wenn sie einen
+  Index braucht; die Verbindungen und die Wörterbücher bleiben beim Katalog.
 
 ---
 
@@ -1049,9 +1090,10 @@ Ein schnellerer erster Ladevorgang ist Issue #32.
 | Paket | Inhalt | Abhängigkeiten |
 |---|---|---|
 | `Nordmann.LUI` | alles, was keinen Host braucht — eine Konsolenanwendung braucht nur dieses | `Microsoft.Data.Sqlite`, `symspell` |
-| `Nordmann.LUI.Hosting` | `AddLui`, Keyed Services, die gehosteten Dienste (§ 12.7) | `Nordmann.LUI` derselben Version, die `Microsoft.Extensions.*`-Abstraktionen von `DependencyInjection`, `Hosting`, `Logging` |
+| `Nordmann.LUI.Hosting` | `AddLui`: der Katalog im Container, sonst nichts (§ 12.7) | `Nordmann.LUI` derselben Version, `Microsoft.Extensions.DependencyInjection.Abstractions` (ADR-0034) |
 
-Der Kern startet keinen Thread und keinen Timer: Was im Hintergrund läuft, gehört dem Host. Das Hosting-Paket kennt nur
+Der Kern startet keinen Thread und keinen Timer; das Hosting-Paket tut es auch nicht: Es trägt die
+Dependency-Injection und sonst nichts (§ 12.7, ADR-0034). Das Hosting-Paket kennt nur
 die öffentliche API des Kerns.
 
 ### 17.2 Namespaces (Ordner = Namespace)
@@ -1068,7 +1110,7 @@ bzw. `ILui` (ein Architekturtest hält das fest, ADR-0013). Die übrigen Namespa
 | `Nordmann.LUI.Schema` | Definition, Rowid, Regeln der Art, Inhaltsquellen mit ihrem SQL — auch dem von `Sync` und `Check`, nicht deren Ausführung | intern |
 | `Nordmann.LUI.Typos` | Wörterbuch der Wortanfänge | intern |
 | `Nordmann.LUI.Normalization` | `Normalizer`, SQL-Ausdrücke | intern |
-| `Nordmann.LUI.Hosting` | im Paket `Nordmann.LUI.Hosting`: die Registrierungen und die gehosteten Dienste | intern |
+| `Nordmann.LUI.Hosting` | im Paket `Nordmann.LUI.Hosting`: die Einstellungen des Katalogs im Container — sonst nichts (ADR-0033, ADR-0034) | intern |
 | `Nordmann.LUI.Storage` | die Datenbank des Katalogs: Verbindungen mit den Pragmas, der Schreiber und seine Sperre, die laufenden Vorgänge | intern |
 
 Die internen Namespaces haben eine Richtung: Jeder kennt nur die unter ihm (in der Tabelle von oben nach unten;
@@ -1087,14 +1129,17 @@ Tabellennamen. Architekturtests halten das fest (ADR-0014).
 | `symspell` | 6.7.3 | MIT |
 | `F23.StringSimilarity` | 7.0.1 | MIT |
 
-`Nordmann.LUI.Hosting` dazu (ADR-0017, ADR-0018):
+`Nordmann.LUI.Hosting` dazu (ADR-0017, ADR-0018, ADR-0034):
 
 | Paket | Version | Lizenz |
 |---|---|---|
 | `Nordmann.LUI` | dieselbe | MIT |
 | `Microsoft.Extensions.DependencyInjection.Abstractions` | 10.0.14 | MIT |
-| `Microsoft.Extensions.Hosting.Abstractions` | 10.0.14 | MIT (bringt `Configuration`-, `Diagnostics`-, `FileProviders.Abstractions`, `Options`, `Primitives` mit) |
-| `Microsoft.Extensions.Logging.Abstractions` | 10.0.14 | MIT |
+
+Die Abstraktionen des Hosts (`Microsoft.Extensions.Hosting.Abstractions` und
+`Microsoft.Extensions.Logging.Abstractions`) sind **nicht** dabei: Das Paket
+braucht sie nicht mehr, und ein Paket, das trägt, was es nicht braucht, lässt
+seine Konsumenten das auch tragen (ADR-0034).
 
 Mindestversion von SQLite: **3.45** (`remove_diacritics` für den
 Trigram-Tokenizer); getestet mit 3.53.3. Die Bibliothek prüft die Version beim
@@ -1154,6 +1199,10 @@ Jeder Schritt ist ein Pull Request mit ADR, Tests und Messung.
 | 7 | `Sync`, `Check`, `Rebuild`, `Optimize`; der Katalog zerlegt (ADR-0016) | Abgleich mit 1 Mio. Einträgen, Abbruch und Wiederaufsetzen |
 | 8 | Dependency Injection und gehostete Dienste (ADR-0017); veraltete Kandidaten jenseits des Budgets; `Highlight` entfällt (#20, ADR-0028) | Paket-Smoke-Test mit README-Code, DI-Tests gegen einen echten Host |
 | 9 | Leistungsbudgets und Benchmarks auf 3 Mio. Einträgen | alle Ziele aus § 16 als Tests grün |
+
+**Der Stand nach #56 (ADR-0033, ADR-0034):** Der Katalog ist der Einstiegspunkt und das Einzige im Container; der
+Container beschreibt keine Indizes mehr, und das Hosting-Paket trägt nur die Dependency-Injection (§ 12.7). Die
+Schritte 1 bis 9 bleiben, wie sie waren.
 
 ---
 

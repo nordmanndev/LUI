@@ -11,7 +11,7 @@ public sealed class LuiIndexNotFoundException : LuiException
     public LuiIndexNotFoundException(string indexName)
         : base(
             $"There is no index named '{indexName}' in this database. An index that is opened has to exist: create it "
-            + "with the builder (catalog.Index(name)…) — that writes to the file — or open another name.")
+            + "with LuiCatalog.Create(name, …) — that writes to the file — or open another name.")
     {
         IndexName = indexName;
     }

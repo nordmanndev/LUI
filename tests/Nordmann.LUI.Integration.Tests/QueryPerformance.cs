@@ -25,8 +25,9 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         // LUI_PERF_DB keeps the database between runs: the build of three million entries takes minutes
         using var database = new TestDatabase(Environment.GetEnvironmentVariable("LUI_PERF_DB"));
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
-        var builder = catalog.Index("tags");
-        var index = (Multi ? builder.MultiWord() : builder.SingleWord()).Create();
+        var tags = Multi
+            ? catalog.Create("tags", index => index.MultiWord())
+            : catalog.Create("tags", index => index.SingleWord());
 
         if (string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_OPTIMIZE"), "1", StringComparison.Ordinal))
         {
@@ -39,12 +40,12 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         }
 
         var build = Stopwatch.StartNew();
-        var texts = Build(catalog, index, Words(), entries);
+        var texts = Build(catalog, tags, Words(), entries);
         build.Stop();
         Report($"build: {entries:N0} entries in {build.Elapsed.TotalSeconds:F1} s ({entries / build.Elapsed.TotalSeconds:N0}/s), file {new FileInfo(database.FilePath).Length / 1_048_576:N0} MB");
 
-        var (latencies, allocations) = MeasureQueries(index, Inputs(texts, new Random(7)));
-        MeasureWrites(index, texts, entries);
+        var (latencies, allocations) = MeasureQueries(tags, Inputs(texts, new Random(7)));
+        MeasureWrites(tags, texts, entries);
 
         // The allocation budget is a property of the query, not of the corpus:
         // it does not grow with the number of entries, so it is asserted at

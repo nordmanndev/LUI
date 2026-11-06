@@ -25,6 +25,14 @@
       (tools/package-smoke-test.sh reads it) and an architecture test wants every central version referenced.
     -->
     <PackageReference Include="Microsoft.Extensions.Hosting" NoWarn="NU1510" />
+    <!--
+      The abstractions of the host: the ASP.NET Core framework brings them along, and NuGet says the packages are
+      redundant (NU1510). They stay — like Microsoft.Extensions.Hosting above — because Directory.Packages.props holds
+      their versions, and an architecture test wants every central version referenced by a project (ADR-0018). The
+      hosting package itself needs only the dependency injection now (ADR-0034).
+    -->
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" NoWarn="NU1510" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" NoWarn="NU1510" />
   </ItemGroup>
 
   <ItemGroup>

@@ -8,7 +8,7 @@ namespace Nordmann.LUI.Schema;
 /// <para>
 /// "Options", as in <c>LuiCatalogOptions</c>, <c>LuiQueryOptions</c>, <c>LuiSyncOptions</c>: what the builder holds, not
 /// what is stored. The stored contract is the <see cref="IndexDefinition"/>; of these options only the transliteration
-/// goes into it, when the index is ensured (review of pull request 45, M1).
+/// goes into it, when the index is created (review of pull request 45, M1).
 /// </para>
 /// </summary>
 /// <param name="Similarity">The similarity measure; <see langword="null"/> takes the default of the kind.</param>

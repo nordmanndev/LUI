@@ -78,11 +78,16 @@ internal sealed class BulkSampleIndex(LuiCatalog catalog, IBulkSource source) : 
     /// <summary>Creates the index of LUI: one word or several, with the typo tolerance the source asks for.</summary>
     private ILuiEmbeddedIndex<long, LuiNoPayload> Create()
     {
-        var builder = source.Kind == LuiIndexKind.MultiWord
-            ? catalog.Index(source.Name).MultiWord()
-            : catalog.Index(source.Name).SingleWord();
+        if (source.Kind == LuiIndexKind.MultiWord)
+        {
+            return source.TypoTolerance
+                ? catalog.Create(source.Name, index => index.MultiWord().TypoTolerance())
+                : catalog.Create(source.Name, index => index.MultiWord());
+        }
 
-        return source.TypoTolerance ? builder.TypoTolerance().Create() : builder.Create();
+        return source.TypoTolerance
+            ? catalog.Create(source.Name, index => index.SingleWord().TypoTolerance())
+            : catalog.Create(source.Name, index => index.SingleWord());
     }
 
     /// <summary>The entries of the source for the number the index holds.</summary>

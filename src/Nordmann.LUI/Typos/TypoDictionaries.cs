@@ -4,7 +4,7 @@ using Nordmann.LUI.Normalization;
 namespace Nordmann.LUI.Typos;
 
 /// <summary>
-/// The typo dictionaries of a catalog: one per index, however many times the index is ensured (review of pull request
+/// The typo dictionaries of a catalog: one per index, however many times the index is created (review of pull request
 /// 10, S1) — two instances would build 138 MB each and not see each other's writes.
 /// </summary>
 internal sealed class TypoDictionaries

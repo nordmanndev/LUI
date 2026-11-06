@@ -151,22 +151,10 @@ internal sealed class LinkedSource : ContentSource
         + $"FROM {ContentTable} h WHERE {_key} IN ({parameters});";
 
     /// <summary>
-    /// The hits of the untyped facade (ADR-0033): the key as the text it is stored as, and the payload as the JSON
-    /// object of the columns the payload was built from — the columns are in the definition, so the object can be
-    /// built without the application. An index without payload columns has no payload: <c>NULL</c>.
+    /// The columns of the payload, as the definition holds them — the columns the mapping of the application reads
+    /// (ADR-0033).
     /// </summary>
-    internal override string DocumentHitsSql(string parameters)
-    {
-        var payload = PayloadColumns.Count == 0 ? "NULL" : JsonObject();
-        return $"SELECT {_key}, CAST({_key} AS TEXT), {payload} FROM {ContentTable} h WHERE {_key} IN ({parameters});";
-    }
-
-    /// <summary>The columns of the payload, as the definition holds them.</summary>
-    private IReadOnlyList<string> PayloadColumns => _payloadColumns;
-
-    /// <summary>The payload of a hit as the JSON object of the columns of the table of the application.</summary>
-    private string JsonObject() =>
-        $"json_object({string.Join(", ", PayloadColumns.Select(column => $"'{column}', h.{Identifier.Quote(column)}"))})";
+    internal IReadOnlyList<string> PayloadColumns => _payloadColumns;
 
     internal override IReadOnlyList<string> CreateStatements() =>
     [

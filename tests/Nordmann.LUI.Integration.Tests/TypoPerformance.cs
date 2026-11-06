@@ -22,7 +22,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Create();
+        var wordIndex = catalog.Create("words", index => index.SingleWord().TypoTolerance());
 
         var random = new Random(5);
         using (var connection = catalog.Database.OpenConnection())
@@ -30,7 +30,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
             using var transaction = connection.BeginTransaction();
             for (var i = 0; i < words.Count; i++)
             {
-                index.Upsert(i + 1, words[i], random.Next(0, 1_000_000), transaction: transaction);
+                wordIndex.Upsert(i + 1, words[i], random.Next(0, 1_000_000), transaction: transaction);
             }
 
             transaction.Commit();
@@ -42,14 +42,14 @@ public sealed class TypoPerformance(ITestOutputHelper output)
         GC.Collect();
         var before = GC.GetTotalMemory(forceFullCollection: true);
         var build = Stopwatch.StartNew();
-        index.Query("apflekuchen").TypoTolerance().Execute();
+        wordIndex.Query("apflekuchen").TypoTolerance().Execute();
         build.Stop();
         GC.Collect();
         var after = GC.GetTotalMemory(forceFullCollection: true);
         Report($"dictionary: built in {build.Elapsed.TotalSeconds:F1} s, {(after - before) / 1_048_576.0:F0} MB");
 
-        Quality(index, words, random);
-        Latency(index, words, random);
+        Quality(wordIndex, words, random);
+        Latency(wordIndex, words, random);
     }
 
     private void Quality(ILuiEmbeddedIndex<long, LuiNoPayload> index, List<string> words, Random random)

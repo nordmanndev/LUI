@@ -12,6 +12,10 @@ namespace Nordmann.LUI.Indexes;
 /// An index whose content lives in a table of the library (LUI-Spezifikation
 /// §5). The writes are plain statements: the generated columns compute the
 /// forms, the triggers keep the search index in step (E3).
+/// <para>
+/// Whether it may write is decided by the file, not by the index (ADR-0033): an index of a catalog that was
+/// opened read-only refuses every write with a <see cref="LuiReadOnlyException"/>.
+/// </para>
 /// </summary>
 #pragma warning disable CA1001 // see TypoDictionary: the lock of the dictionary needs no disposal, and an index lives as long as its catalog
 internal sealed class EmbeddedIndex<TKey, TPayload> : ILuiEmbeddedIndex<TKey, TPayload>
@@ -67,6 +71,7 @@ internal sealed class EmbeddedIndex<TKey, TPayload> : ILuiEmbeddedIndex<TKey, TP
     public void Upsert(LuiEntry<TKey, TPayload> entry, SqliteTransaction? transaction = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
+        _database.ThrowIfReadOnly("writing an entry");
         var keyText = KeyCodec<TKey>.ToText(entry.Key);
         var bytes = PayloadBytes(entry.Payload);
 
@@ -98,6 +103,7 @@ internal sealed class EmbeddedIndex<TKey, TPayload> : ILuiEmbeddedIndex<TKey, TP
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entries);
+        _database.ThrowIfReadOnly("writing entries");
 
         using var scope = _database.Begin();
         var written = new List<(string Text, int Weight)>();
@@ -191,6 +197,7 @@ internal sealed class EmbeddedIndex<TKey, TPayload> : ILuiEmbeddedIndex<TKey, TP
         LuiSyncOptions? options = null,
         CancellationToken cancellationToken = default)
     {
+        _database.ThrowIfReadOnly("syncing an index");
         using var scope = _database.Begin();
         try
         {
@@ -218,12 +225,21 @@ internal sealed class EmbeddedIndex<TKey, TPayload> : ILuiEmbeddedIndex<TKey, TP
 
     public LuiIntegrityReport Check() => _check.Itself();
 
-    public void Rebuild() => _check.Rebuild();
+    public void Rebuild()
+    {
+        _database.ThrowIfReadOnly("rebuilding an index");
+        _check.Rebuild();
+    }
 
-    public void Optimize() => _check.Optimize();
+    public void Optimize()
+    {
+        _database.ThrowIfReadOnly("optimizing an index");
+        _check.Optimize();
+    }
 
     public bool UpdateWeight(TKey key, int weight, SqliteTransaction? transaction = null)
     {
+        _database.ThrowIfReadOnly("changing the weight of an entry");
         var keyText = KeyCodec<TKey>.ToText(key);
         RowId.ValidateWeight(weight);
 
@@ -233,6 +249,7 @@ internal sealed class EmbeddedIndex<TKey, TPayload> : ILuiEmbeddedIndex<TKey, TP
 
     public bool UpdatePriority(TKey key, LuiPriority priority, SqliteTransaction? transaction = null)
     {
+        _database.ThrowIfReadOnly("changing the priority of an entry");
         var keyText = KeyCodec<TKey>.ToText(key);
         RowId.ValidatePriority(priority);
 
@@ -242,6 +259,7 @@ internal sealed class EmbeddedIndex<TKey, TPayload> : ILuiEmbeddedIndex<TKey, TP
 
     public bool Remove(TKey key, SqliteTransaction? transaction = null)
     {
+        _database.ThrowIfReadOnly("removing an entry");
         var keyText = KeyCodec<TKey>.ToText(key);
 
         using var scope = _database.Begin();

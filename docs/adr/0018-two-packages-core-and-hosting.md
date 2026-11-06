@@ -1,5 +1,10 @@
 # 0018 — Two packages: the core and the hosting, released together
 
+> **Name note (ADR-0034, 2026-11-05):** since this record was written, the hosting package carries only the dependency
+> injection — `Microsoft.Extensions.Hosting.Abstractions` and `Microsoft.Extensions.Logging.Abstractions` are gone
+> (ADR-0034), and the guard `The_hosting_ships_the_core_and_the_three_abstractions` is now
+> `The_hosting_ships_the_core_and_the_dependency_injection`. The text below is history.
+
 > **Name note (ADR-0030, 2026-11-05):** since this record was written, the runtime of the core is
 > `Microsoft.Data.Sqlite` and `symspell` — `F23.StringSimilarity` is no longer among them (ADR-0030). The text below is
 > history and stays as it was written.

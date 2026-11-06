@@ -43,18 +43,18 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Create();
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
 
         // the build: the bulk path of a sync into an empty index (ADR-0016); LUI_PERF_BATCH measures another batch
         // the first load of a file no other process writes: the largest batch, the fewest commits (ADR-0016, ADR-0020)
         var batch = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_BATCH") ?? "1000000", CultureInfo.InvariantCulture);
         var build = Stopwatch.StartNew();
-        index.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = batch });
+        words.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = batch });
         build.Stop();
         Report($"build: {entries:N0} entries by Sync (batches of {batch:N0}) in {build.Elapsed.TotalSeconds:F1} s, file {database.FileMegabytes():N0} MB");
 
         var inputs = corpus.Inputs(Queries);
-        var (latencies, allocations) = MeasureQueries(index, inputs, typoTolerance: false);
+        var (latencies, allocations) = MeasureQueries(words, inputs, typoTolerance: false);
         budget.AtMost("query p50", "3 M entries, inputs of 1–8 characters, no correction", Percentile(latencies, 50), 2.0, "ms");
 
         // §16 since the owner's decision on ADR-0010: the p95 per length of the input — FTS5's cost grows with it
@@ -67,12 +67,12 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
         // the typo dictionary of three million entries is built before the corrected queries are timed
         var warm = Stopwatch.StartNew();
-        index.WarmUpTypoDictionary();
+        words.WarmUpTypoDictionary();
         Report($"typo dictionary of {entries:N0} entries: {warm.Elapsed.TotalSeconds:F1} s");
-        var (corrected, _) = MeasureQueries(index, corpus.Typos(Queries / 2), typoTolerance: true);
+        var (corrected, _) = MeasureQueries(words, corpus.Typos(Queries / 2), typoTolerance: true);
         budget.AtMost("query with correction p95", "3 M entries, a beginning of 5–9 letters with one typo", Percentile(corrected, 95), 35.0, "ms");
 
-        budget.AtMost("single write p95", "Upsert / UpdateWeight / Remove, own transaction", Percentile(MeasureWrites(index, corpus), 95), 1.0, "ms");
+        budget.AtMost("single write p95", "Upsert / UpdateWeight / Remove, own transaction", Percentile(MeasureWrites(words, corpus), 95), 1.0, "ms");
         // §16 since the owner's decision of 2026-11-04: the build follows the disk — 172–206 s on two machines (#32)
         budget.AtMost("build", "3 M entries, Embedded, a first load by Sync", build.Elapsed.TotalSeconds, 240, "s");
 
@@ -87,7 +87,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Create();
+        var index = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         index.Sync(Corpus.Generate(words, words.Count, CorpusKind.SingleWord).Entries(), new LuiSyncOptions { BatchSize = 100_000 });
 
         var before = GC.GetTotalMemory(forceFullCollection: true);
@@ -112,9 +112,9 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
-        var index = catalog.Index("titles").MultiWord().Create();
+        var titles = catalog.Create("titles", index => index.MultiWord());
         var build = Stopwatch.StartNew();
-        index.Sync(Corpus.Generate(Words(), entries, CorpusKind.MultiWord).Entries(), new LuiSyncOptions { BatchSize = 100_000 });
+        titles.Sync(Corpus.Generate(Words(), entries, CorpusKind.MultiWord).Entries(), new LuiSyncOptions { BatchSize = 100_000 });
         build.Stop();
 
         var megabytes = database.FileMegabytes();

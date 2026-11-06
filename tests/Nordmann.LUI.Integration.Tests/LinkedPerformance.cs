@@ -30,12 +30,12 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
         CreateTable(database, rows);
 
-        var linked = catalog.Index("tags").SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").Create();
+        var linked = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
         var clock = Stopwatch.StartNew();
         linked.Sync();
         Report($"linked: sync {clock.Elapsed.TotalSeconds:F1} s");
 
-        var embedded = catalog.Index("embedded").SingleWord().Create();
+        var embedded = catalog.Create("embedded", index => index.SingleWord());
         clock.Restart();
         embedded.UpsertMany(rows.Select(row => new LuiEntry<long, LuiNoPayload>(row.Id, row.Text) { Weight = row.Weight }));
         Report($"embedded:  UpsertMany {clock.Elapsed.TotalSeconds:F1} s");

@@ -57,7 +57,7 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        var exception = Should.Throw<ArgumentException>(() => catalog.Index(name));
+        var exception = Should.Throw<ArgumentException>(() => catalog.Create(name, index => index.SingleWord()));
         exception.Message.ShouldContain("^[a-z][a-z0-9_]{0,40}$");
     }
 
@@ -73,7 +73,7 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.Throw<ArgumentException>(() => catalog.Index(name)).Message.ShouldContain("reserved");
+        Should.Throw<ArgumentException>(() => catalog.Create(name, index => index.SingleWord())).Message.ShouldContain("reserved");
     }
 
     [Theory]
@@ -86,7 +86,7 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.NotThrow(() => catalog.Index(name));
+        Should.NotThrow(() => catalog.Create(name, index => index.SingleWord()));
     }
 
     [Fact]
@@ -96,7 +96,7 @@ public sealed class CatalogTests
         using var catalog = database.Open();
 
         Should.Throw<NotSupportedException>(
-            () => catalog.Index("tags").SingleWord().WithKey<Guid>().Create());
+            () => catalog.Create("tags", index => index.SingleWord().WithKey<Guid>()));
     }
 
     [Fact]
@@ -104,14 +104,14 @@ public sealed class CatalogTests
     {
         using var database = new TestDatabase();
         var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Create();
-        index.Upsert(1, "vegan", 5);
+        var tags = catalog.Create("tags", index => index.SingleWord());
+        tags.Upsert(1, "vegan", 5);
 
         catalog.Dispose();
 
-        Should.Throw<ObjectDisposedException>(() => index.Query("veg").Execute());
-        Should.Throw<ObjectDisposedException>(() => index.Upsert(2, "vegetarisch", 5));
-        Should.Throw<ObjectDisposedException>(() => catalog.Index("other"));
+        Should.Throw<ObjectDisposedException>(() => tags.Query("veg").Execute());
+        Should.Throw<ObjectDisposedException>(() => tags.Upsert(2, "vegetarisch", 5));
+        Should.Throw<ObjectDisposedException>(() => catalog.Index<long, LuiNoPayload>("other"));
     }
 
     [Fact]
@@ -131,10 +131,10 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         var catalog = database.Open();
         var blocking = new BlockingSerializer();
-        var index = catalog.Index("tags").SingleWord().WithPayload(blocking).Create();
-        index.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan") });
+        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(blocking));
+        tags.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan") });
 
-        var query = Task.Run(() => index.Query("vegan").Execute());
+        var query = Task.Run(() => tags.Query("vegan").Execute());
         blocking.Entered.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the query reached the payload");
 
         var dispose = Task.Run(catalog.Dispose);
@@ -154,7 +154,7 @@ public sealed class CatalogTests
         var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2026, 11, 2, 12, 0, 0, TimeSpan.Zero));
         using var catalog = database.Open(new LuiCatalogOptions { TimeProvider = clock });
 
-        catalog.Index("tags").SingleWord().Create();
+        catalog.Create("tags", index => index.SingleWord());
 
         database.Scalar<string>("SELECT created_at FROM lui_meta WHERE index_name = 'tags'")
             .ShouldStartWith("2026-11-02T12:00:00");

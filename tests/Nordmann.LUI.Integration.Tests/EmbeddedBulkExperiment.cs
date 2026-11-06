@@ -56,7 +56,7 @@ public sealed class EmbeddedBulkExperiment(ITestOutputHelper output)
     {
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
-        var index = catalog.Index("words").SingleWord().Create();
+        var words = catalog.Create("words", index => index.SingleWord());
 
         // the catalog's writer has the cache of the options; a plain connection would measure SQLite's 2 MB default
         using var connection = database.Connect();
@@ -93,12 +93,12 @@ public sealed class EmbeddedBulkExperiment(ITestOutputHelper output)
 
         var load = clock.Elapsed;
         var segments = Scalar<long>(connection, "SELECT count(*) FROM lui_words_fts_data;");
-        var (before50, before95) = Queries95(index, inputs);
+        var (before50, before95) = Queries95(words, inputs);
 
         clock.Restart();
         Execute(connection, "INSERT INTO lui_words_fts(lui_words_fts) VALUES ('optimize');");
         var optimize = clock.Elapsed;
-        var (after50, after95) = Queries95(index, inputs);
+        var (after50, after95) = Queries95(words, inputs);
 
         Report($"{variant,-22} load {load.TotalSeconds,6:F1} s ({Scalar<long>(connection, "SELECT count(*) FROM lui_words;"):N0} rows, "
             + $"{segments:N0} data blocks) · query p50/p95 {before50:F2}/{before95:F2} ms · optimize {optimize.TotalSeconds:F1} s · "

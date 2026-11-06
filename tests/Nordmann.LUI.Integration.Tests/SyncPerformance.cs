@@ -37,36 +37,36 @@ public sealed class SyncPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
-        var index = catalog.Index("words").SingleWord().Create();
+        var wordIndex = catalog.Create("words", index => index.SingleWord());
 
-        var report = Timed("sync, empty index", () => index.Sync(source, options));
+        var report = Timed("sync, empty index", () => wordIndex.Sync(source, options));
         Report($"  {report}");
-        var (synced50, synced95) = QueryTimes(index, Inputs(source, random));
+        var (synced50, synced95) = QueryTimes(wordIndex, Inputs(source, random));
 
-        Timed("the same sync again", () => index.Sync(source, options)).Unchanged.ShouldBe((long)entries);
+        Timed("the same sync again", () => wordIndex.Sync(source, options)).Unchanged.ShouldBe((long)entries);
 
         // halfway: cancelled, then run again
         using (var cancellation = new CancellationTokenSource())
         {
             var changed = source.Select((entry, i) => i % 2 == 0 ? entry with { Weight = entry.Weight / 2 } : entry).ToList();
             Timed("sync of 50 % changes, cancelled halfway", () =>
-                Should.Throw<OperationCanceledException>(() => index.Sync(CancelAt(changed, entries / 2, cancellation), options, cancellation.Token)));
-            Report($"  {Timed("the sync run again", () => index.Sync(changed, options))}");
+                Should.Throw<OperationCanceledException>(() => wordIndex.Sync(CancelAt(changed, entries / 2, cancellation), options, cancellation.Token)));
+            Report($"  {Timed("the sync run again", () => wordIndex.Sync(changed, options))}");
             source = changed;
         }
 
         var small = source.Take(entries - 100).Select((entry, i) => i < 100 ? entry with { Weight = entry.Weight + 1 } : entry).ToList();
-        Report($"  {Timed("sync of 100 changes and 100 removals", () => index.Sync(small, options))}");
+        Report($"  {Timed("sync of 100 changes and 100 removals", () => wordIndex.Sync(small, options))}");
 
-        Timed("check against the source", () => index.Check(small)).IsHealthy.ShouldBeTrue();
-        Timed("check of the index", () => index.Check()).IsHealthy.ShouldBeTrue();
+        Timed("check against the source", () => wordIndex.Check(small)).IsHealthy.ShouldBeTrue();
+        Timed("check of the index", () => wordIndex.Check()).IsHealthy.ShouldBeTrue();
         Timed("rebuild", () =>
         {
-            index.Rebuild();
+            wordIndex.Rebuild();
             return 0;
         });
 
-        var upserted = catalog.Index("upserted").SingleWord().Create();
+        var upserted = catalog.Create("upserted", index => index.SingleWord());
         Timed("UpsertMany of the same entries", () => upserted.UpsertMany(source));
         var (upserted50, upserted95) = QueryTimes(upserted, Inputs(source, random));
         Report($"query after the first sync p50/p95 {synced50:F2}/{synced95:F2} ms · after UpsertMany {upserted50:F2}/{upserted95:F2} ms");
@@ -87,24 +87,24 @@ public sealed class SyncPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Create();
-        Timed("sync, empty index", () => index.Sync(source, new LuiSyncOptions { BatchSize = 1_000_000 }));
+        var wordIndex = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        Timed("sync, empty index", () => wordIndex.Sync(source, new LuiSyncOptions { BatchSize = 1_000_000 }));
         Timed("warm-up of the typo dictionary", () =>
         {
-            index.WarmUpTypoDictionary();
+            wordIndex.WarmUpTypoDictionary();
             return 0;
         });
 
         var delta = source.Skip(100).Select((entry, i) => i < 100 ? entry with { Weight = entry.Weight + 1 } : entry).ToList();
-        Report($"  {Timed("sync of 100 changes and 100 removals", () => index.Sync(delta))}");
-        index.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        Report($"  {Timed("sync of 100 changes and 100 removals", () => wordIndex.Sync(delta))}");
+        wordIndex.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
 
         Timed("rebuild of the typo dictionary", () =>
         {
-            index.RebuildTypoDictionary();
+            wordIndex.RebuildTypoDictionary();
             return 0;
         });
-        index.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        wordIndex.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
     }
 
     private static IEnumerable<LuiEntry<long, LuiNoPayload>> CancelAt(

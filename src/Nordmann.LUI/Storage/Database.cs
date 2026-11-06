@@ -8,6 +8,10 @@ namespace Nordmann.LUI.Storage;
 /// the one long-lived connection of LUI's own writes and the lock that serialises them, and counts the operations
 /// that are running, so that <see cref="Dispose"/> waits for them. It knows no index — the layers above it ask it for
 /// connections (review DevEx D4: the catalog taken apart).
+/// <para>
+/// It knows whether the file may be written (ADR-0033): the connection string says so. A file that may not be written
+/// has no writer and no write-ahead logging — the writes are refused with a <see cref="LuiReadOnlyException"/>.
+/// </para>
 /// </summary>
 internal sealed class Database : IDisposable
 {
@@ -26,17 +30,40 @@ internal sealed class Database : IDisposable
         _owner = owner;
         ConnectionString = connectionString;
         _options = options;
+        ReadOnly = IsReadOnly(connectionString);
     }
 
     /// <summary>The connection string the catalog was opened with.</summary>
     internal string ConnectionString { get; }
+
+    /// <summary>
+    /// Whether the file may not be written (ADR-0033): the connection string says so — <c>Mode=ReadOnly</c>. The file
+    /// decides what may happen, not a switch in the options: a read-only catalog writes nothing.
+    /// </summary>
+    internal bool ReadOnly { get; }
+
+    /// <summary>Refuses a write when the file may not be written.</summary>
+    /// <param name="operation">What was refused, in words: "creating an index".</param>
+    /// <exception cref="LuiReadOnlyException">The file was opened read-only.</exception>
+    internal void ThrowIfReadOnly(string operation)
+    {
+        if (ReadOnly)
+        {
+            throw new LuiReadOnlyException(operation);
+        }
+    }
+
+    /// <summary>Whether the connection string asks for a file that may not be written.</summary>
+    private static bool IsReadOnly(string connectionString) =>
+        new SqliteConnectionStringBuilder(connectionString).Mode == SqliteOpenMode.ReadOnly;
 
     /// <summary>The lock that serialises the statements on <see cref="Writer"/>.</summary>
     internal Lock WriterGate { get; } = new();
 
     /// <summary>
     /// The connection of the catalog's own writes. SQLite has one writer per file (§15), so one long-lived connection
-    /// serves them all — and keeps the prepared statements (ADR-0009).
+    /// serves them all — and keeps the prepared statements (ADR-0009). A file that may not be written has no writer:
+    /// the write is refused before the connection is opened.
     /// </summary>
     internal SqliteConnection Writer
     {
@@ -45,6 +72,7 @@ internal sealed class Database : IDisposable
             lock (_lifetime)
             {
                 ThrowIfDisposed();
+                ThrowIfReadOnly("writing to the database");
                 return _writer ??= OpenConnection();
             }
         }
@@ -86,11 +114,12 @@ internal sealed class Database : IDisposable
 
     /// <summary>
     /// Switches the file to write-ahead logging (§7.5), if the options ask for it. WAL is a property of the file; for
-    /// a database that cannot have it (in memory) SQLite keeps its mode.
+    /// a database that cannot have it (in memory) SQLite keeps its mode. A file that may not be written keeps its mode
+    /// too: a read-only catalog writes nothing (ADR-0033).
     /// </summary>
     internal void Initialize(SqliteConnection connection)
     {
-        if (!_options.WriteAheadLog)
+        if (!_options.WriteAheadLog || ReadOnly)
         {
             return;
         }

@@ -16,15 +16,45 @@ internal static class IndexStore
     private const string ReadSql =
         "SELECT kind, source, definition, schema_version FROM lui_meta WHERE index_name = $name;";
 
-    /// <summary>Creates <c>lui_meta</c> if it is missing.</summary>
+    /// <summary>
+    /// Creates <c>lui_meta</c> if it is missing — and switches the file to write-ahead logging.
+    /// <para>
+    /// A file that may not be written gets neither (ADR-0033): a read-only catalog creates no table and writes no
+    /// pragma. The table has to be there — the writer made it — and if it is not, the catalog says so.
+    /// </para>
+    /// </summary>
     internal static void Initialize(Database database)
     {
+        if (database.ReadOnly)
+        {
+            EnsureMetaTable(database);
+            return;
+        }
+
         using var connection = database.OpenConnection();
         database.Initialize(connection);
 
         using var meta = connection.CreateCommand();
         meta.CommandText = Meta.CreateTable;
         meta.ExecuteNonQuery();
+    }
+
+    /// <summary>The table of the library has to be there: a read-only catalog cannot create it.</summary>
+    /// <exception cref="LuiReadOnlyException">The file has no <c>lui_meta</c>.</exception>
+    private static void EnsureMetaTable(Database database)
+    {
+        using var connection = database.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'lui_meta';";
+
+        if ((long)command.ExecuteScalar()! == 0)
+        {
+            throw new LuiReadOnlyException(
+                "opening the catalog",
+                "The file has no table 'lui_meta': a read-only catalog cannot create it. Create the index with a "
+                + "writable catalog first (LuiCatalog.Open(\"Data Source=app.db\") and Create(name, …)), or open the "
+                + "file that the writer wrote.");
+        }
     }
 
     /// <summary>
@@ -37,12 +67,15 @@ internal static class IndexStore
     /// <param name="verify">A check of the environment of the index in the same transaction — for <c>Linked</c>, the
     /// application's table — that runs every time, not only when the index is created.</param>
     /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     internal static void Create(
         Database database,
         ContentSource source,
         DateTimeOffset createdAt,
         Action<SqliteConnection, SqliteTransaction>? verify = null)
     {
+        database.ThrowIfReadOnly("creating an index");
+
         using var scope = database.Begin();
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
@@ -75,8 +108,11 @@ internal static class IndexStore
     /// </summary>
     /// <returns><see langword="true"/> when the index existed.</returns>
     /// <exception cref="InvalidOperationException">A linked index has triggers, and <paramref name="dropTriggers"/> is not set.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     internal static bool Drop(Database database, string name, bool dropTriggers)
     {
+        database.ThrowIfReadOnly("dropping an index");
+
         using var scope = database.Begin();
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);

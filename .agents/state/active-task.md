@@ -10,46 +10,59 @@ The catalog reads the definition out of `lui_meta` and writes nothing — no tab
 replica, a file in the mode `ro` and a service that must not write can use LUI.
 **Branch:** `feature/read-path-open` → the pull request **#57** is opened against `main`
 (<https://github.com/nordmanndev/LUI/pull/57>).
-**State:** implemented, committed and pushed — the branch carries five commits on top of `main` (`945729e` the read path,
-`dddecf1` the wording of the documents, `c7de0f3` the test of the payload, `5049e52` this note, `2fb05ca` the fix of
-the distance table that the CI found). The build is green (0 warnings, 0 errors), the whole suite is green (244 unit +
-73 architecture + 424 integration, 13 skipped, 0 failed), `dotnet pack` and `npm test` are green. The pull request was
-verified independently: **PASS** (`/workspace/verify-56.md`), with four minor points — two of them are fixed in
-`dddecf1` and `c7de0f3`, the third one (`WriteAheadLog = false` for a file in the mode `ro`) is now in the README and
-in § 12.9.
-The plan is `docs/plan/2026-11-05-issue-56-the-read-path.md`, the decision is
-[ADR-0033](https://github.com/nordmanndev/LUI/blob/main/docs/adr/0033-the-read-path-opens-an-index-without-writing.md).
+**State:** the rebuild is on the same branch, PR #57 stays open and is **not** merged. The branch carries the five
+commits of the first shape of the issue (`945729e` the read path, `dddecf1` the wording of the documents, `c7de0f3` the
+test of the payload, `5049e52` a note, `2fb05ca` the fix of the distance table that the CI found) and the commit of the
+rebuild on top of them — no force push.
+The plan is `docs/plan/2026-11-05-issue-56-the-catalog-is-the-entry-point.md`, the decisions are
+[ADR-0033](https://github.com/nordmanndev/LUI/blob/main/docs/adr/0033-the-read-path-opens-an-index-without-writing.md)
+(the read path) and
+[ADR-0034](https://github.com/nordmanndev/LUI/blob/main/docs/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md)
+(the hosting package).
+
+**Redesign (2026-11-05, nach der Rueckmeldung des Owners):** die Form der API ist neu entschieden und
+ADR-0033 ist umgeschrieben. Der Katalog ist der Einstiegspunkt und das Einzige im Container
+(`AddLui`); das Erstellen ist ein Aufruf (`catalog.Create(name, builder)`), das Oeffnen ein anderer
+(`catalog.Index<TKey, TPayload>(name, payload)`); es gibt **eine** Implementierung je Faehigkeit — die
+untypisierte Fassade (`ILuiDocumentIndex`) und die Index-Registrierungen (`AddIndex`, `AddOpenIndex`)
+entfallen; und die **Datei** entscheidet, was erlaubt ist: eine nur lesbare Verbindung
+(`Mode=ReadOnly`) schreibt nicht und verweigert jeden Schreibvorgang mit `LuiReadOnlyException`.
 
 ## What is done
 
-- **The library**: `IndexStore.ReadIndex` reads the definition with a plain `SELECT` on a connection of its own (no
-  transaction, no write lock, no `CREATE TABLE`); `LuiCatalog.OpenIndex(name)` gives the untyped facade
-  (`ILuiDocumentIndex`, `LuiDocumentHit` — the key as the text it is stored as, the payload as the raw JSON),
-  `LuiCatalog.OpenIndex<TKey, TPayload>(name, payload?)` the typed one, and every write through a typed, opened index is
-  refused. The checks: the index exists (`LuiIndexNotFoundException`), the schema version and the fold version fit, the
-  key type and the payload fit. 16 tests in `ReadPathTests` — one per acceptance point of the issue, including the red
-  proof (with an open write transaction `OpenIndex` answers at once, `Create()` blocks) and the fingerprint of the file
-  (not a byte changes).
-- **`Ensure()` is now `Create()`** — a rename, the old name is gone (before 0.1.0, ADR-0026). The spec, the README, the
-  CHANGELOG (with the migration list), the smoke test and the wording of the hosting package follow.
-- **The container**: `AddOpenIndex(name)` and `AddOpenIndex<TKey, TPayload>(name, payload?)` register an index that the
-  host **opens** instead of creating it; `AddIndex` keeps its meaning. `OpenIndexRegistration` is a type of its own — an
-  opened index has no typo dictionary to warm up and no outbox to apply. Tests in `OpenIndexHostingTests`.
-- The documents: spec §7.1 (the definition carries the payload columns), §12.9 (the read path), §14/§15 (the lifetime),
-  the README (a section "Only read"), the CHANGELOG, `docs/testing.md`, the ADR.
+- **The library**: `LuiCatalog.Create<TKey, TPayload>(name, builder)` and `LuiCatalog.Create<TPayload>(name, builder)`
+  create an index — the builder is the **parameter**, not the way in, and the builder is not reachable from the catalog any
+  more. `LuiCatalog.Index<TKey, TPayload>(name, typeInfo)`, `Index<TKey, TPayload>(name, payload?)`,
+  `Index<TPayload>(name, map)` and `Index(name)` open an index that exists and write nothing (a plain `SELECT` on
+  `lui_meta`, no transaction, no write lock, no `CREATE TABLE`). The definition carries the **type of the payload** now
+  (`IndexDefinition.PayloadType`): an index that stores `TagChip` is not opened with `RecipeChip`, and the
+  `LuiDefinitionMismatchException` names both.
+- **The file decides** (ADR-0033): a catalog on `Mode=ReadOnly` switches on no WAL, creates no `lui_meta` and refuses
+  every write with the new `LuiReadOnlyException` — `Create`, `DropIndex`, `Upsert`, `Sync` and the rest.
+- **The container holds the catalog and nothing else**: `AddLui` is the only registration; the registrations, the hosted
+  services and the warm-up of the typo dictionaries are gone. The hosting package carries **only** the dependency
+  injection — `Microsoft.Extensions.Hosting.Abstractions` and `.Logging.Abstractions` are out of it (ADR-0034).
+- **The untyped facade is gone**: `ILuiDocumentIndex`, `LuiDocumentHit`, `DocumentIndex`, `DocumentSource`,
+  `RawJsonPayload` and `ReadOnlyEmbeddedIndex` are deleted, with every reference to them.
+- **The callers follow**: the sample, the tests and the benchmarks use `catalog.Create(…)` and `catalog.Index(…)`.
+- **The documents**: spec §7.1, §12.1, §12.2, §12.3, §12.4, §12.7, §12.8, §12.9, §14, §15, §17.1, §17.2, §17.3, the
+  README (quick start with `Create` and `Index`, the host section with `AddLui` only, "Only read"), the CHANGELOG with
+  the migration list, `docs/adr/README.md` (ADR-0033 and ADR-0034) and `docs/testing.md`.
 
 ## Open
 
+- The rebuild is **committed** and pushed — the documents, the library, the callers and the hosting package are in one
+  commit on top of the five commits above (no force push), and PR #57 carries the body of the new shape.
 - The pull request #57 waits for the merge — the owner merges it, the CI is green.
 - `SampleApiTests.A_request_the_page_abandons_stops_the_work_of_the_server` is **timing-sensitive** (the client aborts
   after 150 ms; the server has to notice the closed connection during a 1.5 s delay). It failed once under the load of a
-  saturated 2-CPU sandbox; the changes of #56 are not on the path the test walks (the probe never calls `OpenIndex`), and
+  saturated 2-CPU sandbox; the changes of #56 are not on the path the test walks (the probe never opens an index), and
   it has been green in every run since. The test was not changed.
   `SampleApiTests.A_row_written_to_the_application_s_table_reaches_the_linked_index_through_the_triggers_and_the_outbox`
   is timing-sensitive too: it failed once under the same load (the outbox was not applied in time) and is green in
   isolation and in the next full run.
-- One minor point of the verification is still open: `EnsureOnStart(bool)` keeps the old word although the setting now
-  covers the opened indexes too.
+- The migration of the files of today: an index that was created by an older version has no payload type in its
+  definition — it is dropped and created again (`DropIndex` + `Create`).
 
 ## The next step
 

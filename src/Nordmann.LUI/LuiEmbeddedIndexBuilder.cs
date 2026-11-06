@@ -10,6 +10,10 @@ namespace Nordmann.LUI;
 /// default (LUI-Spezifikation §5, §12.2): the application writes through the index. Every method is optional and
 /// returns a builder; <see cref="Create"/> finishes it. An index over a table of the application starts here too,
 /// with <c>LinkTo(…)</c>, as long as no key and no payload are chosen.
+/// <para>
+/// The builder is reached through <see cref="LuiCatalog.Create{TKey, TPayload}"/>: it is the description of an
+/// index, not the way into it (ADR-0033).
+/// </para>
 /// </summary>
 /// <typeparam name="TKey">The key of the application: <see cref="long"/> (the default) or <see cref="string"/>.</typeparam>
 /// <typeparam name="TPayload">The payload that comes back with a hit; <see cref="LuiNoPayload"/> until <c>WithPayload</c>.</typeparam>
@@ -56,7 +60,7 @@ public sealed class LuiEmbeddedIndexBuilder<TKey, TPayload>
     /// <exception cref="NotSupportedException"><typeparamref name="TNewKey"/> is neither <see cref="long"/> nor <see cref="string"/>.</exception>
     public LuiEmbeddedIndexBuilder<TNewKey, TPayload> WithKey<TNewKey>()
     {
-        // the key type is checked here, where it is chosen, not when the index is ensured
+        // the key type is checked here, where it is chosen, not when the index is created
         _ = KeyCodec<TNewKey>.KeyType;
         return new LuiEmbeddedIndexBuilder<TNewKey, TPayload>(_catalog, _name, _kind, _payload, _options);
     }
@@ -131,10 +135,16 @@ public sealed class LuiEmbeddedIndexBuilder<TKey, TPayload>
     }
 
     /// <summary>
-    /// Creates the index, or opens it if it exists with the same definition.
+    /// Creates the index, or opens it if it exists with the same definition. It is the write path: the tables of the
+    /// index are created if they are missing, and the definition is written into <c>lui_meta</c>.
+    /// <para>
+    /// The definition holds the type of the payload (ADR-0033): an index that is opened later with another type is a
+    /// mismatch that names both.
+    /// </para>
     /// </summary>
     /// <returns>The index.</returns>
     /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     public ILuiEmbeddedIndex<TKey, TPayload> Create()
     {
         var definition = new IndexDefinition(
@@ -143,7 +153,8 @@ public sealed class LuiEmbeddedIndexBuilder<TKey, TPayload>
             KeyCodec<TKey>.KeyType,
             _options.GermanTransliteration,
             _payload is not null,
-            TokenizerFold.Version);
+            TokenizerFold.Version,
+            PayloadType: _payload is null ? null : typeof(TPayload).FullName);
 
         var source = new EmbeddedSource(_name, definition);
         IndexStore.Create(_catalog.Database, source, _catalog.TimeProvider.GetUtcNow());

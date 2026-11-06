@@ -4,7 +4,7 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI.Indexes;
 
 /// <summary>
-/// Checks, when a <c>Linked</c> index is ensured, that the application's table is what the link says — and changes
+/// Checks, when a <c>Linked</c> index is created, that the application's table is what the link says — and changes
 /// nothing (ADR-0015): the table, its columns, and a key that is its <c>INTEGER PRIMARY KEY</c>, the rowid of the
 /// table and with it the document id of the index.
 /// </summary>

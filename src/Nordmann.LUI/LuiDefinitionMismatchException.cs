@@ -4,6 +4,10 @@ namespace Nordmann.LUI;
 /// An index exists with a definition other than the one that was asked for.
 /// An index is never rebuilt silently (LUI-Spezifikation §7.1): the message
 /// names both definitions.
+/// <para>
+/// The read path (ADR-0033) throws it too: an index that is opened is never rebuilt, so a key type, a payload type,
+/// a schema version or a folding that is another one is an error that says what was found and what was asked for.
+/// </para>
 /// </summary>
 public sealed class LuiDefinitionMismatchException : LuiException
 {
@@ -36,8 +40,8 @@ public sealed class LuiDefinitionMismatchException : LuiException
 
     /// <summary>
     /// Creates the exception for the read path (ADR-0033): the index exists, but it is not the index that was asked
-    /// for — another schema version, another folding, another key type, another payload. An index that is opened is
-    /// never rebuilt, so the way out is another way to open it.
+    /// for — another schema version, another folding, another key type, another payload type. An index that is opened
+    /// is never rebuilt, so the way out is another way to open it.
     /// </summary>
     internal LuiDefinitionMismatchException(string indexName, string stored, string requested, string advice)
         : base(
@@ -56,13 +60,13 @@ public sealed class LuiDefinitionMismatchException : LuiException
 
     /// <summary>
     /// The definition in <c>lui_meta</c>, as JSON — or what a check found, when the check is about the version of the
-    /// schema, the folding, the key type or the payload (ADR-0033).
+    /// schema, the folding, the key type or the payload type (ADR-0033).
     /// </summary>
     public string Stored { get; }
 
     /// <summary>
     /// The definition the caller asked for, as JSON — or what a check wants, when the check is about the version of the
-    /// schema, the folding, the key type or the payload (ADR-0033).
+    /// schema, the folding, the key type or the payload type (ADR-0033).
     /// </summary>
     public string Requested { get; }
 }

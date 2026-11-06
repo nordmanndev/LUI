@@ -4,6 +4,10 @@ namespace Nordmann.LUI;
 /// The first step of describing an index (LUI-Spezifikation §12.2): its kind. The kind is fixed when the index is
 /// created and decides how it is searched. What follows is an <c>Embedded</c> index with a <see cref="long"/> key — the
 /// default —, or, with <c>LinkTo(…)</c>, an index over a table of the application.
+/// <para>
+/// The builder is reached through <see cref="LuiCatalog.Create{TKey, TPayload}"/> and
+/// <see cref="LuiCatalog.Create{TPayload}"/>: it is the description of an index, not the way into it (ADR-0033).
+/// </para>
 /// </summary>
 public sealed class LuiIndexKindBuilder
 {
