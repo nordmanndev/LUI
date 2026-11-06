@@ -32,17 +32,21 @@ A promise that nobody checks is a wish.
 ## Decision
 
 1. **The contract is the source.** A new architecture test, `Readme_Budgets`, reads the target table of §16 out of the
-   specification and compares its limits with the two tables that show them: the budget table of the README and the
-   target table of the record. The limits are compared **in order** — the sequence of "≤ number unit" of the contract
-   against the sequence of the table — so a swapped limit is caught as well as a changed one.
+   specification and compares its limits with the **three** tables that show them: the budget table of the README, the
+   target table of the record and the status table of the record (the summary at the top). The limits are compared
+   **in order** — the sequence of "≤ number unit" of the contract against the sequence of the table — so a swapped
+   limit is caught as well as a changed one. The rows of a table follow the order of the contract; the minute is
+   folded into the second, because "≤ 4 min" and "≤ 240 s" are the same promise.
 2. **What is compared, and what is not.** The **limits** are the promise, and they are checked. The **measured values**
    are the numbers of a run: they belong to a machine and a day, and a test cannot know them. They stand in the record
    with the machine they were measured on, and the entrance says where its numbers come from.
 3. **The drift that the guard found is fixed.** The allocation row of the README and of the record carries the limits
    of §16 (≤ 60 / ≤ 100 KB) and the measured values of the run of 2026-11-06 (46 / 51 KB — measured in bytes, so the
-   machine does not matter).
-4. **The mutation check proves the teeth.** A mutation changes one limit of the README — "≤ 5 ms" becomes "≤ 6 ms" —
-   and `Readme_Budgets` has to fail. The message names both lists: what the specification says and what the table says.
+   machine does not matter). The status table of the record stood apart from the contract twice: it promised the old
+   limits, and it listed the allocation before the correction. Its rows follow the order of the contract now.
+4. **The mutation check proves the teeth.** Two mutations change one limit — "≤ 5 ms" becomes "≤ 6 ms" in the README,
+   "≤ 20 ms" becomes "≤ 21 ms" in the status table of the record — and `Readme_Budgets` has to fail. The message names
+   both lists: what the specification says and what the table says.
 5. **The specification stays the contract.** The limits are read from it, so it is a dependency of the build. When the
    owner deletes the specification at the end of the release, the limits have to live somewhere else — where is a
    decision of the owner, and this record is where it stands.
@@ -66,5 +70,6 @@ A promise that nobody checks is a wish.
 - **The dependency on the specification is visible.** It is the contract of the repository; when it goes, the limits
   have to move with it.
 
-**Verified by:** `Readme_Budgets` (two tests), the mutation
-`a-budget-limit-in-the-readme-edited-by-hand`, and the two tables of the README and the record.
+**Verified by:** `Readme_Budgets` (three tests), the mutations
+`a-budget-limit-in-the-readme-edited-by-hand` and `a-budget-limit-in-the-record-edited-by-hand`, and the three tables of
+the README and the record.

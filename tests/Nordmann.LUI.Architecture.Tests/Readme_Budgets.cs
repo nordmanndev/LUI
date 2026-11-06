@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.RegularExpressions;
 using Shouldly;
 
@@ -55,6 +56,20 @@ public sealed class Readme_Budgets
             + " — the record says: " + string.Join(", ", limits));
     }
 
+    [Fact]
+    public void The_limits_of_the_status_table_of_the_record_are_the_targets_of_the_specification()
+    {
+        var expected = TargetsOfTheSpecification();
+
+        var limits = LimitsOf(TableOf(RecordPath, "Target", "Measured at the scenario", "Limit").Select(row => row[2]));
+
+        limits.ShouldBe(
+            expected,
+            "the limit column of the status table of the record is the target table of §16 (issue #38). "
+            + "The specification says: " + string.Join(", ", expected)
+            + " — the record says: " + string.Join(", ", limits));
+    }
+
     /// <summary>
     /// The limits of §16, in the order of the table: the specification states them as prose in its third column
     /// ("p50 ≤ 2 ms; p95 ≤ 5 ms bei 1–4 Zeichen, …"), and every "≤ number unit" is one limit.
@@ -95,10 +110,23 @@ public sealed class Readme_Budgets
                     .FirstOrDefault(candidate => candidate.Length > 0) ?? string.Empty;
             }
 
-            limits[index] = matches[index].Groups["number"].Value.Replace(',', '.') + " " + unit;
+            limits[index] = Canonical(matches[index].Groups["number"].Value, unit);
         }
 
         return limits;
+    }
+
+    /// <summary>
+    /// A limit in one form: the number and the unit, the minute folded into the second — "4 min" and "240 s" are
+    /// the same promise, and both are written in the tables.
+    /// </summary>
+    private static string Canonical(string number, string unit)
+    {
+        var value = double.Parse(number.Replace(',', '.'), CultureInfo.InvariantCulture);
+
+        return string.Equals(unit, "min", StringComparison.Ordinal)
+            ? (value * 60).ToString("0.##", CultureInfo.InvariantCulture) + " s"
+            : number.Replace(',', '.') + " " + unit;
     }
 
     /// <summary>

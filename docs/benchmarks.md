@@ -18,8 +18,8 @@ corpus.
 | query p50 | 1.34–1.71 ms | ≤ 2 ms |
 | query p95, 1–4 characters | ≤ 3.1 ms | ≤ 5 ms |
 | query p95, 5–8 characters | 13.4–17.5 ms | ≤ 20 ms |
-| allocation p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | query with correction p95 | 27.9–32.5 ms | ≤ 35 ms |
+| allocation p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | single write p95 | 0.51–0.78 ms | ≤ 1 ms |
 | build of 3 M | 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 240 s (#32) |
 | typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |

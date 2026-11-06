@@ -323,6 +323,12 @@ expect_caught "a-budget-limit-in-the-readme-edited-by-hand" "${ARCHITECTURE_PROJ
   "FullyQualifiedName~Readme_Budgets" \
   "sed -i '0,/≤ 5 ms/s//≤ 6 ms/' README.md"
 
+# 24f. A limit of the status table of the record is edited by hand (issue #38): the summary of the run promises
+#      what the contract does not. The guard reads the specification and compares.
+expect_caught "a-budget-limit-in-the-record-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Readme_Budgets" \
+  "sed -i '0,/≤ 20 ms/s//≤ 21 ms/' docs/benchmarks.md"
+
 # 25. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
