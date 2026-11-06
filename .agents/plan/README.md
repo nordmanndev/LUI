@@ -9,6 +9,7 @@ work and stays as it was written — even where a later decision changed the nam
 | [LUI — repo, package and sample plan](./2026-11-02-lui-repo-plan.md) | 2026-11-02 | the founding plan: the library, the package and the sample in twelve pull requests, one per issue, each with its ADR, its tests and its measurement. The sections "what actually happened" (§6a–§6g) record where the plan and the world differed — the measurement moved three decisions before the first line of the library was written. |
 | [Issue #56 — the read path and the catalog as the entry point](./2026-11-05-issue-56-the-catalog-is-the-entry-point.md) | 2026-11-05 | the shape of the API as it is now: the catalog is the entry point, `Create` writes and `Index` does not, one interface per capability, and the file decides what may be written. |
 | [Issue #61 — the README for developers](./2026-11-06-issue-61-the-readme-for-developers.md) | 2026-11-06 | the entrance: the README for developers, the tutorial in five steps, and the map of the documentation. The public API does not change. |
+| [Issue #64 — the production readiness](./2026-11-06-issue-64-production-readiness.md) | 2026-11-06 | the round of the review of 2026-11-06: the guards that run by themselves, the numbers that agree with the specification, the query that does not build the dictionary, the hardened concurrency and the typed view. |
 
 ## The difference
 
@@ -29,5 +30,7 @@ A plan points at the ADRs it produced; an ADR rarely names the plan that led to 
   measured against.
 - **The third plan** is the history of the entrance: what the README may say, what leaves it, and what the guard does
   after the move.
+- **The fourth plan** is the history of the round of the review: what the review found, what was decided by the owner,
+  and the seven tasks with their acceptance bar.
 
 Every decision the plans produced is an ADR in [`../adr/`](../adr/README.md) — indexed there by its topic.
