@@ -141,4 +141,6 @@ the serialiser of the catalog that opens the file, the type that cannot be read,
 source of the index), `tests/Nordmann.LUI.Integration.Tests/EmbeddedIndexTests.cs` (the payload is no part of the
 definition, the type the serialiser does not know, the catalog without a serialiser, the payload read when it is asked
 for and not before), `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs` (`The_index_knows_no_types`, the shape
-of the catalog, the retired names), the README run by `tools/package-smoke-test.sh`, and the probe above.
+of the catalog, the retired names), `tests/Nordmann.LUI.Unit.Tests/KeyCodecTests.cs` (a key of the other kind refused before it reaches the file), the
+README run by `tools/package-smoke-test.sh`, the mutations `the-hit-gets-a-payload-property` and
+`a-key-of-the-other-kind-reaches-the-file` of `tools/mutation-check.sh`, and the probe above.

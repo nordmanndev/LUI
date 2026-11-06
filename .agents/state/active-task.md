@@ -22,6 +22,7 @@ view on top (variant D) is [#59](https://github.com/nordmanndev/LUI/issues/59), 
   `.PayloadType` (an old definition with them is read, the fields are ignored).
 - **The callers**: the sample (each wrapper says how it reads its payload — `SamplePayload`), the tests (the test catalog
   gets the chip serialiser by default, `TestDatabase.Open`), the benchmarks.
+- **The guards**: `KeyCodecTests` and two mutations (`the-hit-gets-a-payload-property`, `a-key-of-the-other-kind-reaches-the-file`) in `tools/mutation-check.sh`.
 - **The documents**: ADR-0035 (with the alternatives A–D and the measurement), a note on ADR-0033, the ADR index, the
   spec (§7.1, §7.3 — what a linked index keeps and reads live —, §8.3, §12.1–§12.9), the README (the payload example is
   run by the smoke test: a block that starts with `// The types of the application` goes after the statements), the
