@@ -45,7 +45,7 @@ I did not take the spec's schema on faith. Six probes ran against **the exact de
 
 ## 3. Decisions
 
-These are locked. Each one is an ADR in `docs/adr/`.
+These are locked. Each one is an ADR in `.agents/adr/`.
 
 ### D1 — One NuGet package: `Nordmann.LUI`
 
@@ -122,7 +122,7 @@ This is a **library**, not a product. The standards' non-negotiable rules target
 | Central package management | `Directory.Packages.props`; **no `.csproj` may carry a `Version` on a `PackageReference`** — arch test |
 | `Meziantou.Analyzer` from day one | analyzer package in `Directory.Packages.props` (standards entry 9 — "adopted from day one") |
 | Test pyramid: unit + architecture + integration | xUnit + Shouldly + Alba + NetArchTest, three test projects |
-| ADR discipline | `docs/adr/NNNN-slug.md`, format `# NNNN — Title` / Status / Date / Supersedes / Affects / Context / Decision / Consequences |
+| ADR discipline | `.agents/adr/NNNN-slug.md`, format `# NNNN — Title` / Status / Date / Supersedes / Affects / Context / Decision / Consequences |
 | `CHANGELOG.md` on public API change | standards' rule, unchanged |
 | Closed-library policy | ADR for every dependency that is not in the standards' catalogue (see D4) |
 | `AGENTS.md` at repo root | inherits the standards' contract, states the project-level delta only |
@@ -431,6 +431,6 @@ Each of these is a decision I made and would happily revisit — they are all ch
 
 **Start PR-001** — the repo foundation: solution, props, CI, `AGENTS.md`, the four founding ADRs, and a `dotnet pack` that produces an empty-but-valid `Nordmann.LUI.0.1.0.nupkg`. It is small, it proves the whole toolchain (SDK, central versions, analyzer, arch tests, packaging) on a tree with no feature code in it, and every later PR builds on it.
 
-Before I touch the remote: **the plan above is uncommitted in `/workspace/repos/LUI/docs/plan/`.** Tell me to commit it (and whether to open it as a PR branch) and I will.
+Before I touch the remote: **the plan above is uncommitted in `/workspace/repos/LUI/.agents/plan/`.** Tell me to commit it (and whether to open it as a PR branch) and I will.
 
 One answer I would still like, because it changes real work: **do you want `symspell` and `F23.StringSimilarity` in the package at all**, or would you rather I implement SymSpell myself (a few hundred lines, no dependency, but a correctness risk I would have to test myself)? My recommendation is to take both dependencies and record the deviation in an ADR — but it is your call, and it is the one place where the standards' closed-list rule and the spec's design genuinely pull apart.

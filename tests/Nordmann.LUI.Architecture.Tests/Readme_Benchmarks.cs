@@ -7,10 +7,17 @@ using Nordmann.LUI.Testing;
 namespace Nordmann.LUI.Architecture.Tests;
 
 /// <summary>
-/// The BenchmarkDotNet results in the README (ADR-0022, issue #36): a performance number is a claim, and a claim needs
-/// a run behind it. BenchmarkDotNet's own reports (<c>*-report-github.md</c>) are committed in
-/// <c>benchmarks/results/</c>; the README shows them, between two markers, in a form this test renders. When the two
-/// differ, the README was edited by hand or the reports were replaced without it — either way the test fails.
+/// The BenchmarkDotNet results of the documentation (ADR-0022, issue #36): a performance number is a claim, and a claim
+/// needs a run behind it. BenchmarkDotNet's own reports (<c>*-report-github.md</c>) are committed in
+/// <c>benchmarks/results/</c>; the README shows them, between two markers, in a form this test renders.
+/// When the two differ, the document was edited by hand or the reports were replaced without it — either way the test
+/// fails.
+/// <para>
+/// The raw tables live in the README since issue #61 (ADR-0039): the entrance of the release shows the measurement
+/// itself — the machine, the corpus and the tables of the run — and the record, <c>docs/benchmarks.md</c>, keeps the
+/// method and the budgets beside it. The rule of ADR-0022 stands: the tables are rendered from the committed reports,
+/// never written by hand.
+/// </para>
 /// <para>
 /// <c>LUI_UPDATE_README=1</c> writes the rendered section into the README instead of failing:
 /// <c>tools/benchmarks.sh</c> runs the benchmarks, copies the reports and does that. The rendering lives here, once —
@@ -52,6 +59,9 @@ public sealed class Readme_Benchmarks
         @"//[^\n]*|/\*.*?\*/",
         RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture | RegexOptions.Singleline,
         TimeSpan.FromSeconds(1));
+
+    /// <summary>The document the rendered section lives in: the README of the release shows the tables of the run (ADR-0039).</summary>
+    private static string DocumentPath => Path.Combine(Repository.RootPath, "README.md");
 
     private static string ResultsDirectory => Path.Combine(Repository.RootPath, "benchmarks", "results");
 
@@ -102,32 +112,31 @@ public sealed class Readme_Benchmarks
             .Select(item => item.Environment)
             .Distinct(StringComparer.Ordinal)
             .Count()
-            .ShouldBe(1, "the README compares the benchmarks with each other; they have to be measured on one machine, with one runtime: "
+            .ShouldBe(1, "the document compares the benchmarks with each other; they have to be measured on one machine, with one runtime: "
                 + string.Join("; ", environments.Select(item => $"{item.Class}: {item.Environment.Split('\n')[0]}")));
     }
 
     [Fact]
-    public void The_readme_shows_the_committed_reports()
+    public void The_benchmark_document_shows_the_committed_reports()
     {
-        var readmePath = Path.Combine(Repository.RootPath, "README.md");
-        var readme = File.ReadAllText(readmePath);
-        var begin = readme.IndexOf(Begin, StringComparison.Ordinal);
-        var end = readme.IndexOf(End, StringComparison.Ordinal);
+        var document = File.ReadAllText(DocumentPath);
+        var begin = document.IndexOf(Begin, StringComparison.Ordinal);
+        var end = document.IndexOf(End, StringComparison.Ordinal);
         begin.ShouldBeGreaterThanOrEqualTo(0, $"the README marks the generated section with '{Begin}'");
         end.ShouldBeGreaterThan(begin, $"the README ends the generated section with '{End}'");
 
-        var shown = readme[(begin + Begin.Length)..end];
+        var shown = document[(begin + Begin.Length)..end];
         var rendered = Render();
 
         if (string.Equals(Environment.GetEnvironmentVariable(UpdateVariable), "1", StringComparison.Ordinal))
         {
-            File.WriteAllText(readmePath, readme[..(begin + Begin.Length)] + rendered + readme[end..]);
+            File.WriteAllText(DocumentPath, document[..(begin + Begin.Length)] + rendered + document[end..]);
             return;
         }
 
         shown.ShouldBe(
             rendered,
-            $"the README's benchmark tables are generated from benchmarks/results/ — run '{UpdateVariable}=1 dotnet test "
+            $"the benchmark tables of the README are generated from benchmarks/results/ — run '{UpdateVariable}=1 dotnet test "
             + "tests/Nordmann.LUI.Architecture.Tests --filter Readme_Benchmarks', or tools/benchmarks.sh for a new run");
     }
 

@@ -215,8 +215,8 @@ echo "package-smoke-test: running the smoke application"
 OUTPUT="$(cd "${SMOKE}" && dotnet run --project "${SMOKE}/SmokeTest.csproj" --no-restore --nologo)"
 echo "${OUTPUT}"
 
-# The comments of the quick start say what it prints; they have to stay true.
-for expected in "Gedeckter Apfelkuchen (9000)" "Bratapfelkuchen (800)" "Gedeckter Apfelkuchen" "gedeckter" "#3a3" "vegan" "Vegan" "Current"; do
+# The comments of the README say what the blocks print; they have to stay true.
+for expected in "Gedeckter Apfelkuchen (9000)" "Bratapfelkuchen (800)" "Gedeckter Apfelkuchen" "gedeckter" "#3a3" "1: Gedeckter Apfelkuchen" "50000 read, 50000 added, 5 batches"; do
   if ! grep -qxF "${expected}" <<<"${OUTPUT}"; then
     echo "package-smoke-test: the README's quick start did not print '${expected}'" >&2
     exit 1

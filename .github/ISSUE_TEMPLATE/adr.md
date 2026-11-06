@@ -9,7 +9,7 @@ labels: ["type:adr", "status:proposed"]
 
 <!--
 An ADR captures a design decision. This issue's body becomes the source
-content of `docs/adr/NNNN-<slug>.md`. When the ADR is accepted, the file is
+content of `.agents/adr/NNNN-<slug>.md`. When the ADR is accepted, the file is
 added (or updated) in the same pull request that closes this issue.
 -->
 

@@ -4,8 +4,8 @@
 - **Date:** 2026-11-02
 - **Supersedes:** —
 - **Affects:** `src/Nordmann.LUI/Normalization/`, `docs/normalization.md`,
-  `docs/spec/LUI-Spezifikation.md` §6.1 and §6.2, `tools/FoldTableGenerator/`,
-  `docs/plan/2026-11-02-lui-repo-plan.md`
+  `.agents/spec/LUI-Spezifikation.md` §6.1 and §6.2, `tools/FoldTableGenerator/`,
+  `.agents/plan/2026-11-02-lui-repo-plan.md`
 
 ## Context
 

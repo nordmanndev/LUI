@@ -7,7 +7,7 @@
 ## Status
 
 **Every target of §16 is measured in its scenario and met** (PR-009,
-[ADR-0020](./adr/0020-the-performance-budgets-measured.md)) — three of them as draft 2 set them, five as the owner
+ADR-0020) — three of them as draft 2 set them, five as the owner
 stated them anew after the measurement (2026-11-04, ADR-0010, ADR-0020). The table is the output of
 `PerformanceBudgets`, which asserts every row. The allocation is met and still a bug (#30). The benchmark project
 (`benchmarks/Nordmann.LUI.Benchmarks/`) measures the code on the same corpus.
@@ -108,7 +108,7 @@ LUI_PERF=1 LUI_PERF_ENTRIES=3000000 \
 | *target (§16), 3,000,000* | *≤ 2 ms* | *≤ 5 ms* | | *≤ 250 KB* |
 
 **After the join was moved to the primary key** (`doc_id = f.rowid & 4294967295`
-instead of a seek on `s_rowid`, [ADR-0006](./adr/0006-the-single-word-index.md)),
+instead of a seek on `s_rowid`, ADR-0006),
 same index, same queries: 200,000 entries p50 **0.82 ms**, p95 **1.8 ms**;
 1,000,000 entries p50 **1.39 ms**, p95 **6.1 ms**. The 3,000,000 row above was
 measured before and has not been repeated.
@@ -163,7 +163,7 @@ segment merges that a write now and then triggers. **Missed at 1 M and 3 M.**
 
 ### The linked index
 
-A `Linked` index over a table of the application ([ADR-0015](./adr/0015-the-linked-index-is-loosely-coupled.md)):
+A `Linked` index over a table of the application (ADR-0015):
 a contentless FTS5 table and LUI's table without text; the text comes from the application's table by its primary
 key. Against an `Embedded` index of the same entries, single-word, the whole word list:
 
@@ -187,7 +187,7 @@ LUI_PERF=1 dotnet test -c Release --filter LinkedLayoutExperiment --logger "cons
 
 ### The batch
 
-`UpsertMany` ([ADR-0013](./adr/0013-the-api-shape-before-the-first-release.md)) against a loop of single `Upsert`s,
+`UpsertMany` (ADR-0013) against a loop of single `Upsert`s,
 each in a transaction of its own, 100,000 single-word entries:
 
 | | Time | Rate |
@@ -209,7 +209,7 @@ on a connection with a 512 MB cache. What moved it:
 | Per entry | |
 |---|---:|
 | `Upsert` through a fresh command (first version) | 184 µs |
-| `Upsert` through a prepared statement (this version, [ADR-0009](./adr/0009-writes-use-prepared-statements.md)) | 59 µs at 50 k |
+| `Upsert` through a prepared statement (this version, ADR-0009) | 59 µs at 50 k |
 | the same without the three triggers (content table, generated columns, four indexes) | 11 µs |
 
 The rest is the search index, whose segments are merged as it grows. The bulk
@@ -218,7 +218,7 @@ path — rowid-ordered loading, one merge at the end — belongs to `Sync` and
 
 ### The sync, the check and the rebuild (PR-007)
 
-[ADR-0016](./adr/0016-sync-check-rebuild.md). Single-word, the whole word list, 1,000,000 entries in random order,
+ADR-0016. Single-word, the whole word list, 1,000,000 entries in random order,
 cache 512 MB. First the experiment that decided the bulk path (`EmbeddedBulkExperiment`, batches of 10,000 unless said):
 
 | Load | Time | query p95 before / after the merge |
@@ -244,7 +244,7 @@ implementation (`SyncPerformance`):
 
 The §16 build target (3 M in ≤ 3 min) is measured with the benchmarks (PR-009).
 
-**A delta sync beside a built typo dictionary** ([ADR-0021](./adr/0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md),
+**A delta sync beside a built typo dictionary** (ADR-0021,
 `SyncPerformance.A_delta_sync_with_a_built_typo_dictionary`, 300,000 words of the German list, two runs): a sync of 100
 changes and 100 removals took **4.4 / 4.8 s** while it rebuilt the dictionary at its end, and takes **2.6 / 2.6 s** now
 that it marks it stale; the rebuild on its own is 2.0 / 2.3 s.
@@ -259,7 +259,7 @@ LUI_PERF=1 LUI_PERF_ENTRIES=300000 dotnet test --filter A_delta_sync_with_a_buil
 ### Opening a catalog
 
 `LuiCatalog.Open` probes the folding of the loaded SQLite once per process
-([ADR-0007](./adr/0007-the-catalog-checks-the-sqlite-it-runs-on.md)): **110 ms**
+(ADR-0007): **110 ms**
 cold (JIT included), **37 ms** warm, 2,466 code points. Every further `Open` in
 the process skips it.
 
@@ -287,7 +287,7 @@ LUI_PERF=1 LUI_PERF_KIND=multi LUI_PERF_ENTRIES=1000000 \
 | *target (§16)* | | *3 M ≤ 3 min* | *1 M ≤ 300 MB* | *3 M ≤ 2 / 5 ms* | *≤ 250 KB* | *≤ 1 ms p95* |
 
 - **Allocation.** With `F23`'s Dice the 95th percentile was **3,651 KB** (a dictionary per comparison, 500
-  comparisons); with the allocation-free Dice of this PR it is 263 KB ([ADR-0011](./adr/0011-the-multi-word-index.md)).
+  comparisons); with the allocation-free Dice of this PR it is 263 KB (ADR-0011).
 - **Missed:** the query at 1 M (p50 3.2 ms, p95 14.1 ms — the two-word inputs of frequent trigrams, `Rent Schwe` 54 ms
   for 38 candidates; the mechanism of ADR-0010), the file size (1.5× the target; long titles), the 3 M build
   (extrapolated: about eight minutes). Held: the query at 200 k (p50 1.3 ms, p95 3.4 ms), the allocation, the write p95
@@ -326,13 +326,13 @@ LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter 
   at 3 M), the allocation at the median, the absolute quality (like Anhang A4).
 - **Missed, written down:** the allocation at p95 (408 KB: up to three more candidate lists and their unions) and the ratios of Anhang A4
   (69 / 69 / 86 / 92 %) which are not reached (25 / 53 / 69 / 82 %) because the cases are drawn uniformly here and by popularity there; the
-  absolute figures agree. Details in [ADR-0012](./adr/0012-typo-tolerance.md).
+  absolute figures agree. Details in ADR-0012.
 
 ---
 
 ## Results: the budgets of §16 (PR-009)
 
-[ADR-0020](./adr/0020-the-performance-budgets-measured.md). The measurement machine above; the whole German word list;
+ADR-0020. The measurement machine above; the whole German word list;
 the corpus of `Corpus` (`Nordmann.LUI.Testing`, seed 42): the 685,829 words, then compounds of two of them up to three
 million, weights with a long tail; 2,000 inputs of 1–8 characters, 1,000 beginnings of 5–9 letters with one typo. No
 other load; two runs, a third for the batch size of the build.
@@ -387,13 +387,13 @@ dotnet run -c Release --project benchmarks/Nordmann.LUI.Benchmarks -- --filter '
 | Jaro-Winkler against `apfelku` | the same | 90 · 152 · 158 ns | 208 · 200 · 232 B |
 | N-gram Dice against `apfelku` | the same | 119 · 172 · 262 ns | 0 B |
 
-### The run of the README (PR-010)
+### The run behind the tables (PR-010)
 
 Run on **2026-11-04**, on `main` after #19 (`20bbbde`), with `tools/benchmarks.sh`'s command: BenchmarkDotNet 0.15.8,
 the **default job** (not `ShortRun`), every benchmark, 34 min 40 s. Intel Xeon 2.10 GHz, 4 cores, 15 GB, Ubuntu
 24.04.5, .NET 10.0.14 (SDK 10.0.114), the full German word list, nothing else running. The reports are committed in
-[`benchmarks/results/`](../benchmarks/results/) and the README shows them, rendered by `Readme_Benchmarks`
-([ADR-0022](./adr/0022-the-benchmark-results-in-the-readme.md)).
+[`benchmarks/results/`](../benchmarks/results/) and the tables below are rendered from them by `Readme_Benchmarks`
+(ADR-0022).
 
 Against the `ShortRun` above (mean, µs; the error of the default job is 2–8 % of the mean, that of `ShortRun` was up to
 260 % of it):
@@ -417,11 +417,29 @@ less than 10 %, five are lower (`haus` in single words, `fusbal`, the search for
 N-gram Dice of `Apfelkuchen`). It is not a change the two runs can name in either direction: `ShortRun`'s three
 iterations gave an interval of up to 260 % of the mean, so none of its means is known to better than the spread
 between them, and the queries without a correction take no path that #19 changed. The default job is the one the
-README shows, because its interval (2–8 %) is narrow enough to compare two rows of one run — and a later run against
+tables show, because its interval (2–8 %) is narrow enough to compare two rows of one run — and a later run against
 this one.
+
+## The tables of the run
+
+The tables of the BenchmarkDotNet run are **generated** from BenchmarkDotNet's own reports in
+[`benchmarks/results/`](../benchmarks/results/) — and they stand in the [README](../README.md), between the markers
+`<!-- benchmarks:begin -->` and `<!-- benchmarks:end -->`, where a test (`Readme_Benchmarks`) fails when they differ. A
+number there always has a run behind it. Run them again with `tools/benchmarks.sh`.
+
+<!-- benchmarks:begin -->
+<!-- the tables of the run are rendered into the README of the release (ADR-0039) -->
+<!-- benchmarks:end -->
+
+**Reading.** These are 200,000 entries on one thread, in the page cache — the code, not the scenario of §16. A query
+takes 24 µs (two letters, the prefix path of a single-word index) to 1.1 ms (`haus` in titles: many candidates to
+rank); its allocation follows the candidates it reads (#30). A correction costs one more search per correction tried.
+A single write is a commit of its own; load a stock with `UpsertMany` or `Sync` instead.
+
+---
 
 ```text
 tools/fetch-wordlist.sh   # once: the full word list
-tools/benchmarks.sh       # runs everything, copies the reports, renders the README, runs the guard
+tools/benchmarks.sh       # runs everything, copies the reports, renders the tables, runs the guard
 ```
 

@@ -2,8 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-05
-- **Builds on:** [0004](./0004-the-dependency-set-and-the-deviation-from-the-closed-library-list.md) (the dependency set),
-  [0011](./0011-the-multi-word-index.md) (the measures), [0018](./0018-two-packages-the-core-and-the-hosting-released-together.md)
+- **Builds on:** [0004](./0004-dependencies.md) (the dependency set),
+  [0011](./0011-the-multi-word-index.md) (the measures), [0018](./0018-two-packages-core-and-hosting.md)
   (the runtime of the two packages), [0032](./0032-the-allocation-of-a-query.md) (the allocation of a query),
   [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (the freeze of the public API)
 - **Affects:**

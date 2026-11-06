@@ -1,65 +1,35 @@
 # LUI
 
-> **LUI** — autocomplete suggestions for .NET, straight out of your own SQLite
-> database. The suggestions of a search field: the best 5–20 entries out of a
-> stock of up to a few million short texts.
+> **Autocomplete suggestions for .NET, straight out of your own SQLite database.** The suggestions of a search field: the best 5–20 entries out of a stock of up to a few million short texts.
 
-LUI is a **library**, not a server. It works in your application's SQLite
-database and uses **SQLite FTS5** as its search engine — no index to maintain
-in parallel, no second datastore, no service to operate.
+[![Build](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml/badge.svg)](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/Nordmann.LUI.svg)](https://www.nuget.org/packages/Nordmann.LUI) ![Version](https://img.shields.io/badge/version-0.1.0%20unpublished-8A2BE2) [![Licence](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE) [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 
-```text
-A user types into a search field  →  LUI answers with the best entries
-```
+## What LUI is
 
----
+LUI is a **library**, not a server: it puts a fast, typo-tolerant search in front of the data that is already in your
+SQLite database. It uses **SQLite FTS5** as its search engine — no second datastore, no service to operate.
 
-## What this is
+**What this is not.** Not a full-text search engine — no BM25, no stemming, no phrase search, no facets; for that,
+use Lucene, SeekStorm or FTS5 directly. Not a key–value store. Not a server with its own HTTP interface.
 
-| | |
-|---|---|
-| **For** | short texts (1–10 words): tags, words, names, recipe and book titles |
-| **Built for** | much reading, little writing (typically 98 % queries) |
-| **Aligned to** | the **beginning** of a word — what someone types is usually the start of what they are looking for |
-| **Tolerant of** | typos, umlauts, and word order |
-| **Runs on** | .NET 10, SQLite ≥ 3.45 (via `Microsoft.Data.Sqlite`) |
+## The problem
 
-## What this is **not**
+98 % of the input of an application is a read: a search field, a dropdown, an autocomplete. The expensive part of such a feature is not the ranking, but the **second store** for the same data — the index beside the database.
 
-- **Not a full-text search engine.** No BM25, no stemming, no phrase search, no
-  facets — for that, use Lucene, SeekStorm or FTS5 directly.
-- **Not a key–value store.**
-- **Not a server** with its own HTTP interface.
+## Highlights
 
----
+- **No second datastore.** The search index lives in your SQLite file, next to your rows.
+- **Your rows stay yours.** A `Linked` index keeps no copy of your table and never changes your schema.
+- **One typo forgiven.** The correction is per index, off by default, and a query never waits for it.
+- **Measured, not promised.** Every performance number has a run behind it, with the machine named.
+- **No types in the index.** The type of a payload stands where you use it: `hit.GetPayload<TagChip>()`.
 
-## Status
+## Contents
 
-LUI is **feature-complete for 0.1.0 and not yet published**. The design is
-specified in [`docs/spec/LUI-Spezifikation.md`](./docs/spec/LUI-Spezifikation.md),
-the contract of this repository; the implementation followed the plan in
-[`docs/plan/2026-11-02-lui-repo-plan.md`](./docs/plan/2026-11-02-lui-repo-plan.md),
-one pull request per step, and every decision is an ADR in [`docs/adr/`](./docs/adr/).
-
-| | |
-|---|---|
-| Packages | `Nordmann.LUI` (the library) and `Nordmann.LUI.Hosting` (the dependency injection), one version — [ADR-0018](./docs/adr/0018-two-packages-core-and-hosting.md) |
-| Target framework | `net10.0` |
-| Dependencies of the core | `Microsoft.Data.Sqlite`, `symspell`, `F23.StringSimilarity` — nothing else ([ADR-0004](./docs/adr/0004-dependencies.md)) |
-| Licence | MIT |
-| Current version | `0.1.0` (not yet published) |
-
-**The public API is frozen from `0.1.0` on, and grows only additively** ([ADR-0026](./docs/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)):
-a removed or renamed type or member, a changed signature or a changed meaning of a documented behaviour needs a new minor
-version, a migration note in the [CHANGELOG](./CHANGELOG.md) and an ADR. A new member of an interface comes as a default
-member, so an application's own implementation of it keeps compiling; the exceptions are named in the ADR (a new enum value
-may meet an exhaustive `switch`; the `Equals` and `ToString` of the records are not part of the promise).
-
-The public API follows the specification: a `LuiCatalog`, an index per
-searchable stock, a fluent query builder, and the two index kinds
-`SingleWord` and `MultiWord`. The code of this README is **executed by the
-package smoke test** — every C# block, in order, against the packed `.nupkg` —
-so the README can never drift from the code.
+- [What LUI is](#what-lui-is) · [The problem](#the-problem) · [Highlights](#highlights) · [Install](#install) · [Quick start](#quick-start)
+- [Loading many entries](#loading-many-entries) · [Performance](#performance) · [The kinds of an index](#the-kinds-of-an-index) · [Embedded or linked](#embedded-or-linked)
+- [A payload](#a-payload) · [In an ASP.NET Core application](#in-an-aspnet-core-application) · [Only read](#only-read) · [The API](#the-api)
+- [The sample application](#the-sample-application) · [The documentation](#the-documentation) · [Status](#status) · [Working on LUI](#working-on-lui) · [Licence](#licence)
 
 ## Install
 
@@ -68,86 +38,224 @@ dotnet add package Nordmann.LUI            # the library — all a console appli
 dotnet add package Nordmann.LUI.Hosting    # AddLui and the catalog, for ASP.NET Core or a worker
 ```
 
-The two packages are released together, with one version. The core starts no
-thread of its own; whatever runs in the background belongs to the host.
-
-The package is not on nuget.org yet. The publish pipeline is in place and
-waits for its tag.
+The two packages are released together, with one version; the core starts no thread of its own. They are not on nuget.org yet — the publish pipeline waits for its tag.
 
 ## Quick start
 
 ```csharp
 using Nordmann.LUI;
-
 using var lui = LuiCatalog.Open("Data Source=app.db");
 
-// an index of titles: words in any order, spaces optional, one typo forgiven
+// an index of titles: the words in any order, the spaces optional, one typo forgiven
 var recipes = lui.Create("recipes", index => index.MultiWord().TypoTolerance());
 
 recipes.Upsert(1, "Gedeckter Apfelkuchen", weight: 9000);
-recipes.Upsert(2, "Apfelstrudel", weight: 5000);
 recipes.Upsert(3, "Bratapfelkuchen", weight: 800);
 
 foreach (var hit in recipes.Search("apfelkuch").Hits)
 {
-    Console.WriteLine($"{hit.Text} ({hit.Weight})");   // Gedeckter Apfelkuchen (9000), then Bratapfelkuchen (800)
+    Console.WriteLine($"{hit.Text} ({hit.Weight})");
 }
 
-Console.WriteLine(recipes.Search("apfel gedeckt").Hits[0].Text);   // Gedeckter Apfelkuchen
-Console.WriteLine(recipes.Search("gedekter").CorrectedQuery);         // gedeckter
+Console.WriteLine(recipes.Search("apfel gedeckt").Hits[0].Text);
+Console.WriteLine(recipes.Search("gedekter").CorrectedQuery);
 ```
 
-**Creating and opening are two calls.** `Create` is the write path and belongs in the
-migration of the application; in the runtime path the index is **opened** — `Index`
-reads the definition out of the file and writes nothing:
-
-```csharp
-var opened = lui.Index("recipes");   // opened, not created: the file is not touched
-Console.WriteLine(opened.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
+```text
+Gedeckter Apfelkuchen (9000)
+Bratapfelkuchen (800)
+Gedeckter Apfelkuchen
+gedeckter
 ```
 
-No type is named, here or anywhere you work with an index: the file stores a key as text and a payload as bytes, so the
-index knows no types ([ADR-0035](./docs/adr/0035-the-index-knows-no-types.md)). A key is a number (`1`) or a text
-(`"01J…"`, with `WithKey(LuiKeyKind.Text)` when the index is created), and a payload is read where it is used.
+`Create` writes — it belongs in the migration of your application; in the runtime path the index is **opened**: `lui.Index("recipes")` reads the definition out of the file and writes nothing.
 
-Load a stock in **one** transaction, never entry by entry — `UpsertMany` is
-about four times faster than a loop of `Upsert`s:
+## Loading many entries
+
+An index that holds more than a few hundred entries is **loaded**, not written one by one. `Sync` makes the index equal
+to a set of entries: it reads them in batches, writes them in one transaction per batch, and removes what is gone.
 
 ```csharp
-recipes.UpsertMany(Enumerable.Range(1, 10_000).Select(i =>
-    new LuiEntry(100 + i, $"Rezept Nummer {i}") { Weight = i }));
+// many records at once: Sync makes the index equal to the entries, in batches
+using var bulkCatalog = LuiCatalog.Open("Data Source=bulk.db");
+var words = bulkCatalog.Create("words", index => index.SingleWord());
+
+var report = words.Sync(
+    Enumerable.Range(0, 50_000).Select(i => new LuiEntry(i, $"Wort {i}")),
+    new LuiSyncOptions { BatchSize = 10_000 });
+
+Console.WriteLine($"{report.Read} read, {report.Added} added, {report.Batches} batches");
 ```
 
-A query with all its knobs is a fluent builder; `Search(text, options)` takes
-the same settings from configuration:
-
-```csharp
-var result = recipes.Query("rezept")
-    .Take(5)
-    .Rank(LuiRankingOrder.WordStartThenWeight)
-    .TrackTimings()
-    .Execute();
-
-Console.WriteLine($"{result.Hits.Count} of {result.CandidatesConsidered} candidates in {result.Timings!.Total.TotalMilliseconds:F1} ms");
+```text
+50000 read, 50000 added, 5 batches
 ```
 
-Keep an index in step with your own data with `Sync`: what the source has is
-added or written, what it lacks is removed — in batches, merged at the end, and
-a sync that was cancelled can simply run again. `Check()` says whether an index
-is sound and what repairs it:
+- **`Sync`** is the bulk path: one transaction per batch of `BatchSize` entries, a report at the end, and a
+  `IProgress<LuiSyncReport>` for the progress of the load.
+- **`UpsertMany`** is the same without the removal: it writes the entries it is given and leaves the rest alone.
+- **`Sync`** also takes a stream: `await index.Sync(entries.AsAsyncEnumerable(), …)`.
+- **The cost** of a load of a million entries is measured — see [Performance](#performance).
 
-```csharp
-var report = recipes.Sync(new[] { "Gedeckter Apfelkuchen", "Apfelstrudel", "Bratapfelkuchen" }
-    .Select((title, i) => new LuiEntry(i + 1, title) { Weight = 1000 * (3 - i) }));
+A `Linked` index is loaded differently: its content is the table of the application, so `Sync()` reads the table and
+indexes it. The rows that are written afterwards are taken in with `Refresh(id)`, `RefreshMany(ids)` or the triggers the
+application asks for.
 
-Console.WriteLine($"{report.Changed} changed, {report.Removed} removed");   // 3 changed, 10000 removed
-Console.WriteLine(recipes.Check().IsHealthy);                                // True
+## Performance
+
+Two measurements, two machines — and both name the machine they stand on.
+
+**The budgets** below are the targets of the specification, measured in their scenario — three million single words of the
+German word list and one million titles — on the CI machine: Intel Xeon 2.10 GHz, 4 cores, 15 GB, Ubuntu 24.04,
+.NET 10.0.14. Every target is asserted by a test in its scenario; the method and the corpus are in
+[`docs/benchmarks.md`](./docs/benchmarks.md).
+
+| Target | Measured | Limit |
+|---|---:|---:|
+| query p50 | 1.34–1.71 ms | ≤ 2 ms |
+| query p95, 1–4 characters | ≤ 3.1 ms | ≤ 5 ms |
+| query p95, 5–8 characters | 13.4–17.5 ms | ≤ 20 ms |
+| query with a typo correction, p95 | 27.9–32.5 ms | ≤ 35 ms |
+| allocation per query, p50 / p95 | 83 / 298 KB | ≤ 250 / ≤ 350 KB (too much — #30) |
+| `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms | ≤ 1 ms |
+| first load of 3 M entries (`Sync`) | 172.5–205.9 s | ≤ 4 min (#32) |
+| typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| file of 1 M titles | 457 MB | ≤ 500 MB |
+
+**The tables** below are the output of [BenchmarkDotNet](https://benchmarkdotnet.org/) — the code on the corpus of the
+measurement, not the scenario of the budgets. They are rendered from the reports of the run in
+[`benchmarks/results/`](./benchmarks/results/) by a test, so they cannot drift from them; the machine of the run stands
+above them.
+
+<!-- benchmarks:begin -->
+<!-- generated by Readme_Benchmarks from benchmarks/results/ — do not edit by hand -->
+
+```text
+BenchmarkDotNet v0.15.8, Linux Debian GNU/Linux 12 (bookworm)
+Intel Xeon 6982P-C 3.80GHz, 1 CPU, 2 logical and 2 physical cores
+.NET SDK 10.0.403
+  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  DefaultJob : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
 ```
 
-A **payload** comes back with every hit — a category, a colour, an id of your own. It is any type of the JSON context
-of your application, written by **one serialiser of the catalog**, source-generated and so safe for trimming and AOT:
+#### A query
+
+One query through the whole pipeline: the prefix path for one and two characters, FTS5 from three — Entries = 200000. `QueryBenchmarks`.
+
+| Method | Kind | Input | Mean | Error | Allocated |
+|---|---|---|---:|---:|---:|
+| Search | SingleWord | apfelkuc | 89.42 μs | 1.719 μs | 6.73 KB |
+| Search | SingleWord | b | 375.32 μs | 6.873 μs | 36.4 KB |
+| Search | SingleWord | haus | 504.50 μs | 9.855 μs | 27.04 KB |
+| Search | SingleWord | ka | 16.46 μs | 0.275 μs | 4.94 KB |
+| Search | MultiWord | apfelkuc | 238.05 μs | 48.295 μs | 5.44 KB |
+| Search | MultiWord | b | 463.08 μs | 8.753 μs | 60.54 KB |
+| Search | MultiWord | haus | 867.40 μs | 17.324 μs | 65.67 KB |
+| Search | MultiWord | ka | 507.16 μs | 10.049 μs | 61.78 KB |
+
+#### A query with a typo correction
+
+A single-word index with typo tolerance, the dictionary built; the input has one typo — Entries = 200000. `CorrectionBenchmarks`.
+
+| Method | Input | Mean | Error | Allocated |
+|---|---|---:|---:|---:|
+| Search | bahmhof | 201.66 μs | 3.842 μs | 23.61 KB |
+| Search | fusbal | 371.00 μs | 7.259 μs | 21.33 KB |
+| Search | kartofel | 85.87 μs | 1.370 μs | 7.22 KB |
+| Search | strasee | 94.57 μs | 1.089 μs | 7.17 KB |
+
+#### A single write
+
+One write in a transaction of its own — Entries = 200000. `WriteBenchmarks`.
+
+| Method | Mean | Error | Allocated |
+|---|---:|---:|---:|
+| UpdateWeight | 1,868.1 μs | 36.99 μs | 436 B |
+| UpsertTheSame | 688.0 μs | 3.93 μs | 820 B |
+| UpsertAnotherText | 1,496.3 μs | 29.42 μs | 820 B |
+
+#### The search form and the similarity
+
+Per text, no database: the normalisation of §6 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln", `Größe(...)nahme [23]` „Größenänderungsmaßnahme". `TextBenchmarks`.
+
+| Method | Text | Mean | Error | Allocated |
+|---|---|---:|---:|---:|
+| SearchForm | Apfelkuchen | 43.72 ns | 0.408 ns | 144 B |
+| JaroWinkler | Apfelkuchen | 41.64 ns | 0.861 ns | - |
+| NgramDice | Apfelkuchen | 95.53 ns | 1.229 ns | - |
+| SearchForm | Gedec(...)useln [35] | 97.19 ns | 1.462 ns | 240 B |
+| JaroWinkler | Gedec(...)useln [35] | 78.58 ns | 1.509 ns | - |
+| NgramDice | Gedec(...)useln [35] | 251.99 ns | 5.046 ns | - |
+| SearchForm | Größe(...)nahme [23] | 100.69 ns | 2.073 ns | 320 B |
+| JaroWinkler | Größe(...)nahme [23] | 70.50 ns | 1.447 ns | - |
+| NgramDice | Größe(...)nahme [23] | 182.70 ns | 3.655 ns | - |
+
+<!-- benchmarks:end -->
+
+## The kinds of an index
+
+The kind is decided **once**, when the index is created, and it decides how a query searches. The caller of a query does
+not have to know it.
+
+| | **`SingleWord`** | **`MultiWord`** |
+|---|---|---|
+| **For** | tags, single words, compounds, hashtags | names, recipe and book titles |
+| **Examples** | `Apfelkuchen`, `#Bahnhof`, `vegan` | `Anna Müller`, `Gedeckter Apfelkuchen` |
+| **The input is** | one unit | split into words, **ANDed** |
+| **The order of the words** | — | does not matter: `kuchen apfel` finds what `apfel kuchen` finds |
+| **The spaces** | — | do not matter: `apfelkuch` finds “Apfel Kuchen” |
+| **The default similarity** | Jaro-Winkler | N-gram Dice |
+
+### The four combinations
+
+The typo tolerance is a decision of the application: the dictionary of the words of an index costs 138 MB for 685,829
+words, so it is **off by default** and switched on with `TypoTolerance()`.
+
+| | **Typo tolerance off** (the default) | **Typo tolerance on** |
+|---|---|---|
+| **`SingleWord`** | the text as one unit: `apfelkuch` finds *Apfelkuchen* | + one error in the word: `apfelkuh` finds *Apfelkuchen* |
+| **`MultiWord`** | the words ANDed: `apfelkuch` finds *Apfel Kuchen*, `kuchen apfel` finds it too | + one error in one of the words: `apfle kuchen` finds *Apfel Kuchen* |
+
+A correction happens only when **no candidate** matches the input at the beginning of a word — 34 % of the typos would
+find hits in the middle of other words. The dictionary belongs to the index: a query in a tag index never corrects
+towards the words of a name index.
+
+## Embedded or linked
+
+The content of an index comes either from the library's own table or from a table of the application. Three questions
+decide it.
+
+1. **Do the rows already live in a table of your application?**
+   **Yes** → take **Linked**: the library indexes your table and keeps no copy of the text.
+   **No** → take **Embedded**: the library keeps the text in its own table `lui_<index>`.
+2. **Who writes those rows?**
+   **You, with SQL or with your ORM** → with **Embedded** you write the text twice: once into your table, once into
+   the index. With **Linked** you write it once and tell the index afterwards.
+   **Nobody yet — the texts come from a file, an API or a list** → **Embedded**; the index is the only place the text is.
+3. **Do you need a weight of your own — clicks, a popularity, a stock?**
+   **Yes** → with **Embedded** the weight is a property of the entry. With **Linked** it is a column of your table, and
+   the index reads it.
+
+| | **`Embedded`** (the default) | **`Linked`** |
+|---|---|---|
+| **The text lives in** | the table of the library, `lui_<index>` | your own table |
+| **You write it with** | `Upsert`, `UpsertMany`, `Remove` | ordinary SQL — then `Refresh(id)`, `Sync()` or the triggers you ask for |
+| **A copy of the text** | yes | **no** |
+| **Your schema** | untouched | untouched — no column, no index, no trigger unless you ask for one |
+| **A hit reads** | the copy in the index | your row, live |
+| **Your own file** | possible | not possible — the index is in the file of your table |
+
+The two are independent of the kind of the index: every combination of them exists. A `Linked` index keeps the
+normalised text in the search index and the weight and the priority in the order of the candidates — your row itself
+is never copied.
+
+## A payload
+
+A hit can carry a payload of your own: a category, a colour, an id of yours. It is any type of the JSON context of
+your application, written by the **serialiser of the catalog** — source-generated, and so safe for trimming and AOT.
 
 ```csharp
+using Nordmann.LUI;
 using var withChips = LuiCatalog.Open("Data Source=chips.db", new LuiCatalogOptions
 {
     PayloadSerializer = LuiPayloadSerializer.Json(TagJson.Default),   // one serialiser for every index of the catalog
@@ -160,8 +268,6 @@ var chip = chips.Search("veg").Hits[0].GetPayload<TagChip>();   // the type stan
 Console.WriteLine(chip!.Colour);                                 // #3a3
 ```
 
-The types it uses are the application's — at the end of the file, after the statements, or in a file of their own:
-
 ```csharp
 // The types of the application: a payload is any type of its JSON context
 using System.Text.Json.Serialization;
@@ -172,149 +278,13 @@ public sealed record TagChip(string Colour, string Group);
 public sealed partial class TagJson : JsonSerializerContext;
 ```
 
-The file names no type: what the payload is, is the application's to keep. A payload read as a type of another shape — a member in
-the bytes the type does not have, a parameter of its constructor the bytes do not have — throws a `LuiPayloadException`
-that names the index, the key and the type; the JSON serialiser reads strictly, so a mistaken type is never an object
-full of defaults.
+The index knows no types: the file stores the payload as bytes, and the type stands where the payload is used — a
+payload that cannot be read is a `LuiPayloadException`.
 
----
+## In an ASP.NET Core application
 
-## The two index kinds
-
-The kind of an index is fixed when it is created and decides how it is
-searched. The caller does not have to know how.
-
-| | `SingleWord` | `MultiWord` |
-|---|---|---|
-| For | tags, single words, compounds, hashtags | names, recipe titles, book titles |
-| Examples | `Apfelkuchen`, `#Bahnhof`, `vegan` | `Anna Müller`, `Gedeckter Apfelkuchen` |
-| Input | as a whole | split into words and ANDed; also matched compactly |
-| Word order | — | irrelevant (`kuchen apfel` = `apfel kuchen`) |
-| Spaces | — | irrelevant (`apfelkuch` finds „Apfel Kuchen") |
-
-## The two content sources
-
-| | `Embedded` (the default) | `Linked` |
-|---|---|---|
-| Content table | `lui_<index>` — the library's own | a table of your application |
-| Who writes | the application, via `Upsert` / `UpsertMany` / `Remove` | the application, with ordinary SQL |
-| Index ↔ content | consistent by triggers | the application: `Refresh(id)` after its writes (in its transaction, if it likes), `Sync()` for everything — or triggers it asks for |
-| Your schema changed | — | **never**: no column, no index, no trigger unless you call for one |
-| Text stored twice | yes | no |
-| What LUI keeps | the entry: text, weight, priority, payload | **no copy of the row**: the normalised text in the search index, the weight and the priority in the order of the candidates |
-| A hit's text and payload | from `lui_<index>` | read live from your table when the hit is read |
-| A change becomes visible | at the write | payload columns at once; a new **text** becomes searchable, a new weight or priority counts, after `Refresh`, `Sync` or the triggers |
-| The payload | any object the catalog's serialiser writes | built from columns of your table by a map you give: `.WithPayload(["kind", "color"], row => …)` |
-
-```csharp
-using Microsoft.Data.Sqlite;
-
-// a table of the application, as it is
-using (var app = new SqliteConnection("Data Source=app.db"))
-{
-    app.Open();
-    using var create = app.CreateCommand();
-    create.CommandText = """
-        CREATE TABLE IF NOT EXISTS tag (id INTEGER PRIMARY KEY, name TEXT NOT NULL, usage_count INTEGER NOT NULL);
-        INSERT OR REPLACE INTO tag VALUES (1, 'vegan', 120), (2, 'vegetarisch', 80), (3, 'glutenfrei', 40);
-        """;
-    create.ExecuteNonQuery();
-}
-
-// linked: LUI reads the table and never changes it
-var tags = lui.Create("tags", index => index.SingleWord().LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count"));
-tags.Sync();                                             // the whole table; then tags.Refresh(id) after a write
-
-Console.WriteLine(tags.Search("veg").Hits[0].Text);     // vegan
-```
-
-Triggers are opt-in (`tags.TriggerScript()` for your migration, or `tags.CreateTriggers()`): they only note the key of
-a changed row, so any SQLite can still write your table, and `tags.ApplyPending()` brings the noted rows into the
-index — call it regularly; `tags.Pending()` is a good value for a health check.
-
----
-
-## The query
-
-`index.Search(text)` takes the defaults; `index.Query(text)` is the fluent builder, and `Search(text, options)` takes
-the same settings as a `LuiQueryOptions` — from configuration, for example. Every value is checked where it is set.
-
-| Builder | `LuiQueryOptions` | Default | What it does |
-|---|---|---|---|
-| `.Take(n)` | `MaxResults` | 20 | how many hits come back (1 … 1,000) |
-| `.Candidates(n)` | `Candidates` | 500 | how many candidates are ranked — chosen by priority and weight (1 … 100,000) |
-| `.Rank(order)` | `Rank` | `WordStartThenSimilarity` | the order of the ranking, see below |
-| `.PriorityMode(mode)` | `PriorityMode` | `First` | whether the priority comes before everything (`First`) or only makes an entry a certain candidate (`CandidatesOnly`) |
-| `.DistinctText()` | `DistinctText` | off | one hit per normalised text — the one of the highest priority, then weight |
-| `.Similarity(measure)` | `Similarity` | of the index | `LuiSimilarity.JaroWinkler` (the default of `SingleWord`), `NgramDice` (of `MultiWord`), `DamerauLevenshtein`, `Levenshtein` — or your own `ILuiSimilarity` |
-| `.TypoTolerance(bool)` | `TypoTolerance` | of the index | whether an input that no word begins with is corrected |
-| `.TrackTimings()` | `TrackTimings` | off | `result.Timings`: candidate read, correction, ranking, payload, total |
-
-A `LuiResult` holds the `Hits` (key, text, weight, priority, payload, whether a word begins with the input, the
-similarity), `CandidatesConsidered`, `Truncated` (the candidate budget was spent), `CorrectedQuery` and
-`CorrectionSkipped`.
-
-## Ranking and priority
-
-What a user feels, in the order it is applied ([spec §9](./docs/spec/LUI-Spezifikation.md)):
-
-| Stage | Rule | Example for `apfelkuch` |
-|---|---|---|
-| 0. Priority | an entry of a higher `LuiPriority` (`System` → `High` → `Elevated` → `Normal`) comes first | the system tag before the user's |
-| 1. Word start | a word of the entry begins with the input — compactly, so spaces do not matter | **Apfelkuch**en, Gedeckter **Apfelkuch**en, **Apfel Kuch**en ✅ · Brat**apfelkuch**en ❌ |
-| 2. Similarity | measured from the word the hit begins at, not from the start of the text | „Gedeckter Apfelkuchen" scores 0.99, not 0.38 |
-| 3. Weight | the more popular first | 9000 before 800 |
-
-`LuiRankingOrder` reorders stages 1–3: `WordStartThenSimilarity` (the default), `WordStartThenWeight`,
-`SimilarityOnly`, `WeightOnly`. A one- or two-character input is ranked by weight alone — every candidate begins with
-it. A tie on every stage is broken by the rowid, so the result is deterministic.
-
-**Why the priority comes first:** the candidates are read in the order of priority, then weight, and only 500 of them
-are ranked. A rare system tag would otherwise lose against thousands of popular entries before the ranking ever saw
-it — with a priority it is a candidate for every input it matches:
-
-```csharp
-var labels = lui.Create("labels", index => index.SingleWord());
-labels.UpsertMany([
-    new LuiEntry(1, "Vegetarisch") { Weight = 900 },
-    new LuiEntry(2, "Vegan") { Weight = 3, Priority = LuiPriority.System },
-]);
-
-Console.WriteLine(labels.Search("veg").Hits[0].Text);   // Vegan
-```
-
-## Typo tolerance
-
-Off by default — the dictionary costs memory — and switched on per index (`.TypoTolerance()` on the builder) or per
-query. When it triggers, and what it does ([spec §10](./docs/spec/LUI-Spezifikation.md)):
-
-- **When:** no candidate has a word that begins with the input — not only when nothing is found: a third of all typos
-  match somewhere in the middle of another word.
-- **How:** every word of three or more letters is looked up in a SymSpell dictionary of the word *beginnings* of the
-  index (one edit), the three best corrections are searched as well, and the ranking runs with the corrected input.
-  `CorrectedQuery` says what was searched (`gedeckter` for `gedekter`).
-- **The dictionary** is built on the first correction (138 MB and about 4 s for 685,829 words), or ahead of time with
-  `WarmUpTypoDictionary()`. Writes through LUI add their words at once.
-- **No query waits for a build.** While another thread builds the dictionary, a query that needs a correction answers
-  without it and sets `CorrectionSkipped`.
-- **The dictionary only grows.** It is built once and learns the words of every write; nothing rebuilds it behind your
-  back. A word that was removed lingers — harmless, because the index is the filter: a correction towards a word that
-  is gone finds no candidate and falls away. `RebuildTypoDictionary()` forgets removed words, in a quiet phase if you
-  care for the memory.
-- **Every index has a dictionary of its own**, built from its own texts: a search among tags is never corrected
-  towards names, nor the other way round.
-
-```csharp
-recipes.RebuildTypoDictionary();
-Console.WriteLine(recipes.TypoDictionaryState);   // Current
-```
-
-## In an ASP.NET Core or worker application
-
-`Nordmann.LUI.Hosting` brings the dependency injection: `AddLui` puts the **catalog** into the
-container — and nothing else. An index is not registered and not injected; the application
-asks the catalog for what it needs: `catalog.Create(name, …)` in its migration,
-`catalog.Index(…)` in the runtime path.
+`Nordmann.LUI.Hosting` brings the dependency injection: `AddLui` puts the **catalog** into the container — and
+nothing else. An index is not registered and not injected; the application asks the catalog for it.
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -332,239 +302,92 @@ var suggest = catalog.Index("recipes");
 Console.WriteLine(suggest.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
 ```
 
-The catalog is opened when it is first needed, and it goes with the host. A SQLite that LUI
-cannot run on (older than 3.45, or without the FTS5 trigram tokenizer) therefore throws a
-`LuiEnvironmentException` at that moment. It, the `LuiDefinitionMismatchException` of an
-index that exists with another definition, the `LuiIndexNotFoundException` of an index that
-is not there and the `LuiReadOnlyException` of a file that may not be written share the base
-`LuiException` — an `InvalidOperationException`, so a `catch` of that one still catches them.
-
-The package carries the dependency injection and nothing else
-([ADR-0034](./docs/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md)):
-no background service, no timer. The application warms the typo dictionaries itself if it wants
-to (`WarmUpTypoDictionary()` — they only grow), and brings the outbox of a linked index into
-the index itself (`ApplyPending()` after its writes, or in a `PeriodicTimer` loop). No query
-waits for a warm-up: one that would need a correction meanwhile answers without it and says
-`CorrectionSkipped`.
-
-Without a host — in a console application — the same is a few calls of your
-own: `LuiCatalog.Open(…)`, `Create()` where you create an index, `Index()` where you open
-one, `WarmUpTypoDictionary()` at the start,
-`RebuildTypoDictionary()` in a quiet phase if removed words should go, and `ApplyPending()` after your writes
-or in a `PeriodicTimer` loop.
-
----
+The hosting package carries the dependency injection and nothing else — no background service, no timer.
 
 ## Only read
 
-Sometimes an application may only read: a replica, a file that is read-only, a service that must not write.
-`Index` reads the definition out of `lui_meta` and **writes nothing** — no table, no definition, no write lock
-([ADR-0033](./docs/adr/0033-the-read-path-opens-an-index-without-writing.md)). The index it hands out is a view on the
-file: it writes when the file allows it. The index has to exist, and a mistake
-says what is wrong: `LuiIndexNotFoundException` for an index that is not there, `LuiDefinitionMismatchException` for a
-file of another version of LUI, or for an index of the other content source (`Index` opens an embedded one,
-`LinkedIndex` a linked one).
+Sometimes an application may only read: a replica, a file that is read-only. A catalog opened with
+`Mode=ReadOnly` writes nothing — no WAL, no `lui_meta` — and every write is refused with a `LuiReadOnlyException`.
 
 ```csharp
-// the index is opened, not created: the file is not written
-var openedTags = lui.Index("recipes");
-foreach (var hit in openedTags.Search("apfelkuch").Hits)
+// the same file, opened for reading only: it reads and searches, and it writes nothing
+using var reader = LuiCatalog.Open("Data Source=app.db;Mode=ReadOnly");
+var opened = reader.Index("recipes");
+
+foreach (var hit in opened.Search("apfelkuch").Hits)
 {
     Console.WriteLine($"{hit.Key}: {hit.Text}");   // 1: Gedeckter Apfelkuchen
 }
 ```
 
-Opening names no type either: the kind of the key is in the file, and a payload is read by the serialiser of the
-catalog that opens it, with the type the caller asks for (`hit.GetPayload<TagChip>()`).
+`Index` reads the definition out of the file and writes nothing — no table, no definition, no write lock. The file
+decides what may happen.
 
-**The file decides what may happen — not the index.** A catalog that was opened with `Mode=ReadOnly` writes nothing: no
-WAL, no `lui_meta`, and every write is refused with a `LuiReadOnlyException` — `Create`, `DropIndex`, `Upsert`, `Sync`.
-The same application code therefore runs in the service that writes and in the service that only reads:
-`LuiCatalog.Open("Data Source=app.db")` and `LuiCatalog.Open("Data Source=app.db;Mode=ReadOnly")`.
+## The API
 
----
+| Type | What it is |
+|---|---|
+| `LuiCatalog` | the entry point: `Open`, `Create`, `Index`, `LinkedIndex`, `DropIndex` |
+| `LuiEntry` | what is written: a key, a text, a weight, a priority, a payload |
+| `LuiKey` | the key of the application: a number or a text — `1` and `"1"` are different keys |
+| `LuiQuery` | a query that is configured step by step: `Take`, `Candidates`, `Rank`, `PriorityMode`, `DistinctText`, `Similarity`, `TypoTolerance`, `TrackTimings` |
+| `LuiQueryOptions` | the same settings as a record, for the configuration of an application |
+| `LuiResult` | the answer of a query: the hits, the candidates it considered, the query it corrected |
+| `LuiHit` | one hit: the key, the text, the weight, the priority, the similarity — and `GetPayload<T>()` |
+| `LuiCatalogOptions` | the settings of the catalog: the cache, the memory map, the busy timeout, the WAL, the payload serialiser, the clock |
 
-## Performance
+**Every public type of the package is listed in [`docs/api.md`](./docs/api.md)** — the catalogue, the builders, the
+index, the entry, the query, the payload, the similarity, the enumerations, the exceptions and the hosting extension,
+with a sentence for each.
 
-Measured, with the machine named — a number without a machine is a rumour. The full record, the method and every
-earlier run are in [`docs/benchmarks.md`](./docs/benchmarks.md).
-
-**The targets of [spec §16](./docs/spec/LUI-Spezifikation.md)**, each asserted by
-[`PerformanceBudgets`](./tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs) in its scenario — three million
-single words of the German word list (685,829 words, then compounds), one million titles for the file
-([ADR-0020](./docs/adr/0020-the-performance-budgets-measured.md)). Intel Xeon 2.1 GHz, 4 cores, 15 GB, Ubuntu 24.04,
-.NET 10.0.14:
-
-| Target | Measured | Limit |
-|---|---:|---:|
-| query p50 | 1.34–1.71 ms | ≤ 2 ms |
-| query p95, 1–4 characters | ≤ 3.1 ms | ≤ 5 ms |
-| query p95, 5–8 characters | 13.4–17.5 ms | ≤ 20 ms |
-| query with a typo correction, p95 | 27.9–32.5 ms | ≤ 35 ms |
-| allocation per query, p50 / p95 | 83 / 298 KB | ≤ 250 / ≤ 350 KB (too much — #30) |
-| `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms | ≤ 1 ms |
-| first load of 3 M entries (`Sync`) | 172.5–205.9 s | ≤ 4 min (#32) |
-| typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
-| file of 1 M titles | 457 MB | ≤ 500 MB |
-
-Five of these were stated anew by the owner after they were measured — the query p95, the correction, the
-allocation, the file and the first load; for three of them (long inputs, the correction, the file) a loosening,
-written down as such in ADR-0020.
-
-### BenchmarkDotNet
-
-[`benchmarks/Nordmann.LUI.Benchmarks`](./benchmarks/Nordmann.LUI.Benchmarks/) measures the code, not the scenario:
-an index of 200,000 entries of the same generated corpus (seed 42), built by `Sync`, in a database in the page cache.
-The tables below are **generated** from BenchmarkDotNet's own reports in
-[`benchmarks/results/`](./benchmarks/results/) — a test (`Readme_Benchmarks`) fails when they differ, so a number here
-always has a run behind it. Run them again with `tools/benchmarks.sh`.
-
-<!-- benchmarks:begin -->
-<!-- generated by Readme_Benchmarks from benchmarks/results/ — do not edit by hand -->
-
-```text
-BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
-Intel Xeon Processor 2.10GHz, 1 CPU, 4 logical and 4 physical cores
-.NET SDK 10.0.114
-  [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
-  DefaultJob : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
-```
-
-#### A query
-
-One query through the whole pipeline: the prefix path for one and two characters, FTS5 from three — Entries = 200000. `QueryBenchmarks`.
-
-| Method | Kind | Input | Mean | Error | Allocated |
-|---|---|---|---:|---:|---:|
-| Search | SingleWord | apfelkuc | 113.19 μs | 3.739 μs | 26.76 KB |
-| Search | SingleWord | b | 470.02 μs | 15.352 μs | 62.98 KB |
-| Search | SingleWord | haus | 687.29 μs | 25.171 μs | 142.73 KB |
-| Search | SingleWord | ka | 23.79 μs | 0.622 μs | 24.53 KB |
-| Search | MultiWord | apfelkuc | 191.86 μs | 4.885 μs | 25.05 KB |
-| Search | MultiWord | b | 595.32 μs | 21.216 μs | 86.31 KB |
-| Search | MultiWord | haus | 1,070.80 μs | 38.348 μs | 185.05 KB |
-| Search | MultiWord | ka | 634.05 μs | 21.595 μs | 86.85 KB |
-
-#### A query with a typo correction
-
-A single-word index with typo tolerance, the dictionary built; the input has one typo — Entries = 200000. `CorrectionBenchmarks`.
-
-| Method | Input | Mean | Error | Allocated |
-|---|---|---:|---:|---:|
-| Search | bahmhof | 274.8 μs | 8.99 μs | 99.78 KB |
-| Search | fusbal | 476.6 μs | 13.83 μs | 80.15 KB |
-| Search | kartofel | 113.5 μs | 3.29 μs | 26.84 KB |
-| Search | strasee | 123.7 μs | 3.58 μs | 26.79 KB |
-
-#### A single write
-
-One write in a transaction of its own — Entries = 200000. `WriteBenchmarks`.
-
-| Method | Mean | Error | Allocated |
-|---|---:|---:|---:|
-| UpdateWeight | 343.48 μs | 11.133 μs | 436 B |
-| UpsertTheSame | 92.93 μs | 1.835 μs | 812 B |
-| UpsertAnotherText | 228.23 μs | 18.042 μs | 812 B |
-
-#### The search form and the similarity
-
-Per text, no database: the normalisation of §6 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln", `Größe(...)nahme [23]` „Größenänderungsmaßnahme". `TextBenchmarks`.
-
-| Method | Text | Mean | Error | Allocated |
-|---|---|---:|---:|---:|
-| SearchForm | Apfelkuchen | 57.31 ns | 1.250 ns | 144 B |
-| JaroWinkler | Apfelkuchen | 106.18 ns | 2.163 ns | 208 B |
-| NgramDice | Apfelkuchen | 106.25 ns | 2.332 ns | - |
-| SearchForm | Gedec(...)useln [35] | 129.86 ns | 3.891 ns | 240 B |
-| JaroWinkler | Gedec(...)useln [35] | 155.27 ns | 4.885 ns | 232 B |
-| NgramDice | Gedec(...)useln [35] | 286.61 ns | 6.816 ns | - |
-| SearchForm | Größe(...)nahme [23] | 135.20 ns | 4.214 ns | 320 B |
-| JaroWinkler | Größe(...)nahme [23] | 185.13 ns | 3.672 ns | 200 B |
-| NgramDice | Größe(...)nahme [23] | 201.63 ns | 4.061 ns | - |
-
-<!-- benchmarks:end -->
-
-**Reading.** These are 200,000 entries on one thread, in the page cache — the code, not the scenario of §16. A query
-takes 24 µs (two letters, the prefix path of a single-word index) to 1.1 ms (`haus` in titles: many candidates to
-rank); its allocation follows the candidates it reads (#30). A correction costs one more search per correction tried.
-A single write is a commit of its own; load a stock with `UpsertMany` or `Sync` instead.
-
----
-
-## Sample application
+## The sample application
 
 ```bash
 dotnet run --project samples/Lui.Sample      # http://localhost:5000
 ```
 
-[`samples/Lui.Sample/`](./samples/Lui.Sample/) is an ASP.NET Core application that serves a page with six autocompletes, built
-with [flexdatalist](https://github.com/sergiodlopes/flexdatalist) and the whole of the API behind them
-([ADR-0027](./docs/adr/0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md)):
+[`samples/Lui.Sample/`](./samples/Lui.Sample/) is an ASP.NET Core application with six autocompletes: recipes with
+a JSON payload, tags **linked** to your own table, names, the German word list and two bulk indexes. The bulk indexes
+are **created on demand** — the page fills them when you ask for it, and shows the progress while it does.
 
-| Autocomplete | Index | What it shows |
-|---|---|---|
-| Recipes | embedded, multi-word, **JSON payload** (category, minutes, emoji) | the payload as groups and properties, a priority badge, typo correction as "Did you mean …?", transliteration |
-| Tags | **linked** to the application's own table, columns as the payload, priority `System` | a tag picker with chips and a colour from the payload; "add a tag" writes a row and tells the index (triggers, outbox) |
-| Names | embedded, multi-word, no payload | the typo tolerance — with a dictionary of its own per index |
-| Words | embedded, single-word, no payload | the German **word list** — the stock of short texts LUI is built for |
-| People | embedded, multi-word, no payload | the **names** of Bogus's German locale, with the typo tolerance of the index |
-| Hashtags | embedded, single-word, no payload | the **tags** of Bogus's German locale — a place and a surname |
-
-The three at the end are the **bulk indexes**: they do not exist before the button is pressed
-([ADR-0029](./docs/adr/0029-the-sample-fills-its-own-bulk-indexes-on-demand.md)). You say how many entries the index should hold —
-as many as the word list has, as many as you like for the two Bogus indexes (three million is the largest fill) — and the fill runs
-in the background while the page shows its progress. Nobody pays for a stock of half a million words who does not want one.
-
-The button stands in the tab of the index it fills — under the input, where the index is used. The panel of the indexes is a tab
-bar with one tab per index and the count it holds; the settings of the query keep their own column beside the page.
-
-The word list is the full one: 685,829 words under CC0, which the sample downloads itself when it is not on the machine — the
-same source and the same place as `tools/fetch-wordlist.sh`. The panel says which list it found and how many words it has.
+![The sample application: the recipes with the correction of a typo, the tags over the table of the application, and the fill of a bulk index on demand — with its progress and the query on the index it just filled](./docs/images/sample.gif)
 
 ![The recipes autocomplete: "kartofel" is corrected, the page asks "Did you mean “kartoffel”?", the hits are grouped by the category of their payload](./docs/images/sample-recipes.png)
 
 ![The tag picker over the application's own table: chips, a colour from the payload column, the priority System first](./docs/images/sample-tags.png)
 
-Every setting of a query is a control (`Take`, `Candidates`, `Rank`, `PriorityMode`, `DistinctText`, `Similarity`,
-`TypoTolerance`, `TrackTimings`) and a parameter of the request. Beside the input the page shows what flexdatalist drops — the
-whole `LuiResult`: the corrected query, the candidates considered, the timings — the hits as ranked, the requests (a request that is
-abandoned while typing is aborted, and the server stops its work), and the indexes with their maintenance (`Sync`, `Check`,
-`Rebuild`, `Optimize`, the typo dictionary, the outbox, the triggers).
+## The documentation
 
-The client is plain ES modules in folders by concern, with one fetch boundary and no build; `npm test` in the sample's folder runs
-the tests of its modules. LUI delivers no found positions ([ADR-0028](./docs/adr/0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md)):
-when the typo tolerance corrected the input, the page says so — "Did you mean …?" from `CorrectedQuery` — and marks nothing.
+| | |
+|---|---|
+| **[The map of the documentation](./docs/README.md)** | what lies where: the entrance, the way, the API, the numbers — and who reads what |
+| **[The tutorial](./docs/tutorial/README.md)** | the way: from an empty database to a working autocomplete, in five steps |
+| **[The API](./docs/api.md)** | every public type of the package, with a sentence for each |
+| **[The benchmarks](./docs/benchmarks.md)** | every measured number, with the machine, the corpus and the method |
+| **[The normalisation](./docs/normalization.md)** | the rule that turns a text into a searchable form — and what was measured about it |
+| **[The test map](./docs/testing.md)** | which test proves which rule |
+| **[The alignment](./docs/architecture/alignment.md)** and **[the domain](./docs/domain/lui.md)** | which rules of the standards apply to a library — and the terms the library speaks |
 
----
+## Status
 
-## Repository layout
+LUI is **feature-complete for 0.1.0 and not yet published**. The design is specified, and the implementation follows
+it; every decision of the repository is written down and dated.
 
-```text
-src/Nordmann.LUI/            ← the library (package Nordmann.LUI)
-src/Nordmann.LUI.Hosting/    ← the dependency injection (package Nordmann.LUI.Hosting, same version)
-tests/                       ← unit, architecture and integration tests
-                              (and the map of them: docs/testing.md)
-benchmarks/                  ← BenchmarkDotNet, and its reports (benchmarks/results/)
-samples/Lui.Sample/          ← ASP.NET Core API + a page of ES modules with flexdatalist (ADR-0027, ADR-0029)
-tools/                       ← the smoke test, the mutation check, the benchmark run, the word list
-docs/adr/                    ← the decisions, and why
-docs/spec/                   ← the specification this repo implements
-docs/plan/                   ← the delivery plan
-```
+Two packages, one version: `Nordmann.LUI` (the library) and `Nordmann.LUI.Hosting` (the dependency injection). The core
+takes `Microsoft.Data.Sqlite` and `symspell` and nothing else; the target framework is `net10.0`, the licence is MIT,
+and the public API grows only additively from `0.1.0` on.
 
 ## Working on LUI
 
-Read [`AGENTS.md`](./AGENTS.md) first — it is the contract for this
-repository, and it inherits
+Read [`AGENTS.md`](./AGENTS.md) first — it is the contract for this repository, and it inherits
 [`nordmanndev/standards`](https://github.com/nordmanndev/standards).
 
 - **One issue, one pull request**, each with its tests, its measurement and — for a decision that changes the public
-  API, the schema or the dependencies — its ADR.
-- **The specification is the contract.** Code that contradicts it is a bug, unless an ADR says the specification is
-  wrong; then both change in the same pull request.
-- **Before a pull request:** `dotnet test`, `dotnet format --verify-no-changes`, `tools/package-smoke-test.sh` and
-  `tools/mutation-check.sh`. The map of the tests ([`docs/testing.md`](./docs/testing.md)) is a guard: a test file it
-  does not list fails the build.
+  API, the schema or the dependencies — its record.
+- **Before a pull request:** `dotnet test`, `dotnet format --verify-no-changes`, `tools/package-smoke-test.sh`,
+  `tools/mutation-check.sh` — the test map ([`docs/testing.md`](./docs/testing.md)) is a guard: an unlisted test file fails the build.
+- **The code of this README runs.** Every C# block above is executed by the package smoke test, against the packed
+  `.nupkg` — so the README cannot drift from the code.
 
 ## Licence
 

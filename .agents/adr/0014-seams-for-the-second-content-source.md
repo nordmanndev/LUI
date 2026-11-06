@@ -8,7 +8,7 @@
 - **Date:** 2026-11-03
 - **Supersedes:** —
 - **Affects:** `src/Nordmann.LUI/` (internal only), `tests/Nordmann.LUI.Architecture.Tests/Internal_Layering.cs`,
-  `docs/spec/LUI-Spezifikation.md` §17.2, ADR-0001 (the namespace layout)
+  `.agents/spec/LUI-Spezifikation.md` §17.2, ADR-0001 (the namespace layout)
 
 ## Context
 

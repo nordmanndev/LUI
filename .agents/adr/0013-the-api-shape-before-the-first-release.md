@@ -17,7 +17,7 @@
 - **Supersedes:** the namespace layout of ADR-0001 (the package decision stands)
 - **Amended by:** [0015](./0015-the-linked-index-is-loosely-coupled.md) — `Owned<long>` is the default; the source step is gone, `WithKey<string>()` and `LinkTo(…)` take its place
 - **Affects:** every public type in `src/Nordmann.LUI/`, `src/Nordmann.LUI.csproj`,
-  `docs/spec/LUI-Spezifikation.md` §8.3, §11, §12, §17, `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs`,
+  `.agents/spec/LUI-Spezifikation.md` §8.3, §11, §12, §17, `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs`,
   `tools/package-smoke-test.sh`, `README.md`
 
 ## Context

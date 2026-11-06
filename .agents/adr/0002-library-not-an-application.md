@@ -39,7 +39,7 @@ they describe *application shape*.**
 | Central package management | `Directory.Packages.props`; no `Version` on any `PackageReference` — architecture test |
 | `Meziantou.Analyzer` from day one | standards entry 9 — "adopted from day one" |
 | Test pyramid | xUnit + Shouldly + Alba + NetArchTest — unit, architecture, integration |
-| ADR discipline | `docs/adr/`, one ADR per decision, in the same pull request |
+| ADR discipline | `.agents/adr/`, one ADR per decision, in the same pull request |
 | `CHANGELOG.md` on public API change | unchanged |
 | Closed-library policy | every dependency outside the standards' catalogue gets an ADR (see ADR-0004) |
 | README shape | "what this is / what this is not / install / quick start" — the standards' own structure |

@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
-- **Affects:** `docs/spec/LUI-Spezifikation.md` §21, the public API surface
+- **Affects:** `.agents/spec/LUI-Spezifikation.md` §21, the public API surface
 
 ## Context
 
