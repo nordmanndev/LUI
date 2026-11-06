@@ -225,14 +225,15 @@ expect_caught "a-build-never-commits-its-staging-area" "${UNIT_PROJECT}" \
   "FullyQualifiedName~TypoDictionaryStateTests" \
   "sed -i 's|symSpell.CommitStaged(stage);|_ = stage;|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
 
-# 17. A benchmark number in the README is edited by hand (ADR-0022): the
-#     tables are rendered from benchmarks/results/, and the guard notices.
-expect_caught "a-readme-benchmark-number-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
+# 17. A benchmark number in the record is edited by hand (ADR-0022): the
+#     tables of docs/benchmarks.md are rendered from benchmarks/results/, and
+#     the guard notices.
+expect_caught "a-benchmark-number-in-the-record-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~Readme_Benchmarks" \
-  "sed -i '0,/ μs |/s// ms |/' README.md"
+  "sed -i '0,/ μs |/s// ms |/' docs/benchmarks.md"
 
 # 18. A number in a committed BenchmarkDotNet report is edited by hand, and the
-#     README is not rendered anew (review of pull request 37, M2): the two no
+#     tables are not rendered anew (review of pull request 37, M2): the two no
 #     longer agree, and the guard notices from the other side.
 expect_caught "a-benchmark-report-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~Readme_Benchmarks" \

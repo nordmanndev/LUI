@@ -226,6 +226,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The documentation has an entrance, a contract and a way** ([ADR-0036](docs/adr/0036-the-readme-the-specification-and-the-tutorial.md),
+  [ADR-0022](docs/adr/0022-the-benchmark-results-in-the-readme.md), #61). The README is rewritten: 571 lines with two
+  truths for one rule become 241 lines — what LUI is, what it is **not**, the problem, the highlights, a linked table
+  of contents, the install, one quick start with its output, the budgets of §16, one table for the two index kinds and
+  the two content sources, the payload, `AddLui` in a host, reading only, the most important types, the sample and the
+  map of the documentation.
+  - The five concept sections (the kinds of index, the sources of the content, the query, the ranking and the
+    priority, the typo tolerance) leave the README: the [specification](docs/spec/LUI-Spezifikation.md) has them, in
+    full, and it is the contract.
+  - The raw tables of a BenchmarkDotNet run move to [`docs/benchmarks.md`](docs/benchmarks.md) — with the machine, the
+    corpus and the method. The guard follows them: `Readme_Benchmarks` renders the section there and fails when the
+    file and the committed reports differ; the README keeps the budgets (target, measured value, limit) and links to
+    the record.
+  - A new [tutorial](docs/tutorial/README.md) takes the reader from an empty database to a working autocomplete, in
+    five steps, with code that compiles.
+  - Every C# block of the README is still executed by the package smoke test, against the packed `.nupkg`.
+  - **No change to the public API.**
+
 - **The index knows no types** ([ADR-0035](docs/adr/0035-the-index-knows-no-types.md), #58). The file stores a key as
   text and a payload as bytes, so the index has no type parameters any more: `ILuiIndex`, `ILuiEmbeddedIndex`,
   `ILuiLinkedIndex`, `LuiEntry`, `LuiHit`, `LuiResult`, `LuiQuery` and the builders. The serialiser of the payloads
