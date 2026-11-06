@@ -214,6 +214,38 @@ public sealed class ReadPathTests
     }
 
     [Fact]
+    public void A_payload_of_an_embedded_index_read_as_a_type_of_another_shape_is_refused()
+    {
+        // review of PR 60, I1: the embedded path is as strict as the linked one — a chip read as a recipe card is an
+        // error that names the index, the key and the type, not a card with an empty title
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Create("tags", index => index.SingleWord()).Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("#3a3", "System") });
+        var hit = catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
+
+        var exception = Should.Throw<LuiPayloadException>(() => hit.GetPayload<RecipeCard>());
+
+        exception.IndexName.ShouldBe("tags");
+        exception.Key.ShouldBe((LuiKey)1);
+        exception.RequestedType.ShouldBe(typeof(RecipeCard));
+        exception.InnerException.ShouldBeOfType<System.Text.Json.JsonException>();
+        Should.Throw<LuiPayloadException>(() => hit.TryGetPayload<RecipeCard>(out _), "the entry has a payload: false would say it had none");
+    }
+
+    [Fact]
+    public void Whatever_a_serialiser_of_the_application_throws_on_the_read_comes_as_a_payload_exception()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open(new LuiCatalogOptions { PayloadSerializer = new RefusingSerializer() });
+        catalog.Create("tags", index => index.SingleWord()).Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("v") });
+        var hit = catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
+
+        var exception = Should.Throw<LuiPayloadException>(() => hit.GetPayload<Chip>());
+
+        exception.InnerException.ShouldBeOfType<InvalidOperationException>().Message.ShouldBe("refused");
+    }
+
+    [Fact]
     public void An_entry_without_a_payload_has_none_and_says_so()
     {
         using var database = new TestDatabase();
@@ -241,6 +273,23 @@ public sealed class ReadPathTests
 
         catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem().GetPayload<Chip>().ShouldBe(new Chip("gruen"));
         Should.NotThrow(() => catalog.Create("tags", index => index.SingleWord()), "the definition is the same");
+    }
+
+    [Fact]
+    public void A_definition_with_a_kind_of_key_this_version_does_not_know_says_so_when_it_is_opened()
+    {
+        // review of PR 60, M3: a key type that is neither "long" nor "string" is not read as numbers — the first hit
+        // would fail far from the cause, in long.Parse
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+        var stored = database.Scalar<string>("SELECT definition FROM lui_meta WHERE index_name = 'tags';");
+        WriteDefinition(database, "tags", stored.Replace("\"keyType\":\"long\"", "\"keyType\":\"int\"", StringComparison.Ordinal));
+
+        var exception = Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags"));
+
+        exception.IndexName.ShouldBe("tags");
+        exception.Message.ShouldContain("int");
     }
 
     [Fact]
@@ -424,5 +473,13 @@ public sealed class ReadPathTests
     private sealed class Constant(double value) : ILuiSimilarity
     {
         public double Similarity(string query, string text) => value;
+    }
+
+    /// <summary>A serialiser of the application that writes and refuses to read — with an exception of its own.</summary>
+    private sealed class RefusingSerializer : ILuiPayloadSerializer
+    {
+        public byte[] Serialize(object payload) => [1];
+
+        public T Deserialize<T>(ReadOnlySpan<byte> bytes) => throw new InvalidOperationException("refused");
     }
 }

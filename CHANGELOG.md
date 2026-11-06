@@ -259,6 +259,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - A serialiser of the application: `ILuiPayloadSerializer<T>` with `Serialize(T)` / `T Deserialize(bytes)` — now:
       `ILuiPayloadSerializer` with `Serialize(object)` / `T Deserialize<T>(bytes)`, given to the catalog.
     - A value-type payload that is its default (`0`) was not stored; it is now — only `null` means "no payload".
+    - `LuiPayloadSerializer.Json` reads **strictly**: a payload read as a type of another shape (a member in the bytes
+      the type does not have, a constructor parameter the bytes do not have) is a `LuiPayloadException`, not an object
+      of defaults. A member removed from a payload type, or a constructor parameter added without a default, makes the
+      payloads written before unreadable: write them again (`Sync`).
+    - Two hits are equal when their values are, the payload compared by its content (as before, when the hit held the
+      deserialised payload).
+    - A definition with a key type this version does not know is a `LuiDefinitionMismatchException` when it is opened.
   - **`Linked` is documented precisely** (spec §7.3): LUI keeps no copy of the row — the normalised text in the search
     index, the weight and the priority in the order of the candidates; the text and the payload of a hit are read from
     the table when the hit is read.

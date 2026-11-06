@@ -47,6 +47,44 @@ public readonly record struct LuiHit
     /// <exception cref="LuiPayloadException">The payload cannot be read as <typeparamref name="T"/>.</exception>
     public T? GetPayload<T>() => TryGetPayload<T>(out var payload) ? payload : default;
 
+    /// <summary>
+    /// Whether two hits are the same (review of PR 60, M4): the key, the text, the weight, the priority, the similarity,
+    /// the word start — and the stored payload by its <b>content</b>, the bytes of an embedded index or what the map of a
+    /// linked one built. Where the payload came from is no part of it: two instances of the same index give equal hits.
+    /// </summary>
+    /// <param name="other">The other hit.</param>
+    /// <returns><see langword="true"/> when they are the same.</returns>
+    public bool Equals(LuiHit other) =>
+        Key == other.Key
+        && string.Equals(Text, other.Text, StringComparison.Ordinal)
+        && Weight == other.Weight
+        && Priority == other.Priority
+        && Similarity.Equals(other.Similarity)
+        && AtWordStart == other.AtWordStart
+        && SamePayload(StoredPayload, other.StoredPayload);
+
+    /// <inheritdoc/>
+    public override int GetHashCode()
+    {
+        var hash = new HashCode();
+        hash.Add(Key);
+        hash.Add(Text, StringComparer.Ordinal);
+        hash.Add(Weight);
+        hash.Add(Priority);
+        hash.Add(Similarity);
+        hash.Add(AtWordStart);
+        if (StoredPayload is byte[] bytes)
+        {
+            hash.AddBytes(bytes);
+        }
+        else
+        {
+            hash.Add(StoredPayload);
+        }
+
+        return hash.ToHashCode();
+    }
+
     /// <summary>The payload, read as <typeparamref name="T"/>, if the entry has one.</summary>
     /// <typeparam name="T">The type of the payload — the application's to know.</typeparam>
     /// <param name="payload">The payload.</param>
@@ -63,4 +101,9 @@ public readonly record struct LuiHit
         payload = PayloadSource.Read<T>(StoredPayload, Key);
         return true;
     }
+
+    private static bool SamePayload(object? one, object? other) =>
+        one is byte[] bytes && other is byte[] otherBytes
+            ? bytes.AsSpan().SequenceEqual(otherBytes)
+            : Equals(one, other);
 }

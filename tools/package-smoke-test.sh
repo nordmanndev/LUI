@@ -84,7 +84,8 @@ XML
 # The C# blocks of the README: their `using` lines go to the top of the file,
 # the rest becomes the body of Readme(), in the order of the README.
 # A block whose first line is "// The types of the application…" declares types: it goes after the statements, where
-# C# allows a type, and the other blocks run in order inside one method.
+# C# allows a type, and the other blocks run in order inside one method. The README shows such a block after the
+# statements that use it — the order a reader can copy (review of PR 60, M2).
 readme_blocks() {
   awk -v want="$1" '
     /^```csharp$/ { inside = 1; n = 0; next }

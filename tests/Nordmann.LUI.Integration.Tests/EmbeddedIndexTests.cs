@@ -116,6 +116,28 @@ public sealed class EmbeddedIndexTests
     }
 
     [Fact]
+    public void Two_hits_of_the_same_entry_are_equal_also_with_a_payload()
+    {
+        // review of PR 60, M4: a hit is a value — its equality compares the stored payload by its bytes, not by the
+        // array that holds them, as it compared the deserialised payload before ADR-0035
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var tags = catalog.Create("tags", index => index.SingleWord());
+        tags.Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("v", "green") });
+
+        var first = tags.Search("vegan").Hits.ShouldHaveSingleItem();
+        var second = tags.Search("vegan").Hits.ShouldHaveSingleItem();
+        var opened = catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
+
+        first.ShouldBe(second);
+        first.GetHashCode().ShouldBe(second.GetHashCode());
+        first.ShouldBe(opened, "another instance of the index reads the same entry");
+
+        tags.Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("v", "teal") });
+        tags.Search("vegan").Hits.ShouldHaveSingleItem().ShouldNotBe(first, "another payload is another hit");
+    }
+
+    [Fact]
     public void A_key_of_another_type_changes_the_definition()
     {
         using var database = new TestDatabase();

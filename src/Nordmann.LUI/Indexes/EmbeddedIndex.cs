@@ -168,12 +168,13 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         }
     }
 
-    /// <summary>
-    /// The stored form of a payload. A payload that is null, or the default of a value type, is "no payload" —
-    /// it is stored as NULL and read back as the default. A value type cannot say more (review B1).
-    /// </summary>
+    /// <summary>The stored text of a key; a key of the other kind is refused (ADR-0035).</summary>
     private string KeyText(LuiKey key) => KeyCodec.ToText(key, KeyKind, Name);
 
+    /// <summary>
+    /// The stored form of a payload (ADR-0035): <see langword="null"/> is "no payload" and is stored as NULL; any other
+    /// value is a payload — a <c>0</c> as well — and is written by the serialiser of the catalog, with the type it has.
+    /// </summary>
     private byte[]? PayloadBytes(object? payload)
     {
         if (payload is null)

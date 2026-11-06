@@ -69,7 +69,15 @@ var chip = tags.Search("veg").Hits[0].GetPayload<TagChip>();                  //
    not a type: it decides how a stored key is read. A key of the other kind fails at once on the write.
 4. **The payload is read where it is used**: `hit.GetPayload<T>()`, `hit.TryGetPayload<T>(out T)`, `hit.HasPayload`. The
    query hands out the stored bytes and deserialises nothing; the hit deserialises on every call. What cannot be read
-   as `T` is a `LuiPayloadException` with the index, the key and the type.
+   as `T` is a `LuiPayloadException` with the index, the key and the type — whatever the serialiser throws, LUI's or one
+   of the application.
+   **`LuiPayloadSerializer.Json` reads strictly** (review of PR 60, I1): with the file naming no type, the bytes are the
+   only witness of what was written, and JSON is tolerant — a chip read as a recipe came back as
+   `Recipe { Title = "", Minutes = 0 }`, wrong data that looks like right data. The serialiser therefore reads with the
+   settings of the context plus `UnmappedMemberHandling.Disallow` (a member in the bytes the type does not have) and
+   `RespectRequiredConstructorParameters` (a parameter of the constructor the bytes do not have): both are a
+   `JsonException`, and the hit makes it a `LuiPayloadException`. A type that has every member of the bytes and optional
+   ones besides is read — that is a compatible change of the payload, not a mistake. No name is stored for it.
 5. **Opening**: `catalog.Index(name)` for an embedded index, `catalog.LinkedIndex(name)` and
    `catalog.LinkedIndex(name, map)` for a linked one — the name says the source, because the return type has to be known
    when the code is compiled and the two sources can do different things. The type of the map is inferred from the
@@ -126,9 +134,19 @@ out again. C is the decision that can still be corrected; A is not.
   ADR-0032).
 - **A payload is deserialised on every `GetPayload<T>()`** — the hit does not cache it, which keeps the hit a small
   value. The application keeps the result when it uses it twice (documented on the method).
-- **A type mistake surfaces later**: a wrong key kind on the write (at once, `ArgumentException`), a wrong payload type
-  when the payload is read (`LuiPayloadException`). The price is accepted; #59 is the way back to the compiler for the
-  places that want it.
+- **A type mistake surfaces later, but loudly**: a wrong key kind on the write (at once, `ArgumentException`), a payload
+  read as a type of another shape when it is read (`LuiPayloadException`, by the strict reading). What stays silent is a
+  type that has all the members of the bytes — by construction a compatible one. The price is accepted; #59 is the way
+  back to the compiler for the places that want it.
+- **The strictness has a cost for the application**: a member that is removed from a payload type, or a constructor
+  parameter that is added without a default, makes the payloads written before unreadable — loudly. That is the change of
+  the payload that ADR-0035 leaves to the application: it writes the entries again (`Sync`) or keeps the type compatible.
+- **A key type a definition names that this version does not know** (neither `long` nor `string`) is a
+  `LuiDefinitionMismatchException` when the index is opened (review of PR 60, M3), not a `FormatException` at the first
+  hit.
+- **A hit is a value** (review of PR 60, M4): its equality compares the stored payload by its content — the bytes, or
+  what the map of a linked index built — so two hits of the same entry are equal, as they were when the hit held the
+  deserialised payload. Where the payload came from is no part of it.
 - **One serialiser per catalog.** Two indexes with two formats in one file are not possible. If that is ever needed, a
   serialiser per index is an additive option of the builder.
 - **ADR-0033's "the untyped facade is gone" holds**: the facade was a *second* way into the data beside the typed one.
@@ -137,10 +155,11 @@ out again. C is the decision that can still be corrected; A is not.
 
 **Verified by:** `tests/Nordmann.LUI.Unit.Tests/LuiKeyTests.cs`, `tests/Nordmann.LUI.Unit.Tests/LuiPayloadSerializerTests.cs`,
 `tests/Nordmann.LUI.Integration.Tests/ReadPathTests.cs` (the kind of the key from the file, the key of the other kind,
-the serialiser of the catalog that opens the file, the type that cannot be read, the definition of an older version, the
-source of the index), `tests/Nordmann.LUI.Integration.Tests/EmbeddedIndexTests.cs` (the payload is no part of the
+the serialiser of the catalog that opens the file, the type that cannot be read, a payload read as a type of another
+shape, whatever a serialiser of the application throws, the definition of an older version and of an unknown key type,
+the source of the index), `tests/Nordmann.LUI.Integration.Tests/EmbeddedIndexTests.cs` (the payload is no part of the
 definition, the type the serialiser does not know, the catalog without a serialiser, the payload read when it is asked
-for and not before), `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs` (`The_index_knows_no_types`, the shape
+for and not before, two hits of the same entry are equal), `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs` (`The_index_knows_no_types`, the shape
 of the catalog, the retired names), `tests/Nordmann.LUI.Unit.Tests/KeyCodecTests.cs` (a key of the other kind refused before it reaches the file), the
 README run by `tools/package-smoke-test.sh`, the mutations `the-hit-gets-a-payload-property` and
-`a-key-of-the-other-kind-reaches-the-file` of `tools/mutation-check.sh`, and the probe above.
+`a-key-of-the-other-kind-reaches-the-file` and `the-json-payload-is-read-tolerantly` of `tools/mutation-check.sh`, and the probe above.

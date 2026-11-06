@@ -1,5 +1,3 @@
-using System.Text.Json;
-
 namespace Nordmann.LUI.Querying;
 
 /// <summary>
@@ -38,8 +36,10 @@ internal sealed class PayloadSource(string indexName, ILuiPayloadSerializer? ser
         {
             return serializer.Deserialize<T>((byte[])stored);
         }
-        catch (Exception exception) when (exception is JsonException or NotSupportedException or InvalidCastException or FormatException)
+        catch (Exception exception) when (exception is not OperationCanceledException)
         {
+            // whatever the serialiser throws — LUI's own or one of the application — the caller gets one exception
+            // that names the index, the key and the type (review of PR 60, I1)
             throw new LuiPayloadException(indexName, key, typeof(T), exception.Message, exception);
         }
     }

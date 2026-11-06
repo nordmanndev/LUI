@@ -39,4 +39,10 @@ public sealed class KeyCodecTests
         KeyCodec.KindOf("long").ShouldBe(LuiKeyKind.Number);
         KeyCodec.KindOf("string").ShouldBe(LuiKeyKind.Text);
     }
+
+    [Fact]
+    public void A_name_of_a_kind_that_is_neither_long_nor_string_is_refused()
+    {
+        Should.Throw<NotSupportedException>(() => KeyCodec.KindOf("int")).Message.ShouldContain("'int'");
+    }
 }

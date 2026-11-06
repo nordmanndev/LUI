@@ -473,7 +473,8 @@ public readonly record struct LuiHit
 
 Der Treffer kennt **keinen Typ der Payload** (ADR-0035): Die Abfrage reicht die gespeicherten Bytes durch, und
 `GetPayload<T>()` liest sie mit dem Serialisierer des Katalogs als den Typ, den der Aufrufer verlangt — bei jedem
-Aufruf, nicht vorher. Ein Treffer, dessen Payload nie gelesen wird, kostet keine Deserialisierung.
+Aufruf, nicht vorher. Ein Treffer, dessen Payload nie gelesen wird, kostet keine Deserialisierung. Der Treffer ist ein
+**Wert**: Zwei Treffer desselben Eintrags sind gleich — die Payload wird nach ihrem Inhalt verglichen.
 
 Die Ergebnistypen haben **benannte Eigenschaften, keine Positionen** (ADR-0013): Ein neues Feld ist eine
 Ergänzung, kein Bruch, und zwei Felder gleichen Typs können nicht still die Plätze tauschen. Eine Markierung
@@ -769,8 +770,13 @@ der Typ der Payload ist das Wissen des Aufrufers und steht dort, wo die Payload 
 - In beiden Fällen: Payload **nur für die Treffer**, eine Abfrage
   `WHERE key IN (…)` bzw. `WHERE id IN (…)`. **Gelesen wird sie im Treffer**, mit `hit.GetPayload<T>()` oder
   `hit.TryGetPayload<T>(out var payload)`. Lässt sie sich nicht als `T` lesen — ein Typ, der nicht im Context steht,
-  ein Katalog ohne Serialisierer, eine Abbildung, die etwas anderes baute —, ist das ein `LuiPayloadException`, das
-  den Index, den Schlüssel und den verlangten Typ nennt.
+  ein Katalog ohne Serialisierer, eine Abbildung, die etwas anderes baute, was immer ein Serialisierer der Anwendung
+  wirft —, ist das ein `LuiPayloadException`, das den Index, den Schlüssel und den verlangten Typ nennt.
+- **`LuiPayloadSerializer.Json` liest streng**: ein Mitglied in den Bytes, das der verlangte Typ nicht hat, oder ein
+  Parameter seines Konstruktors, den die Bytes nicht haben, ist ein Fehler (`UnmappedMemberHandling.Disallow`,
+  `RespectRequiredConstructorParameters`) — nie ein Objekt voller Standardwerte, das wie Daten aussieht. Ein Typ, der
+  alle Mitglieder der Bytes hat und dazu optionale, wird gelesen. Die übrigen Einstellungen des Context bleiben, wie die
+  Anwendung sie gewählt hat.
 - **Die Definition merkt sich keinen Typ der Payload** (ADR-0035). Ändert die Anwendung den Typ ihrer Payload, ist
   das ihre Sache; die Bibliothek merkt es frühestens, wenn der Serialisierer die Bytes nicht lesen kann.
 
@@ -920,7 +926,8 @@ public sealed class SuggestEndpoint(LuiCatalog catalog)
 | ein Schlüssel der anderen Art (eine Zahl für Texte, ein Text für Zahlen) | `ArgumentException` beim Schreiben (nennt den Index und beide Arten) |
 | eine Payload, deren Typ der Serialisierer nicht kennt | `NotSupportedException` beim Schreiben (nennt den Typ) |
 | eine Payload in einem Katalog ohne Serialisierer | `InvalidOperationException` beim Schreiben |
-| eine Payload, die sich nicht als der verlangte Typ lesen lässt | `LuiPayloadException` bei `GetPayload<T>()` (nennt Index, Schlüssel und Typ) |
+| eine Payload, die sich nicht als der verlangte Typ lesen lässt (auch: ein Typ anderer Gestalt) | `LuiPayloadException` bei `GetPayload<T>()` (nennt Index, Schlüssel und Typ) |
+| eine Definition mit einem Schlüsseltyp, den diese Version nicht kennt | `LuiDefinitionMismatchException` beim Öffnen |
 | Definition weicht von `lui_meta` ab | `LuiDefinitionMismatchException` (nennt beide) |
 | Index gibt es nicht (beim Öffnen) | `LuiIndexNotFoundException` (nennt den Namen) |
 | SQLite zu alt, ohne FTS5-Trigram-Tokenizer oder mit anderer Faltung | `LuiEnvironmentException` beim `LuiCatalog.Open` |

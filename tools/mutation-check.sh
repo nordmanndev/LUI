@@ -309,6 +309,12 @@ expect_caught "a-key-of-the-other-kind-reaches-the-file" "${UNIT_PROJECT}" \
   "FullyQualifiedName~KeyCodecTests" \
   "sed -i 's|        if (key.Kind != kind)|        if (key.Kind != kind \&\& string.IsNullOrEmpty(indexName))|' src/Nordmann.LUI/Schema/KeyCodec.cs"
 
+# 24d. The JSON payload is read tolerantly again (review of PR 60, I1): a chip read as a recipe comes back as a recipe
+#      of defaults — wrong data that looks like right data — instead of an error.
+expect_caught "the-json-payload-is-read-tolerantly" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~LuiPayloadSerializerTests" \
+  "sed -i '/UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,/d; /RespectRequiredConstructorParameters = true,/d' src/Nordmann.LUI/LuiPayloadSerializer.cs"
+
 # 25. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

@@ -270,6 +270,11 @@ public sealed class LuiCatalog : IDisposable
                 $"the schema version {Meta.SchemaVersion.ToString(CultureInfo.InvariantCulture)}");
         }
 
+        if (!KeyCodec.IsKnown(entry.Definition.KeyType))
+        {
+            throw Mismatch(validated, $"the key type {entry.Definition.KeyType}", "the key type long or string");
+        }
+
         if (!string.Equals(entry.Definition.FoldTable, TokenizerFold.Version, StringComparison.Ordinal))
         {
             throw Mismatch(

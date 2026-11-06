@@ -148,16 +148,6 @@ A **payload** comes back with every hit — a category, a colour, an id of your 
 of your application, written by **one serialiser of the catalog**, source-generated and so safe for trimming and AOT:
 
 ```csharp
-// The types of the application: a payload is any type of its JSON context
-using System.Text.Json.Serialization;
-
-public sealed record TagChip(string Colour, string Group);
-
-[JsonSerializable(typeof(TagChip))]
-public sealed partial class TagJson : JsonSerializerContext;
-```
-
-```csharp
 using var withChips = LuiCatalog.Open("Data Source=chips.db", new LuiCatalogOptions
 {
     PayloadSerializer = LuiPayloadSerializer.Json(TagJson.Default),   // one serialiser for every index of the catalog
@@ -170,8 +160,22 @@ var chip = chips.Search("veg").Hits[0].GetPayload<TagChip>();   // the type stan
 Console.WriteLine(chip!.Colour);                                 // #3a3
 ```
 
-The file names no type: what the payload is, is the application's to keep. A payload read as a type it is not throws a
-`LuiPayloadException` that names the index, the key and the type.
+The types it uses are the application's — at the end of the file, after the statements, or in a file of their own:
+
+```csharp
+// The types of the application: a payload is any type of its JSON context
+using System.Text.Json.Serialization;
+
+public sealed record TagChip(string Colour, string Group);
+
+[JsonSerializable(typeof(TagChip))]
+public sealed partial class TagJson : JsonSerializerContext;
+```
+
+The file names no type: what the payload is, is the application's to keep. A payload read as a type of another shape — a member in
+the bytes the type does not have, a parameter of its constructor the bytes do not have — throws a `LuiPayloadException`
+that names the index, the key and the type; the JSON serialiser reads strictly, so a mistaken type is never an object
+full of defaults.
 
 ---
 

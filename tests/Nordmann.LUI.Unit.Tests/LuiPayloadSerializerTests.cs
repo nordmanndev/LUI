@@ -74,6 +74,35 @@ public sealed class LuiPayloadSerializerTests
     }
 
     [Fact]
+    public void A_payload_read_as_a_type_of_another_shape_is_refused_not_filled_with_defaults()
+    {
+        // review of PR 60, I1: JSON is tolerant — without the strict reading a chip read as a recipe came back as
+        // Recipe { Title = "", Minutes = 0 }, wrong data that looks like right data
+        var bytes = Serializer.Serialize(new Chip("vegan", "green"));
+
+        var exception = Should.Throw<JsonException>(() => Serializer.Deserialize<Recipe>(bytes));
+
+        exception.Message.ShouldContain("Slug");
+    }
+
+    [Fact]
+    public void A_payload_that_lacks_a_parameter_of_the_constructor_is_refused()
+    {
+        var bytes = Serializer.Serialize(new Named("vegan"));
+
+        Should.Throw<JsonException>(() => Serializer.Deserialize<Ranked>(bytes)).Message.ShouldContain("Rank");
+    }
+
+    [Fact]
+    public void A_type_with_every_member_of_the_bytes_and_optional_ones_besides_is_read()
+    {
+        // the boundary of the strict reading: nothing in the bytes is lost, and what the type adds has a default
+        var bytes = Serializer.Serialize(new Named("vegan"));
+
+        Serializer.Deserialize<Chip>(bytes).ShouldBe(new Chip("vegan"));
+    }
+
+    [Fact]
     public void The_json_value_null_is_refused()
     {
         // A stored null is not a payload — it is a hole in the database. The
