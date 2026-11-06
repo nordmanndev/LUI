@@ -100,9 +100,7 @@ never refused.
 > normalised text, LUI's own table holds the weight and the priority, and the
 > text of a hit is read from your table when the hit is read. A second copy of
 > your data is the most expensive thing an autocomplete can do — it doubles
-> the storage and it is always out of date. See
-> ADR-0015.
-
+> the storage and it is always out of date. See ADR-0015.
 ## A write of the application: `Refresh`
 
 Your application changes its table. The index has to hear about it — either

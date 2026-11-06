@@ -29,9 +29,7 @@ pass around.
 > trigram tokenizer of FTS5 needs SQLite 3.45 or newer, and a file that folds
 > text differently from the one the library was measured with is refused with
 > a message that says which version is needed. Better once, at the door, than
-> in the middle of a query. See
-> ADR-0007.
-
+> in the middle of a query. See ADR-0007.
 ## The first index
 
 An index is described, not configured. `Create` takes the name and a
@@ -202,9 +200,7 @@ rebuilds an index silently.
 > A service that may only read — a replica, a file that is read-only, a
 > process that is not allowed to write — must not have to know that. If
 > opening an index wrote anything, every read-only deployment would need a
-> second code path, and the two paths would drift. See
-> ADR-0033.
-
+> second code path, and the two paths would drift. See ADR-0033.
 ## A key that is not a number
 
 Most applications identify a row by a number. Some have a slug, a ULID or a

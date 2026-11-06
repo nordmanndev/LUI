@@ -64,9 +64,7 @@ type — never an object full of default values that looks like data.
 > The file names no type. A type in the file is a promise that outlives the
 > code that made it: change the record, and every database in the field holds
 > a payload that no longer fits. Bytes do not have that problem — the
-> application decides what they mean when it reads them. See
-> ADR-0035.
-
+> application decides what they mean when it reads them. See ADR-0035.
 The payload of an entry is written with the entry. `Upsert` replaces the whole
 entry — text, weight, priority **and payload** — so an entry without a payload
 clears the payload that was stored. To change only the weight or the

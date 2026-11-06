@@ -69,11 +69,7 @@ app.Run();
 > the migration that creates them would have to agree with it. Then a new
 > index is a change in two places, and a name that is wrong in one of them is
 > an exception at run time. One catalog, asked for what it needs, cannot
-> drift. See
-> ADR-0033
-> and
-> ADR-0034.
-
+> drift. See ADR-0033 and ADR-0034.
 ## The catalog from the container
 
 The catalog is a singleton, and the application asks it for its indexes. The

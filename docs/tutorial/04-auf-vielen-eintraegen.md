@@ -198,10 +198,7 @@ sorted and merges it at the end, and `UpsertMany` builds it row by row.
 > synthetic corpus of three million entries; a search field waits 100–300 ms
 > between two keystrokes, so it is not felt there. The allocation per query
 > follows the candidate budget — 500 candidates is a decision, not an
-> accident. See
-> ADR-0020 and
-> ADR-0032.
-
+> accident. See ADR-0020 and ADR-0032.
 ## What you have now
 
 - A bulk load that does not commit ten thousand times.

@@ -83,9 +83,7 @@ opinions.
 > whoever knows the connection string has to be the one that owns the indexes
 > in it. Splitting it — a catalog that opens the file, an index service that
 > holds the indexes — would mean two things that have to agree on the file.
-> The decision and its reasons are in
-> ADR-0033
-> and ADR-0035.
+> The decisions behind it are ADR-0033 and ADR-0035 — the records of the work.
 
 ## Where to go next
 
