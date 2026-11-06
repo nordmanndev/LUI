@@ -62,13 +62,13 @@ public sealed class SyncCheckRebuildTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip));
-        tags.Sync([new LuiEntry<long, Chip>(1, "vegan") { Payload = new Chip("v", "green") }]);
+        var tags = catalog.Create("tags", index => index.SingleWord());
+        tags.Sync([new LuiEntry(1, "vegan") { Payload = new Chip("v", "green") }]);
 
-        var report = tags.Sync([new LuiEntry<long, Chip>(1, "vegan") { Payload = new Chip("v", "red") }]);
+        var report = tags.Sync([new LuiEntry(1, "vegan") { Payload = new Chip("v", "red") }]);
 
         report.Changed.ShouldBe(1);
-        tags.Search("vegan").Hits.ShouldHaveSingleItem().Payload.ShouldBe(new Chip("v", "red"));
+        tags.Search("vegan").Hits.ShouldHaveSingleItem().GetPayload<Chip>().ShouldBe(new Chip("v", "red"));
     }
 
     [Fact]
@@ -218,10 +218,10 @@ public sealed class SyncCheckRebuildTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var slugs = catalog.Create("slugs", index => index.SingleWord().WithKey<string>());
+        var slugs = catalog.Create("slugs", index => index.SingleWord().WithKey(LuiKeyKind.Text));
         slugs.Upsert("alt", "alt");
 
-        var report = slugs.Sync([new LuiEntry<string, LuiNoPayload>("vegan", "vegan")]);
+        var report = slugs.Sync([new LuiEntry("vegan", "vegan")]);
 
         report.Added.ShouldBe(1);
         report.Removed.ShouldBe(1);
@@ -266,11 +266,11 @@ public sealed class SyncCheckRebuildTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var slugs = catalog.Create("slugs", index => index.SingleWord().WithKey<string>());
+        var slugs = catalog.Create("slugs", index => index.SingleWord().WithKey(LuiKeyKind.Text));
         slugs.Upsert(string.Empty, "leer");
         slugs.Upsert("a", "voll");
 
-        slugs.Sync([new LuiEntry<string, LuiNoPayload>("a", "voll")]).Removed.ShouldBe(1);
+        slugs.Sync([new LuiEntry("a", "voll")]).Removed.ShouldBe(1);
 
         slugs.Search("leer").Hits.ShouldBeEmpty();
         slugs.Count().ShouldBe(1);
@@ -330,7 +330,7 @@ public sealed class SyncCheckRebuildTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var words = Words(catalog);
-        LuiEntry<long, LuiNoPayload>[] source = [Entry(1, "erste"), Entry(1, "zweite"), Entry(2, "tofu")];
+        LuiEntry[] source = [Entry(1, "erste"), Entry(1, "zweite"), Entry(2, "tofu")];
         words.Sync(source);
 
         var report = words.Check(source);
@@ -528,19 +528,19 @@ public sealed class SyncCheckRebuildTests
 
     private const string TagTable = "CREATE TABLE tag (id INTEGER PRIMARY KEY, name TEXT, usage_count INTEGER NOT NULL DEFAULT 0);";
 
-    private static ILuiEmbeddedIndex<long, LuiNoPayload> Words(LuiCatalog catalog) => catalog.Create("words", index => index.SingleWord());
+    private static ILuiEmbeddedIndex Words(LuiCatalog catalog) => catalog.Create("words", index => index.SingleWord());
 
-    private static ILuiLinkedIndex<LuiNoPayload> Tags(LuiCatalog catalog) =>
+    private static ILuiLinkedIndex Tags(LuiCatalog catalog) =>
         catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
 
-    private static LuiEntry<long, LuiNoPayload> Entry(long key, string text, int weight = 0, LuiPriority priority = LuiPriority.Normal) =>
+    private static LuiEntry Entry(long key, string text, int weight = 0, LuiPriority priority = LuiPriority.Normal) =>
         new(key, text) { Weight = weight, Priority = priority };
 
-    private static List<LuiEntry<long, LuiNoPayload>> Entries(params string[] texts) =>
+    private static List<LuiEntry> Entries(params string[] texts) =>
         [.. texts.Select((text, i) => Entry(i + 1, text))];
 
-    private static IEnumerable<LuiEntry<long, LuiNoPayload>> CancelAfter(
-        IEnumerable<LuiEntry<long, LuiNoPayload>> source,
+    private static IEnumerable<LuiEntry> CancelAfter(
+        IEnumerable<LuiEntry> source,
         int count,
         CancellationTokenSource cancellation)
     {
@@ -556,7 +556,7 @@ public sealed class SyncCheckRebuildTests
         }
     }
 
-    private static IEnumerable<LuiEntry<long, LuiNoPayload>> Failing(IEnumerable<LuiEntry<long, LuiNoPayload>> source)
+    private static IEnumerable<LuiEntry> Failing(IEnumerable<LuiEntry> source)
     {
         foreach (var entry in source)
         {
@@ -566,7 +566,7 @@ public sealed class SyncCheckRebuildTests
         throw new InvalidOperationException("the source failed");
     }
 
-    private static async IAsyncEnumerable<LuiEntry<long, LuiNoPayload>> Asynchronous(IEnumerable<LuiEntry<long, LuiNoPayload>> source)
+    private static async IAsyncEnumerable<LuiEntry> Asynchronous(IEnumerable<LuiEntry> source)
     {
         foreach (var entry in source)
         {

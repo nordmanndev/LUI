@@ -9,14 +9,13 @@ namespace Nordmann.LUI.Querying;
 /// The last stage of a query (LUI-Spezifikation §8.3, E7): key and payload of the hits — and only of the
 /// hits — in one statement, in the snapshot of the candidates.
 /// </summary>
-/// <typeparam name="TKey">The key of the application.</typeparam>
-/// <typeparam name="TPayload">The payload that comes back with a hit.</typeparam>
-internal sealed class HitReader<TKey, TPayload>(ContentSource source, PayloadReader<TPayload> payload)
+internal sealed class HitReader(ContentSource source, PayloadReader payload)
 {
+    private readonly LuiKeyKind _keyKind = KeyCodec.KindOf(source.Definition.KeyType);
     private readonly NormalizationOptions _normalization = source.Normalization;
     private readonly string?[] _hitsSql = new string?[LuiQueryOptions.MaxResultsLimit + 1];
 
-    internal List<LuiHit<TKey, TPayload>> Read(
+    internal List<LuiHit> Read(
         SqliteConnection connection,
         SqliteTransaction snapshot,
         Scored[] ranked,
@@ -24,7 +23,7 @@ internal sealed class HitReader<TKey, TPayload>(ContentSource source, PayloadRea
         ILuiSimilarity similarity,
         LuiRankingOrder order)
     {
-        var hits = new List<LuiHit<TKey, TPayload>>(ranked.Length);
+        var hits = new List<LuiHit>(ranked.Length);
         if (ranked.Length == 0)
         {
             return hits;
@@ -43,7 +42,7 @@ internal sealed class HitReader<TKey, TPayload>(ContentSource source, PayloadRea
         }
 
         var keys = new string?[ranked.Length];
-        var payloads = new TPayload?[ranked.Length];
+        var payloads = new object?[ranked.Length];
 
         ReadKeysAndPayloads(command, slot, keys, payloads);
 
@@ -65,16 +64,7 @@ internal sealed class HitReader<TKey, TPayload>(ContentSource source, PayloadRea
                     ? Ranker.Measure(entry, queries, similarity, _normalization, ref buffer)
                     : entry.Similarity;
 
-                hits.Add(new LuiHit<TKey, TPayload>
-                {
-                    Key = KeyCodec<TKey>.FromText(key),
-                    Text = entry.Text,
-                    Payload = payloads[i],
-                    Weight = RowId.WeightOf(entry.RowId),
-                    Priority = RowId.PriorityOf(entry.RowId),
-                    Similarity = measured,
-                    AtWordStart = entry.WordStart >= 0,
-                });
+                hits.Add(Hit(entry, key, payloads[i], measured));
             }
         }
         finally
@@ -85,13 +75,26 @@ internal sealed class HitReader<TKey, TPayload>(ContentSource source, PayloadRea
         return hits;
     }
 
+    private LuiHit Hit(in Scored entry, string key, object? stored, double similarity) =>
+        new()
+        {
+            Key = KeyCodec.FromText(key, _keyKind),
+            Text = entry.Text,
+            StoredPayload = stored,
+            PayloadSource = payload.Source,
+            Weight = RowId.WeightOf(entry.RowId),
+            Priority = RowId.PriorityOf(entry.RowId),
+            Similarity = similarity,
+            AtWordStart = entry.WordStart >= 0,
+        };
+
     private static string ParameterName(int index) => $"$d{index}";
 
     private void ReadKeysAndPayloads(
         SqliteCommand command,
         Dictionary<long, int> slot,
         string?[] keys,
-        TPayload?[] payloads)
+        object?[] payloads)
     {
         using var reader = command.ExecuteReader();
         while (reader.Read())

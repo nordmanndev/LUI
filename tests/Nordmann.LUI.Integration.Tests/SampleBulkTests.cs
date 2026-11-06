@@ -119,9 +119,9 @@ public sealed class SampleBulkTests(SampleHost host) : IClassFixture<SampleHost>
     {
         // They are created when they are asked for — a stock of a million entries is minutes of work, and nobody pays for
         // it who does not want it (ADR-0029).
-        host.Services.GetKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("words").ShouldBeNull();
-        host.Services.GetKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("people").ShouldBeNull();
-        host.Services.GetKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("hashtags").ShouldBeNull();
+        host.Services.GetKeyedService<ILuiEmbeddedIndex>("words").ShouldBeNull();
+        host.Services.GetKeyedService<ILuiEmbeddedIndex>("people").ShouldBeNull();
+        host.Services.GetKeyedService<ILuiEmbeddedIndex>("hashtags").ShouldBeNull();
     }
 
     [Fact]

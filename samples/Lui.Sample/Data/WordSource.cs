@@ -33,10 +33,10 @@ internal sealed class WordSource : IBulkSource
         _list ??= await GermanWordList.DownloadAsync(note, cancellationToken).ConfigureAwait(false);
     }
 
-    public IEnumerable<LuiEntry<long, LuiNoPayload>> Entries(int count)
+    public IEnumerable<LuiEntry> Entries(int count)
     {
         var list = _list ?? throw new InvalidOperationException("The word list is not ready yet.");
 
-        return list.Words(count).Select((word, i) => new LuiEntry<long, LuiNoPayload>(i + 1, word) { Weight = BulkWeights.Of(word) });
+        return list.Words(count).Select((word, i) => new LuiEntry(i + 1, word) { Weight = BulkWeights.Of(word) });
     }
 }

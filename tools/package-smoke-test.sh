@@ -83,11 +83,22 @@ XML
 
 # The C# blocks of the README: their `using` lines go to the top of the file,
 # the rest becomes the body of Readme(), in the order of the README.
+# A block whose first line is "// The types of the application…" declares types: it goes after the statements, where
+# C# allows a type, and the other blocks run in order inside one method. The README shows such a block after the
+# statements that use it — the order a reader can copy (review of PR 60, M2).
 readme_blocks() {
-  awk '/^```csharp$/ { inside = 1; next } /^```$/ { inside = 0; next } inside { print }' "${ROOT}/README.md"
+  awk -v want="$1" '
+    /^```csharp$/ { inside = 1; n = 0; next }
+    /^```$/ && inside {
+      kind = (n > 0 && lines[1] ~ /^\/\/ The types of the application/) ? "types" : "body"
+      if (want == "all" || want == kind) { for (i = 1; i <= n; i++) print lines[i] }
+      inside = 0; next
+    }
+    inside { lines[++n] = $0 }' "${ROOT}/README.md"
 }
-readonly README_USINGS="$(readme_blocks | grep -E '^using [A-Za-z0-9_.]+;$' | sort -u || true)"
-readonly README_BODY="$(readme_blocks | grep -vE '^using [A-Za-z0-9_.]+;$' | sed 's/^/    /' || true)"
+readonly README_USINGS="$(readme_blocks all | grep -E '^using [A-Za-z0-9_.]+;$' | sort -u || true)"
+readonly README_BODY="$(readme_blocks body | grep -vE '^using [A-Za-z0-9_.]+;$' | sed 's/^/    /' || true)"
+readonly README_TYPES="$(readme_blocks types | grep -vE '^using [A-Za-z0-9_.]+;$' || true)"
 if [ -z "${README_BODY//[[:space:]]/}" ]; then
   echo "package-smoke-test: the README has no C# block to run" >&2
   exit 1
@@ -180,6 +191,8 @@ static void Readme()
 CS
   echo "${README_BODY}"
   echo "}"
+  echo
+  echo "${README_TYPES}"
 } > "${SMOKE}/Program.cs"
 
 echo "package-smoke-test: installing the packages from the local feed"
@@ -203,7 +216,7 @@ OUTPUT="$(cd "${SMOKE}" && dotnet run --project "${SMOKE}/SmokeTest.csproj" --no
 echo "${OUTPUT}"
 
 # The comments of the quick start say what it prints; they have to stay true.
-for expected in "Gedeckter Apfelkuchen (9000)" "Bratapfelkuchen (800)" "Gedeckter Apfelkuchen" "gedeckter" "vegan" "Vegan" "Current"; do
+for expected in "Gedeckter Apfelkuchen (9000)" "Bratapfelkuchen (800)" "Gedeckter Apfelkuchen" "gedeckter" "#3a3" "vegan" "Vegan" "Current"; do
   if ! grep -qxF "${expected}" <<<"${OUTPUT}"; then
     echo "package-smoke-test: the README's quick start did not print '${expected}'" >&2
     exit 1

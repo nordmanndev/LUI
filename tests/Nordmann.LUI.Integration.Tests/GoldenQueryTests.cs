@@ -130,7 +130,7 @@ public sealed class GoldenQueryTests
         tags.Query("veg").DistinctText().Execute().Hits.Select(h => h.Key).ShouldBe([1, 3]);
     }
 
-    private static void LoadTagCorpus(TestDatabase database, ILuiEmbeddedIndex<long, LuiNoPayload> index)
+    private static void LoadTagCorpus(TestDatabase database, ILuiEmbeddedIndex index)
     {
         // 35,000 tags that hold "gan", 1,100 that begin with "veg", and the system tag
         var random = new Random(20261102);

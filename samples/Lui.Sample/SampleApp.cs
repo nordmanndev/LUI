@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Serialization;
 using Nordmann.LUI.Sample.Api;
 using Nordmann.LUI.Sample.Data;
@@ -58,7 +59,14 @@ public static class SampleApp
             // 512 MB and a memory-mapped file. A stock of a million entries is a bulk load — the settings are what make
             // it a bulk load and not a million small writes.
             // The container holds the catalog and nothing else (ADR-0033): the indexes of the sample are its own.
-            .AddLui(connectionString, new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
+            .AddLui(connectionString, new LuiCatalogOptions
+            {
+                CacheSizeMegabytes = 512,
+                MemoryMapMegabytes = 2048,
+
+                // one serialiser for the payloads of every embedded index (ADR-0035)
+                PayloadSerializer = LuiPayloadSerializer.Json(SampleJsonContext.Default),
+            });
 
         services.AddSingleton<RequestStats>();
         services.AddSingleton<FillJobs>();
@@ -78,7 +86,7 @@ public static class SampleApp
         // only the catalog.
         var recipes = catalog.Create(
             "recipes",
-            index => index.MultiWord().WithPayload(SampleJsonContext.Default.RecipePayload).TypoTolerance());
+            index => index.MultiWord().TypoTolerance());
         var names = catalog.Create("names", index => index.MultiWord().TypoTolerance());
         var tags = catalog.Create(
             "tags",
@@ -89,20 +97,23 @@ public static class SampleApp
 
         return
         [
-            new EmbeddedSampleIndex<RecipePayload>(
+            new EmbeddedSampleIndex(
                 recipes,
                 SampleSeed.Recipes,
-                SampleJsonContext.Default.RecipePayload,
+                new SamplePayload(
+                    json => json.Deserialize(SampleJsonContext.Default.RecipePayload)!,
+                    hit => hit.GetPayload<RecipePayload>()),
                 payloadDescription: "JSON {category, minutes, emoji}, stored by LUI",
                 description: "Cookbook. Several words, so 'kuchen' finds 'Gedeckter Apfelkuchen' by its second word."),
-            new EmbeddedSampleIndex<LuiNoPayload>(
+            new EmbeddedSampleIndex(
                 names,
                 SampleSeed.Names,
-                payloadType: null,
+                payload: null,
                 payloadDescription: "none",
                 description: "People. Typo tolerance with a dictionary of its own: 'megn' becomes 'megan' here, and in 'tags' it finds nothing."),
-            new LinkedSampleIndex<TagPayload>(
+            new LinkedSampleIndex(
                 tags,
+                hit => hit.GetPayload<TagPayload>(),
                 connectionString,
                 payloadDescription: "columns kind, color — read from the table",
                 description: "Tags in the application's own table. 'vegan' has the priority System and comes first for every input it matches."),

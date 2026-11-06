@@ -74,11 +74,11 @@ public sealed class AllocationPoolTests
     }
 
     /// <summary>A query with a typo: the union of the corrections is the biggest buffer of a query.</summary>
-    private static void Search(ILuiIndex<long, LuiNoPayload> index, int budget) =>
+    private static void Search(ILuiIndex index, int budget) =>
         index.Search("apfael", new LuiQueryOptions { Candidates = budget, MaxResults = 20, TypoTolerance = true });
 
     /// <summary>The allocation of one query, after a warm-up query with the same options.</summary>
-    private static long Measure(ILuiIndex<long, LuiNoPayload> index, int budget)
+    private static long Measure(ILuiIndex index, int budget)
     {
         Search(index, budget);
 

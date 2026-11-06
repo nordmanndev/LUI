@@ -33,5 +33,5 @@ internal interface IBulkSource
     Task PrepareAsync(Action<string>? note, CancellationToken cancellationToken);
 
     /// <summary>The first <paramref name="count"/> entries — the same ones for the same count, every time.</summary>
-    IEnumerable<LuiEntry<long, LuiNoPayload>> Entries(int count);
+    IEnumerable<LuiEntry> Entries(int count);
 }

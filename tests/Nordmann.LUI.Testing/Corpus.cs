@@ -70,11 +70,11 @@ public sealed class Corpus
     }
 
     /// <summary>The entries, in the order of their keys — as a source of a sync reads them.</summary>
-    public IEnumerable<LuiEntry<long, LuiNoPayload>> Entries()
+    public IEnumerable<LuiEntry> Entries()
     {
         for (var i = 0; i < _texts.Length; i++)
         {
-            yield return new LuiEntry<long, LuiNoPayload>(i + 1, _texts[i]) { Weight = _weights[i] };
+            yield return new LuiEntry(i + 1, _texts[i]) { Weight = _weights[i] };
         }
     }
 

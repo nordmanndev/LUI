@@ -343,9 +343,9 @@ public sealed class TypoToleranceTests
         return new Fixture(recipes);
     }
 
-    private sealed class Fixture(ILuiEmbeddedIndex<long, LuiNoPayload> index) : IDisposable
+    private sealed class Fixture(ILuiEmbeddedIndex index) : IDisposable
     {
-        internal ILuiEmbeddedIndex<long, LuiNoPayload> Index => index;
+        internal ILuiEmbeddedIndex Index => index;
 
         public void Dispose()
         {

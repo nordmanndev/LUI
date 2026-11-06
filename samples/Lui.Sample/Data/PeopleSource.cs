@@ -28,14 +28,14 @@ internal sealed class PeopleSource : IBulkSource
 
     public Task PrepareAsync(Action<string>? note, CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public IEnumerable<LuiEntry<long, LuiNoPayload>> Entries(int count)
+    public IEnumerable<LuiEntry> Entries(int count)
     {
         var faker = new Faker("de") { Random = new Randomizer(Seed) };
 
         for (var i = 0; i < count; i++)
         {
             var text = faker.Name.FullName();
-            yield return new LuiEntry<long, LuiNoPayload>(i + 1, text) { Weight = BulkWeights.Of(text) };
+            yield return new LuiEntry(i + 1, text) { Weight = BulkWeights.Of(text) };
         }
     }
 }

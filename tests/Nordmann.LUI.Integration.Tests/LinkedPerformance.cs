@@ -37,7 +37,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
 
         var embedded = catalog.Create("embedded", index => index.SingleWord());
         clock.Restart();
-        embedded.UpsertMany(rows.Select(row => new LuiEntry<long, LuiNoPayload>(row.Id, row.Text) { Weight = row.Weight }));
+        embedded.UpsertMany(rows.Select(row => new LuiEntry(row.Id, row.Text) { Weight = row.Weight }));
         Report($"embedded:  UpsertMany {clock.Elapsed.TotalSeconds:F1} s");
 
         var inputs = Enumerable.Range(0, Queries).Select(_ =>
@@ -72,7 +72,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         MeasureRefreshes(database, linked, entries, random);
     }
 
-    private void MeasureRefreshes(TestDatabase database, ILuiLinkedIndex<LuiNoPayload> linked, int entries, Random random)
+    private void MeasureRefreshes(TestDatabase database, ILuiLinkedIndex linked, int entries, Random random)
     {
         var refreshes = new List<double>();
         using (var connection = database.Connect())

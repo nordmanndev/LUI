@@ -1,15 +1,13 @@
 namespace Nordmann.LUI;
 
 /// <summary>The answer to a query (LUI-Spezifikation §8.3).</summary>
-/// <typeparam name="TKey">The key of the application.</typeparam>
-/// <typeparam name="TPayload">The payload that comes back with a hit.</typeparam>
-public sealed record LuiResult<TKey, TPayload>
+public sealed record LuiResult
 {
     /// <summary>The input, as it was given.</summary>
     public required string Query { get; init; }
 
     /// <summary>The best entries, best first; at most <see cref="LuiQueryOptions.MaxResults"/>.</summary>
-    public required IReadOnlyList<LuiHit<TKey, TPayload>> Hits { get; init; }
+    public required IReadOnlyList<LuiHit> Hits { get; init; }
 
     /// <summary>How many candidates were ranked; at most <see cref="LuiQueryOptions.Candidates"/>.</summary>
     public int CandidatesConsidered { get; init; }
@@ -32,7 +30,7 @@ public sealed record LuiResult<TKey, TPayload>
     /// Whether a correction was wanted and not searched (ADR-0021): the typo dictionary was being built — after the start
     /// of an application, or while another query builds it —, or its build failed. The query did not wait for the build
     /// and did not fail: it answered with what the input found. Ask again once
-    /// <see cref="ILuiIndex{TKey, TPayload}.TypoDictionaryState"/> is not <see cref="LuiTypoDictionaryState.Building"/>;
+    /// <see cref="ILuiIndex.TypoDictionaryState"/> is not <see cref="LuiTypoDictionaryState.Building"/>;
     /// after a failed build, the next query that needs a correction tries again.
     /// </summary>
     public bool CorrectionSkipped { get; init; }

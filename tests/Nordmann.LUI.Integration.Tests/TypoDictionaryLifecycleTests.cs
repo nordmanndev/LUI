@@ -149,8 +149,8 @@ public sealed class TypoDictionaryLifecycleTests
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
     }
 
-    private static IEnumerable<LuiEntry<long, LuiNoPayload>> Entries(params string[] texts) =>
-        texts.Select((text, i) => new LuiEntry<long, LuiNoPayload>(i + 1, text));
+    private static IEnumerable<LuiEntry> Entries(params string[] texts) =>
+        texts.Select((text, i) => new LuiEntry(i + 1, text));
 
     private static IEnumerable<(string Text, int Weight)> Failing()
     {

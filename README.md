@@ -102,16 +102,20 @@ migration of the application; in the runtime path the index is **opened** — `I
 reads the definition out of the file and writes nothing:
 
 ```csharp
-var opened = lui.Index<long, LuiNoPayload>("recipes");   // opened, not created: the file is not touched
+var opened = lui.Index("recipes");   // opened, not created: the file is not touched
 Console.WriteLine(opened.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
 ```
+
+No type is named, here or anywhere you work with an index: the file stores a key as text and a payload as bytes, so the
+index knows no types ([ADR-0035](./docs/adr/0035-the-index-knows-no-types.md)). A key is a number (`1`) or a text
+(`"01J…"`, with `WithKey(LuiKeyKind.Text)` when the index is created), and a payload is read where it is used.
 
 Load a stock in **one** transaction, never entry by entry — `UpsertMany` is
 about four times faster than a loop of `Upsert`s:
 
 ```csharp
 recipes.UpsertMany(Enumerable.Range(1, 10_000).Select(i =>
-    new LuiEntry<long, LuiNoPayload>(100 + i, $"Rezept Nummer {i}") { Weight = i }));
+    new LuiEntry(100 + i, $"Rezept Nummer {i}") { Weight = i }));
 ```
 
 A query with all its knobs is a fluent builder; `Search(text, options)` takes
@@ -134,11 +138,44 @@ is sound and what repairs it:
 
 ```csharp
 var report = recipes.Sync(new[] { "Gedeckter Apfelkuchen", "Apfelstrudel", "Bratapfelkuchen" }
-    .Select((title, i) => new LuiEntry<long, LuiNoPayload>(i + 1, title) { Weight = 1000 * (3 - i) }));
+    .Select((title, i) => new LuiEntry(i + 1, title) { Weight = 1000 * (3 - i) }));
 
 Console.WriteLine($"{report.Changed} changed, {report.Removed} removed");   // 3 changed, 10000 removed
 Console.WriteLine(recipes.Check().IsHealthy);                                // True
 ```
+
+A **payload** comes back with every hit — a category, a colour, an id of your own. It is any type of the JSON context
+of your application, written by **one serialiser of the catalog**, source-generated and so safe for trimming and AOT:
+
+```csharp
+using var withChips = LuiCatalog.Open("Data Source=chips.db", new LuiCatalogOptions
+{
+    PayloadSerializer = LuiPayloadSerializer.Json(TagJson.Default),   // one serialiser for every index of the catalog
+});
+
+var chips = withChips.Create("chips", index => index.SingleWord());
+chips.Upsert(new LuiEntry(1, "vegan") { Weight = 120, Payload = new TagChip("#3a3", "System") });
+
+var chip = chips.Search("veg").Hits[0].GetPayload<TagChip>();   // the type stands where the payload is used
+Console.WriteLine(chip!.Colour);                                 // #3a3
+```
+
+The types it uses are the application's — at the end of the file, after the statements, or in a file of their own:
+
+```csharp
+// The types of the application: a payload is any type of its JSON context
+using System.Text.Json.Serialization;
+
+public sealed record TagChip(string Colour, string Group);
+
+[JsonSerializable(typeof(TagChip))]
+public sealed partial class TagJson : JsonSerializerContext;
+```
+
+The file names no type: what the payload is, is the application's to keep. A payload read as a type of another shape — a member in
+the bytes the type does not have, a parameter of its constructor the bytes do not have — throws a `LuiPayloadException`
+that names the index, the key and the type; the JSON serialiser reads strictly, so a mistaken type is never an object
+full of defaults.
 
 ---
 
@@ -164,6 +201,10 @@ searched. The caller does not have to know how.
 | Index ↔ content | consistent by triggers | the application: `Refresh(id)` after its writes (in its transaction, if it likes), `Sync()` for everything — or triggers it asks for |
 | Your schema changed | — | **never**: no column, no index, no trigger unless you call for one |
 | Text stored twice | yes | no |
+| What LUI keeps | the entry: text, weight, priority, payload | **no copy of the row**: the normalised text in the search index, the weight and the priority in the order of the candidates |
+| A hit's text and payload | from `lui_<index>` | read live from your table when the hit is read |
+| A change becomes visible | at the write | payload columns at once; a new **text** becomes searchable, a new weight or priority counts, after `Refresh`, `Sync` or the triggers |
+| The payload | any object the catalog's serialiser writes | built from columns of your table by a map you give: `.WithPayload(["kind", "color"], row => …)` |
 
 ```csharp
 using Microsoft.Data.Sqlite;
@@ -235,8 +276,8 @@ it — with a priority it is a candidate for every input it matches:
 ```csharp
 var labels = lui.Create("labels", index => index.SingleWord());
 labels.UpsertMany([
-    new LuiEntry<long, LuiNoPayload>(1, "Vegetarisch") { Weight = 900 },
-    new LuiEntry<long, LuiNoPayload>(2, "Vegan") { Weight = 3, Priority = LuiPriority.System },
+    new LuiEntry(1, "Vegetarisch") { Weight = 900 },
+    new LuiEntry(2, "Vegan") { Weight = 3, Priority = LuiPriority.System },
 ]);
 
 Console.WriteLine(labels.Search("veg").Hits[0].Text);   // Vegan
@@ -287,7 +328,7 @@ host.Start();
 
 // in an endpoint: the catalog is injected — the index is asked for
 var catalog = host.Services.GetRequiredService<LuiCatalog>();
-var suggest = catalog.Index<long, LuiNoPayload>("recipes");
+var suggest = catalog.Index("recipes");
 Console.WriteLine(suggest.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
 ```
 
@@ -321,21 +362,20 @@ Sometimes an application may only read: a replica, a file that is read-only, a s
 ([ADR-0033](./docs/adr/0033-the-read-path-opens-an-index-without-writing.md)). The index it hands out is a view on the
 file: it writes when the file allows it. The index has to exist, and a mistake
 says what is wrong: `LuiIndexNotFoundException` for an index that is not there, `LuiDefinitionMismatchException` for a
-file of another version of LUI — or for another key type, another payload type.
+file of another version of LUI, or for an index of the other content source (`Index` opens an embedded one,
+`LinkedIndex` a linked one).
 
 ```csharp
 // the index is opened, not created: the file is not written
-var openedTags = lui.Index<long, LuiNoPayload>("recipes");
+var openedTags = lui.Index("recipes");
 foreach (var hit in openedTags.Search("apfelkuch").Hits)
 {
     Console.WriteLine($"{hit.Key}: {hit.Text}");   // 1: Gedeckter Apfelkuchen
 }
 ```
 
-With the types of the application it is `Index<TKey, TPayload>(name, typeInfo)` — the payload comes with the
-`JsonTypeInfo` of the application, source-generated and so safe for trimming and AOT:
-`lui.Index<long, TagChip>("tags", TagJsonContext.Default.TagChip)`. A payload that is not JSON brings its own
-serialiser: `lui.Index<long, TagChip>("tags", new MySerializer())`.
+Opening names no type either: the kind of the key is in the file, and a payload is read by the serialiser of the
+catalog that opens it, with the type the caller asks for (`hit.GetPayload<TagChip>()`).
 
 **The file decides what may happen — not the index.** A catalog that was opened with `Mode=ReadOnly` writes nothing: no
 WAL, no `lui_meta`, and every write is refused with a `LuiReadOnlyException` — `Create`, `DropIndex`, `Upsert`, `Sync`.

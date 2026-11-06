@@ -297,6 +297,24 @@ expect_caught "the-page-gets-an-inline-script" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~Sample_Client" \
   "sed -i 's|</head>|<script>window.x = 1</script></head>|' samples/Lui.Sample/wwwroot/index.html"
 
+# 24b. The index knows no types (ADR-0035): the hit gets back a payload property — a type parameter's
+#      view through the back door. It builds; only the guard of the public API can react.
+expect_caught "the-hit-gets-a-payload-property" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_index_knows_no_types" \
+  "sed -i 's|    /// <summary>Whether the entry has a payload.</summary>|    /// <summary>x</summary>\n    public object? Payload => StoredPayload;\n\n    /// <summary>Whether the entry has a payload.</summary>|' src/Nordmann.LUI/LuiHit.cs"
+
+# 24c. A key of the other kind reaches the file (ADR-0035): the check of the kind is skipped, and a text
+#      would be written into an index of numbers — a key that can never be read back.
+expect_caught "a-key-of-the-other-kind-reaches-the-file" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~KeyCodecTests" \
+  "sed -i 's|        if (key.Kind != kind)|        if (key.Kind != kind \&\& string.IsNullOrEmpty(indexName))|' src/Nordmann.LUI/Schema/KeyCodec.cs"
+
+# 24d. The JSON payload is read tolerantly again (review of PR 60, I1): a chip read as a recipe comes back as a recipe
+#      of defaults — wrong data that looks like right data — instead of an error.
+expect_caught "the-json-payload-is-read-tolerantly" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~LuiPayloadSerializerTests" \
+  "sed -i '/UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,/d; /RespectRequiredConstructorParameters = true,/d' src/Nordmann.LUI/LuiPayloadSerializer.cs"
+
 # 25. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

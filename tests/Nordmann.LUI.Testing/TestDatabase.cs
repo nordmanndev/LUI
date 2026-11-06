@@ -11,6 +11,8 @@ public sealed class TestDatabase : IDisposable
 {
     private readonly string _path;
     private readonly bool _keep;
+    private static readonly ILuiPayloadSerializer ChipSerializer = LuiPayloadSerializer.Json(ChipJsonContext.Default);
+
     private readonly List<LuiCatalog> _catalogs = [];
 
     public TestDatabase()
@@ -38,6 +40,11 @@ public sealed class TestDatabase : IDisposable
 
     public LuiCatalog Open(LuiCatalogOptions? options = null)
     {
+        // the payloads of the tests are chips (ADR-0035: the serialiser is the catalog's); a test that wants another one,
+        // or none, says so in its options or opens the catalog itself
+        options ??= new LuiCatalogOptions();
+        options = options.PayloadSerializer is null ? options with { PayloadSerializer = ChipSerializer } : options;
+
         var catalog = LuiCatalog.Open(ConnectionString, options);
         _catalogs.Add(catalog);
         return catalog;

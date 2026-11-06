@@ -4,8 +4,8 @@ namespace Nordmann.LUI.Sample.Indexes;
 
 /// <summary>
 /// What the page can do with an index, whatever its kind and payload. The generic type of the payload ends here: the
-/// endpoints do not know it. One implementation per storage — <see cref="EmbeddedSampleIndex{TPayload}"/> and
-/// <see cref="LinkedSampleIndex{TPayload}"/> — so the two ways of keeping an index current stay visibly different.
+/// endpoints do not know it. One implementation per storage — <see cref="EmbeddedSampleIndex"/> and
+/// <see cref="LinkedSampleIndex"/> — so the two ways of keeping an index current stay visibly different.
 /// </summary>
 internal interface ISampleIndex
 {

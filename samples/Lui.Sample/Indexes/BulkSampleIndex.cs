@@ -18,14 +18,14 @@ internal sealed class BulkSampleIndex(LuiCatalog catalog, IBulkSource source) : 
     private const int BatchSize = 100_000;
 
     private readonly Lock _gate = new();
-    private ILuiEmbeddedIndex<long, LuiNoPayload>? _index;
+    private ILuiEmbeddedIndex? _index;
 
     public string Name => source.Name;
 
     public long? Capacity => source.Capacity;
 
     /// <summary>The index of LUI — created when it is asked for the first time.</summary>
-    private ILuiEmbeddedIndex<long, LuiNoPayload> Index
+    private ILuiEmbeddedIndex Index
     {
         get
         {
@@ -51,7 +51,7 @@ internal sealed class BulkSampleIndex(LuiCatalog catalog, IBulkSource source) : 
         Capacity: source.Capacity);
 
     public SuggestResponse Suggest(string text, LuiQueryOptions options, CancellationToken cancellationToken) =>
-        SuggestMapper.Run(Index, text, options, cancellationToken);
+        SuggestMapper.Run(Index, text, options, _ => null, cancellationToken);
 
     public LuiIntegrityReport Check() => Index.Check();
 
@@ -76,7 +76,7 @@ internal sealed class BulkSampleIndex(LuiCatalog catalog, IBulkSource source) : 
     }
 
     /// <summary>Creates the index of LUI: one word or several, with the typo tolerance the source asks for.</summary>
-    private ILuiEmbeddedIndex<long, LuiNoPayload> Create()
+    private ILuiEmbeddedIndex Create()
     {
         if (source.Kind == LuiIndexKind.MultiWord)
         {
@@ -91,7 +91,7 @@ internal sealed class BulkSampleIndex(LuiCatalog catalog, IBulkSource source) : 
     }
 
     /// <summary>The entries of the source for the number the index holds.</summary>
-    private IEnumerable<LuiEntry<long, LuiNoPayload>> Entries(int count) => source.Entries(count);
+    private IEnumerable<LuiEntry> Entries(int count) => source.Entries(count);
 
     private int CurrentCount() => (int)Math.Min(Index.Count(), int.MaxValue);
 }

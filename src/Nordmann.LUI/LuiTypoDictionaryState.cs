@@ -14,7 +14,7 @@ public enum LuiTypoDictionaryState
 
     /// <summary>
     /// Being built. A query that needs a correction does not wait for it: it answers without the correction and says so
-    /// (<see cref="LuiResult{TKey, TPayload}.CorrectionSkipped"/>). A rebuild of a built dictionary keeps the old one
+    /// (<see cref="LuiResult.CorrectionSkipped"/>). A rebuild of a built dictionary keeps the old one
     /// in use until the new one is ready.
     /// </summary>
     Building,

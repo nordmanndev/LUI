@@ -10,8 +10,7 @@ namespace Nordmann.LUI;
 /// LUI reads the text, the weight and the priority from the table itself; the key is the table's
 /// <c>INTEGER PRIMARY KEY</c>.
 /// </summary>
-/// <typeparam name="TPayload">The payload that comes back with a hit, read from columns of the table; <see cref="LuiNoPayload"/> when there is none.</typeparam>
-public interface ILuiLinkedIndex<TPayload> : ILuiIndex<long, TPayload>
+public interface ILuiLinkedIndex : ILuiIndex
 {
     /// <summary>
     /// Indexes the whole table anew, in one transaction of LUI's own: the first build, and the repair after writes the

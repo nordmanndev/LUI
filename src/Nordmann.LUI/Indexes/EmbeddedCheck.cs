@@ -9,7 +9,7 @@ namespace Nordmann.LUI.Indexes;
 /// itself — definition, triggers, FTS5's integrity check against the content table —, and the rebuild of everything
 /// below the content table.
 /// </summary>
-internal sealed class EmbeddedCheck<TKey, TPayload>(Database database, EmbeddedSource source, Func<TPayload?, byte[]?> payloadBytes)
+internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Func<LuiKey, string> textOfKey, Func<object?, byte[]?> payloadBytes)
 {
     private const string Repair = "Rebuild() builds the search index anew from the content table.";
 
@@ -20,7 +20,7 @@ internal sealed class EmbeddedCheck<TKey, TPayload>(Database database, EmbeddedS
     /// read once and not held: what each key found is noted in a table of the connection's temporary database, the last
     /// entry of a key replacing the one before — it is the one a sync would leave.
     /// </summary>
-    internal LuiIntegrityReport Against(IEnumerable<LuiEntry<TKey, TPayload>> entries, CancellationToken cancellationToken)
+    internal LuiIntegrityReport Against(IEnumerable<LuiEntry> entries, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(entries);
 
@@ -70,7 +70,7 @@ internal sealed class EmbeddedCheck<TKey, TPayload>(Database database, EmbeddedS
         SqliteConnection connection,
         SqliteTransaction transaction,
         string found,
-        IEnumerable<LuiEntry<TKey, TPayload>> entries,
+        IEnumerable<LuiEntry> entries,
         CancellationToken cancellationToken)
     {
         using var compare = Command(connection, transaction, source.CompareSql);
@@ -87,7 +87,7 @@ internal sealed class EmbeddedCheck<TKey, TPayload>(Database database, EmbeddedS
         {
             cancellationToken.ThrowIfCancellationRequested();
             ArgumentNullException.ThrowIfNull(entry, nameof(entries));
-            var keyText = KeyCodec<TKey>.ToText(entry.Key);
+            var keyText = textOfKey(entry.Key);
             key.Value = keyText;
             text.Value = entry.Text;
             weight.Value = entry.Weight;

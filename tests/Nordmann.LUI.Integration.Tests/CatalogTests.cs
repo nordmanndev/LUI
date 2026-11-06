@@ -90,13 +90,13 @@ public sealed class CatalogTests
     }
 
     [Fact]
-    public void A_key_that_is_neither_long_nor_string_is_refused()
+    public void A_kind_of_key_that_is_neither_number_nor_text_is_refused()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.Throw<NotSupportedException>(
-            () => catalog.Create("tags", index => index.SingleWord().WithKey<Guid>()));
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => catalog.Create("tags", index => index.SingleWord().WithKey((LuiKeyKind)2)));
     }
 
     [Fact]
@@ -111,7 +111,7 @@ public sealed class CatalogTests
 
         Should.Throw<ObjectDisposedException>(() => tags.Query("veg").Execute());
         Should.Throw<ObjectDisposedException>(() => tags.Upsert(2, "vegetarisch", 5));
-        Should.Throw<ObjectDisposedException>(() => catalog.Index<long, LuiNoPayload>("other"));
+        Should.Throw<ObjectDisposedException>(() => catalog.Index("other"));
     }
 
     [Fact]
@@ -130,12 +130,12 @@ public sealed class CatalogTests
     {
         using var database = new TestDatabase();
         var catalog = database.Open();
-        var blocking = new BlockingSerializer();
-        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(blocking));
+        var blocking = new BlockingSimilarity();
+        var tags = catalog.Create("tags", index => index.SingleWord().Similarity(blocking));
         tags.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan") });
 
         var query = Task.Run(() => tags.Query("vegan").Execute());
-        blocking.Entered.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the query reached the payload");
+        blocking.Entered.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the query reached the ranking");
 
         var dispose = Task.Run(catalog.Dispose);
         (await Task.WhenAny(dispose, Task.Delay(300))).ShouldNotBe(dispose, "Dispose has to wait for the query");
@@ -160,19 +160,21 @@ public sealed class CatalogTests
             .ShouldStartWith("2026-11-02T12:00:00");
     }
 
-    private sealed class BlockingSerializer : ILuiPayloadSerializer<Chip>
+    /// <summary>
+    /// Holds a query in its ranking until the test lets it go. The payload is not read during a query any more
+    /// (ADR-0035: the hit reads it when it is asked), so the ranking is where a query is caught running.
+    /// </summary>
+    private sealed class BlockingSimilarity : ILuiSimilarity
     {
         internal ManualResetEventSlim Entered { get; } = new();
 
         internal ManualResetEventSlim Release { get; } = new();
 
-        public byte[] Serialize(Chip payload) => System.Text.Encoding.UTF8.GetBytes(payload.Slug);
-
-        public Chip Deserialize(ReadOnlySpan<byte> bytes)
+        public double Similarity(string query, string text)
         {
             Entered.Set();
             Release.Wait(TimeSpan.FromSeconds(30));
-            return new Chip(System.Text.Encoding.UTF8.GetString(bytes));
+            return 1;
         }
     }
 }

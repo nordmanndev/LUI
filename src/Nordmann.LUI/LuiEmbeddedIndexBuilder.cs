@@ -1,7 +1,6 @@
-using System.Text.Json.Serialization.Metadata;
 using Nordmann.LUI.Indexes;
-using Nordmann.LUI.Schema;
 using Nordmann.LUI.Normalization;
+using Nordmann.LUI.Schema;
 
 namespace Nordmann.LUI;
 
@@ -9,80 +8,89 @@ namespace Nordmann.LUI;
 /// Describes an index whose content lives in a table of the library, <c>lui_&lt;name&gt;</c> — <c>Embedded</c>, the
 /// default (LUI-Spezifikation §5, §12.2): the application writes through the index. Every method is optional and
 /// returns a builder; <see cref="Create"/> finishes it. An index over a table of the application starts here too,
-/// with <c>LinkTo(…)</c>, as long as no key and no payload are chosen.
+/// with <see cref="LinkTo"/>.
 /// <para>
-/// The builder is reached through <see cref="LuiCatalog.Create{TKey, TPayload}"/>: it is the description of an
-/// index, not the way into it (ADR-0033).
+/// The builder knows no type (ADR-0035): an entry may carry a payload of any type the serialiser of the catalog can
+/// write, and the key is a number unless <see cref="WithKey"/> says texts.
+/// </para>
+/// <para>
+/// The builder is reached through <see cref="LuiCatalog.Create(string, Func{LuiIndexKindBuilder, LuiEmbeddedIndexBuilder})"/>:
+/// it is the description of an index, not the way into it (ADR-0033).
 /// </para>
 /// </summary>
-/// <typeparam name="TKey">The key of the application: <see cref="long"/> (the default) or <see cref="string"/>.</typeparam>
-/// <typeparam name="TPayload">The payload that comes back with a hit; <see cref="LuiNoPayload"/> until <c>WithPayload</c>.</typeparam>
-public sealed class LuiEmbeddedIndexBuilder<TKey, TPayload>
+public sealed class LuiEmbeddedIndexBuilder
 {
     private readonly LuiCatalog _catalog;
     private readonly string _name;
     private readonly LuiIndexKind _kind;
-    private readonly ILuiPayloadSerializer<TPayload>? _payload;
+    private LuiKeyKind _keyKind;
     private IndexOptions _options;
 
-    internal LuiEmbeddedIndexBuilder(
-        LuiCatalog catalog,
-        string name,
-        LuiIndexKind kind,
-        ILuiPayloadSerializer<TPayload>? payload = null,
-        IndexOptions? options = null)
+    internal LuiEmbeddedIndexBuilder(LuiCatalog catalog, string name, LuiIndexKind kind)
     {
         _catalog = catalog;
         _name = name;
         _kind = kind;
-        _payload = payload;
-        _options = options ?? IndexOptions.Default;
+        _options = IndexOptions.Default;
     }
 
-    /// <summary>The name of the index.</summary>
-    internal string Name => _name;
-
-    /// <summary>The kind of the index.</summary>
-    internal LuiIndexKind Kind => _kind;
-
-    /// <summary>The catalog of the index.</summary>
-    internal LuiCatalog Catalog => _catalog;
-
-    /// <summary>The options made so far — what <c>WithKey</c>, <c>WithPayload</c> and <c>LinkTo</c> pass on.</summary>
+    /// <summary>The options made so far — what <c>LinkTo</c> passes on.</summary>
     internal IndexOptions Options => _options;
 
     /// <summary>
-    /// The key of the application: <see cref="long"/> by default, <see cref="string"/> for anything else that names an
-    /// entry — a slug, a <see cref="Guid"/> as text, the text itself.
+    /// What the keys are: numbers (<see cref="LuiKeyKind.Number"/>, the default) or texts (<see cref="LuiKeyKind.Text"/>)
+    /// for anything else that names an entry — a slug, a ULID, a <see cref="Guid"/> as text. Part of the definition.
     /// </summary>
-    /// <typeparam name="TNewKey"><see cref="long"/> or <see cref="string"/>.</typeparam>
-    /// <returns>A builder of an index with that key, with the settings made so far.</returns>
-    /// <exception cref="NotSupportedException"><typeparamref name="TNewKey"/> is neither <see cref="long"/> nor <see cref="string"/>.</exception>
-    public LuiEmbeddedIndexBuilder<TNewKey, TPayload> WithKey<TNewKey>()
+    /// <param name="kind">The kind of the keys.</param>
+    /// <returns>The builder.</returns>
+    /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not a kind.</exception>
+    public LuiEmbeddedIndexBuilder WithKey(LuiKeyKind kind)
     {
-        // the key type is checked here, where it is chosen, not when the index is created
-        _ = KeyCodec<TNewKey>.KeyType;
-        return new LuiEmbeddedIndexBuilder<TNewKey, TPayload>(_catalog, _name, _kind, _payload, _options);
+        _keyKind = Setting.Defined(kind, nameof(kind));
+        return this;
     }
 
     /// <summary>
-    /// Stores a payload with every entry, serialised as JSON with a source-generated type description (AOT- and
-    /// trim-safe). The payload is read for the hits only.
+    /// Links the index to a table of the application instead (<c>Linked</c>, ADR-0015): it searches the table's
+    /// <paramref name="text"/>, its key is the table's <c>INTEGER PRIMARY KEY</c>. LUI does not change the table and
+    /// keeps <b>no copy of the row</b>: its search index holds the normalised text, its own table the weight and the
+    /// priority (they decide the order of the candidates); the text and the payload of a hit are read from the table when
+    /// the hit is read. The application keeps the index current with <c>Sync</c> and <c>Refresh</c>, or with triggers it
+    /// creates on purpose.
     /// </summary>
-    /// <typeparam name="TNewPayload">The payload type.</typeparam>
-    /// <param name="typeInfo">The generated type description of the payload.</param>
-    /// <returns>A builder of an index with that payload, with the settings made so far.</returns>
-    public LuiEmbeddedIndexBuilder<TKey, TNewPayload> WithPayload<TNewPayload>(JsonTypeInfo<TNewPayload> typeInfo) =>
-        WithPayload(new LuiJsonPayloadSerializer<TNewPayload>(typeInfo));
-
-    /// <summary>Stores a payload with every entry, serialised by <paramref name="serializer"/>.</summary>
-    /// <typeparam name="TNewPayload">The payload type.</typeparam>
-    /// <param name="serializer">The serialiser.</param>
-    /// <returns>A builder of an index with that payload, with the settings made so far.</returns>
-    public LuiEmbeddedIndexBuilder<TKey, TNewPayload> WithPayload<TNewPayload>(ILuiPayloadSerializer<TNewPayload> serializer)
+    /// <param name="table">The table of the application.</param>
+    /// <param name="key">Its INTEGER PRIMARY KEY.</param>
+    /// <param name="text">The column that is searched and shown.</param>
+    /// <param name="weight">The column of the popularity (0 … 536,870,911); <see langword="null"/> for none.</param>
+    /// <param name="priority">
+    /// The column of the priority, with the values of <see cref="LuiPriority"/> — 0 is <see cref="LuiPriority.System"/>,
+    /// 3 is <see cref="LuiPriority.Normal"/>, a smaller number ranks first; another value counts as normal.
+    /// <see langword="null"/> for none: every entry is normal.
+    /// </param>
+    /// <returns>The builder of the linked index, with the settings made so far.</returns>
+    /// <exception cref="ArgumentException">A name is not a name of the pattern <c>^[A-Za-z_][A-Za-z0-9_]{0,63}$</c>.</exception>
+    /// <exception cref="InvalidOperationException">The keys were made texts: a linked index has the numbers of its table.</exception>
+    public LuiLinkedIndexBuilder LinkTo(
+        string table,
+        string key,
+        string text,
+        string? weight = null,
+        string? priority = null)
     {
-        ArgumentNullException.ThrowIfNull(serializer);
-        return new LuiEmbeddedIndexBuilder<TKey, TNewPayload>(_catalog, _name, _kind, serializer, _options);
+        if (_keyKind != LuiKeyKind.Number)
+        {
+            throw new InvalidOperationException(
+                "A linked index has the keys of its table — its INTEGER PRIMARY KEY: leave WithKey(LuiKeyKind.Text) out.");
+        }
+
+        var link = new LinkDefinition(
+            Identifier.ValidateApplicationName(table, nameof(table)),
+            Identifier.ValidateApplicationName(key, nameof(key)),
+            Identifier.ValidateApplicationName(text, nameof(text)),
+            weight is null ? null : Identifier.ValidateApplicationName(weight, nameof(weight)),
+            priority is null ? null : Identifier.ValidateApplicationName(priority, nameof(priority)));
+
+        return new LuiLinkedIndexBuilder(_catalog, _name, _kind, link, _options);
     }
 
     /// <summary>
@@ -93,7 +101,7 @@ public sealed class LuiEmbeddedIndexBuilder<TKey, TPayload>
     /// </summary>
     /// <param name="similarity">The measure.</param>
     /// <returns>The builder.</returns>
-    public LuiEmbeddedIndexBuilder<TKey, TPayload> Similarity(ILuiSimilarity similarity)
+    public LuiEmbeddedIndexBuilder Similarity(ILuiSimilarity similarity)
     {
         ArgumentNullException.ThrowIfNull(similarity);
         _options = _options with { Similarity = similarity };
@@ -106,7 +114,7 @@ public sealed class LuiEmbeddedIndexBuilder<TKey, TPayload>
     /// </summary>
     /// <param name="enabled">Whether the transliteration is applied.</param>
     /// <returns>The builder.</returns>
-    public LuiEmbeddedIndexBuilder<TKey, TPayload> GermanTransliteration(bool enabled)
+    public LuiEmbeddedIndexBuilder GermanTransliteration(bool enabled)
     {
         _options = _options with { GermanTransliteration = enabled };
         return this;
@@ -128,7 +136,7 @@ public sealed class LuiEmbeddedIndexBuilder<TKey, TPayload>
     /// </summary>
     /// <param name="enabled">Whether an input without a word start is corrected.</param>
     /// <returns>The builder.</returns>
-    public LuiEmbeddedIndexBuilder<TKey, TPayload> TypoTolerance(bool enabled = true)
+    public LuiEmbeddedIndexBuilder TypoTolerance(bool enabled = true)
     {
         _options = _options with { TypoTolerance = enabled };
         return this;
@@ -138,32 +146,30 @@ public sealed class LuiEmbeddedIndexBuilder<TKey, TPayload>
     /// Creates the index, or opens it if it exists with the same definition. It is the write path: the tables of the
     /// index are created if they are missing, and the definition is written into <c>lui_meta</c>.
     /// <para>
-    /// The definition holds the type of the payload (ADR-0033): an index that is opened later with another type is a
-    /// mismatch that names both.
+    /// The definition holds the kind of the key and nothing of the payload (ADR-0035): the payload is the bytes the
+    /// serialiser of the catalog writes, and its type is the application's to keep.
     /// </para>
     /// </summary>
     /// <returns>The index.</returns>
     /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
-    public ILuiEmbeddedIndex<TKey, TPayload> Create()
+    public ILuiEmbeddedIndex Create()
     {
         var definition = new IndexDefinition(
             _kind,
             EmbeddedSource.SourceName,
-            KeyCodec<TKey>.KeyType,
+            KeyCodec.KeyType(_keyKind),
             _options.GermanTransliteration,
-            _payload is not null,
-            TokenizerFold.Version,
-            PayloadType: _payload is null ? null : typeof(TPayload).FullName);
+            TokenizerFold.Version);
 
         var source = new EmbeddedSource(_name, definition);
         IndexStore.Create(_catalog.Database, source, _catalog.TimeProvider.GetUtcNow());
 
-        return new EmbeddedIndex<TKey, TPayload>(
+        return new EmbeddedIndex(
             _catalog.Database,
             _catalog.TypoDictionaries,
             source,
-            _payload,
+            _catalog.PayloadSerializer,
             _options.Similarity ?? source.Rules.DefaultSimilarity,
             _options.TypoTolerance);
     }

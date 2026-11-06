@@ -125,7 +125,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
         budget.Verify();
     }
 
-    private (double[] Latencies, double[] Allocations) MeasureQueries(ILuiIndex<long, LuiNoPayload> index, IReadOnlyList<string> inputs, bool typoTolerance)
+    private (double[] Latencies, double[] Allocations) MeasureQueries(ILuiIndex index, IReadOnlyList<string> inputs, bool typoTolerance)
     {
         var options = new LuiQueryOptions { TypoTolerance = typoTolerance };
 
@@ -176,7 +176,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
     }
 
     /// <summary>The single writes of §16, each in a transaction of its own: an upsert, a weight, a removal (and the entry back).</summary>
-    private static double[] MeasureWrites(ILuiEmbeddedIndex<long, LuiNoPayload> index, Corpus corpus)
+    private static double[] MeasureWrites(ILuiEmbeddedIndex index, Corpus corpus)
     {
         var writes = new List<double>(600);
         var random = new Random(11);

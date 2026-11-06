@@ -13,15 +13,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   #56). A second way into an index: the definition is read out of `lui_meta`, the index is rebuilt from it, and the
   file is not touched — no table, no definition, no write lock. It is the way into a database that is written
   elsewhere: a replica, a file that is read-only, a service that may not write.
-  - `LuiCatalog.Index<TKey, TPayload>(name, typeInfo)` opens an embedded index with the types of the application — the
-    key and the payload of the caller. The payload comes with the `JsonTypeInfo` of the application (source-generated,
-    so safe for trimming and AOT) or with a serialiser of its own.
-  - `LuiCatalog.Index<TPayload>(name, map)` opens a linked index: the columns of the payload are in the definition,
-    the mapping is the one of the application. `LuiCatalog.Index(name)` opens a linked index without a payload.
-  - The existence of the index, the version of its schema, the version of its folding and the types are checked when
-    it is opened, and a mismatch says what is wrong: the new `LuiIndexNotFoundException` (with the name of the index)
-    and `LuiDefinitionMismatchException`. The definition remembers the type of the payload now — an index that stores
-    `TagChip` is not opened with `RecipeChip`, and the error names both.
+  - `LuiCatalog.Index(name)` opens an embedded index, `LuiCatalog.LinkedIndex(name)` and
+    `LuiCatalog.LinkedIndex(name, map)` a linked one — the columns of the payload are in the definition, the map is the
+    one of the application. None of them names a type ([ADR-0035](docs/adr/0035-the-index-knows-no-types.md), below).
+  - The existence of the index, the version of its schema, the version of its folding and its content source are
+    checked when it is opened, and a mismatch says what is wrong: the new `LuiIndexNotFoundException` (with the name of
+    the index) and `LuiDefinitionMismatchException`.
   - The similarity is the default of the kind of the index and the typo tolerance is off; a query asks for a
     correction (`LuiQueryOptions.TypoTolerance`).
   - The index it hands out is a view on the file: it writes when the file allows it.
@@ -152,9 +149,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `LuiCatalog.Open(connectionString, options)` with `LuiCatalogOptions`
     (`CacheSizeMegabytes`, `MemoryMapMegabytes`, `BusyTimeout`, `TimeProvider`), and
     `lui_meta`. `Dispose()` waits for the operations that are running.
-  - `catalog.Create(name, index => index.SingleWord().WithKey<TKey>().WithPayload(…)
+  - `catalog.Create(name, index => index.SingleWord().WithKey(…)
     .Similarity(…).GermanTransliteration(…))` and `DropIndex(name)`; the
-    result is an `ILuiEmbeddedIndex<TKey, TPayload>`.
+    result is an `ILuiEmbeddedIndex` (no type parameter, ADR-0035).
   - Writes: `Upsert`, `UpdateWeight`, `UpdatePriority`, `Remove`, `Count` —
     also inside the application's `SqliteTransaction`
     ([ADR-0009](docs/adr/0009-writes-use-prepared-statements.md)).
@@ -169,8 +166,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     WAL by default; this keeps the application's journal mode.
   - `LuiSimilarity.JaroWinkler`, `NgramDice`, `DamerauLevenshtein`,
     `Levenshtein` and `ILuiSimilarity` for your own.
-  - Payloads: `ILuiPayloadSerializer<T>` and `LuiJsonPayloadSerializer<T>` over a
-    source-generated `JsonTypeInfo<T>`.
+  - Payloads: one `ILuiPayloadSerializer` per catalog, `LuiPayloadSerializer.Json`
+    over the source-generated `JsonSerializerContext` of the application, read
+    with `hit.GetPayload<T>()` (ADR-0035).
   - `LuiDefinitionMismatchException` and `LuiEnvironmentException`.
 - **The catalog checks the SQLite it runs on** — the version and the folding
   of the tokenizer against the measured table
@@ -228,6 +226,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The index knows no types** ([ADR-0035](docs/adr/0035-the-index-knows-no-types.md), #58). The file stores a key as
+  text and a payload as bytes, so the index has no type parameters any more: `ILuiIndex`, `ILuiEmbeddedIndex`,
+  `ILuiLinkedIndex`, `LuiEntry`, `LuiHit`, `LuiResult`, `LuiQuery` and the builders. The serialiser of the payloads
+  belongs to the catalog (`LuiCatalogOptions.PayloadSerializer`), and the type of a payload stands where it is used —
+  `hit.GetPayload<T>()`. Nothing is deserialised during a query: a query whose payloads are not read allocates 7.6 %
+  less (35.5 KB instead of 38.4 KB, 200,000 entries, 20 hits); one without a payload 1.8 % more (34.3 KB instead of
+  33.7 KB, the larger hit).
+  - **New**: `LuiKey` (a number or a text, made from `long` and `string` without a cast, read back with one; `1` is not
+    `"1"`), `LuiKeyKind`, `ILuiIndex.KeyKind`, `ILuiPayloadSerializer` (one per catalog, no type parameter),
+    `LuiPayloadSerializer.Json(context)`, `LuiCatalogOptions.PayloadSerializer`, `LuiHit.GetPayload<T>()`,
+    `LuiHit.TryGetPayload<T>(out T)`, `LuiHit.HasPayload`, `LuiCatalog.LinkedIndex(name)`,
+    `LuiCatalog.LinkedIndex(name, map)`, `LuiPayloadException` (the index, the key and the type that cannot be read).
+  - **Gone**: `LuiNoPayload`, `ILuiPayloadSerializer<T>`, `LuiJsonPayloadSerializer<T>`, `LuiEmbeddedIndexBuilderExtensions`,
+    the payload type in the definition (a definition that still has it is read, and it is ignored).
+  - **Migration** (from `main` before #58):
+    - `LuiCatalog.Open(cs)` with a payload — now: `LuiCatalog.Open(cs, new LuiCatalogOptions { PayloadSerializer =
+      LuiPayloadSerializer.Json(AppJsonContext.Default) })`; the context lists every payload type
+      (`[JsonSerializable(typeof(TagChip))]`).
+    - `index => index.SingleWord().WithPayload(ctx.TagChip)` — now: `index => index.SingleWord()`; every entry of an
+      embedded index may carry a payload.
+    - `index => index.SingleWord().WithKey<string>()` — now: `index => index.SingleWord().WithKey(LuiKeyKind.Text)`.
+    - `catalog.Index<long, TagChip>(name, ctx.TagChip)`, `catalog.Index<long, LuiNoPayload>(name)` — now:
+      `catalog.Index(name)`.
+    - `catalog.Index<TagChip>(name, map)`, `catalog.Index(name)` of a linked index — now:
+      `catalog.LinkedIndex(name, map)`, `catalog.LinkedIndex(name)`.
+    - `ILuiEmbeddedIndex<long, TagChip>`, `LuiEntry<long, TagChip>`, `LuiHit<long, TagChip>`, `LuiResult<…>` — now:
+      `ILuiEmbeddedIndex`, `LuiEntry`, `LuiHit`, `LuiResult`.
+    - `hit.Payload` — now: `hit.GetPayload<TagChip>()` (or `TryGetPayload`); `hit.Payload is null` — now:
+      `!hit.HasPayload`.
+    - `hit.Key` as a `long` — now: `(long)hit.Key` or `hit.Key.ToInt64()`; `index.Remove(42)` stays as it is.
+    - A serialiser of the application: `ILuiPayloadSerializer<T>` with `Serialize(T)` / `T Deserialize(bytes)` — now:
+      `ILuiPayloadSerializer` with `Serialize(object)` / `T Deserialize<T>(bytes)`, given to the catalog.
+    - A value-type payload that is its default (`0`) was not stored; it is now — only `null` means "no payload".
+    - `LuiPayloadSerializer.Json` reads **strictly**: a payload read as a type of another shape (a member in the bytes
+      the type does not have, a constructor parameter the bytes do not have) is a `LuiPayloadException`, not an object
+      of defaults. A member removed from a payload type, or a constructor parameter added without a default, makes the
+      payloads written before unreadable: write them again (`Sync`).
+    - Two hits are equal when their values are, the payload compared by its content (as before, when the hit held the
+      deserialised payload).
+    - A definition with a key type this version does not know is a `LuiDefinitionMismatchException` when it is opened.
+  - **`Linked` is documented precisely** (spec §7.3): LUI keeps no copy of the row — the normalised text in the search
+    index, the weight and the priority in the order of the candidates; the text and the payload of a hit are read from
+    the table when the hit is read.
+
 - **The catalog creates and opens an index** ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md), #56).
   The catalog is the entry point: it creates an index once — in the migration of the application — and opens it in the
   runtime path. The builder is no longer reachable from the catalog, so the runtime path cannot create an index. The
@@ -236,17 +278,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **Migration** (the forms *before* this change are the ones named "before"):
     - before: `lui.Index(name).SingleWord().Ensure()` — now: `lui.Create(name, index => index.SingleWord())`. The old
       name is gone, not deprecated.
-    - before: `lui.OpenIndex<TKey, TPayload>(name, payload)` — now: `lui.Index<TKey, TPayload>(name, payload)`. The
-      name is `Index` beside it: `LuiCatalog.Open(connectionString, options)` opens the *catalog* and stays as it is.
+    - before: `lui.OpenIndex<TKey, TPayload>(name, payload)` — now: `lui.Index(name)` (and `lui.LinkedIndex(…)` for a
+      linked index, ADR-0035). The name is `Index`: `LuiCatalog.Open(connectionString, options)` opens the *catalog* and
+      stays as it is.
     - before: `lui.OpenIndex(name)` with the untyped facade `ILuiDocumentIndex` — the key as the text it is stored as,
-      the payload as the raw JSON, a hit a `LuiDocumentHit` — now: nothing. The facade is gone; the index is typed.
+      the payload as the raw JSON, a hit a `LuiDocumentHit` — now: nothing. The facade is gone; there is one way into
+      an index.
     - before: `services.AddIndex(…)`, `services.AddLinkedIndex(…)` and `services.AddOpenIndex(…)` — now:
       `services.AddLui(…)`. The container holds the catalog and nothing else; the registrations and the hosted services
       are gone.
     - before: `services.AddIndex(…).EnsureOnStart()` and `WarmUpTypoDictionariesOnStart()` — now: the application
       calls `catalog.Create(…)` in its migration and `WarmUpTypoDictionary()` itself, when it wants to.
-    - before: a file whose index was created by an older version has no payload type in its definition — now: the index
-      is dropped and created again (`DropIndex` + `Create`).
+
 
 - **A query allocates far less** ([ADR-0032](docs/adr/0032-the-allocation-of-a-query.md), #30). A single-word query with the
   budget of 500 candidates allocates **26.6 KB instead of 153.3 KB** (−83 %), a multi-word query **105.7 KB instead of

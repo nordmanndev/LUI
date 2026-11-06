@@ -427,8 +427,8 @@ public sealed class SingleWordQueryTests
         result.CorrectedQuery.ShouldBeNull();
     }
 
-    private static long[] Keys(ILuiEmbeddedIndex<long, LuiNoPayload> index, string input, LuiRankingOrder order) =>
-        [.. index.Query(input).Rank(order).Execute().Hits.Select(h => h.Key)];
+    private static long[] Keys(ILuiEmbeddedIndex index, string input, LuiRankingOrder order) =>
+        [.. index.Query(input).Rank(order).Execute().Hits.Select(h => h.Key.ToInt64())];
 
     private sealed class ConstantSimilarity(double value) : ILuiSimilarity
     {

@@ -66,3 +66,4 @@ here — in the **same pull request** as the change it describes.
 | [0032](./0032-the-allocation-of-a-query.md) | The allocation of a query: what it costs, and what it may cost | Accepted |
 | [0033](./0033-the-read-path-opens-an-index-without-writing.md) | The read path opens an index without writing: `Create()` and `Index()` in the catalog, the file that decides what may be written | Accepted |
 | [0034](./0034-the-hosting-package-carries-only-the-dependency-injection.md) | The hosting package carries only the dependency injection: the abstractions of the host are gone | Accepted |
+| [0035](./0035-the-index-knows-no-types.md) | The index knows no types: the serialiser belongs to the catalog, the type stands where the payload is used | Accepted |

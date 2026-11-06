@@ -63,7 +63,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         }
     }
 
-    private (double[] Latencies, double[] Allocations) MeasureQueries(ILuiEmbeddedIndex<long, LuiNoPayload> index, List<string> inputs)
+    private (double[] Latencies, double[] Allocations) MeasureQueries(ILuiEmbeddedIndex index, List<string> inputs)
     {
         // warm the page cache and the JIT, as a running application would be
         foreach (var input in inputs.Take(500))
@@ -105,7 +105,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         return (latencies, allocations);
     }
 
-    private void MeasureWrites(ILuiEmbeddedIndex<long, LuiNoPayload> index, List<string> texts, int entries)
+    private void MeasureWrites(ILuiEmbeddedIndex index, List<string> texts, int entries)
     {
         var writes = new double[500];
         var random = new Random(11);
@@ -151,7 +151,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
     }
 
     /// <summary>The words first, then compounds of two words — German is full of them.</summary>
-    private static List<string> Build(LuiCatalog catalog, ILuiEmbeddedIndex<long, LuiNoPayload> index, IReadOnlyList<string> words, int entries)
+    private static List<string> Build(LuiCatalog catalog, ILuiEmbeddedIndex index, IReadOnlyList<string> words, int entries)
     {
         var random = new Random(42);
         var texts = new List<string>(entries);

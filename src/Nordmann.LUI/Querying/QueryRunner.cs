@@ -10,10 +10,10 @@ namespace Nordmann.LUI.Querying;
 /// Runs a query (LUI-Spezifikation §8, §9) as a pipeline: the candidates out of SQLite in the order of the
 /// rowid (<see cref="CandidateReader"/>), the typo correction when it is wanted (<see cref="TypoCorrection"/>),
 /// the ranking in memory (<see cref="Ranker"/>), key and payload of the hits in one more statement
-/// (<see cref="HitReader{TKey, TPayload}"/>) — all in one snapshot. Where the content lives is the content
+/// (<see cref="HitReader"/>) — all in one snapshot. Where the content lives is the content
 /// source's business, how the input is searched the kind's (ADR-0014).
 /// </summary>
-internal sealed class QueryRunner<TKey, TPayload>
+internal sealed class QueryRunner
 {
     private readonly Database _database;
     private readonly ContentSource _source;
@@ -21,12 +21,12 @@ internal sealed class QueryRunner<TKey, TPayload>
     private readonly bool _typoDefault;
     private readonly CandidateReader _candidates;
     private readonly TypoCorrection _correction;
-    private readonly HitReader<TKey, TPayload> _hits;
+    private readonly HitReader _hits;
 
     internal QueryRunner(
         Database database,
         ContentSource source,
-        PayloadReader<TPayload> payload,
+        PayloadReader payload,
         ILuiSimilarity defaultSimilarity,
         TypoDictionary typos,
         bool typoDefault)
@@ -37,13 +37,13 @@ internal sealed class QueryRunner<TKey, TPayload>
         _typoDefault = typoDefault;
         _candidates = new CandidateReader(source);
         _correction = new TypoCorrection(typos, _candidates, source);
-        _hits = new HitReader<TKey, TPayload>(source, payload);
+        _hits = new HitReader(source, payload);
     }
 
     /// <summary>Whether a query corrects a typo unless its options say otherwise.</summary>
     internal bool TypoTolerance => _typoDefault;
 
-    internal LuiResult<TKey, TPayload> Execute(string input, LuiQueryOptions options, CancellationToken cancellationToken)
+    internal LuiResult Execute(string input, LuiQueryOptions options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(options);
@@ -54,7 +54,7 @@ internal sealed class QueryRunner<TKey, TPayload>
         var query = PreparedQuery.Create(input, _source.Normalization, _source.Rules);
         if (query.IsEmpty)
         {
-            return new LuiResult<TKey, TPayload> { Query = input, Hits = [], Timings = Timings(options, started, started, started, started, started) };
+            return new LuiResult { Query = input, Hits = [], Timings = Timings(options, started, started, started, started, started) };
         }
 
         using var connection = _database.OpenConnection();
@@ -118,9 +118,9 @@ internal sealed class QueryRunner<TKey, TPayload>
     /// <summary>
     /// The result of a query: the hits and what the query did.
     /// </summary>
-    private static LuiResult<TKey, TPayload> Result(
+    private static LuiResult Result(
         string input,
-        IReadOnlyList<LuiHit<TKey, TPayload>> hits,
+        IReadOnlyList<LuiHit> hits,
         int count,
         bool truncated,
         string? corrected,

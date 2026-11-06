@@ -2,15 +2,13 @@ using Microsoft.Data.Sqlite;
 
 namespace Nordmann.LUI.Querying;
 
-/// <summary>A payload stored as bytes by a serialiser (<c>Embedded</c>); none without a serialiser.</summary>
-/// <typeparam name="TPayload">The payload type.</typeparam>
-internal sealed class SerializedPayload<TPayload>(ILuiPayloadSerializer<TPayload>? serializer) : PayloadReader<TPayload>
+/// <summary>The payload of an embedded index: the stored bytes, read by the hit with the serialiser of the catalog.</summary>
+internal sealed class SerializedPayload(string indexName, ILuiPayloadSerializer? serializer) : PayloadReader
 {
-    // without a serialiser there is nothing to read, and the column is not even selected
-    internal override IReadOnlyList<string> Columns { get; } = serializer is null ? [] : ["payload"];
+    internal override IReadOnlyList<string> Columns { get; } = ["payload"];
 
-    internal override TPayload? Read(SqliteDataReader row) =>
-        serializer is not null && !row.IsDBNull(FirstColumn)
-            ? serializer.Deserialize(row.GetFieldValue<byte[]>(FirstColumn))
-            : default;
+    internal override PayloadSource Source { get; } = PayloadSource.Serialized(indexName, serializer);
+
+    internal override object? Read(SqliteDataReader row) =>
+        row.IsDBNull(FirstColumn) ? null : row.GetFieldValue<byte[]>(FirstColumn);
 }
