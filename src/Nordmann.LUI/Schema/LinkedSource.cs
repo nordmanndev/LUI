@@ -25,12 +25,18 @@ internal sealed class LinkedSource : ContentSource
     private readonly string _weight;
     private readonly string _priority;
     private readonly string _norm;
+    private readonly IReadOnlyList<string> _payloadColumns;
 
     internal LinkedSource(string indexName, IndexDefinition definition)
         : base(indexName, definition)
     {
         Link = definition.Link
             ?? throw new ArgumentException("A linked index needs the table it is linked to.", nameof(definition));
+
+        // the columns of the payload come out of the definition: they reach SQL, so they are checked again
+        _payloadColumns = Link.PayloadColumns is { } columns
+            ? [.. columns.Select(column => Identifier.ValidateApplicationName(column, "the payload columns of the definition"))]
+            : [];
 
         ContentTable = Identifier.Quote(Link.Table);
         FtsTable = Fts(indexName);
@@ -143,6 +149,12 @@ internal sealed class LinkedSource : ContentSource
     internal override string HitsSql(string parameters, IReadOnlyList<string> payloadColumns) =>
         $"SELECT {_key}, {_key}{string.Concat(payloadColumns.Select(column => $", h.{Identifier.Quote(column)}"))} "
         + $"FROM {ContentTable} h WHERE {_key} IN ({parameters});";
+
+    /// <summary>
+    /// The columns of the payload, as the definition holds them — the columns the mapping of the application reads
+    /// (ADR-0033).
+    /// </summary>
+    internal IReadOnlyList<string> PayloadColumns => _payloadColumns;
 
     internal override IReadOnlyList<string> CreateStatements() =>
     [

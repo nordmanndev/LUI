@@ -65,7 +65,7 @@ so the README can never drift from the code.
 
 ```text
 dotnet add package Nordmann.LUI            # the library — all a console application needs
-dotnet add package Nordmann.LUI.Hosting    # AddLui and the hosted services, for ASP.NET Core or a worker
+dotnet add package Nordmann.LUI.Hosting    # AddLui and the catalog, for ASP.NET Core or a worker
 ```
 
 The two packages are released together, with one version. The core starts no
@@ -82,7 +82,7 @@ using Nordmann.LUI;
 using var lui = LuiCatalog.Open("Data Source=app.db");
 
 // an index of titles: words in any order, spaces optional, one typo forgiven
-var recipes = lui.Index("recipes").MultiWord().TypoTolerance().Ensure();
+var recipes = lui.Create("recipes", index => index.MultiWord().TypoTolerance());
 
 recipes.Upsert(1, "Gedeckter Apfelkuchen", weight: 9000);
 recipes.Upsert(2, "Apfelstrudel", weight: 5000);
@@ -95,6 +95,15 @@ foreach (var hit in recipes.Search("apfelkuch").Hits)
 
 Console.WriteLine(recipes.Search("apfel gedeckt").Hits[0].Text);   // Gedeckter Apfelkuchen
 Console.WriteLine(recipes.Search("gedekter").CorrectedQuery);         // gedeckter
+```
+
+**Creating and opening are two calls.** `Create` is the write path and belongs in the
+migration of the application; in the runtime path the index is **opened** — `Index`
+reads the definition out of the file and writes nothing:
+
+```csharp
+var opened = lui.Index<long, LuiNoPayload>("recipes");   // opened, not created: the file is not touched
+Console.WriteLine(opened.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
 ```
 
 Load a stock in **one** transaction, never entry by entry — `UpsertMany` is
@@ -172,7 +181,7 @@ using (var app = new SqliteConnection("Data Source=app.db"))
 }
 
 // linked: LUI reads the table and never changes it
-var tags = lui.Index("tags").SingleWord().LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count").Ensure();
+var tags = lui.Create("tags", index => index.SingleWord().LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count"));
 tags.Sync();                                             // the whole table; then tags.Refresh(id) after a write
 
 Console.WriteLine(tags.Search("veg").Hits[0].Text);     // vegan
@@ -224,7 +233,7 @@ are ranked. A rare system tag would otherwise lose against thousands of popular 
 it — with a priority it is a candidate for every input it matches:
 
 ```csharp
-var labels = lui.Index("labels").SingleWord().Ensure();
+var labels = lui.Create("labels", index => index.SingleWord());
 labels.UpsertMany([
     new LuiEntry<long, LuiNoPayload>(1, "Vegetarisch") { Weight = 900 },
     new LuiEntry<long, LuiNoPayload>(2, "Vegan") { Weight = 3, Priority = LuiPriority.System },
@@ -261,46 +270,77 @@ Console.WriteLine(recipes.TypoDictionaryState);   // Current
 
 ## In an ASP.NET Core or worker application
 
-`Nordmann.LUI.Hosting` brings the dependency injection: `AddLui` registers the catalog, and every index as a keyed service under its
-name — the read interface for a suggest endpoint, the write interface for an
-import. The indexes are ensured when the host starts (a definition that does not
-match stops the start, not the first request); a linked index can have its
-outbox applied on a timer:
+`Nordmann.LUI.Hosting` brings the dependency injection: `AddLui` puts the **catalog** into the
+container — and nothing else. An index is not registered and not injected; the application
+asks the catalog for what it needs: `catalog.Create(name, …)` in its migration,
+`catalog.Index(…)` in the runtime path.
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 var builder = Host.CreateApplicationBuilder();
-builder.Services
-    .AddLui("Data Source=app.db")
-    .AddIndex("recipes", index => index.MultiWord().TypoTolerance())
-    .AddLinkedIndex("tags", index => index.SingleWord().LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count"),
-              applyPendingEvery: TimeSpan.FromSeconds(5))
-    .WarmUpTypoDictionariesOnStart();
+builder.Services.AddLui("Data Source=app.db");
 
 using var host = builder.Build();
 host.Start();
 
-// in an endpoint: [FromKeyedServices("recipes")] ILuiIndex<long, LuiNoPayload> recipes
-var suggest = host.Services.GetRequiredKeyedService<ILuiIndex<long, LuiNoPayload>>("recipes");
+// in an endpoint: the catalog is injected — the index is asked for
+var catalog = host.Services.GetRequiredService<LuiCatalog>();
+var suggest = catalog.Index<long, LuiNoPayload>("recipes");
 Console.WriteLine(suggest.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
 ```
 
-`AddLui` opens the database when the host starts — also with `EnsureOnStart(false)`, because the hosted services
-resolve the catalog first, so that the container disposes them before it. A SQLite that LUI cannot run on (older than 3.45,
-or without the FTS5 trigram tokenizer) therefore stops the start with a `LuiEnvironmentException`. It, the
-`LuiDefinitionMismatchException` of an index that exists with another definition and the `LuiLinkedTableException` share
-the base `LuiException` — an `InvalidOperationException`, so a `catch` of that one still catches them.
+The catalog is opened when it is first needed, and it goes with the host. A SQLite that LUI
+cannot run on (older than 3.45, or without the FTS5 trigram tokenizer) therefore throws a
+`LuiEnvironmentException` at that moment. It, the `LuiDefinitionMismatchException` of an
+index that exists with another definition, the `LuiIndexNotFoundException` of an index that
+is not there and the `LuiReadOnlyException` of a file that may not be written share the base
+`LuiException` — an `InvalidOperationException`, so a `catch` of that one still catches them.
 
-The host does not rebuild typo dictionaries on its own (they only grow); `WarmUpTypoDictionariesOnStart()` builds
-them in the background after the start, and no query waits for that build: one that would need a correction meanwhile
-answers without it and says `CorrectionSkipped`.
+The package carries the dependency injection and nothing else
+([ADR-0034](./docs/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md)):
+no background service, no timer. The application warms the typo dictionaries itself if it wants
+to (`WarmUpTypoDictionary()` — they only grow), and brings the outbox of a linked index into
+the index itself (`ApplyPending()` after its writes, or in a `PeriodicTimer` loop). No query
+waits for a warm-up: one that would need a correction meanwhile answers without it and says
+`CorrectionSkipped`.
 
 Without a host — in a console application — the same is a few calls of your
-own: `Ensure()` where you open an index, `WarmUpTypoDictionary()` at the start,
+own: `LuiCatalog.Open(…)`, `Create()` where you create an index, `Index()` where you open
+one, `WarmUpTypoDictionary()` at the start,
 `RebuildTypoDictionary()` in a quiet phase if removed words should go, and `ApplyPending()` after your writes
 or in a `PeriodicTimer` loop.
+
+---
+
+## Only read
+
+Sometimes an application may only read: a replica, a file that is read-only, a service that must not write.
+`Index` reads the definition out of `lui_meta` and **writes nothing** — no table, no definition, no write lock
+([ADR-0033](./docs/adr/0033-the-read-path-opens-an-index-without-writing.md)). The index it hands out is a view on the
+file: it writes when the file allows it. The index has to exist, and a mistake
+says what is wrong: `LuiIndexNotFoundException` for an index that is not there, `LuiDefinitionMismatchException` for a
+file of another version of LUI — or for another key type, another payload type.
+
+```csharp
+// the index is opened, not created: the file is not written
+var openedTags = lui.Index<long, LuiNoPayload>("recipes");
+foreach (var hit in openedTags.Search("apfelkuch").Hits)
+{
+    Console.WriteLine($"{hit.Key}: {hit.Text}");   // 1: Gedeckter Apfelkuchen
+}
+```
+
+With the types of the application it is `Index<TKey, TPayload>(name, typeInfo)` — the payload comes with the
+`JsonTypeInfo` of the application, source-generated and so safe for trimming and AOT:
+`lui.Index<long, TagChip>("tags", TagJsonContext.Default.TagChip)`. A payload that is not JSON brings its own
+serialiser: `lui.Index<long, TagChip>("tags", new MySerializer())`.
+
+**The file decides what may happen — not the index.** A catalog that was opened with `Mode=ReadOnly` writes nothing: no
+WAL, no `lui_meta`, and every write is refused with a `LuiReadOnlyException` — `Create`, `DropIndex`, `Upsert`, `Sync`.
+The same application code therefore runs in the service that writes and in the service that only reads:
+`LuiCatalog.Open("Data Source=app.db")` and `LuiCatalog.Open("Data Source=app.db;Mode=ReadOnly")`.
 
 ---
 

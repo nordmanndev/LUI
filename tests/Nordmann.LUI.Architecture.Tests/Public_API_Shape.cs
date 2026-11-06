@@ -1,4 +1,6 @@
 using System.Reflection;
+using System.Text.Json.Serialization.Metadata;
+using Microsoft.Extensions.DependencyInjection;
 using NetArchTest.Rules;
 using Shouldly;
 
@@ -119,7 +121,11 @@ public sealed class Public_API_Shape
         exceptions.Where(type => !typeof(LuiException).IsAssignableFrom(type)).Select(type => type.Name)
             .ShouldBeEmpty("Every public exception derives from LuiException.");
         exceptions.Select(type => type.Name).Order(StringComparer.Ordinal)
-            .ShouldBe(["LuiDefinitionMismatchException", "LuiEnvironmentException", "LuiException", "LuiLinkedTableException"]);
+            .ShouldBe(
+            [
+                "LuiDefinitionMismatchException", "LuiEnvironmentException", "LuiException",
+                "LuiIndexNotFoundException", "LuiLinkedTableException", "LuiReadOnlyException",
+            ]);
     }
 
     [Fact]
@@ -185,6 +191,98 @@ public sealed class Public_API_Shape
 
         offenders.ShouldBeEmpty("No public type, member or parameter says 'Owned' — the content source is 'Embedded'.");
         types.ShouldContain(type => string.Equals(type.Name, "ILuiEmbeddedIndex`2", StringComparison.Ordinal), "the guard sees the renamed type");
+    }
+
+    [Fact]
+    public void The_catalog_creates_an_index_and_opens_one_that_is_there()
+    {
+        // ADR-0033: `Create` is the write path — it was called `Ensure`, and that name is gone (ADR-0026 allows a change of
+        // a name before 0.1.0). `Index` is the read path: it opens an index that is there and writes nothing.
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+
+        var created = typeof(LuiCatalog).GetMethods(declared)
+            .Where(method => string.Equals(method.Name, "Create", StringComparison.Ordinal))
+            .ToArray();
+        created.Length.ShouldBe(2, "one Create per content source");
+        created.ShouldContain(method => method.ReturnType.GetGenericTypeDefinition() == typeof(ILuiEmbeddedIndex<,>));
+        created.ShouldContain(method => method.ReturnType.GetGenericTypeDefinition() == typeof(ILuiLinkedIndex<>));
+
+        var opened = typeof(LuiCatalog).GetMethods(declared)
+            .Where(method => string.Equals(method.Name, "Index", StringComparison.Ordinal))
+            .ToArray();
+        opened.Length.ShouldBe(4, "the embedded index with a JsonTypeInfo, the embedded index with a serialiser, the linked index with a payload, the linked index without one");
+        opened.ShouldContain(method => method.IsGenericMethodDefinition
+            && method.GetGenericArguments().Length == 2
+            && method.ReturnType.GetGenericTypeDefinition() == typeof(ILuiEmbeddedIndex<,>));
+        opened.ShouldContain(method => method.IsGenericMethodDefinition
+            && method.GetGenericArguments().Length == 1
+            && method.ReturnType.GetGenericTypeDefinition() == typeof(ILuiLinkedIndex<>));
+        opened.ShouldContain(method => !method.IsGenericMethodDefinition
+            && method.ReturnType == typeof(ILuiLinkedIndex<LuiNoPayload>));
+
+        // the two ways to open an embedded index: the JsonTypeInfo of the application and its own serialiser. They must
+        // not come in the way of each other: a call with one of them resolves to exactly one overload.
+        var embedded = opened
+            .Where(method => method.IsGenericMethodDefinition && method.GetGenericArguments().Length == 2)
+            .Select(method => method.GetParameters().Last().ParameterType.GetGenericTypeDefinition())
+            .ToArray();
+        embedded.ShouldBe(
+        [
+            typeof(JsonTypeInfo<>),
+            typeof(ILuiPayloadSerializer<>),
+        ], ignoreOrder: true);
+
+        // the factory of the catalog stays: `Open` opens the catalog, `Index` opens the index (ADR-0033)
+        typeof(LuiCatalog).GetMethod(
+            "Open",
+            BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly,
+            [typeof(string), typeof(LuiCatalogOptions)]).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void The_retired_names_are_gone_from_the_public_surface()
+    {
+        // ADR-0033 and ADR-0026: before 0.1.0 a name may change — `Ensure` became `Create`, `OpenIndex` became `Index`,
+        // and the untyped facade (`ILuiDocumentIndex`, `LuiDocumentHit`) is gone: one interface per capability.
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+
+        var retired = PackageAssemblies
+            .SelectMany(assembly => assembly.GetExportedTypes())
+            .SelectMany(type => type.GetMethods(declared))
+            .Where(method => method.Name is "Ensure" or "OpenIndex" or "AddIndex" or "AddLinkedIndex" or "AddOpenIndex")
+            .Select(method => $"{method.DeclaringType?.Name}.{method.Name}")
+            .OrderBy(name => name, StringComparer.Ordinal)
+            .ToArray();
+        retired.ShouldBeEmpty("the retired names are gone, not deprecated");
+
+        var facade = PackageAssemblies
+            .SelectMany(assembly => assembly.GetExportedTypes())
+            .Where(type => type.Name is "ILuiDocumentIndex" or "LuiDocumentHit")
+            .Select(type => type.Name)
+            .ToArray();
+        facade.ShouldBeEmpty("the untyped facade is gone");
+    }
+
+    [Fact]
+    public void The_container_holds_the_catalog_and_nothing_else()
+    {
+        // ADR-0033: the container does not describe indexes — the application asks the catalog for what it needs, and
+        // `AddLui` is the only registration the hosting package has.
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+
+        var hosting = Assembly.Load("Nordmann.LUI.Hosting").GetExportedTypes();
+
+        hosting.ShouldNotContain(
+            type => string.Equals(type.Name, "LuiServicesBuilder", StringComparison.Ordinal),
+            "the builder of the indexes is gone with the indexes");
+
+        var registrations = hosting
+            .SelectMany(type => type.GetMethods(declared))
+            .Where(method => method.Name.StartsWith("Add", StringComparison.Ordinal))
+            .ToArray();
+        registrations.Length.ShouldBe(2, "AddLui and AddLui with the connection string from the container");
+        registrations.ShouldAllBe(method => string.Equals(method.Name, "AddLui", StringComparison.Ordinal));
+        registrations.ShouldAllBe(method => method.ReturnType == typeof(IServiceCollection));
     }
 
     [Fact]

@@ -1,213 +1,72 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
-using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 
 namespace Nordmann.LUI.Integration.Tests;
 
 /// <summary>
-/// LUI in a host (LUI-Spezifikation §12.7, ADR-0017): the catalog and the indexes as services, keyed by name; the indexes
-/// ensured on start; the outbox of a linked index applied on a timer; the catalog disposed with the host.
+/// LUI in a host (LUI-Spezifikation §12.7, ADR-0017, ADR-0033): the container holds the catalog and nothing else. An
+/// index is not registered and not injected — the application asks the catalog for what it needs.
 /// </summary>
 public sealed class DependencyInjectionTests
 {
-    private static readonly TimeSpan Patience = TimeSpan.FromSeconds(10);
-
     [Fact]
-    public void Every_index_is_a_keyed_service_under_its_name_and_ensured_when_the_host_starts()
+    public void The_catalog_is_the_service_of_the_container()
     {
         using var database = new TestDatabase();
-        using var host = Host(database, lui => lui
-            .AddIndex("words", index => index.SingleWord())
-            .AddIndex("titles", index => index.MultiWord().WithPayload(ChipJsonContext.Default.Chip)));
+        using var host = Host(database);
 
-        Meta(database).ShouldBe(0);
-        host.Start();
-        Meta(database).ShouldBe(2);
+        var catalog = host.Services.GetRequiredService<LuiCatalog>();
 
-        var embedded = host.Services.GetRequiredKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("words");
-        var read = host.Services.GetRequiredKeyedService<ILuiIndex<long, LuiNoPayload>>("words");
-        read.ShouldBeSameAs(embedded);
-        host.Services.GetRequiredKeyedService<ILuiIndex<long, Chip>>("titles").Kind.ShouldBe(LuiIndexKind.MultiWord);
-
-        embedded.Upsert(1, "vegan");
-        read.Search("veg").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
+        catalog.ShouldNotBeNull();
+        catalog.ConnectionString.ShouldBe(database.ConnectionString);
     }
 
     [Fact]
-    public void A_definition_that_does_not_match_stops_the_start_not_the_first_request()
+    public void The_container_knows_no_index_at_all()
     {
         using var database = new TestDatabase();
-        using (var catalog = database.Open())
-        {
-            catalog.Index("words").MultiWord().Ensure();
-        }
-
-        using var host = Host(database, lui => lui.AddIndex("words", index => index.SingleWord()));
-
-        Should.Throw<LuiDefinitionMismatchException>(host.Start);
-    }
-
-    [Fact]
-    public void A_migration_registered_before_AddLui_creates_the_linked_table_before_the_index_is_ensured()
-    {
-        // review of main after #23, finding 2: hosted services start in the order of their registration
-        using var database = new TestDatabase();
-        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
-        builder.Services.AddHostedService(_ => new Migration(database));
-        builder.Services.AddLui(database.ConnectionString).AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
-        using var host = builder.Build();
-
+        using var host = Host(database);
         host.Start();
 
-        host.Services.GetRequiredKeyedService<ILuiLinkedIndex<LuiNoPayload>>("tags").Count().ShouldBe(0);
+        // ADR-0033: the index is not registered and not injected — the application asks the catalog for it.
+        host.Services.GetService<ILuiEmbeddedIndex<long, LuiNoPayload>>().ShouldBeNull();
+        host.Services.GetService<ILuiLinkedIndex<LuiNoPayload>>().ShouldBeNull();
+        host.Services.GetService<ILuiIndex<long, LuiNoPayload>>().ShouldBeNull();
+        host.Services.GetKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("tags").ShouldBeNull();
     }
 
     [Fact]
-    public void Without_ensure_on_start_an_index_is_ensured_when_it_is_first_resolved()
+    public void An_index_the_application_asks_for_is_not_a_service_of_the_container()
     {
         using var database = new TestDatabase();
-        using var host = Host(database, lui => lui.AddIndex("words", index => index.SingleWord()).EnsureOnStart(false));
-
+        using var host = Host(database);
         host.Start();
-        Meta(database).ShouldBe(0);
 
-        host.Services.GetRequiredKeyedService<ILuiIndex<long, LuiNoPayload>>("words").Count().ShouldBe(0);
-        Meta(database).ShouldBe(1);
+        var catalog = host.Services.GetRequiredService<LuiCatalog>();
+        var tags = catalog.Create("tags", index => index.SingleWord());
+        tags.Upsert(1, "vegan");
+
+        // the index lives in the catalog, not in the container
+        host.Services.GetService<ILuiEmbeddedIndex<long, LuiNoPayload>>().ShouldBeNull();
+        catalog.Index<long, LuiNoPayload>("tags").Count().ShouldBe(1);
     }
 
     [Fact]
-    public void A_linked_index_is_a_keyed_service_and_its_outbox_is_applied_on_its_interval()
-    {
-        using var database = new TestDatabase();
-        Run(database, "CREATE TABLE tag (id INTEGER PRIMARY KEY, name TEXT, usage_count INTEGER NOT NULL DEFAULT 0);");
-        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        using var host = Host(
-            database,
-            lui => lui.AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(5)),
-            new LuiCatalogOptions { TimeProvider = clock });
-        host.Start();
-
-        var tags = host.Services.GetRequiredKeyedService<ILuiLinkedIndex<LuiNoPayload>>("tags");
-        host.Services.GetRequiredKeyedService<ILuiIndex<long, LuiNoPayload>>("tags").ShouldBeSameAs(tags);
-        tags.CreateTriggers();
-        Run(database, "INSERT INTO tag(id, name) VALUES (1, 'vegan');");
-        tags.Pending().ShouldBe(1);
-
-        Eventually(() =>
-        {
-            clock.Advance(TimeSpan.FromSeconds(5));
-            return tags.Pending() == 0;
-        }).ShouldBeTrue("the outbox is applied on the timer");
-        tags.Search("vegan").Hits.ShouldHaveSingleItem();
-    }
-
-    [Fact]
-    public void A_round_of_the_outbox_that_fails_does_not_end_the_loop()
-    {
-        using var database = new TestDatabase();
-        Run(database, "CREATE TABLE tag (id INTEGER PRIMARY KEY, name TEXT, usage_count INTEGER NOT NULL DEFAULT 0);");
-        var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
-        var log = new CapturedLog();
-        using var host = Host(
-            database,
-            lui => lui.AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(1)),
-            new LuiCatalogOptions { TimeProvider = clock },
-            builder => builder.Logging.SetMinimumLevel(LogLevel.Debug).AddProvider(log));
-        host.Start();
-        var tags = host.Services.GetRequiredKeyedService<ILuiLinkedIndex<LuiNoPayload>>("tags");
-        tags.CreateTriggers();
-        Run(database, "INSERT INTO tag(id, name) VALUES (1, 'vegan'); ALTER TABLE tag RENAME COLUMN name TO title;");
-
-        // rounds fail while the column is gone …
-        Eventually(() =>
-        {
-            clock.Advance(TimeSpan.FromSeconds(1));
-            return log.Count(LogLevel.Debug, "rounds in a row") >= 2;
-        }).ShouldBeTrue("three rounds fail");
-
-        tags.Pending().ShouldBe(1);
-
-        // … and the next one succeeds once it is back
-        Run(database, "ALTER TABLE tag RENAME COLUMN title TO name;");
-        Eventually(() =>
-        {
-            clock.Advance(TimeSpan.FromSeconds(1));
-            return tags.Pending() == 0;
-        }).ShouldBeTrue("the loop goes on after a failed round");
-
-        // a failure that lasts is one error, not one per round (review of pull request 23, N3)
-        log.Count(LogLevel.Error, "could not be applied").ShouldBe(1);
-        Eventually(() => log.Count(LogLevel.Information, "applied again") == 1).ShouldBeTrue();
-    }
-
-    [Fact]
-    public void Options_the_application_registers_for_itself_do_not_change_the_catalog_of_the_container()
+    public void The_settings_of_the_container_are_the_ones_it_was_given()
     {
         // N4: AddLui keeps its settings under a type of its own
         using var database = new TestDatabase();
-        Run(database, "CREATE TABLE tag (id INTEGER PRIMARY KEY, name TEXT, usage_count INTEGER NOT NULL DEFAULT 0);");
         var clock = new FakeTimeProvider(DateTimeOffset.UtcNow);
         using var host = Host(
             database,
-            lui => lui.AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.FromSeconds(5)),
             new LuiCatalogOptions { TimeProvider = clock },
             builder => builder.Services.AddSingleton(new LuiCatalogOptions { TimeProvider = TimeProvider.System }));
-        host.Start();
-        var tags = host.Services.GetRequiredKeyedService<ILuiLinkedIndex<LuiNoPayload>>("tags");
-        tags.CreateTriggers();
-        Run(database, "INSERT INTO tag(id, name) VALUES (1, 'vegan');");
 
-        // the timer runs on the clock AddLui was given
-        Eventually(() =>
-        {
-            clock.Advance(TimeSpan.FromSeconds(5));
-            return tags.Pending() == 0;
-        }).ShouldBeTrue();
-    }
+        var catalog = host.Services.GetRequiredService<LuiCatalog>();
 
-    [Fact]
-    public void The_typo_dictionaries_of_the_indexes_with_typo_tolerance_are_built_after_the_start()
-    {
-        using var database = new TestDatabase();
-        using (var catalog = database.Open())
-        {
-            catalog.Index("typos").SingleWord().TypoTolerance().Ensure().Upsert(1, "kartoffel");
-        }
-
-        using var host = Host(database, lui => lui
-            .AddIndex("typos", index => index.SingleWord().TypoTolerance())
-            .AddIndex("plain", index => index.SingleWord())
-            .WarmUpTypoDictionariesOnStart());
-        host.Start();
-        var dictionaries = host.Services.GetRequiredService<LuiCatalog>().TypoDictionaries;
-
-        Eventually(() => dictionaries.IsBuilt("typos")).ShouldBeTrue("warmed up in the background");
-        dictionaries.IsBuilt("plain").ShouldBeFalse();
-    }
-
-    [Fact]
-    public void A_host_disposed_without_a_stop_cancels_the_warm_up_instead_of_waiting_for_it()
-    {
-        // review of main after #23, finding 1: the README's own host block ends with Dispose, not StopAsync
-        using var database = new TestDatabase();
-        using (var catalog = database.Open())
-        {
-            var random = new Random(5);
-            catalog.Index("typos").SingleWord().TypoTolerance().Ensure().UpsertMany(Enumerable.Range(1, 20_000)
-                .Select(i => new LuiEntry<long, LuiNoPayload>(i, new string([.. Enumerable.Range(0, 10).Select(_ => (char)('a' + random.Next(26)))]))));
-        }
-
-        LuiCatalog hosted;
-        using (var host = Host(database, lui => lui.AddIndex("typos", index => index.SingleWord().TypoTolerance()).WarmUpTypoDictionariesOnStart()))
-        {
-            host.Start();
-            hosted = host.Services.GetRequiredService<LuiCatalog>();
-        }
-
-        // the warm-up was cancelled, not waited for
-        hosted.TypoDictionaries.IsBuilt("typos").ShouldBeFalse();
+        catalog.TimeProvider.ShouldBe(clock, "the catalog of the container has the clock of the container");
     }
 
     [Fact]
@@ -215,125 +74,35 @@ public sealed class DependencyInjectionTests
     {
         using var database = new TestDatabase();
         LuiCatalog catalog;
-        using (var host = Host(database, lui => lui.AddIndex("words", index => index.SingleWord())))
+        using (var host = Host(database))
         {
             await host.StartAsync();
             catalog = host.Services.GetRequiredService<LuiCatalog>();
             await host.StopAsync();
         }
 
-        Should.Throw<ObjectDisposedException>(() => catalog.Index("words"));
+        Should.Throw<ObjectDisposedException>(() => catalog.Index<long, LuiNoPayload>("words"));
     }
 
     [Fact]
     public void The_registration_refuses_what_cannot_work()
     {
         var services = new ServiceCollection();
-        var lui = services.AddLui("Data Source=unused.db");
+        services.AddLui("Data Source=unused.db");
 
         Should.Throw<InvalidOperationException>(() => services.AddLui("Data Source=other.db"));
-        lui.AddIndex("words", index => index.SingleWord());
-        Should.Throw<ArgumentException>(() => lui.AddIndex("words", index => index.MultiWord()));
-        Should.Throw<ArgumentException>(() => lui.AddIndex(" ", index => index.SingleWord()));
-        Should.Throw<ArgumentOutOfRangeException>(() =>
-            lui.AddLinkedIndex("tags", index => index.SingleWord().LinkTo("tag", "id", "name"), applyPendingEvery: TimeSpan.Zero));
-    }
-
-    [Fact]
-    public void A_name_that_is_not_an_index_name_stops_the_start()
-    {
-        // the rule of the name is the core's (LuiCatalog.Index); the hosting package knows the public API only (ADR-0018)
-        using var database = new TestDatabase();
-        using var host = Host(database, lui => lui.AddIndex("Not A Name", index => index.SingleWord()));
-
-        Should.Throw<ArgumentException>(host.Start).Message.ShouldContain("[a-z]");
-    }
-
-    [Fact]
-    public void An_index_says_whether_it_corrects_typos()
-    {
-        using var database = new TestDatabase();
-        using var catalog = database.Open();
-
-        catalog.Index("plain").SingleWord().Ensure().TypoTolerance.ShouldBeFalse();
-        catalog.Index("typos").SingleWord().TypoTolerance().Ensure().TypoTolerance.ShouldBeTrue();
+        Should.Throw<ArgumentException>(() => new ServiceCollection().AddLui(" "));
+        Should.Throw<ArgumentNullException>(() => new ServiceCollection().AddLui((string)null!));
     }
 
     private static IHost Host(
         TestDatabase database,
-        Action<LuiServicesBuilder> indexes,
         LuiCatalogOptions? options = null,
         Action<HostApplicationBuilder>? more = null)
     {
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
-        indexes(builder.Services.AddLui(database.ConnectionString, options));
+        builder.Services.AddLui(database.ConnectionString, options);
         more?.Invoke(builder);
         return builder.Build();
-    }
-
-    private static long Meta(TestDatabase database) =>
-        database.Scalar<long>("SELECT count(*) FROM sqlite_master WHERE name = 'lui_meta'") == 0
-            ? 0
-            : database.Scalar<long>("SELECT count(*) FROM lui_meta");
-
-    private static bool Eventually(Func<bool> condition) =>
-        SpinWait.SpinUntil(
-            () =>
-            {
-                if (condition())
-                {
-                    return true;
-                }
-
-                Thread.Sleep(20);
-                return false;
-            },
-            Patience);
-
-    private static void Run(TestDatabase database, string sql)
-    {
-        using var connection = database.Connect();
-        using var command = connection.CreateCommand();
-        command.CommandText = sql;
-        command.ExecuteNonQuery();
-    }
-
-    /// <summary>A migration of the application: it creates the table a linked index reads.</summary>
-    private sealed class Migration(TestDatabase database) : IHostedService
-    {
-        public Task StartAsync(CancellationToken cancellationToken)
-        {
-            Run(database, "CREATE TABLE tag (id INTEGER PRIMARY KEY, name TEXT);");
-            return Task.CompletedTask;
-        }
-
-        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
-    }
-
-    /// <summary>The log lines of LUI's hosted services, for the tests that ask how often something was logged.</summary>
-    private sealed class CapturedLog : ILoggerProvider
-    {
-        private readonly System.Collections.Concurrent.ConcurrentQueue<(LogLevel Level, string Message)> _lines = new();
-
-        public ILogger CreateLogger(string categoryName) =>
-            categoryName.StartsWith("Nordmann.LUI", StringComparison.Ordinal) ? new Logger(_lines) : Microsoft.Extensions.Logging.Abstractions.NullLogger.Instance;
-
-        public int Count(LogLevel level, string text) =>
-            _lines.Count(line => line.Level == level && line.Message.Contains(text, StringComparison.Ordinal));
-
-        public void Dispose()
-        {
-        }
-
-        private sealed class Logger(System.Collections.Concurrent.ConcurrentQueue<(LogLevel Level, string Message)> lines) : ILogger
-        {
-            public IDisposable? BeginScope<TState>(TState state)
-                where TState : notnull => null;
-
-            public bool IsEnabled(LogLevel logLevel) => true;
-
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
-                lines.Enqueue((logLevel, formatter(state, exception)));
-        }
     }
 }

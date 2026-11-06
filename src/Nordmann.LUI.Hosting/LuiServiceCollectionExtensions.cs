@@ -1,15 +1,16 @@
 using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Abstractions;
 using Nordmann.LUI.Hosting;
 
 namespace Nordmann.LUI;
 
 /// <summary>
 /// LUI in a container of <c>Microsoft.Extensions.DependencyInjection</c> (LUI-Spezifikation §12.7, ADR-0017, package
-/// <c>Nordmann.LUI.Hosting</c>, ADR-0018): one catalog
-/// as a singleton, every index as a keyed singleton under its name, and two hosted services — one ensures the indexes when
-/// the host starts, one applies the outbox of the linked indexes that ask for it.
+/// <c>Nordmann.LUI.Hosting</c>, ADR-0018): <b>one catalog as a singleton, and nothing else</b>.
+/// <para>
+/// The container does not describe indexes (ADR-0033): an index is not registered and not injected. The application asks
+/// the catalog for what it needs — <c>catalog.Create(name, …)</c> in the migration, <c>catalog.Index(…)</c> in the
+/// runtime path — and the index of the catalog is the one the application works with.
+/// </para>
 /// </summary>
 public static class LuiServiceCollectionExtensions
 {
@@ -20,9 +21,9 @@ public static class LuiServiceCollectionExtensions
     /// <param name="services">The services of the application.</param>
     /// <param name="connectionString">The database.</param>
     /// <param name="options">The settings of the catalog; <see langword="null"/> takes the defaults.</param>
-    /// <returns>The builder that adds the indexes.</returns>
+    /// <returns>The services of the application; the catalog is in them.</returns>
     /// <exception cref="InvalidOperationException">LUI is registered already.</exception>
-    public static LuiServicesBuilder AddLui(this IServiceCollection services, string connectionString, LuiCatalogOptions? options = null)
+    public static IServiceCollection AddLui(this IServiceCollection services, string connectionString, LuiCatalogOptions? options = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
         return services.AddLui(_ => connectionString, options is null ? null : _ => options);
@@ -35,9 +36,9 @@ public static class LuiServiceCollectionExtensions
     /// <param name="services">The services of the application.</param>
     /// <param name="connectionString">Gives the connection string when the catalog is first needed.</param>
     /// <param name="options">Gives the settings; <see langword="null"/> takes the defaults.</param>
-    /// <returns>The builder that adds the indexes.</returns>
+    /// <returns>The services of the application; the catalog is in them.</returns>
     /// <exception cref="InvalidOperationException">LUI is registered already.</exception>
-    public static LuiServicesBuilder AddLui(
+    public static IServiceCollection AddLui(
         this IServiceCollection services,
         Func<IServiceProvider, string> connectionString,
         Func<IServiceProvider, LuiCatalogOptions>? options = null)
@@ -45,36 +46,15 @@ public static class LuiServiceCollectionExtensions
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(connectionString);
 
-        if (services.Any(service => service.ServiceType == typeof(LuiRegistrations)))
+        if (services.Any(service => service.ServiceType == typeof(LuiCatalog)))
         {
             throw new InvalidOperationException(
-                "LUI is registered already: AddLui is called once per container, and every index is added to its builder.");
+                "LUI is registered already: AddLui is called once per container, and the catalog is the only thing it holds.");
         }
 
-        var registrations = new LuiRegistrations();
-        services.AddSingleton(registrations);
         services.AddSingleton(provider => new CatalogSettings(options?.Invoke(provider) ?? new LuiCatalogOptions()));
         services.AddSingleton(provider => LuiCatalog.Open(connectionString(provider), provider.GetRequiredService<CatalogSettings>().Options));
-        // The hosted services resolve the catalog before they are built: the container disposes in the reverse order of
-        // creation, so it disposes them — and cancels what runs in their background — before the catalog, which waits
-        // for running operations. A catalog created after them would wait for a warm-up that nothing cancels when the
-        // host is disposed without a stop (review of main after #23, findings 1 and 3).
-        services.AddHostedService(provider =>
-        {
-            provider.GetRequiredService<LuiCatalog>();
-            return new LuiStartup(provider, registrations, Logger<LuiStartup>(provider));
-        });
-        services.AddHostedService(provider =>
-        {
-            provider.GetRequiredService<LuiCatalog>();
-            return new LuiPendingApplier(
-                provider, registrations, provider.GetRequiredService<CatalogSettings>().Options.TimeProvider, Logger<LuiPendingApplier>(provider));
-        });
 
-        return new LuiServicesBuilder(services, registrations);
+        return services;
     }
-
-    /// <summary>The logger of the container, or none: an application without logging still runs LUI.</summary>
-    private static ILogger<T> Logger<T>(IServiceProvider provider) =>
-        provider.GetService<ILogger<T>>() ?? NullLogger<T>.Instance;
 }

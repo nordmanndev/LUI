@@ -24,8 +24,8 @@ public sealed class TypoQualityTests(ITestOutputHelper output)
         var words = Words();
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
-        Load(catalog, index, words);
+        var wordIndex = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        Load(catalog, wordIndex, words);
 
         var random = new Random(1000 + length);
         var cases = words.Where(w => w.Length >= length).OrderBy(_ => random.Next()).Take(Cases).ToList();
@@ -37,12 +37,12 @@ public sealed class TypoQualityTests(ITestOutputHelper output)
             var beginning = word[..length].ToLowerInvariant();
             var typed = TypoMaker.WithOneTypo(beginning, random);
 
-            if (Found(index, beginning, word, typoTolerance: false))
+            if (Found(wordIndex, beginning, word, typoTolerance: false))
             {
                 clean++;
             }
 
-            if (Found(index, typed, word, typoTolerance: true))
+            if (Found(wordIndex, typed, word, typoTolerance: true))
             {
                 typo++;
             }

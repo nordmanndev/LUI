@@ -60,10 +60,10 @@ public sealed class RowIdTests
         // the generated column and the C# encoder must agree, or the decoded weight is wrong
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var tags = catalog.Create("tags", index => index.SingleWord());
 
-        index.Upsert(1, "vegan", weight: 5, priority: LuiPriority.System);
-        index.Upsert(2, "organ", weight: 123_456);
+        tags.Upsert(1, "vegan", weight: 5, priority: LuiPriority.System);
+        tags.Upsert(2, "organ", weight: 123_456);
 
         var system = database.Scalar<long>("SELECT s_rowid FROM lui_tags WHERE key = '1'");
         var normal = database.Scalar<long>("SELECT s_rowid FROM lui_tags WHERE key = '2'");

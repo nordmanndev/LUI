@@ -64,3 +64,5 @@ here — in the **same pull request** as the change it describes.
 | [0030](./0030-the-similarity-measures-are-luis-own.md) | The four similarity measures are LUI's own: the runtime dependency on F23 ends | Accepted |
 | [0031](./0031-the-pool-displaces-instead-of-discarding.md) | The pool of the buffers displaces instead of discarding | Accepted |
 | [0032](./0032-the-allocation-of-a-query.md) | The allocation of a query: what it costs, and what it may cost | Accepted |
+| [0033](./0033-the-read-path-opens-an-index-without-writing.md) | The read path opens an index without writing: `Create()` and `Index()` in the catalog, the file that decides what may be written | Accepted |
+| [0034](./0034-the-hosting-package-carries-only-the-dependency-injection.md) | The hosting package carries only the dependency injection: the abstractions of the host are gone | Accepted |

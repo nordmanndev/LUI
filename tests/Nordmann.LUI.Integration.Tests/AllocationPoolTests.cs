@@ -26,17 +26,17 @@ public sealed class AllocationPoolTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().TypoTolerance().Ensure();
+        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance());
 
         // a small corpus is enough: the buffers are lent by the budget, not by the number of the
         // candidates that are read
-        index.Upsert(1, "Apfel", 10);
+        tags.Upsert(1, "Apfel", 10);
         for (var i = 0; i < 20; i++)
         {
-            index.Upsert(100 + i, $"Apfel{i}", 10);
+            tags.Upsert(100 + i, $"Apfel{i}", 10);
         }
 
-        index.WarmUpTypoDictionary();
+        tags.WarmUpTypoDictionary();
 
         // The pool of the buffers is thread-static: the scenario runs on a thread of its own,
         // otherwise the pool that a test before has left behind would decide the number — the
@@ -46,11 +46,11 @@ public sealed class AllocationPoolTests
             // three different budgets, one after the other, on the same thread
             foreach (var budget in Budgets)
             {
-                Search(index, budget);
+                Search(tags, budget);
             }
 
             // the fourth: its buffers do not fit into the pool any more
-            return Measure(index, 700);
+            return Measure(tags, 700);
         });
 
         // 64 KB: the query allocates 39.8 KB in this state; before the correction (ADR-0031) it

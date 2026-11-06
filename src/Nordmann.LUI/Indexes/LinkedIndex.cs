@@ -9,6 +9,10 @@ namespace Nordmann.LUI.Indexes;
 /// <summary>
 /// An index over a table of the application (LUI-Spezifikation §5, §7.3, ADR-0015). It writes only its own tables;
 /// what it indexes it reads from the application's table, by the statements of its <see cref="LinkedSource"/>.
+/// <para>
+/// Whether it may write is decided by the file, not by the index (ADR-0033): an index of a catalog that was
+/// opened read-only refuses every write with a <see cref="LuiReadOnlyException"/>.
+/// </para>
 /// </summary>
 /// <typeparam name="TPayload">The payload that comes back with a hit.</typeparam>
 #pragma warning disable CA1001 // see TypoDictionary: the lock of the dictionary needs no disposal, and an index lives as long as its catalog
@@ -337,7 +341,7 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         }
         catch (LuiLinkedTableException exception)
         {
-            problems.Add($"{exception.Message} The index cannot read the table: drop the index and ensure it anew.");
+            problems.Add($"{exception.Message} The index cannot read the table: drop the index and create it anew.");
             return false;
         }
     }
@@ -414,6 +418,8 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
     /// </summary>
     private void Write(SqliteTransaction? transaction, Action<SqliteConnection, SqliteTransaction> write)
     {
+        _database.ThrowIfReadOnly("writing to a linked index");
+
         if (transaction is not null)
         {
             var connection = transaction.Connection
@@ -462,8 +468,8 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
                 || exception.Message.Contains("no such table", StringComparison.Ordinal)))
         {
             throw new LuiLinkedTableException(
-                $"The table '{_source.Link.Table}' does not fit the index '{Name}' any more ({exception.Message}). Ensure the index "
-                + "again to see what is missing; a changed table is a new definition: drop the index and ensure it anew.",
+                $"The table '{_source.Link.Table}' does not fit the index '{Name}' any more ({exception.Message}). Create the index "
+                + "again to see what is missing; a changed table is a new definition: drop the index and create it anew.",
                 exception);
         }
     }

@@ -17,7 +17,7 @@ public sealed class MultiWordIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Index("recipes").MultiWord().Ensure();
+        catalog.Create("recipes", index => index.MultiWord());
 
         Columns(database, "lui_recipes").Contains("s_compact", StringComparer.Ordinal).ShouldBeTrue();
         Columns(database, "lui_recipes").Contains("s_norm", StringComparer.Ordinal).ShouldBeTrue("s_norm stays a column of the table");
@@ -31,7 +31,7 @@ public sealed class MultiWordIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Index("tags").SingleWord().Ensure();
+        catalog.Create("tags", index => index.SingleWord());
 
         Columns(database, "lui_tags").Contains("s_compact", StringComparer.Ordinal).ShouldBeFalse();
         Columns(database, "lui_tags_fts").ShouldBe(["s_norm"]);
@@ -47,9 +47,9 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("recipes").MultiWord().Ensure();
+        var recipes = catalog.Create("recipes", index => index.MultiWord());
 
-        index.Upsert(1, text, 1);
+        recipes.Upsert(1, text, 1);
 
         // the column is not folded (the tokenizer folds it); once folded it is the compact form
         var column = database.Scalar<string>("SELECT s_compact FROM lui_recipes");
@@ -61,10 +61,10 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("recipes").MultiWord().Ensure();
+        catalog.Create("recipes", index => index.MultiWord());
 
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index("recipes").SingleWord().Ensure());
+            () => catalog.Create("recipes", index => index.SingleWord()));
     }
 
     [Fact]
@@ -72,13 +72,13 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("recipes").MultiWord().Ensure();
-        index.Upsert(1, "Apfelkuchen", 1);
+        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        recipes.Upsert(1, "Apfelkuchen", 1);
 
         var expected = LuiSimilarity.NgramDice.Similarity("apfelkuch", "apfelkuchen");
         var jaro = LuiSimilarity.JaroWinkler.Similarity("apfelkuch", "apfelkuchen");
 
-        index.Query("apfelkuch").Execute().Hits.ShouldHaveSingleItem().Similarity.ShouldBe(expected, 1e-9);
+        recipes.Query("apfelkuch").Execute().Hits.ShouldHaveSingleItem().Similarity.ShouldBe(expected, 1e-9);
         expected.ShouldNotBe(jaro, "the two measures must differ here, or the test proves nothing");
     }
 
@@ -87,28 +87,28 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("recipes").MultiWord().Ensure();
+        var recipes = catalog.Create("recipes", index => index.MultiWord());
 
         for (var i = 1; i <= 40; i++)
         {
-            index.Upsert(i, $"Gedeckter Apfelkuchen Nummer {i}", i);
+            recipes.Upsert(i, $"Gedeckter Apfelkuchen Nummer {i}", i);
         }
 
         for (var i = 1; i <= 40; i += 2)
         {
-            index.UpdateWeight(i, 1_000 - i);
-            index.UpdatePriority(i + 1, LuiPriority.High);
+            recipes.UpdateWeight(i, 1_000 - i);
+            recipes.UpdatePriority(i + 1, LuiPriority.High);
         }
 
-        index.Upsert(3, "Birnen Torte", 3);
-        index.Remove(5);
+        recipes.Upsert(3, "Birnen Torte", 3);
+        recipes.Remove(5);
 
         using var connection = database.Connect();
         using var command = connection.CreateCommand();
         command.CommandText = "INSERT INTO lui_recipes_fts(lui_recipes_fts, rank) VALUES ('integrity-check', 1);";
         Should.NotThrow(() => command.ExecuteNonQuery());
-        index.Query("birnen torte").Execute().Hits.ShouldHaveSingleItem().Key.ShouldBe(3);
-        index.Query("apfelkuchen nummer").Take(100).Execute().Hits.Select(h => h.Key).ShouldNotContain(5L);
+        recipes.Query("birnen torte").Execute().Hits.ShouldHaveSingleItem().Key.ShouldBe(3);
+        recipes.Query("apfelkuchen nummer").Take(100).Execute().Hits.Select(h => h.Key).ShouldNotContain(5L);
     }
 
     // ---- Anhang B -----------------------------------------------------------------------------
@@ -117,9 +117,9 @@ public sealed class MultiWordIndexTests
     public void apfelk_finds_the_apfelkuchen_family()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        var texts = index.Index.Query("apfelk").Execute().Hits.Select(h => h.Text).ToArray();
+        var texts = recipes.Index.Query("apfelk").Execute().Hits.Select(h => h.Text).ToArray();
 
         texts.Take(3).ShouldBe(["Apfelkuchen", "Gedeckter Apfelkuchen", "Apfel Kuchen"], ignoreOrder: true);
         texts.Contains("Apfelstrudel", StringComparer.Ordinal).ShouldBeFalse();
@@ -132,9 +132,9 @@ public sealed class MultiWordIndexTests
     public void apfelkuch_puts_the_word_starts_first_and_bratapfelkuchen_behind_them(string typed)
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        var hits = index.Index.Query(typed).Execute().Hits;
+        var hits = recipes.Index.Query(typed).Execute().Hits;
 
         hits.Take(5).Select(h => h.Text).ShouldBe(
             ["Apfelkuchen", "Gedeckter Apfelkuchen", "Apfel Kuchen", "Apfelkuchen mit Sahne", "Apfelkuchen mit Äpfeln"],
@@ -147,33 +147,33 @@ public sealed class MultiWordIndexTests
     public void The_order_of_the_words_does_not_matter()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        var hits = index.Index.Query("kuchen apfel").Execute().Hits.Select(h => h.Text).ToArray();
+        var hits = recipes.Index.Query("kuchen apfel").Execute().Hits.Select(h => h.Text).ToArray();
 
         hits.Take(2).ShouldBe(["Apfel Kuchen", "Apfelkuchen"], ignoreOrder: true);
         hits.Length.ShouldBe(6, "every title that holds both words");
 
-        index.Index.Query("sahne apfelkuchen").Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfelkuchen mit Sahne");
+        recipes.Index.Query("sahne apfelkuchen").Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfelkuchen mit Sahne");
     }
 
     [Fact]
     public void A_second_word_narrows_the_search()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        index.Index.Query("apfelkuchen sahne").Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfelkuchen mit Sahne");
-        index.Index.Query("apfelkuchen strudel").Execute().Hits.ShouldBeEmpty();
+        recipes.Index.Query("apfelkuchen sahne").Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfelkuchen mit Sahne");
+        recipes.Index.Query("apfelkuchen strudel").Execute().Hits.ShouldBeEmpty();
     }
 
     [Fact]
     public void A_word_of_fewer_than_three_characters_decides_the_ranking_not_the_candidates()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        var hits = index.Index.Query("apfelkuchen mi").Execute().Hits;
+        var hits = recipes.Index.Query("apfelkuchen mi").Execute().Hits;
 
         hits.Select(h => h.Text).Contains("Apfelkuchen", StringComparer.Ordinal).ShouldBeTrue("the short word did not narrow the candidates");
         hits.Take(2).Select(h => h.Text).ShouldBe(
@@ -187,10 +187,10 @@ public sealed class MultiWordIndexTests
     public void The_words_of_the_input_may_start_in_the_middle_of_the_title()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        index.Index.Query("gedeckter apfel").Execute().Hits[0].Text.ShouldBe("Gedeckter Apfelkuchen");
-        index.Index.Query("apfel mit").Execute().Hits.Select(h => h.Text)
+        recipes.Index.Query("gedeckter apfel").Execute().Hits[0].Text.ShouldBe("Gedeckter Apfelkuchen");
+        recipes.Index.Query("apfel mit").Execute().Hits.Select(h => h.Text)
             .ShouldBe(["Apfelkuchen mit Sahne", "Apfelkuchen mit Äpfeln"], ignoreOrder: true);
     }
 
@@ -201,9 +201,9 @@ public sealed class MultiWordIndexTests
     public void The_umlaut_and_its_spelling_find_the_same_title(string typed)
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        index.Index.Query(typed).Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfelkuchen mit Äpfeln");
+        recipes.Index.Query(typed).Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfelkuchen mit Äpfeln");
     }
 
     [Theory]
@@ -212,20 +212,20 @@ public sealed class MultiWordIndexTests
     public void Sharp_s_and_double_s_are_the_same(string typed)
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        index.Index.Query(typed).Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Hauptstraße");
+        recipes.Index.Query(typed).Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Hauptstraße");
     }
 
     [Fact]
     public void One_and_two_letters_give_the_most_popular_titles_that_begin_so()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        index.Index.Query("a").Execute().Hits.Select(h => h.Text)
+        recipes.Index.Query("a").Execute().Hits.Select(h => h.Text)
             .Take(3).ShouldBe(["Apfelstrudel", "Apfelkuchen", "Apfel Kuchen"]);
-        index.Index.Query("ap").Execute().Hits.Select(h => h.Text)
+        recipes.Index.Query("ap").Execute().Hits.Select(h => h.Text)
             .Take(3).ShouldBe(["Apfelstrudel", "Apfelkuchen", "Apfel Kuchen"]);
     }
 
@@ -236,33 +236,33 @@ public sealed class MultiWordIndexTests
         // and „-a b" is the same (review of pull request 8, M1)
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("titles").MultiWord().Ensure();
-        index.Upsert(1, "Abendbrot", 100);
-        index.Upsert(2, "A Bit Of Fun", 90);
-        index.Upsert(3, "Anna Berg", 80);
-        index.Upsert(4, "Ab Cd Torte", 70);
-        index.Upsert(5, "Abc", 60);
-        index.Upsert(6, "x-y Test", 50);
-        index.Upsert(7, "Xylophon", 40);
+        var titles = catalog.Create("titles", index => index.MultiWord());
+        titles.Upsert(1, "Abendbrot", 100);
+        titles.Upsert(2, "A Bit Of Fun", 90);
+        titles.Upsert(3, "Anna Berg", 80);
+        titles.Upsert(4, "Ab Cd Torte", 70);
+        titles.Upsert(5, "Abc", 60);
+        titles.Upsert(6, "x-y Test", 50);
+        titles.Upsert(7, "Xylophon", 40);
 
         foreach (var typed in new[] { "ab", "a b", "a-b", "a.b", "AB", "-a b", "  a  b  " })
         {
-            Keys(index, typed).ShouldBe([1L, 2L, 4L, 5L], $"for '{typed}'");
+            Keys(titles, typed).ShouldBe([1L, 2L, 4L, 5L], $"for '{typed}'");
         }
 
         foreach (var typed in new[] { "a", "-a", "#a", "A " })
         {
-            Keys(index, typed).ShouldBe([1L, 2L, 3L, 4L, 5L], $"for '{typed}'");
+            Keys(titles, typed).ShouldBe([1L, 2L, 3L, 4L, 5L], $"for '{typed}'");
         }
 
         foreach (var typed in new[] { "xy", "x y", "x-y", "X.Y" })
         {
-            Keys(index, typed).ShouldBe([6L, 7L], $"for '{typed}'");
+            Keys(titles, typed).ShouldBe([6L, 7L], $"for '{typed}'");
         }
 
         foreach (var typed in new[] { "-", "- -", ".", "#" })
         {
-            Keys(index, typed).ShouldBeEmpty($"for '{typed}'");
+            Keys(titles, typed).ShouldBeEmpty($"for '{typed}'");
         }
     }
 
@@ -271,13 +271,13 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("titles").MultiWord().Ensure();
-        index.Upsert(1, "wort001 wort002 wort003", 10);
+        var titles = catalog.Create("titles", index => index.MultiWord());
+        titles.Upsert(1, "wort001 wort002 wort003", 10);
 
         var typed = string.Join(' ', Enumerable.Range(0, 100).Select(i => $"wort{i:000}"));
 
-        Should.NotThrow(() => index.Query(typed).Execute());
-        index.Query("wort001 wort002 wort003 " + string.Join(' ', Enumerable.Range(4, 20).Select(i => $"wort{i:000}")))
+        Should.NotThrow(() => titles.Query(typed).Execute());
+        titles.Query("wort001 wort002 wort003 " + string.Join(' ', Enumerable.Range(4, 20).Select(i => $"wort{i:000}")))
             .Execute().Hits.ShouldBeEmpty("a title that lacks a word of the longest eight is not a candidate");
     }
 
@@ -286,13 +286,13 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("recipes").MultiWord().Ensure();
-        index.Upsert(1, "Apfel-Zimt-Kuchen", 10);
-        index.Upsert(2, "Zimtschnecken", 20);
+        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        recipes.Upsert(1, "Apfel-Zimt-Kuchen", 10);
+        recipes.Upsert(2, "Zimtschnecken", 20);
 
         foreach (var typed in new[] { "zimt kuchen", "kuchen zimt", "apfel-zimt", "apfelzimtkuchen", "zimt-kuchen" })
         {
-            index.Query(typed).Execute().Hits.Select(h => h.Key).ShouldBe([1L], $"for '{typed}'");
+            recipes.Query(typed).Execute().Hits.Select(h => h.Key).ShouldBe([1L], $"for '{typed}'");
         }
     }
 
@@ -301,12 +301,12 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("recipes").MultiWord().Ensure();
-        index.Upsert(1, "Apfel Kuchen", 900);
-        index.Upsert(2, "Brat Apfel Kuchen", 0, priority: LuiPriority.System);
+        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        recipes.Upsert(1, "Apfel Kuchen", 900);
+        recipes.Upsert(2, "Brat Apfel Kuchen", 0, priority: LuiPriority.System);
 
-        index.Query("apfel kuchen").Execute().Hits.Select(h => h.Key).ShouldBe([2L, 1L]);
-        index.Query("apfel kuchen").PriorityMode(LuiPriorityMode.CandidatesOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1L, 2L]);
+        recipes.Query("apfel kuchen").Execute().Hits.Select(h => h.Key).ShouldBe([2L, 1L]);
+        recipes.Query("apfel kuchen").PriorityMode(LuiPriorityMode.CandidatesOnly).Execute().Hits.Select(h => h.Key).ShouldBe([1L, 2L]);
     }
 
     [Fact]
@@ -314,14 +314,14 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("people").MultiWord().Ensure();
-        index.Upsert(1, "Anna Müller", 10);
-        index.Upsert(2, "Anna Schmidt", 20);
-        index.Upsert(3, "Hans Müller", 30);
+        var people = catalog.Create("people", index => index.MultiWord());
+        people.Upsert(1, "Anna Müller", 10);
+        people.Upsert(2, "Anna Schmidt", 20);
+        people.Upsert(3, "Hans Müller", 30);
 
-        index.Query("müller anna").Execute().Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
-        index.Query("MUELLER").Execute().Hits.Select(h => h.Key).ShouldBe([3L, 1L]);
-        index.Query("anna").Execute().Hits.Select(h => h.Key).ShouldBe([2L, 1L]);
+        people.Query("müller anna").Execute().Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
+        people.Query("MUELLER").Execute().Hits.Select(h => h.Key).ShouldBe([3L, 1L]);
+        people.Query("anna").Execute().Hits.Select(h => h.Key).ShouldBe([2L, 1L]);
     }
 
     [Fact]
@@ -332,11 +332,11 @@ public sealed class MultiWordIndexTests
         // boundary of the title — checked here without FTS5, on the folded texts.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("recipes").MultiWord().Ensure();
+        var recipes = catalog.Create("recipes", index => index.MultiWord());
 
         var random = new Random(4);
         var titles = RandomTitles(random, 1_500);
-        Load(catalog, index, titles);
+        Load(catalog, recipes, titles);
 
         var rowIds = RowIds(database, titles.Count);
         var searchForms = titles.Select(t => Normalizer.ToSearchForm(t)).ToArray();
@@ -388,11 +388,11 @@ public sealed class MultiWordIndexTests
         // the one thing the compact column adds to the two columns of the first version of §8.2 (ADR-0011)
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("recipes").MultiWord().Ensure();
-        index.Upsert(1, "Apfel Kuchen Torte", 10);
-        index.Upsert(2, "Elke Ortmann", 5);
+        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        recipes.Upsert(1, "Apfel Kuchen Torte", 10);
+        recipes.Upsert(2, "Elke Ortmann", 5);
 
-        var hits = index.Query("elk ort").Execute().Hits;
+        var hits = recipes.Query("elk ort").Execute().Hits;
 
         hits.Select(h => h.Key).ShouldBe([1L, 2L], ignoreOrder: true);
         hits.Single(h => h.Key == 1).AtWordStart.ShouldBeFalse();
@@ -404,14 +404,14 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("recipes").MultiWord().Ensure();
-        index.Upsert(1, "Apfel Kuchen", 10);
+        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        recipes.Upsert(1, "Apfel Kuchen", 10);
         var before = database.Scalar<string>("SELECT count(*) || ':' || coalesce(sum(length(block)), 0) || ':' || coalesce(sum(id), 0) FROM lui_recipes_fts_data");
 
-        index.Upsert(1, "Apfel-Kuchen", 10);
+        recipes.Upsert(1, "Apfel-Kuchen", 10);
 
         database.Scalar<string>("SELECT count(*) || ':' || coalesce(sum(length(block)), 0) || ':' || coalesce(sum(id), 0) FROM lui_recipes_fts_data").ShouldBe(before);
-        index.Query("apfel kuchen").Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfel-Kuchen");
+        recipes.Query("apfel kuchen").Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfel-Kuchen");
     }
 
     private static long[] Keys(ILuiEmbeddedIndex<long, LuiNoPayload> index, string typed) =>
@@ -491,16 +491,16 @@ public sealed class MultiWordIndexTests
     private static Fixture Recipes(TestDatabase database)
     {
         var catalog = database.Open();
-        var index = catalog.Index("recipes").MultiWord().Ensure();
-        index.Upsert(1, "Apfelkuchen", 900);
-        index.Upsert(2, "Gedeckter Apfelkuchen", 800);
-        index.Upsert(3, "Apfel Kuchen", 700);
-        index.Upsert(4, "Apfelkuchen mit Sahne", 400);
-        index.Upsert(5, "Bratapfelkuchen", 9_000);
-        index.Upsert(6, "Apfelstrudel", 5_000);
-        index.Upsert(7, "Apfelkuchen mit Äpfeln", 300);
-        index.Upsert(8, "Hauptstraße", 100);
-        return new Fixture(index);
+        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        recipes.Upsert(1, "Apfelkuchen", 900);
+        recipes.Upsert(2, "Gedeckter Apfelkuchen", 800);
+        recipes.Upsert(3, "Apfel Kuchen", 700);
+        recipes.Upsert(4, "Apfelkuchen mit Sahne", 400);
+        recipes.Upsert(5, "Bratapfelkuchen", 9_000);
+        recipes.Upsert(6, "Apfelstrudel", 5_000);
+        recipes.Upsert(7, "Apfelkuchen mit Äpfeln", 300);
+        recipes.Upsert(8, "Hauptstraße", 100);
+        return new Fixture(recipes);
     }
 
     private static List<string> Columns(TestDatabase database, string table)

@@ -21,7 +21,7 @@ public sealed class TypoDictionaryLifecycleTests
         // the dictionary of "words" is the catalog's, one per index: made here first, with a source that blocks, the index
         // takes this one
         catalog.TypoDictionaries.For("words", new NormalizationOptions(), () => Blocking(reading, release));
-        var words = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         words.Upsert(1, "kartoffel");
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
 
@@ -51,7 +51,7 @@ public sealed class TypoDictionaryLifecycleTests
         using var catalog = database.Open();
         var fail = true;
         catalog.TypoDictionaries.For("words", new NormalizationOptions(), () => fail ? Failing() : [("kartoffel", 1)]);
-        var words = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         words.Upsert(1, "kartoffel");
 
         var failed = words.Search("kartofel");
@@ -75,7 +75,7 @@ public sealed class TypoDictionaryLifecycleTests
         using var release = new ManualResetEventSlim();
         using var request = new CancellationTokenSource();
         catalog.TypoDictionaries.For("words", new NormalizationOptions(), () => Blocking(reading, release));
-        var words = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         words.Upsert(1, "kartoffel");
 
         var query = Task.Run(() => words.Search("kartofel", cancellationToken: request.Token));
@@ -93,7 +93,7 @@ public sealed class TypoDictionaryLifecycleTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         words.Sync(Entries("kartoffel"));
         words.WarmUpTypoDictionary();
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
@@ -119,8 +119,8 @@ public sealed class TypoDictionaryLifecycleTests
         // owner's requirement (#48): a search among tags corrects no name, and a search among names corrects no tag
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Index("tags").SingleWord().TypoTolerance().Ensure();
-        var names = catalog.Index("names").SingleWord().TypoTolerance().Ensure();
+        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance());
+        var names = catalog.Create("names", index => index.SingleWord().TypoTolerance());
         tags.Sync(Entries("vegan", "glutenfrei"));
         names.Sync(Entries("megan", "mueller"));
 
@@ -142,7 +142,7 @@ public sealed class TypoDictionaryLifecycleTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Index("words").SingleWord().Ensure();
+        var words = catalog.Create("words", index => index.SingleWord());
         words.Sync(Entries("kartoffel"));
 
         words.Search("kartofel").CorrectionSkipped.ShouldBeFalse();

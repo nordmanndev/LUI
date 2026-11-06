@@ -13,10 +13,10 @@ public sealed class ConcurrencyTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var tags = catalog.Create("tags", index => index.SingleWord());
         for (var i = 0; i < 2_000; i++)
         {
-            index.Upsert(i, $"kuchen{i}", i);
+            tags.Upsert(i, $"kuchen{i}", i);
         }
 
         using var stop = new CancellationTokenSource();
@@ -25,9 +25,9 @@ public sealed class ConcurrencyTests
         {
             for (var i = 2_000; i < 2_400 && !stop.IsCancellationRequested; i++)
             {
-                index.Upsert(i, $"kuchen{i}", i);
-                index.UpdateWeight(i - 1_000, i);
-                index.Remove(i - 1_900);
+                tags.Upsert(i, $"kuchen{i}", i);
+                tags.UpdateWeight(i - 1_000, i);
+                tags.Remove(i - 1_900);
             }
         });
 
@@ -35,16 +35,16 @@ public sealed class ConcurrencyTests
         {
             for (var round = 0; round < 150; round++)
             {
-                var result = index.Query("kuchen").Take(10).Execute();
+                var result = tags.Query("kuchen").Take(10).Execute();
                 result.Hits.Count.ShouldBe(10);
                 result.Hits.ShouldAllBe(hit => hit.Text.StartsWith("kuchen", StringComparison.Ordinal));
-                index.Query("ku").Take(5).Execute().Hits.Count.ShouldBe(5);
+                tags.Query("ku").Take(5).Execute().Hits.Count.ShouldBe(5);
             }
         })).ToArray();
 
         await Task.WhenAll(readers);
         await writer;
 
-        index.Count().ShouldBe(2_000);   // 400 added, 400 removed
+        tags.Count().ShouldBe(2_000);   // 400 added, 400 removed
     }
 }

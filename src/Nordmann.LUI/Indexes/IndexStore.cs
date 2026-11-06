@@ -12,15 +12,49 @@ namespace Nordmann.LUI.Indexes;
 /// </summary>
 internal static class IndexStore
 {
-    /// <summary>Creates <c>lui_meta</c> if it is missing.</summary>
+    /// <summary>The one statement of the read path: what <c>lui_meta</c> holds about an index (ADR-0033).</summary>
+    private const string ReadSql =
+        "SELECT kind, source, definition, schema_version FROM lui_meta WHERE index_name = $name;";
+
+    /// <summary>
+    /// Creates <c>lui_meta</c> if it is missing — and switches the file to write-ahead logging.
+    /// <para>
+    /// A file that may not be written gets neither (ADR-0033): a read-only catalog creates no table and writes no
+    /// pragma. The table has to be there — the writer made it — and if it is not, the catalog says so.
+    /// </para>
+    /// </summary>
     internal static void Initialize(Database database)
     {
+        if (database.ReadOnly)
+        {
+            EnsureMetaTable(database);
+            return;
+        }
+
         using var connection = database.OpenConnection();
         database.Initialize(connection);
 
         using var meta = connection.CreateCommand();
         meta.CommandText = Meta.CreateTable;
         meta.ExecuteNonQuery();
+    }
+
+    /// <summary>The table of the library has to be there: a read-only catalog cannot create it.</summary>
+    /// <exception cref="LuiReadOnlyException">The file has no <c>lui_meta</c>.</exception>
+    private static void EnsureMetaTable(Database database)
+    {
+        using var connection = database.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'lui_meta';";
+
+        if ((long)command.ExecuteScalar()! == 0)
+        {
+            throw new LuiReadOnlyException(
+                "opening the catalog",
+                "The file has no table 'lui_meta': a read-only catalog cannot create it. Create the index with a "
+                + "writable catalog first (LuiCatalog.Open(\"Data Source=app.db\") and Create(name, …)), or open the "
+                + "file that the writer wrote.");
+        }
     }
 
     /// <summary>
@@ -33,12 +67,15 @@ internal static class IndexStore
     /// <param name="verify">A check of the environment of the index in the same transaction — for <c>Linked</c>, the
     /// application's table — that runs every time, not only when the index is created.</param>
     /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
-    internal static void Ensure(
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
+    internal static void Create(
         Database database,
         ContentSource source,
         DateTimeOffset createdAt,
         Action<SqliteConnection, SqliteTransaction>? verify = null)
     {
+        database.ThrowIfReadOnly("creating an index");
+
         using var scope = database.Begin();
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
@@ -71,8 +108,11 @@ internal static class IndexStore
     /// </summary>
     /// <returns><see langword="true"/> when the index existed.</returns>
     /// <exception cref="InvalidOperationException">A linked index has triggers, and <paramref name="dropTriggers"/> is not set.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     internal static bool Drop(Database database, string name, bool dropTriggers)
     {
+        database.ThrowIfReadOnly("dropping an index");
+
         using var scope = database.Begin();
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
@@ -85,7 +125,7 @@ internal static class IndexStore
             throw new InvalidOperationException(
                 $"The linked index '{name}' has triggers on the table '{link.Table}'. They write into the tables of the index "
                 + "and go with it: call DropIndex(name, dropTriggers: true), and take them out of the application's migration "
-                + "too. After a new Ensure() the index is empty and has no triggers — Sync() it and create them again.");
+                + "too. After a new Create() the index is empty and has no triggers — Sync() it and create them again.");
         }
 
         foreach (var statement in ContentSources.DropStatements(name, stored))
@@ -104,6 +144,53 @@ internal static class IndexStore
         transaction.Commit();
         return existed;
     }
+
+    /// <summary>
+    /// The stored index of a name — its kind, its content source, its definition and the version of the schema it was
+    /// written with — or <see langword="null"/> when there is no such index.
+    /// <para>
+    /// It reads with a plain <c>SELECT</c> on a connection of its own: no transaction, no write lock, no table
+    /// (ADR-0033). A reader that must not write — a replica, a file that is read-only, a service that may not block the
+    /// writer — comes through here.
+    /// </para>
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <param name="indexName">The name of the index.</param>
+    /// <returns>What <c>lui_meta</c> holds, or <see langword="null"/> when there is no such index.</returns>
+    internal static IndexStoreEntry? ReadIndex(Database database, string indexName)
+    {
+        using var connection = database.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = ReadSql;
+        command.Parameters.AddWithValue("$name", indexName);
+
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            return null;
+        }
+
+        var kind = ReadKind(reader.GetString(0), indexName);
+        var source = reader.GetString(1);
+        var definition = IndexDefinition.FromJson(reader.GetString(2))
+            ?? throw new InvalidOperationException(
+                $"The definition of the index '{indexName}' in lui_meta is empty; the file was written by another version "
+                + "of LUI and cannot be read: remove the index (LuiCatalog.DropIndex) and create it again.");
+        var schemaVersion = reader.GetInt32(3);
+
+        return new IndexStoreEntry(kind, source, definition, schemaVersion);
+    }
+
+    /// <summary>The kind of the stored index; a kind this version does not know is a file of another version.</summary>
+    private static LuiIndexKind ReadKind(string kind, string indexName) =>
+        Enum.TryParse(kind, out LuiIndexKind parsed)
+            ? parsed
+            : throw new LuiDefinitionMismatchException(
+                indexName,
+                $"the kind {kind}",
+                $"a kind of this version ({string.Join(", ", Enum.GetNames<LuiIndexKind>())})",
+                "The index was written by another version of LUI: remove it with LuiCatalog.DropIndex(name) and create "
+                + "it again.");
 
     /// <summary>The stored definition of an index, or <see langword="null"/> when there is none.</summary>
     internal static IndexDefinition? ReadDefinition(SqliteConnection connection, SqliteTransaction? transaction, string indexName)

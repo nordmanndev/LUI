@@ -38,7 +38,7 @@ public static class SampleApp
 
         // The application's own table exists before LUI is asked to link an index to it (ADR-0015, ADR-0017).
         SampleDatabase.Initialize(connectionString);
-        AddLui(builder.Services, connectionString, builder.Configuration[WordListKey]);
+        AddServices(builder.Services, connectionString, builder.Configuration[WordListKey]);
 
         var app = builder.Build();
         SampleSeed.Apply(app.Services.GetRequiredService<SampleIndexes>());
@@ -51,60 +51,69 @@ public static class SampleApp
         return app;
     }
 
-    private static void AddLui(IServiceCollection services, string connectionString, string? wordList)
+    private static void AddServices(IServiceCollection services, string connectionString, string? wordList)
     {
         services
             // The catalog is configured the way the measurements of the specification (§16) measure it: a page cache of
             // 512 MB and a memory-mapped file. A stock of a million entries is a bulk load — the settings are what make
             // it a bulk load and not a million small writes.
-            .AddLui(connectionString, new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 })
-            // Embedded, several words, a JSON payload that LUI stores next to each entry.
-            .AddIndex("recipes", index => index.MultiWord().WithPayload(SampleJsonContext.Default.RecipePayload).TypoTolerance())
-            // Embedded, several words, no payload: the names, where the typo tolerance matters most.
-            .AddIndex("names", index => index.MultiWord().TypoTolerance())
-            // Linked to the application's table: the text, the weight, the priority and the payload are its columns, and the
-            // hosted service applies the outbox that the application's triggers fill, every two seconds.
-            .AddLinkedIndex(
-                "tags",
-                index => index.SingleWord()
-                    .LinkTo(SampleDatabase.TagTable, key: "id", text: "name", weight: "usage_count", priority: "rank")
-                    .WithPayload(["kind", "color"], row => new TagPayload(row.GetString("kind"), row.GetString("color")))
-                    .TypoTolerance(),
-                applyPendingEvery: TimeSpan.FromSeconds(2))
-            .WarmUpTypoDictionariesOnStart();
+            // The container holds the catalog and nothing else (ADR-0033): the indexes of the sample are its own.
+            .AddLui(connectionString, new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
 
         services.AddSingleton<RequestStats>();
         services.AddSingleton<FillJobs>();
         services.AddSingleton(provider => new SampleIndexes(Facades(provider, connectionString, wordList)));
+
+        // The outbox of the linked index: the application keeps its index current (ADR-0015), the container does not
+        // any more (ADR-0033).
+        services.AddHostedService<OutboxService>();
     }
 
     /// <summary>The indexes behind the page, each with the description the index panel shows.</summary>
-    private static List<ISampleIndex> Facades(IServiceProvider provider, string connectionString, string? wordList) =>
-    [
-        new EmbeddedSampleIndex<RecipePayload>(
-            provider.GetRequiredKeyedService<ILuiEmbeddedIndex<long, RecipePayload>>("recipes"),
-            SampleSeed.Recipes,
-            SampleJsonContext.Default.RecipePayload,
-            payloadDescription: "JSON {category, minutes, emoji}, stored by LUI",
-            description: "Cookbook. Several words, so 'kuchen' finds 'Gedeckter Apfelkuchen' by its second word."),
-        new EmbeddedSampleIndex<LuiNoPayload>(
-            provider.GetRequiredKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("names"),
-            SampleSeed.Names,
-            payloadType: null,
-            payloadDescription: "none",
-            description: "People. Typo tolerance with a dictionary of its own: 'megn' becomes 'megan' here, and in 'tags' it finds nothing."),
-        new LinkedSampleIndex<TagPayload>(
-            provider.GetRequiredKeyedService<ILuiLinkedIndex<TagPayload>>("tags"),
-            connectionString,
-            payloadDescription: "columns kind, color — read from the table",
-            description: "Tags in the application's own table. 'vegan' has the priority System and comes first for every input it matches."),
-        // The bulk indexes (ADR-0029): they hold what a source produces for the number the user asks for. They are not
-        // registered — an index of a million entries is minutes of work, and nobody pays for it who does not want it. The
-        // index of LUI is created when the panel asks for it, and loaded when the button of the panel is pressed.
-        new BulkSampleIndex(provider.GetRequiredService<LuiCatalog>(), new WordSource(wordList)),
-        new BulkSampleIndex(provider.GetRequiredService<LuiCatalog>(), new PeopleSource()),
-        new BulkSampleIndex(provider.GetRequiredService<LuiCatalog>(), new HashtagSource()),
-    ];
+    private static List<ISampleIndex> Facades(IServiceProvider provider, string connectionString, string? wordList)
+    {
+        var catalog = provider.GetRequiredService<LuiCatalog>();
+
+        // The application creates its own indexes (ADR-0033): the catalog is the entry point, and the container knows
+        // only the catalog.
+        var recipes = catalog.Create(
+            "recipes",
+            index => index.MultiWord().WithPayload(SampleJsonContext.Default.RecipePayload).TypoTolerance());
+        var names = catalog.Create("names", index => index.MultiWord().TypoTolerance());
+        var tags = catalog.Create(
+            "tags",
+            index => index.SingleWord()
+                .LinkTo(SampleDatabase.TagTable, key: "id", text: "name", weight: "usage_count", priority: "rank")
+                .WithPayload(["kind", "color"], row => new TagPayload(row.GetString("kind"), row.GetString("color")))
+                .TypoTolerance());
+
+        return
+        [
+            new EmbeddedSampleIndex<RecipePayload>(
+                recipes,
+                SampleSeed.Recipes,
+                SampleJsonContext.Default.RecipePayload,
+                payloadDescription: "JSON {category, minutes, emoji}, stored by LUI",
+                description: "Cookbook. Several words, so 'kuchen' finds 'Gedeckter Apfelkuchen' by its second word."),
+            new EmbeddedSampleIndex<LuiNoPayload>(
+                names,
+                SampleSeed.Names,
+                payloadType: null,
+                payloadDescription: "none",
+                description: "People. Typo tolerance with a dictionary of its own: 'megn' becomes 'megan' here, and in 'tags' it finds nothing."),
+            new LinkedSampleIndex<TagPayload>(
+                tags,
+                connectionString,
+                payloadDescription: "columns kind, color — read from the table",
+                description: "Tags in the application's own table. 'vegan' has the priority System and comes first for every input it matches."),
+            // The bulk indexes (ADR-0029): they hold what a source produces for the number the user asks for. They are not
+            // registered — an index of a million entries is minutes of work, and nobody pays for it who does not want it. The
+            // index of LUI is created when the panel asks for it, and loaded when the button of the panel is pressed.
+            new BulkSampleIndex(catalog, new WordSource(wordList)),
+            new BulkSampleIndex(catalog, new PeopleSource()),
+            new BulkSampleIndex(catalog, new HashtagSource()),
+        ];
+    }
 
     /// <summary>The static client, behind a strict policy: no inline script, no inline style, so the escaping in the client is not the only thing between a hostile entry and the DOM.</summary>
     private static void UseClient(WebApplication app)

@@ -17,10 +17,23 @@ internal sealed class IndexFixture : IDisposable
         Corpus = Corpus.Generate(words, entries, kind);
         Catalog = _database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
 
-        var builder = Catalog.Index("bench");
-        var described = kind == CorpusKind.MultiWord ? builder.MultiWord() : builder.SingleWord();
-        Index = (typoTolerance ? described.TypoTolerance() : described).Ensure();
+        Index = Create(kind, typoTolerance);
         Index.Sync(Corpus.Entries(), new LuiSyncOptions { BatchSize = 100_000 });
+    }
+
+    /// <summary>Creates the index: one word or several, with the typo tolerance the caller asks for.</summary>
+    private ILuiEmbeddedIndex<long, LuiNoPayload> Create(CorpusKind kind, bool typoTolerance)
+    {
+        if (kind == CorpusKind.MultiWord)
+        {
+            return typoTolerance
+                ? Catalog.Create("bench", index => index.MultiWord().TypoTolerance())
+                : Catalog.Create("bench", index => index.MultiWord());
+        }
+
+        return typoTolerance
+            ? Catalog.Create("bench", index => index.SingleWord().TypoTolerance())
+            : Catalog.Create("bench", index => index.SingleWord());
     }
 
     internal string CorpusName { get; }

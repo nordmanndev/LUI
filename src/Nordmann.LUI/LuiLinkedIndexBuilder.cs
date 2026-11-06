@@ -7,8 +7,12 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// Describes an index over a table of the application (<c>Linked</c>, LUI-Spezifikation §5, §7.3, ADR-0015). It is
-/// loosely coupled: <see cref="Ensure"/> creates LUI's own tables and only reads the application's table — no column,
+/// loosely coupled: <see cref="Create"/> creates LUI's own tables and only reads the application's table — no column,
 /// no index, no trigger is added to it. Every method is optional and returns a builder.
+/// <para>
+/// The builder is reached through <see cref="LuiCatalog.Create{TPayload}"/>: it is the description of an index, not
+/// the way into it (ADR-0033).
+/// </para>
 /// </summary>
 /// <typeparam name="TPayload">The payload that comes back with a hit; <see cref="LuiNoPayload"/> until <c>WithPayload</c>.</typeparam>
 public sealed class LuiLinkedIndexBuilder<TPayload>
@@ -111,12 +115,19 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
     /// application's table, every time. The index starts empty: fill it with <c>Sync()</c>. That holds after a
     /// <c>DropIndex</c> too: a new linked index is empty and has no triggers until <c>Sync()</c> and, if wanted,
     /// <c>CreateTriggers()</c>.
+    /// <para>
+    /// The definition holds the columns of the payload and the type of it (ADR-0033): a linked index with a payload
+    /// can only be opened when both are stored with it.
+    /// </para>
     /// </summary>
     /// <returns>The index.</returns>
     /// <exception cref="LuiLinkedTableException">The table or a column is missing, or the key is not the table's INTEGER PRIMARY KEY.</exception>
     /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
-    public ILuiLinkedIndex<TPayload> Ensure()
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
+    public ILuiLinkedIndex<TPayload> Create()
     {
+        // the columns of the payload are part of the definition (ADR-0033): a linked index with a payload can
+        // only be opened when they are stored with it
         var definition = new IndexDefinition(
             _kind,
             LinkedSource.SourceName,
@@ -124,10 +135,11 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
             _options.GermanTransliteration,
             Payload: false,
             TokenizerFold.Version,
-            _link);
+            PayloadType: _payload is null ? null : typeof(TPayload).FullName,
+            Link: _link with { PayloadColumns = _payloadColumns.Count == 0 ? null : _payloadColumns });
 
         var source = new LinkedSource(_name, definition);
-        IndexStore.Ensure(
+        IndexStore.Create(
             _catalog.Database,
             source,
             _catalog.TimeProvider.GetUtcNow(),

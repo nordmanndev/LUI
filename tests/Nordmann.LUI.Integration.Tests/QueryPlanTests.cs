@@ -15,7 +15,7 @@ public sealed class QueryPlanTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("tags").SingleWord().Ensure();
+        catalog.Create("tags", index => index.SingleWord());
 
         var plan = Plan(database, Tags(LuiIndexKind.SingleWord).CandidateSql, "$expr", "s_norm : \"gan\"");
 
@@ -32,7 +32,7 @@ public sealed class QueryPlanTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("tags").MultiWord().Ensure();
+        catalog.Create("tags", index => index.MultiWord());
 
         var plan = Plan(database, Tags(LuiIndexKind.MultiWord).CandidateSql, "$expr", expression);
 
@@ -48,7 +48,7 @@ public sealed class QueryPlanTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("tags").SingleWord().Ensure();
+        catalog.Create("tags", index => index.SingleWord());
 
         var plan = Plan(database, Tags(LuiIndexKind.SingleWord).PrefixSql(length), "$q", "a");
 
@@ -61,7 +61,7 @@ public sealed class QueryPlanTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("tags").SingleWord().Ensure();
+        catalog.Create("tags", index => index.SingleWord());
 
         var plan = Plan(database, "SELECT doc_id, key, payload FROM lui_tags WHERE doc_id IN (1, 2, 3);", "$none", "0");
 

@@ -12,9 +12,9 @@ public sealed class TypoToleranceTests
     public void A_typo_in_a_word_finds_the_title_and_says_what_was_searched()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        var result = index.Index.Query("apflekuchen").Execute();
+        var result = recipes.Index.Query("apflekuchen").Execute();
 
         result.CorrectedQuery.ShouldBe("apfelkuchen");
         result.Hits.Select(h => h.Text).Take(3).ShouldBe(
@@ -31,18 +31,18 @@ public sealed class TypoToleranceTests
     public void An_input_without_a_typo_is_not_corrected(string typed)
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        index.Index.Query(typed).Execute().CorrectedQuery.ShouldBeNull();
+        recipes.Index.Query(typed).Execute().CorrectedQuery.ShouldBeNull();
     }
 
     [Fact]
     public void A_typo_in_one_word_of_several_is_corrected_and_the_other_words_stay()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        var result = index.Index.Query("apflekuchen sahne").Execute();
+        var result = recipes.Index.Query("apflekuchen sahne").Execute();
 
         result.CorrectedQuery.ShouldBe("apfelkuchen sahne");
         result.Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfelkuchen mit Sahne");
@@ -57,9 +57,9 @@ public sealed class TypoToleranceTests
     public void Every_kind_of_typo_of_one_edit_is_found(string typed, string expected)
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        var result = index.Index.Query(typed).Execute();
+        var result = recipes.Index.Query(typed).Execute();
 
         result.CorrectedQuery.ShouldBe(expected);
         result.Hits.Select(h => h.Text).Contains("Apfelkuchen", StringComparer.Ordinal).ShouldBeTrue("for '" + typed + "'");
@@ -72,9 +72,9 @@ public sealed class TypoToleranceTests
     {
         // the dictionary holds the beginnings of 3 … 10 letters (§10.1); a longer word is looked up by its first ten
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        var result = index.Index.Query(typed).Execute();
+        var result = recipes.Index.Query(typed).Execute();
 
         result.CorrectedQuery.ShouldBeNull();
         result.Hits.ShouldBeEmpty();
@@ -86,11 +86,11 @@ public sealed class TypoToleranceTests
         // §6.3: „muller" is not „mueller" in the index, and one edit away from it
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("people").MultiWord().TypoTolerance().Ensure();
-        index.Upsert(1, "Anna Müller", 10);
-        index.Upsert(2, "Hans Schmidt", 20);
+        var people = catalog.Create("people", index => index.MultiWord().TypoTolerance());
+        people.Upsert(1, "Anna Müller", 10);
+        people.Upsert(2, "Hans Schmidt", 20);
 
-        var result = index.Query("muller").Execute();
+        var result = people.Query("muller").Execute();
 
         result.CorrectedQuery.ShouldBe("mueller");
         result.Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
@@ -102,11 +102,11 @@ public sealed class TypoToleranceTests
         // „apflekuchen" has a hit in the middle of another word — 34 % of the typos do (§10.2)
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
-        index.Upsert(1, "Apfelkuchen", 10);
-        index.Upsert(2, "Teigapflekuchen", 20);
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        words.Upsert(1, "Apfelkuchen", 10);
+        words.Upsert(2, "Teigapflekuchen", 20);
 
-        var result = index.Query("apflekuchen").Execute();
+        var result = words.Query("apflekuchen").Execute();
 
         result.CorrectedQuery.ShouldBe("apfelkuchen");
         result.Hits.Select(h => h.Text).Contains("Apfelkuchen", StringComparer.Ordinal).ShouldBeTrue();
@@ -119,14 +119,14 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().Ensure();
-        index.Upsert(1, "Apfelkuchen", 10);
+        var words = catalog.Create("words", index => index.SingleWord());
+        words.Upsert(1, "Apfelkuchen", 10);
 
-        var off = index.Query("apflekuchen").Execute();
+        var off = words.Query("apflekuchen").Execute();
         off.Hits.ShouldBeEmpty();
         off.CorrectedQuery.ShouldBeNull();
 
-        var on = index.Query("apflekuchen").TypoTolerance().Execute();
+        var on = words.Query("apflekuchen").TypoTolerance().Execute();
         on.CorrectedQuery.ShouldBe("apfelkuchen");
         on.Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
     }
@@ -135,9 +135,9 @@ public sealed class TypoToleranceTests
     public void A_query_can_turn_the_tolerance_of_the_index_off()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        var result = index.Index.Query("apflekuchen").TypoTolerance(false).Execute();
+        var result = recipes.Index.Query("apflekuchen").TypoTolerance(false).Execute();
 
         result.Hits.ShouldBeEmpty();
         result.CorrectedQuery.ShouldBeNull();
@@ -147,11 +147,11 @@ public sealed class TypoToleranceTests
     public void The_options_object_takes_the_setting_too()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        index.Index.Search("apflekuchen", new LuiQueryOptions { TypoTolerance = false }).Hits.ShouldBeEmpty();
-        index.Index.Search("apflekuchen", new LuiQueryOptions { TypoTolerance = true }).CorrectedQuery.ShouldBe("apfelkuchen");
-        index.Index.Search("apflekuchen", new LuiQueryOptions()).CorrectedQuery.ShouldBe("apfelkuchen", "null: as the index says");
+        recipes.Index.Search("apflekuchen", new LuiQueryOptions { TypoTolerance = false }).Hits.ShouldBeEmpty();
+        recipes.Index.Search("apflekuchen", new LuiQueryOptions { TypoTolerance = true }).CorrectedQuery.ShouldBe("apfelkuchen");
+        recipes.Index.Search("apflekuchen", new LuiQueryOptions()).CorrectedQuery.ShouldBe("apfelkuchen", "null: as the index says");
     }
 
     [Theory]
@@ -161,9 +161,9 @@ public sealed class TypoToleranceTests
     public void One_and_two_letters_are_never_corrected(string typed)
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        index.Index.Query(typed).Execute().CorrectedQuery.ShouldBeNull();
+        recipes.Index.Query(typed).Execute().CorrectedQuery.ShouldBeNull();
     }
 
     [Fact]
@@ -173,14 +173,14 @@ public sealed class TypoToleranceTests
         // apfel and kuchen, and no word apfelkuchen
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("titles").MultiWord().TypoTolerance().Ensure();
-        index.Upsert(1, "Apfel Kuchen", 10);
+        var titles = catalog.Create("titles", index => index.MultiWord().TypoTolerance());
+        titles.Upsert(1, "Apfel Kuchen", 10);
 
-        var together = index.Query("apflekuchen").Execute();
+        var together = titles.Query("apflekuchen").Execute();
         together.Hits.ShouldBeEmpty();
         together.CorrectedQuery.ShouldBeNull();
 
-        var apart = index.Query("apfle kuchen").Execute();
+        var apart = titles.Query("apfle kuchen").Execute();
         apart.CorrectedQuery.ShouldBe("apfel kuchen");
         apart.Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
     }
@@ -189,9 +189,9 @@ public sealed class TypoToleranceTests
     public void A_word_with_nothing_near_it_is_left_alone()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        var result = index.Index.Query("qqqqqqqq").Execute();
+        var result = recipes.Index.Query("qqqqqqqq").Execute();
 
         result.Hits.ShouldBeEmpty();
         result.CorrectedQuery.ShouldBeNull();
@@ -202,10 +202,10 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
-        index.Upsert(1, "Donaudampfschifffahrtsgesellschaft", 10);
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        words.Upsert(1, "Donaudampfschifffahrtsgesellschaft", 10);
 
-        var result = index.Query("donaudampgschifffahrtsgesellschaft").Execute();
+        var result = words.Query("donaudampgschifffahrtsgesellschaft").Execute();
 
         result.CorrectedQuery.ShouldBe("donaudampfschifffahrtsgesellschaft");
         result.Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
@@ -215,12 +215,12 @@ public sealed class TypoToleranceTests
     public void Upsert_adds_the_new_word_beginnings()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
-        index.Index.Query("apflekuchen").Execute();   // builds the dictionary
+        using var recipes = Recipes(database);
+        recipes.Index.Query("apflekuchen").Execute();   // builds the dictionary
 
-        index.Index.Upsert(20, "Himbeere", 50);
+        recipes.Index.Upsert(20, "Himbeere", 50);
 
-        var result = index.Index.Query("himbere").Execute();
+        var result = recipes.Index.Query("himbere").Execute();
         result.CorrectedQuery.ShouldNotBeNull();
         result.Hits.ShouldHaveSingleItem().Key.ShouldBe(20);
     }
@@ -229,18 +229,18 @@ public sealed class TypoToleranceTests
     public void A_word_that_is_removed_is_still_a_correction_that_finds_nothing_until_the_dictionary_is_rebuilt()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
-        index.Index.Upsert(20, "Himbeere", 50);
-        index.Index.Query("himbere").Execute().Hits.ShouldHaveSingleItem();
+        using var recipes = Recipes(database);
+        recipes.Index.Upsert(20, "Himbeere", 50);
+        recipes.Index.Query("himbere").Execute().Hits.ShouldHaveSingleItem();
 
-        index.Index.Remove(20);
+        recipes.Index.Remove(20);
 
-        var before = index.Index.Query("himbere").Execute();
+        var before = recipes.Index.Query("himbere").Execute();
         before.Hits.ShouldBeEmpty("the beginnings stay (§10.1), the correction finds nothing");
 
-        index.Index.RebuildTypoDictionary();
+        recipes.Index.RebuildTypoDictionary();
 
-        var after = index.Index.Query("himbere").Execute();
+        var after = recipes.Index.Query("himbere").Execute();
         after.Hits.ShouldBeEmpty();
         after.CorrectedQuery.ShouldBeNull("the removed word is no longer in the dictionary");
     }
@@ -250,10 +250,10 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().TypoTolerance().TypoTolerance(false).Ensure();
-        index.Upsert(1, "Apfelkuchen", 10);
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance().TypoTolerance(false));
+        words.Upsert(1, "Apfelkuchen", 10);
 
-        index.Query("apflekuchen").Execute().CorrectedQuery.ShouldBeNull();
+        words.Query("apflekuchen").Execute().CorrectedQuery.ShouldBeNull();
     }
 
     [Fact]
@@ -261,9 +261,9 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        catalog.Create("words", index => index.SingleWord().TypoTolerance());
 
-        Should.NotThrow(() => catalog.Index("words").SingleWord().Ensure());
+        Should.NotThrow(() => catalog.Create("words", index => index.SingleWord()));
     }
 
     [Fact]
@@ -271,11 +271,11 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().TypoTolerance().Ensure();
-        index.Upsert(1, "vegan", 0, priority: LuiPriority.System);
-        index.Upsert(2, "veganer kuchen", 900);
+        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance());
+        tags.Upsert(1, "vegan", 0, priority: LuiPriority.System);
+        tags.Upsert(2, "veganer kuchen", 900);
 
-        var result = index.Query("vegna").Execute();
+        var result = tags.Query("vegna").Execute();
 
         result.CorrectedQuery.ShouldNotBeNull();
         result.Hits[0].Key.ShouldBe(1, "the system tag stays first");
@@ -285,10 +285,10 @@ public sealed class TypoToleranceTests
     public void Timings_show_the_time_of_the_correction()
     {
         using var database = new TestDatabase();
-        using var index = Recipes(database);
+        using var recipes = Recipes(database);
 
-        var corrected = index.Index.Query("apflekuchen").TrackTimings().Execute();
-        var plain = index.Index.Query("apfelkuchen").TrackTimings().Execute();
+        var corrected = recipes.Index.Query("apflekuchen").TrackTimings().Execute();
+        var plain = recipes.Index.Query("apfelkuchen").TrackTimings().Execute();
 
         corrected.Timings!.Correction.ShouldBeGreaterThan(TimeSpan.Zero);
         plain.Timings!.Correction.ShouldBe(TimeSpan.Zero);
@@ -299,14 +299,14 @@ public sealed class TypoToleranceTests
     {
         // SymSpell is not made for reading while writing (§15): lookups share the lock, additions have it alone
         using var database = new TestDatabase();
-        using var index = Recipes(database);
-        index.Index.Query("apflekuc").Execute();   // builds the dictionary
+        using var recipes = Recipes(database);
+        recipes.Index.Query("apflekuc").Execute();   // builds the dictionary
 
         var writer = Task.Run(() =>
         {
             for (var i = 0; i < 300; i++)
             {
-                index.Index.Upsert(100 + i, $"Neuwort{i:000} Torte", i);
+                recipes.Index.Upsert(100 + i, $"Neuwort{i:000} Torte", i);
             }
         });
 
@@ -314,7 +314,7 @@ public sealed class TypoToleranceTests
         {
             for (var round = 0; round < 150; round++)
             {
-                var result = index.Index.Query("apflekuchen").Execute();
+                var result = recipes.Index.Query("apflekuchen").Execute();
                 result.CorrectedQuery.ShouldBe("apfelkuchen");
                 result.Hits.Count.ShouldBeGreaterThan(0);
             }
@@ -324,23 +324,23 @@ public sealed class TypoToleranceTests
         await writer;
 
         // and the words the writer added are corrected towards afterwards
-        var late = index.Index.Query("neuwrt299").Execute();
+        var late = recipes.Index.Query("neuwrt299").Execute();
         late.Hits.ShouldContain(h => h.Key == 100 + 299);
     }
 
     private static Fixture Recipes(TestDatabase database)
     {
         var catalog = database.Open();
-        var index = catalog.Index("recipes").MultiWord().TypoTolerance().Ensure();
-        index.Upsert(1, "Apfelkuchen", 900);
-        index.Upsert(2, "Gedeckter Apfelkuchen", 800);
-        index.Upsert(3, "Apfel Kuchen", 700);
-        index.Upsert(4, "Apfelkuchen mit Sahne", 400);
-        index.Upsert(5, "Bratapfelkuchen", 9_000);
-        index.Upsert(6, "Apfelstrudel", 5_000);
-        index.Upsert(7, "Apfelkuchen mit Äpfeln", 300);
-        index.Upsert(8, "Hauptstraße", 100);
-        return new Fixture(index);
+        var recipes = catalog.Create("recipes", index => index.MultiWord().TypoTolerance());
+        recipes.Upsert(1, "Apfelkuchen", 900);
+        recipes.Upsert(2, "Gedeckter Apfelkuchen", 800);
+        recipes.Upsert(3, "Apfel Kuchen", 700);
+        recipes.Upsert(4, "Apfelkuchen mit Sahne", 400);
+        recipes.Upsert(5, "Bratapfelkuchen", 9_000);
+        recipes.Upsert(6, "Apfelstrudel", 5_000);
+        recipes.Upsert(7, "Apfelkuchen mit Äpfeln", 300);
+        recipes.Upsert(8, "Hauptstraße", 100);
+        return new Fixture(recipes);
     }
 
     private sealed class Fixture(ILuiEmbeddedIndex<long, LuiNoPayload> index) : IDisposable

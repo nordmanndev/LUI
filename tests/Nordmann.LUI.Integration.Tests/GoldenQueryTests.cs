@@ -13,14 +13,14 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("rezepte").SingleWord().Ensure();
-        index.Upsert(1, "Apfelkuchen", 900);
-        index.Upsert(2, "Gedeckter Apfelkuchen", 800);
-        index.Upsert(3, "Apfelkuchen mit Sahne", 400);
-        index.Upsert(4, "Bratapfelkuchen", 9_000);
-        index.Upsert(5, "Apfelstrudel", 5_000);
+        var rezepte = catalog.Create("rezepte", index => index.SingleWord());
+        rezepte.Upsert(1, "Apfelkuchen", 900);
+        rezepte.Upsert(2, "Gedeckter Apfelkuchen", 800);
+        rezepte.Upsert(3, "Apfelkuchen mit Sahne", 400);
+        rezepte.Upsert(4, "Bratapfelkuchen", 9_000);
+        rezepte.Upsert(5, "Apfelstrudel", 5_000);
 
-        var texts = index.Query("apfelkuch").Execute().Hits.Select(h => h.Text).ToArray();
+        var texts = rezepte.Query("apfelkuch").Execute().Hits.Select(h => h.Text).ToArray();
 
         texts.Length.ShouldBe(4);
         texts[0].ShouldBe("Apfelkuchen");
@@ -33,13 +33,13 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("rezepte").SingleWord().Ensure();
-        index.Upsert(1, "Apfelkuchen", 900);
-        index.Upsert(2, "Gedeckter Apfelkuchen", 800);
-        index.Upsert(3, "Bratapfelkuchen", 9_000);
-        index.Upsert(4, "Apfelstrudel", 5_000);
+        var rezepte = catalog.Create("rezepte", index => index.SingleWord());
+        rezepte.Upsert(1, "Apfelkuchen", 900);
+        rezepte.Upsert(2, "Gedeckter Apfelkuchen", 800);
+        rezepte.Upsert(3, "Bratapfelkuchen", 9_000);
+        rezepte.Upsert(4, "Apfelstrudel", 5_000);
 
-        var texts = index.Query("apfelk").Execute().Hits.Select(h => h.Text).ToArray();
+        var texts = rezepte.Query("apfelk").Execute().Hits.Select(h => h.Text).ToArray();
 
         texts.Take(2).ShouldBe(["Apfelkuchen", "Gedeckter Apfelkuchen"], ignoreOrder: true);
         texts[2].ShouldBe("Bratapfelkuchen");
@@ -54,11 +54,11 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("rezepte").SingleWord().Ensure();
-        index.Upsert(1, "Gedeckter Apfelkuchen mit Äpfeln", 10);
-        index.Upsert(2, "Gedeckter Apfelkuchen", 20);
+        var rezepte = catalog.Create("rezepte", index => index.SingleWord());
+        rezepte.Upsert(1, "Gedeckter Apfelkuchen mit Äpfeln", 10);
+        rezepte.Upsert(2, "Gedeckter Apfelkuchen", 20);
 
-        index.Query(input).Execute().Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
+        rezepte.Query(input).Execute().Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
     }
 
     [Theory]
@@ -68,11 +68,11 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("orte").SingleWord().Ensure();
-        index.Upsert(1, "Hauptstraße", 10);
-        index.Upsert(2, "Hauptstrasse", 5);
+        var orte = catalog.Create("orte", index => index.SingleWord());
+        orte.Upsert(1, "Hauptstraße", 10);
+        orte.Upsert(2, "Hauptstrasse", 5);
 
-        index.Query(input).Execute().Hits.Select(h => h.Key).ShouldBe([1, 2], ignoreOrder: true);
+        orte.Query(input).Execute().Hits.Select(h => h.Key).ShouldBe([1, 2], ignoreOrder: true);
     }
 
     [Fact]
@@ -80,14 +80,14 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("rezepte").SingleWord().Ensure();
-        index.Upsert(1, "Apfelkuchen", 300);
-        index.Upsert(2, "Ananas-Torte", 700);
-        index.Upsert(3, "Aprikosenkuchen", 500);
-        index.Upsert(4, "Bratapfel", 9_000);
+        var rezepte = catalog.Create("rezepte", index => index.SingleWord());
+        rezepte.Upsert(1, "Apfelkuchen", 300);
+        rezepte.Upsert(2, "Ananas-Torte", 700);
+        rezepte.Upsert(3, "Aprikosenkuchen", 500);
+        rezepte.Upsert(4, "Bratapfel", 9_000);
 
-        index.Query("a").Execute().Hits.Select(h => h.Text).ShouldBe(["Ananas-Torte", "Aprikosenkuchen", "Apfelkuchen"]);
-        index.Query("ap").Execute().Hits.Select(h => h.Text).ShouldBe(["Aprikosenkuchen", "Apfelkuchen"]);
+        rezepte.Query("a").Execute().Hits.Select(h => h.Text).ShouldBe(["Ananas-Torte", "Aprikosenkuchen", "Apfelkuchen"]);
+        rezepte.Query("ap").Execute().Hits.Select(h => h.Text).ShouldBe(["Aprikosenkuchen", "Apfelkuchen"]);
     }
 
     [Fact]
@@ -95,25 +95,25 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
-        LoadTagCorpus(database, index);
+        var tags = catalog.Create("tags", index => index.SingleWord());
+        LoadTagCorpus(database, tags);
 
         foreach (var input in new[] { "gan", "veg", "vega", "vegan" })
         {
-            var result = index.Query(input).Execute();
+            var result = tags.Query(input).Execute();
 
             result.Hits[0].Text.ShouldBe("vegan", $"for '{input}'");
             result.Hits[0].Priority.ShouldBe(LuiPriority.System);
         }
 
-        var wide = index.Query("gan").Execute();
+        var wide = tags.Query("gan").Execute();
         wide.Truncated.ShouldBeTrue();
         wide.CandidatesConsidered.ShouldBe(500);
         database.Scalar<long>("SELECT count(*) FROM lui_tags WHERE s_norm LIKE '%gan%'").ShouldBeGreaterThan(30_000);
 
         // the same entry as an ordinary tag is not among the five hundred candidates — that is why the priority sits in the rowid (E10)
-        index.UpdatePriority(1, LuiPriority.Normal);
-        index.Query("gan").Execute().Hits.Select(h => h.Key).ShouldNotContain(1L);
+        tags.UpdatePriority(1, LuiPriority.Normal);
+        tags.Query("gan").Execute().Hits.Select(h => h.Key).ShouldNotContain(1L);
     }
 
     [Fact]
@@ -121,13 +121,13 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
-        index.Upsert(1, "vegan", 0, priority: LuiPriority.System);
-        index.Upsert(2, "Vegan", 800_000);
-        index.Upsert(3, "vegane torte", 700_000);
+        var tags = catalog.Create("tags", index => index.SingleWord());
+        tags.Upsert(1, "vegan", 0, priority: LuiPriority.System);
+        tags.Upsert(2, "Vegan", 800_000);
+        tags.Upsert(3, "vegane torte", 700_000);
 
-        index.Query("veg").Execute().Hits.Select(h => h.Key).ShouldBe([1, 2, 3]);
-        index.Query("veg").DistinctText().Execute().Hits.Select(h => h.Key).ShouldBe([1, 3]);
+        tags.Query("veg").Execute().Hits.Select(h => h.Key).ShouldBe([1, 2, 3]);
+        tags.Query("veg").DistinctText().Execute().Hits.Select(h => h.Key).ShouldBe([1, 3]);
     }
 
     private static void LoadTagCorpus(TestDatabase database, ILuiEmbeddedIndex<long, LuiNoPayload> index)

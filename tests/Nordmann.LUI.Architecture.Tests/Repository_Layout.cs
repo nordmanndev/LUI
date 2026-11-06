@@ -56,7 +56,9 @@ public sealed class Repository_Layout
         //
         // There is no exception any more. The three abstractions that ADR-0013
         // kept on purpose — "they come back with the dependency injection
-        // (PR-008)" — are referenced by the hosting package now (ADR-0018).
+        // (PR-008)" — are pinned in Directory.Packages.props: the hosting
+        // package references the one it needs (ADR-0034), and the tests of the
+        // host reference the other two (ADR-0018).
         var central = Repository
             .Elements(Repository.LoadXml(Path.Combine(Repository.RootPath, "Directory.Packages.props")), "PackageVersion")
             .Select(version => version.Attribute("Include")?.Value)
@@ -204,8 +206,11 @@ public sealed class Repository_Layout
     }
 
     [Fact]
-    public void The_hosting_ships_the_core_and_the_three_abstractions()
+    public void The_hosting_ships_the_core_and_the_dependency_injection()
     {
+        // ADR-0034: the container holds the catalog and nothing else (ADR-0033) — the hosted services are gone, and with
+        // them the abstractions of a host. What the package needs is the dependency injection: AddLui and the
+        // IServiceCollection it returns.
         var runtime = Repository
             .Elements(Repository.LoadXml(HostingProject()), "PackageReference")
             .Where(reference => reference.Attribute("PrivateAssets") is null)
@@ -216,9 +221,7 @@ public sealed class Repository_Layout
 
         runtime.ShouldBe(
         [
-            "Microsoft.Extensions.DependencyInjection.Abstractions",
-            "Microsoft.Extensions.Hosting.Abstractions",
-            "Microsoft.Extensions.Logging.Abstractions"
+            "Microsoft.Extensions.DependencyInjection.Abstractions"
         ]);
     }
 

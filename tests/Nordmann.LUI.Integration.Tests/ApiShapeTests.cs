@@ -39,12 +39,12 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip));
 
-        index.Upsert(new LuiEntry<long, Chip>(1, "vegan") { Weight = 5, Payload = new Chip("v"), Priority = LuiPriority.System });
-        index.Upsert(1, "vegan", 7);
+        tags.Upsert(new LuiEntry<long, Chip>(1, "vegan") { Weight = 5, Payload = new Chip("v"), Priority = LuiPriority.System });
+        tags.Upsert(1, "vegan", 7);
 
-        var hit = index.Search("vegan").Hits.ShouldHaveSingleItem();
+        var hit = tags.Search("vegan").Hits.ShouldHaveSingleItem();
         hit.Payload.ShouldBeNull();
         hit.Weight.ShouldBe(7);
         hit.Priority.ShouldBe(LuiPriority.Normal);
@@ -57,14 +57,14 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure();
+        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip));
 
-        var written = index.UpsertMany(Enumerable.Range(1, 1_000).Select(
+        var written = tags.UpsertMany(Enumerable.Range(1, 1_000).Select(
             i => new LuiEntry<long, Chip>(i, $"kuchen{i}") { Weight = i, Payload = new Chip($"k{i}") }));
 
         written.ShouldBe(1_000);
-        index.Count().ShouldBe(1_000);
-        index.Search("kuchen1000").Hits[0].Payload.ShouldBe(new Chip("k1000"));
+        tags.Count().ShouldBe(1_000);
+        tags.Search("kuchen1000").Hits[0].Payload.ShouldBe(new Chip("k1000"));
     }
 
     [Fact]
@@ -72,17 +72,17 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var tags = catalog.Create("tags", index => index.SingleWord());
 
-        index.UpsertMany(
+        tags.UpsertMany(
         [
             new LuiEntry<long, LuiNoPayload>(1, "apfel") { Weight = 1 },
             new LuiEntry<long, LuiNoPayload>(1, "birne") { Weight = 2 },
         ]);
 
-        index.Count().ShouldBe(1);
-        index.Search("apfel").Hits.ShouldBeEmpty();
-        index.Search("birne").Hits.ShouldHaveSingleItem().Weight.ShouldBe(2);
+        tags.Count().ShouldBe(1);
+        tags.Search("apfel").Hits.ShouldBeEmpty();
+        tags.Search("birne").Hits.ShouldHaveSingleItem().Weight.ShouldBe(2);
     }
 
     [Fact]
@@ -90,16 +90,16 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var tags = catalog.Create("tags", index => index.SingleWord());
 
-        Should.Throw<InvalidOperationException>(() => index.UpsertMany(FailingAfter(10)));
+        Should.Throw<InvalidOperationException>(() => tags.UpsertMany(FailingAfter(10)));
 
-        index.Count().ShouldBe(0);
+        tags.Count().ShouldBe(0);
 
         // the writer is free again: a single write and another batch go through
-        index.Upsert(1, "apfel", 1);
-        index.UpsertMany([new LuiEntry<long, LuiNoPayload>(2, "birne")]).ShouldBe(1);
-        index.Count().ShouldBe(2);
+        tags.Upsert(1, "apfel", 1);
+        tags.UpsertMany([new LuiEntry<long, LuiNoPayload>(2, "birne")]).ShouldBe(1);
+        tags.Count().ShouldBe(2);
     }
 
     [Fact]
@@ -107,7 +107,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var tags = catalog.Create("tags", index => index.SingleWord());
         using var cancellation = new CancellationTokenSource();
 
         IEnumerable<LuiEntry<long, LuiNoPayload>> Entries()
@@ -123,9 +123,9 @@ public sealed class ApiShapeTests
             }
         }
 
-        Should.Throw<OperationCanceledException>(() => index.UpsertMany(Entries(), cancellationToken: cancellation.Token));
+        Should.Throw<OperationCanceledException>(() => tags.UpsertMany(Entries(), cancellationToken: cancellation.Token));
 
-        index.Count().ShouldBe(0);
+        tags.Count().ShouldBe(0);
     }
 
     [Fact]
@@ -133,26 +133,26 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
+        var tags = catalog.Create("tags", index => index.SingleWord());
 
         using (var connection = database.Connect())
         using (var transaction = connection.BeginTransaction())
         {
-            index.UpsertMany([new LuiEntry<long, LuiNoPayload>(1, "apfel"), new LuiEntry<long, LuiNoPayload>(2, "birne")], transaction)
+            tags.UpsertMany([new LuiEntry<long, LuiNoPayload>(1, "apfel"), new LuiEntry<long, LuiNoPayload>(2, "birne")], transaction)
                 .ShouldBe(2);
             transaction.Rollback();
         }
 
-        index.Count().ShouldBe(0);
+        tags.Count().ShouldBe(0);
 
         using (var connection = database.Connect())
         using (var transaction = connection.BeginTransaction())
         {
-            index.UpsertMany([new LuiEntry<long, LuiNoPayload>(1, "apfel")], transaction);
+            tags.UpsertMany([new LuiEntry<long, LuiNoPayload>(1, "apfel")], transaction);
             transaction.Commit();
         }
 
-        index.Search("apfel").Hits.ShouldHaveSingleItem();
+        tags.Search("apfel").Hits.ShouldHaveSingleItem();
     }
 
     [Fact]
@@ -160,8 +160,8 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var batch = catalog.Index("batch").SingleWord().TypoTolerance().Ensure();
-        var single = catalog.Index("single").SingleWord().TypoTolerance().Ensure();
+        var batch = catalog.Create("batch", index => index.SingleWord().TypoTolerance());
+        var single = catalog.Create("single", index => index.SingleWord().TypoTolerance());
         foreach (var index in new[] { batch, single })
         {
             index.Upsert(1, "Apfelkuchen", 10);
@@ -182,8 +182,8 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var batch = catalog.Index("batch").SingleWord().Ensure();
-        var single = catalog.Index("single").SingleWord().Ensure();
+        var batch = catalog.Create("batch", index => index.SingleWord());
+        var single = catalog.Create("single", index => index.SingleWord());
 
         var writer = Task.Run(() =>
         {
@@ -210,8 +210,8 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
-        var query = index.Query("vegan");
+        var tags = catalog.Create("tags", index => index.SingleWord());
+        var query = tags.Query("vegan");
 
         // the builder throws at the call, not later in Execute()
         Should.Throw<ArgumentOutOfRangeException>(() => query.Take(0)).Message.ShouldContain("MaxResults");
@@ -270,9 +270,9 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var source = catalog.Index("tags").SingleWord();
 
-        Should.Throw<NotSupportedException>(() => source.WithKey<Guid>()).Message.ShouldContain("long or a string");
+        Should.Throw<NotSupportedException>(
+            () => catalog.Create("tags", index => index.SingleWord().WithKey<Guid>())).Message.ShouldContain("long or a string");
     }
 
     [Fact]
@@ -280,23 +280,18 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord()
-            .TypoTolerance()
-            .GermanTransliteration(false)
-            .Similarity(new Constant(0.25))
-            .WithPayload(ChipJsonContext.Default.Chip)
-            .Ensure();
-        index.Upsert(new LuiEntry<long, Chip>(1, "Apfelkuchen") { Weight = 10, Payload = new Chip("a") });
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance().GermanTransliteration(false).Similarity(new Constant(0.25)).WithPayload(ChipJsonContext.Default.Chip));
+        words.Upsert(new LuiEntry<long, Chip>(1, "Apfelkuchen") { Weight = 10, Payload = new Chip("a") });
 
         // the typo tolerance
-        index.Search("apflekuchen").CorrectedQuery.ShouldBe("apfelkuchen");
+        words.Search("apflekuchen").CorrectedQuery.ShouldBe("apfelkuchen");
 
         // the similarity
-        index.Search("apfelkuch").Hits.ShouldHaveSingleItem().Similarity.ShouldBe(0.25);
+        words.Search("apfelkuch").Hits.ShouldHaveSingleItem().Similarity.ShouldBe(0.25);
 
         // the transliteration: it is part of the definition, so an index with it on is another index
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index("words").SingleWord().WithPayload(ChipJsonContext.Default.Chip).Ensure());
+            () => catalog.Create("words", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip)));
     }
 
     [Fact]
@@ -306,26 +301,26 @@ public sealed class ApiShapeTests
         // application and learns its words when they are written. The rollback itself is correct.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("titles").MultiWord().TypoTolerance().Ensure();
-        index.Upsert(1, "Schifffahrt", 10);
-        index.WarmUpTypoDictionary();
-        index.Search("schiffb").CorrectedQuery.ShouldBe("schifff");
+        var titles = catalog.Create("titles", index => index.MultiWord().TypoTolerance());
+        titles.Upsert(1, "Schifffahrt", 10);
+        titles.WarmUpTypoDictionary();
+        titles.Search("schiffb").CorrectedQuery.ShouldBe("schifff");
 
         using (var connection = database.Connect())
         using (var transaction = connection.BeginTransaction())
         {
-            index.UpsertMany([new LuiEntry<long, LuiNoPayload>(2, "Schiffbruecke")], transaction);
+            titles.UpsertMany([new LuiEntry<long, LuiNoPayload>(2, "Schiffbruecke")], transaction);
             transaction.Rollback();
         }
 
-        index.Count().ShouldBe(1);
-        var stale = index.Search("schiffb");
+        titles.Count().ShouldBe(1);
+        var stale = titles.Search("schiffb");
         stale.CorrectedQuery.ShouldBeNull("to the dictionary, schiffb is a beginning of the index now");
         stale.Hits.ShouldBeEmpty();
 
-        index.RebuildTypoDictionary();
+        titles.RebuildTypoDictionary();
 
-        var rebuilt = index.Search("schiffb");
+        var rebuilt = titles.Search("schiffb");
         rebuilt.CorrectedQuery.ShouldBe("schifff");
         rebuilt.Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
     }
@@ -335,10 +330,10 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
-        index.UpsertMany(Enumerable.Range(1, 30).Select(i => new LuiEntry<long, LuiNoPayload>(i, $"kuchen{i}") { Weight = i }));
+        var tags = catalog.Create("tags", index => index.SingleWord());
+        tags.UpsertMany(Enumerable.Range(1, 30).Select(i => new LuiEntry<long, LuiNoPayload>(i, $"kuchen{i}") { Weight = i }));
 
-        var result = index.Search("kuchen");
+        var result = tags.Search("kuchen");
 
         result.Hits.Count.ShouldBe(new LuiQueryOptions().MaxResults);
         result.Timings.ShouldBeNull();
@@ -349,10 +344,10 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("tags").SingleWord().Ensure();
-        index.Upsert(1, "vegan", 5);
+        var tags = catalog.Create("tags", index => index.SingleWord());
+        tags.Upsert(1, "vegan", 5);
 
-        ILuiIndex<long, LuiNoPayload> reader = index;
+        ILuiIndex<long, LuiNoPayload> reader = tags;
 
         reader.Search("vegan").Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
         reader.Count().ShouldBe(1);
@@ -364,9 +359,9 @@ public sealed class ApiShapeTests
         // Review of 2026-11-04, A.8: a caller that separates LUI's conditions from its own errors had no type for it
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("words").SingleWord().Ensure();
+        catalog.Create("words", index => index.SingleWord());
 
-        var mismatch = Record.Exception(() => catalog.Index("words").MultiWord().Ensure());
+        var mismatch = Record.Exception(() => catalog.Create("words", index => index.MultiWord()));
 
         mismatch.ShouldBeOfType<LuiDefinitionMismatchException>();
         mismatch.ShouldBeAssignableTo<LuiException>();
@@ -383,15 +378,18 @@ public sealed class ApiShapeTests
         using var catalog = database.Open();
         var similarity = new Constant(0.25);
         var expected = new IndexOptions(similarity, GermanTransliteration: false, TypoTolerance: true);
-        var described = catalog.Index("words").SingleWord().Similarity(similarity).GermanTransliteration(false).TypoTolerance();
+
+        // the builder is the description of an index, not the way into it (ADR-0033): the catalog builds it, the test
+        // asks for it directly to look at the settings of every step.
+        var described = new LuiIndexKindBuilder(catalog, "words").SingleWord().Similarity(similarity).GermanTransliteration(false).TypoTolerance();
 
         // the default, pinned: comparing with IndexOptions.Default alone would let a wrong constant pass (review of PR 45, M3)
         IndexOptions.Default.ShouldBe(new IndexOptions(Similarity: null, GermanTransliteration: true, TypoTolerance: false));
-        catalog.Index("plain").SingleWord().Options.ShouldBe(IndexOptions.Default);
+        new LuiIndexKindBuilder(catalog, "plain").SingleWord().Options.ShouldBe(IndexOptions.Default);
         described.Options.ShouldBe(expected);
         described.WithKey<string>().Options.ShouldBe(expected, "WithKey");
         described.WithPayload(ChipJsonContext.Default.Chip).Options.ShouldBe(expected, "WithPayload(typeInfo)");
-        described.WithPayload(new LuiJsonPayloadSerializer<Chip>(ChipJsonContext.Default.Chip)).Options.ShouldBe(expected, "WithPayload(serializer)");
+        described.WithPayload(new ChipSerializer()).Options.ShouldBe(expected, "WithPayload(serializer)");
 
         var linked = described.LinkTo("tag", "id", "name");
         linked.Options.ShouldBe(expected, "LinkTo");
@@ -403,7 +401,7 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Index("tags").SingleWord().Ensure().Upsert(1, "vegan", 5);
+        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan", 5);
 
         catalog.DropIndex("tags").ShouldBeTrue();
         catalog.DropIndex("tags").ShouldBeFalse();
@@ -414,6 +412,15 @@ public sealed class ApiShapeTests
     private sealed class Constant(double value) : ILuiSimilarity
     {
         public double Similarity(string query, string text) => value;
+    }
+
+    /// <summary>A serialiser of the application — the way to describe a payload that is not JSON.</summary>
+    private sealed class ChipSerializer : ILuiPayloadSerializer<Chip>
+    {
+        public byte[] Serialize(Chip payload) => System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(payload);
+
+        public Chip Deserialize(ReadOnlySpan<byte> bytes) =>
+            System.Text.Json.JsonSerializer.Deserialize<Chip>(bytes)!;
     }
 
     private static IEnumerable<LuiEntry<long, LuiNoPayload>> FailingAfter(int count)

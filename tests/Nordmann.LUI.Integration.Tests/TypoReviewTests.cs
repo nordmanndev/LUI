@@ -123,15 +123,15 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         for (var i = 1; i <= 10; i++)
         {
-            index.Upsert(i, $"Teigapfle{i:00}", 1_000);
+            words.Upsert(i, $"Teigapfle{i:00}", 1_000);
         }
 
-        index.Upsert(100, "Apfelkuchen", 1);
+        words.Upsert(100, "Apfelkuchen", 1);
 
-        var result = index.Query("apfle").Candidates(candidates).Execute();
+        var result = words.Query("apfle").Candidates(candidates).Execute();
 
         result.CorrectedQuery.ShouldBe("apfel");
         result.Hits.Select(h => h.Text).Contains("Apfelkuchen", StringComparer.Ordinal).ShouldBeTrue();
@@ -145,11 +145,11 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("titles").MultiWord().TypoTolerance().Ensure();
-        index.Upsert(1, "Bratapfle Apfel", 10);
+        var titles = catalog.Create("titles", index => index.MultiWord().TypoTolerance());
+        titles.Upsert(1, "Bratapfle Apfel", 10);
 
-        var plain = index.Query("apfle").Execute();
-        var distinct = index.Query("apfle").DistinctText().Execute();
+        var plain = titles.Query("apfle").Execute();
+        var distinct = titles.Query("apfle").DistinctText().Execute();
 
         plain.CorrectedQuery.ShouldBe("apfel");
         distinct.CorrectedQuery.ShouldBe("apfel");
@@ -162,12 +162,12 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("titles").SingleWord().TypoTolerance().Ensure();
-        index.Upsert(1, "Teigapfle", 10);
-        index.Upsert(2, "teigapfle", 20);
-        index.Upsert(3, "Apfelkuchen", 5);
+        var titles = catalog.Create("titles", index => index.SingleWord().TypoTolerance());
+        titles.Upsert(1, "Teigapfle", 10);
+        titles.Upsert(2, "teigapfle", 20);
+        titles.Upsert(3, "Apfelkuchen", 5);
 
-        var hits = index.Query("apfle").DistinctText().Execute().Hits;
+        var hits = titles.Query("apfle").DistinctText().Execute().Hits;
 
         hits.Count(h => string.Equals(h.Text, "Teigapfle", StringComparison.OrdinalIgnoreCase)).ShouldBe(1);
         hits.Select(h => h.Text).Contains("Apfelkuchen", StringComparer.Ordinal).ShouldBeTrue();
@@ -180,11 +180,11 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var reader = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var reader = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         reader.Upsert(1, "Apfelkuchen", 10);
         reader.Query("apflekuchen").Execute();   // reader builds the dictionary
 
-        var importer = catalog.Index("words").SingleWord().Ensure();
+        var importer = catalog.Create("words", index => index.SingleWord());
         importer.Upsert(2, "Zwetschge", 5);
 
         var result = reader.Query("zwetchge").Execute();
@@ -197,12 +197,12 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var first = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var first = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         first.Upsert(1, "Apfelkuchen", 10);
         first.Query("apflekuchen").Execute().CorrectedQuery.ShouldBe("apfelkuchen");
 
         catalog.DropIndex("words");
-        var second = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
+        var second = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         second.Upsert(1, "Birnentorte", 10);
 
         var result = second.Query("apflekuchen").Execute();
@@ -217,17 +217,17 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Index("words").SingleWord().TypoTolerance().Ensure();
-        index.Upsert(1, "Apfelkuchen", 10);
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        words.Upsert(1, "Apfelkuchen", 10);
 
         using var cancelled = new CancellationTokenSource();
         cancelled.Cancel();
-        Should.Throw<OperationCanceledException>(() => index.WarmUpTypoDictionary(cancelled.Token));
-        Should.Throw<OperationCanceledException>(() => index.RebuildTypoDictionary(cancelled.Token));
+        Should.Throw<OperationCanceledException>(() => words.WarmUpTypoDictionary(cancelled.Token));
+        Should.Throw<OperationCanceledException>(() => words.RebuildTypoDictionary(cancelled.Token));
 
-        Should.NotThrow(() => index.WarmUpTypoDictionary());
-        Should.NotThrow(() => index.WarmUpTypoDictionary());
-        index.Query("apflekuchen").TrackTimings().Execute().CorrectedQuery.ShouldBe("apfelkuchen");
+        Should.NotThrow(() => words.WarmUpTypoDictionary());
+        Should.NotThrow(() => words.WarmUpTypoDictionary());
+        words.Query("apflekuchen").TrackTimings().Execute().CorrectedQuery.ShouldBe("apfelkuchen");
     }
 
     // ---- N1: the builder takes a bool too ----------------------------------------------------------------------
@@ -237,8 +237,8 @@ public sealed class TypoReviewTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var on = catalog.Index("a").SingleWord().TypoTolerance().Ensure();
-        var off = catalog.Index("b").SingleWord().TypoTolerance(true).TypoTolerance(false).Ensure();
+        var on = catalog.Create("a", index => index.SingleWord().TypoTolerance());
+        var off = catalog.Create("b", index => index.SingleWord().TypoTolerance(true).TypoTolerance(false));
         on.Upsert(1, "Apfelkuchen", 1);
         off.Upsert(1, "Apfelkuchen", 1);
 

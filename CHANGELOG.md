@@ -9,6 +9,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The read path opens an index without writing** ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md),
+  #56). A second way into an index: the definition is read out of `lui_meta`, the index is rebuilt from it, and the
+  file is not touched — no table, no definition, no write lock. It is the way into a database that is written
+  elsewhere: a replica, a file that is read-only, a service that may not write.
+  - `LuiCatalog.Index<TKey, TPayload>(name, typeInfo)` opens an embedded index with the types of the application — the
+    key and the payload of the caller. The payload comes with the `JsonTypeInfo` of the application (source-generated,
+    so safe for trimming and AOT) or with a serialiser of its own.
+  - `LuiCatalog.Index<TPayload>(name, map)` opens a linked index: the columns of the payload are in the definition,
+    the mapping is the one of the application. `LuiCatalog.Index(name)` opens a linked index without a payload.
+  - The existence of the index, the version of its schema, the version of its folding and the types are checked when
+    it is opened, and a mismatch says what is wrong: the new `LuiIndexNotFoundException` (with the name of the index)
+    and `LuiDefinitionMismatchException`. The definition remembers the type of the payload now — an index that stores
+    `TagChip` is not opened with `RecipeChip`, and the error names both.
+  - The similarity is the default of the kind of the index and the typo tolerance is off; a query asks for a
+    correction (`LuiQueryOptions.TypoTolerance`).
+  - The index it hands out is a view on the file: it writes when the file allows it.
+  - **The file decides what may happen — not the index**: a catalog that was opened with `Mode=ReadOnly` writes
+    nothing — no WAL, no `lui_meta` — and refuses every write with the new `LuiReadOnlyException` (`Create`,
+    `DropIndex`, `Upsert`, `Sync`). The same application code therefore runs in the service that writes and in the
+    service that only reads.
+
 - **The sample fills its own bulk indexes** ([ADR-0029](docs/adr/0029-the-sample-fills-its-own-bulk-indexes-on-demand.md)). Three
   indexes beside the curated ones — `words` (the German word list, one word per entry), `people` (the full names of Bogus's
   German locale) and `hashtags` (a place and a surname, joined by a hyphen) — are created and loaded by a button in the tab of
@@ -58,15 +79,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   first load is #32). Every target is asserted.
 
 - **Dependency injection, in a second package `Nordmann.LUI.Hosting`** ([ADR-0017](docs/adr/0017-dependency-injection-and-hosted-services.md),
-  [ADR-0018](docs/adr/0018-two-packages-core-and-hosting.md)), released with `Nordmann.LUI` under the same version:
-  `services.AddLui(connectionString, options?)` (or with delegates that read the container) and
-  `.AddIndex(name, index => …)` for an embedded and `.AddLinkedIndex(name, index => …)` for a linked index. Every index is a keyed singleton under its name, as
-  `ILuiIndex<TKey, TPayload>` and as `ILuiEmbeddedIndex`/`ILuiLinkedIndex`; the catalog is a singleton the container
-  disposes. A hosted service ensures every index when the host starts (`EnsureOnStart(false)` switches it off) and,
-  with `WarmUpTypoDictionariesOnStart()`, builds the typo dictionaries of the indexes with typo tolerance in the
-  background; another one applies the outbox of a linked index on its interval (`applyPendingEvery`). The hosting
-  package references `Microsoft.Extensions.DependencyInjection.Abstractions`, `.Hosting.Abstractions` and
-  `.Logging.Abstractions` (10.0.14); the core `Nordmann.LUI` does not — a console application carries none of them.
+  [ADR-0018](docs/adr/0018-two-packages-core-and-hosting.md),
+  [ADR-0034](docs/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md)), released with `Nordmann.LUI` under the same version:
+  `services.AddLui(connectionString, options?)` (or with delegates that read the container) puts the **catalog** into the
+  container — and nothing else ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md)): an index is
+  not registered and not injected, the application asks the catalog for what it needs — `catalog.Create(name, …)` in its
+  migration, `catalog.Index(…)` in the runtime path. The catalog is a singleton the container disposes. The package
+  references `Microsoft.Extensions.DependencyInjection.Abstractions` (10.0.14) and nothing else: the abstractions of the
+  host are gone (ADR-0034); the core
+  `Nordmann.LUI` does not carry them either — a console application carries none of them.
 - `ILuiIndex.TypoTolerance`: whether a query of the instance corrects typos unless it says otherwise. An application's
   own implementation of `ILuiIndex` (a test double) has to add it.
 
@@ -85,9 +106,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   (5.4 ms after `UpsertMany`).
 
 - **The linked index** ([ADR-0015](docs/adr/0015-the-linked-index-is-loosely-coupled.md)), loosely coupled to a table
-  of the application: `lui.Index(name).SingleWord().LinkTo(table, key, text, weight?, priority?).Ensure()` returns an
-  `ILuiLinkedIndex<TPayload>`. LUI never changes the application's table on its own — no column, no index, no trigger;
-  `Ensure()` checks the table and creates LUI's own tables (a contentless FTS5 table, the text is not stored twice).
+  of the application: `lui.Create(name, index => index.SingleWord().LinkTo(table, key, text, weight?, priority?))`
+  returns an `ILuiLinkedIndex<TPayload>`. LUI never changes the application's table on its own — no column, no index, no trigger;
+  `Create()` checks the table and creates LUI's own tables (a contentless FTS5 table, the text is not stored twice).
   The application keeps it current: `Sync()`, `Refresh(key, transaction = null)`, `RefreshMany(keys, transaction = null)`,
   `Optimize()`; triggers only on request: `TriggerScript()`, `CreateTriggers()`, `DropTriggers()` — they only note the
   key of a changed row in an outbox (plain SQL, any SQLite can write the table); `ApplyPending()` brings the noted rows
@@ -114,7 +135,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   instances of an index and its build never holds up a write. The dictionary of the whole
   German word list takes 4.2 s and 138 MB.
 
-- **The multi-word index** (`MultiWord`, `Embedded`): `catalog.Index(name).MultiWord().Ensure()`
+- **The multi-word index** (`MultiWord`, `Embedded`): `catalog.Create(name, index => index.MultiWord())`
   for names and titles ([ADR-0011](docs/adr/0011-the-multi-word-index.md)). The input is split
   into words that are ANDed and also searched compactly, so `kuchen apfel` and `apfelkuch` both
   find „Apfel Kuchen"; the word start is decided on the compact form; the default similarity is
@@ -131,8 +152,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `LuiCatalog.Open(connectionString, options)` with `LuiCatalogOptions`
     (`CacheSizeMegabytes`, `MemoryMapMegabytes`, `BusyTimeout`, `TimeProvider`), and
     `lui_meta`. `Dispose()` waits for the operations that are running.
-  - `catalog.Index(name).SingleWord().WithKey<TKey>().WithPayload(…)
-    .Similarity(…).GermanTransliteration(…).Ensure()` and `DropIndex(name)`; the
+  - `catalog.Create(name, index => index.SingleWord().WithKey<TKey>().WithPayload(…)
+    .Similarity(…).GermanTransliteration(…))` and `DropIndex(name)`; the
     result is an `ILuiEmbeddedIndex<TKey, TPayload>`.
   - Writes: `Upsert`, `UpdateWeight`, `UpdatePriority`, `Remove`, `Count` —
     also inside the application's `SqliteTransaction`
@@ -179,6 +200,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The distance of two long texts no longer depends on what the pool handed out before.** The table of the
+  Damerau-Levenshtein distance does not fit on the stack for texts of more than about 45 characters, so it comes from
+  the pool — and the pool hands out arrays that still hold what the last tenant wrote in them. The cell at the corner
+  of the table was never written by the measure, and the transposition reads it when neither text has seen the
+  character yet: the number was then the rubbish of the pool, and on a machine where the pool held a large number in
+  that cell the distance overflowed (the CI found it: the similarity of two long texts came out as 2,404,636 instead of
+  a number between zero and one). The corner is zero now, like in the library the measure replaces. The guard
+  `DamerauEquivalenceTests.The_measure_survives_a_table_that_the_pool_handed_out_before` fills a rented table with
+  rubbish before the comparison (#30).
+
 - **The pool of the buffers no longer fills up** ([ADR-0031](docs/adr/0031-the-pool-displaces-instead-of-discarding.md), #30).
   The length of the buffers follows the budget of the candidates, and the pool had twelve places for one budget: after
   the budget had changed, every query allocated the big buffers anew — 294.9 KB at a budget of 1,000, against 83.4 KB
@@ -191,10 +222,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A host disposed without a stop no longer waits for the warm-up of the typo dictionaries: the hosted services are
   disposed before the catalog and cancel it; a round of `ApplyPending` that meets a disposed catalog ends quietly
-  instead of logging an error (#26).
+  instead of logging an error (#26). The hosted services are gone with #56 — the application warms the dictionaries
+  itself now.
 - `Truncated` is no longer set for a linked index when the only row after the budget is an outdated one (#26).
 
 ### Changed
+
+- **The catalog creates and opens an index** ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md), #56).
+  The catalog is the entry point: it creates an index once — in the migration of the application — and opens it in the
+  runtime path. The builder is no longer reachable from the catalog, so the runtime path cannot create an index. The
+  write path of an index creates it — or opens it when it is there with the same definition. The name said "ensure",
+  which is a promise the method cannot keep: it does not create a definition that is missing, it compares it.
+  - **Migration** (the forms *before* this change are the ones named "before"):
+    - before: `lui.Index(name).SingleWord().Ensure()` — now: `lui.Create(name, index => index.SingleWord())`. The old
+      name is gone, not deprecated.
+    - before: `lui.OpenIndex<TKey, TPayload>(name, payload)` — now: `lui.Index<TKey, TPayload>(name, payload)`. The
+      name is `Index` beside it: `LuiCatalog.Open(connectionString, options)` opens the *catalog* and stays as it is.
+    - before: `lui.OpenIndex(name)` with the untyped facade `ILuiDocumentIndex` — the key as the text it is stored as,
+      the payload as the raw JSON, a hit a `LuiDocumentHit` — now: nothing. The facade is gone; the index is typed.
+    - before: `services.AddIndex(…)`, `services.AddLinkedIndex(…)` and `services.AddOpenIndex(…)` — now:
+      `services.AddLui(…)`. The container holds the catalog and nothing else; the registrations and the hosted services
+      are gone.
+    - before: `services.AddIndex(…).EnsureOnStart()` and `WarmUpTypoDictionariesOnStart()` — now: the application
+      calls `catalog.Create(…)` in its migration and `WarmUpTypoDictionary()` itself, when it wants to.
+    - before: a file whose index was created by an older version has no payload type in its definition — now: the index
+      is dropped and created again (`DropIndex` + `Create`).
 
 - **A query allocates far less** ([ADR-0032](docs/adr/0032-the-allocation-of-a-query.md), #30). A single-word query with the
   budget of 500 candidates allocates **26.6 KB instead of 153.3 KB** (−83 %), a multi-word query **105.7 KB instead of
@@ -227,8 +279,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **The public API before the freeze** ([ADR-0024](docs/adr/0024-the-api-polish-before-the-freeze.md), #42, from the
   architecture review of 2026-11-04). Renamed and tidied before the first release, so nobody has to migrate:
-  - `AddIndex` registers an embedded index, **`AddLinkedIndex`** a linked one (with `applyPendingEvery`); the two were
-    overloads of one name, chosen by the return type of the description.
+  - The registrations of the indexes — an embedded one and a linked one — are gone with #56
+    ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md)): the container holds the catalog and
+    nothing else.
   - `LuiPriorityRanking` → `LuiPriorityMode`; `LuiQuery.Priorities(…)` and `LuiQueryOptions.Priorities` → `PriorityMode`.
   - `LuiTimings.Candidates` → `CandidateRead`: a duration, not the budget (`LuiQueryOptions.Candidates`) and not the count
     (`LuiResult.CandidatesConsidered`).
@@ -269,15 +322,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `Highlight` is not part of the library (owner's decision; struck, ADR-0028).
 - Every index has `Check()` (on `ILuiEmbeddedIndex` and `ILuiLinkedIndex`). Inside, the catalog is taken apart (review DevEx D4, D6): no change to
   the public API besides.
-- **The builder: an embedded index is the default** (ADR-0015). `lui.Index(name)` returns a `LuiIndexKindBuilder`;
-  `SingleWord()`/`MultiWord()` return a `LuiEmbeddedIndexBuilder<long, LuiNoPayload>` — an embedded index, or with
+- **The builder: an embedded index is the default** (ADR-0015). The builder starts with the kind: `SingleWord()`/`MultiWord()`
+  return a `LuiEmbeddedIndexBuilder<long, LuiNoPayload>` — an embedded index, or with
   `LinkTo(…)` a linked one (review of PR #16, N1); the builder types and the `…<TKey>()` steps of earlier pre-release
-  builds are gone, `WithKey<string>()` chooses a text key. `lui.Index("tags").SingleWord().Ensure()` is a whole index.
+  builds are gone, `WithKey<string>()` chooses a text key. The builder is the **parameter** of `Create` now
+  ([ADR-0033](docs/adr/0033-the-read-path-opens-an-index-without-writing.md)): `lui.Create("tags", index => index.SingleWord())`
+  is a whole index.
 - `DropIndex` decides by the stored source and refuses a source it does not know.
 
 - **The API shape before the first release** ([ADR-0013](docs/adr/0013-the-api-shape-before-the-first-release.md)) —
   a break on purpose, while it costs nothing:
-  - A staged builder: `lui.Index(name).SingleWord().WithPayload(…).TypoTolerance().Ensure()`. An index
+  - A staged builder: `lui.Create(name, index => index.SingleWord().WithPayload(…).TypoTolerance())`. An index
     without a kind does not compile; the key type is checked at `WithKey<TKey>()`; a payload is optional
     (`LuiNoPayload` until `WithPayload`). `TypoTolerance(int maxEdits)` is `TypoTolerance(bool enabled = true)`.
     `Drop()` is `LuiCatalog.DropIndex(name)`.
@@ -310,7 +365,7 @@ specification ([`docs/spec/LUI-Spezifikation.md`](./docs/spec/LUI-Spezifikation.
   similarity scoring
 - typo tolerance over a prefix dictionary
 - `Sync`, `Check`, `Rebuild`, `Optimize`
-- dependency injection (`AddLui`, keyed services, hosted services) in the second package `Nordmann.LUI.Hosting`,
+- dependency injection (`AddLui`, the catalog in the container) in the second package `Nordmann.LUI.Hosting`,
   released with the same version
 - a sample application with a search field in the browser
 

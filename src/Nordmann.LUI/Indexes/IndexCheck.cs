@@ -25,7 +25,7 @@ internal static class IndexCheck
         var stored = IndexStore.ReadDefinition(connection, transaction, source.IndexName);
         if (stored is null)
         {
-            problems.Add($"The index '{source.IndexName}' is not in lui_meta: it was dropped. Ensure it again and use the new instance.");
+            problems.Add($"The index '{source.IndexName}' is not in lui_meta: it was dropped. Create it again and use the new instance.");
             return false;
         }
 
@@ -33,7 +33,7 @@ internal static class IndexCheck
         {
             problems.Add(
                 $"The index '{source.IndexName}' is stored with another definition ({stored.ToJson()}) than this instance has "
-                + $"({source.Definition.ToJson()}): it was dropped and ensured anew. Use the instance of the new Ensure().");
+                + $"({source.Definition.ToJson()}): it was dropped and created anew. Use the instance of the new Create().");
             return false;
         }
 

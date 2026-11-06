@@ -5,50 +5,75 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** [#54](https://github.com/nordmanndev/LUI/issues/54) — the owner's request of 2026-11-05: "the sample app needs to have way
-more data to show the motivation behind LUI — create one index based on german words corpus, one for names based on Bogus and tags
-also based on bogus. Integrate the creation of the index (init & load) as a button in the sample app, so the user can start and
-'fill' the index he is willing to play with. Maybe with num of entries where appropriate."
-**Branch:** `feature/sample-bulk-indexes` → the pull request is [#55](https://github.com/nordmanndev/LUI/pull/55), open against
-`main`.
-**State:** implemented, verified and pushed; the owner's reviews of 2026-11-05 are answered in the same branch (the second
-round: short settings, the word list downloaded by the sample, the indexes created on demand, a fill of up to three million
-entries; the third round: a tab per index, the settings in their own column, and a page where one thing that breaks does not
-take the rest down). The owner decides about the merge; the release (PR-012) is the step after it.
+**Issue:** [#56](https://github.com/nordmanndev/LUI/issues/56) — the read path: an index that is **opened** and not created.
+The catalog reads the definition out of `lui_meta` and writes nothing — no table, no definition, no write lock — so a read
+replica, a file in the mode `ro` and a service that must not write can use LUI.
+**Branch:** `feature/read-path-open` → the pull request **#57** is opened against `main`
+(<https://github.com/nordmanndev/LUI/pull/57>).
+**State:** the rebuild is on the same branch, PR #57 stays open and is **not** merged. The branch carries the five
+commits of the first shape of the issue (`945729e` the read path, `dddecf1` the wording of the documents, `c7de0f3` the
+test of the payload, `5049e52` a note, `2fb05ca` the fix of the distance table that the CI found) and three commits of
+the rebuild on top of them (`fe3454c` a note, `37095f6` the plan and ADR-0033, `6e751f3` the rebuild itself) — no force
+push. The CI on `6e751f3` is green, and the independent verification of the pull request is **PASS**
+(`/workspace/verify-56-redesign.md`, read-only, plus a second verification `/workspace/verify-56-redesign-v2.md`).
+The plan is `docs/plan/2026-11-05-issue-56-the-catalog-is-the-entry-point.md`, the decisions are
+[ADR-0033](https://github.com/nordmanndev/LUI/blob/main/docs/adr/0033-the-read-path-opens-an-index-without-writing.md)
+(the read path) and
+[ADR-0034](https://github.com/nordmanndev/LUI/blob/main/docs/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md)
+(the hosting package).
 
-## Decided by the owner (2026-11-05, second round — the review of the pull request)
+**Redesign (2026-11-05, nach der Rueckmeldung des Owners):** die Form der API ist neu entschieden und
+ADR-0033 ist umgeschrieben. Der Katalog ist der Einstiegspunkt und das Einzige im Container
+(`AddLui`); das Erstellen ist ein Aufruf (`catalog.Create(name, builder)`), das Oeffnen ein anderer
+(`catalog.Index<TKey, TPayload>(name, payload)`); es gibt **eine** Implementierung je Faehigkeit — die
+untypisierte Fassade (`ILuiDocumentIndex`) und die Index-Registrierungen (`AddIndex`, `AddOpenIndex`)
+entfallen; und die **Datei** entscheidet, was erlaubt ist: eine nur lesbare Verbindung
+(`Mode=ReadOnly`) schreibt nicht und verweigert jeden Schreibvorgang mit `LuiReadOnlyException`.
 
-- **The settings are short**: every setting explains itself behind a "?" (the explanation is the tooltip as well), the panel
-  fits a screen without a scroll of its own, stands beside the autocomplete and scrolls with the page. Nothing is cut off, and
-  there is no trap to scroll out of.
-- **The word list is the full one, and the sample downloads it** — 685,829 words (CC0) from the same source and into the same
-  place as `tools/fetch-wordlist.sh`, when it is not on the machine. The curated 7,071-word subset is what the *tests* use: the
-  tests point the sample at it, and a test never downloads 5.5 MB.
-- **The bulk indexes are created on demand** — they are not registered with the host; the index of LUI is created when the panel
-  asks for it or when the button is pressed. A stock of a million entries is minutes of work, and nobody pays for it who does
-  not want it.
-- **The scale**: the largest fill is three million entries (the scale of the measurements of the specification, §16) — the fill
-  of 685,829 words took 2 m 15 s, a million names about the same.
+## What is done
 
-## Decided by the owner (2026-11-05)
+- **The library**: `LuiCatalog.Create<TKey, TPayload>(name, builder)` and `LuiCatalog.Create<TPayload>(name, builder)`
+  create an index — the builder is the **parameter**, not the way in, and the builder is not reachable from the catalog any
+  more. `LuiCatalog.Index<TKey, TPayload>(name, typeInfo)`, `Index<TKey, TPayload>(name, payload?)`,
+  `Index<TPayload>(name, map)` and `Index(name)` open an index that exists and write nothing (a plain `SELECT` on
+  `lui_meta`, no transaction, no write lock, no `CREATE TABLE`). The definition carries the **type of the payload** now
+  (`IndexDefinition.PayloadType`): an index that stores `TagChip` is not opened with `RecipeChip`, and the
+  `LuiDefinitionMismatchException` names both.
+- **The file decides** (ADR-0033): a catalog on `Mode=ReadOnly` switches on no WAL, creates no `lui_meta` and refuses
+  every write with the new `LuiReadOnlyException` — `Create`, `DropIndex`, `Upsert`, `Sync` and the rest.
+- **The container holds the catalog and nothing else**: `AddLui` is the only registration; the registrations, the hosted
+  services and the warm-up of the typo dictionaries are gone. The hosting package carries **only** the dependency
+  injection — `Microsoft.Extensions.Hosting.Abstractions` and `.Logging.Abstractions` are out of it (ADR-0034).
+- **The untyped facade is gone**: `ILuiDocumentIndex`, `LuiDocumentHit`, `DocumentIndex`, `DocumentSource`,
+  `RawJsonPayload` and `ReadOnlyEmbeddedIndex` are deleted, with every reference to them.
+- **The callers follow**: the sample, the tests and the benchmarks use `catalog.Create(…)` and `catalog.Index(…)`.
+- **The documents**: spec §7.1, §12.1, §12.2, §12.3, §12.4, §12.7, §12.8, §12.9, §14, §15, §17.1, §17.2, §17.3, the
+  README (quick start with `Create` and `Index`, the host section with `AddLui` only, "Only read"), the CHANGELOG with
+  the migration list, `docs/adr/README.md` (ADR-0033 and ADR-0034) and `docs/testing.md`.
 
-- The three bulk indexes are **new** indexes beside the curated ones: `words` (the German corpus), `people` (the names of
-  Bogus's German locale), `hashtags` (a place and a surname of the locale, joined by a hyphen). The curated `recipes`, `names`
-  and `tags` keep their entries, their payload and their purpose — they show the API surface, the bulk indexes show the scale.
-- The button does init and load: the index is created when it does not exist, and it is loaded with exactly the number of
-  entries that was asked for. A fill with fewer entries removes the rest; the source of a bulk index is a function of the
-  number, so a fill with more adds only what is missing.
-- The fill runs in the background of the sample (`Task.Run`), and the page polls its progress — a fill of a million entries takes
-  minutes, and a request that waited for it would time out.
-- The word list is looked up in `Sample:WordList` (the configuration of the host), then in `LUI_WORDLIST`, then in
-  `artifacts/wordlist/german-words.txt` (what `tools/fetch-wordlist.sh` writes) — and the sample downloads it when none of
-  them is there. The index panel says which list it found and how many words it has — the full list is not checked into the
-  repository, and the sample must not pretend it is.
-- Bogus is a dependency of the **sample alone** (the sample is not shipped); the two packages keep their dependency set
-  (ADR-0004, ADR-0018). That is why ADR-0029 exists: `Directory.Packages.props` changed.
-- The typo tolerance is on for `people` only: a dictionary of 685,829 words costs about 140 MB (ADR-0021).
+## Open
+
+- The rebuild is **committed** and pushed — the documents, the library, the callers and the hosting package are in one
+  commit on top of the five commits above (no force push), and PR #57 carries the body of the new shape.
+- The pull request #57 waits for the merge — the owner merges it, the CI is green.
+- The verification names four minor findings; the first one is worth closing before the release:
+  `catalog.Index<TKey, TPayload>(name, null)` is ambiguous — the overload with `JsonTypeInfo<TPayload>` and the one with
+  `ILuiPayloadSerializer<TPayload>?` both accept `null`. Every documented form compiles and works; only the explicit
+  `null` literal fails. The other three are imprecisions in the pull request body (it counts 19 instead of 18 tests in
+  `ReadPathTests`, and it lists `OpenIndexHostingTests.cs` as removed although the file never was on `main`) and the
+  package smoke test, which fails in the sandbox on `main` as well — no regression.
+- `SampleApiTests.A_request_the_page_abandons_stops_the_work_of_the_server` is **timing-sensitive** (the client aborts
+  after 150 ms; the server has to notice the closed connection during a 1.5 s delay). It failed once under the load of a
+  saturated 2-CPU sandbox; the changes of #56 are not on the path the test walks (the probe never opens an index), and
+  it has been green in every run since. The test was not changed.
+  `SampleApiTests.A_row_written_to_the_application_s_table_reaches_the_linked_index_through_the_triggers_and_the_outbox`
+  is timing-sensitive too: it failed once under the same load (the outbox was not applied in time) and is green in
+  isolation and in the next full run.
+- The migration of the files of today: an index that was created by an older version has no payload type in its
+  definition — it is dropped and created again (`DropIndex` + `Create`).
 
 ## The next step
 
-**Next:** the owner reads the diff and decides about the pull request; the release (PR-012) is the step after it. After that:
-#35, #30 (with the own Jaro-Winkler), #31, #32, #38, #44, the `compactLevel` follow-up of #48.
+After the pull request of #56 is merged: **#38** (the budget table of the README guarded against the specification of
+§16), then the **release** (PR-012, `0.1.0`) — which the owner has to ask for; after that #35, #31, #32, #44 and the
+`compactLevel` follow-up of #48.
