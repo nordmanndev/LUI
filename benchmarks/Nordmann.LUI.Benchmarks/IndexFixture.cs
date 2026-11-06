@@ -22,7 +22,7 @@ internal sealed class IndexFixture : IDisposable
     }
 
     /// <summary>Creates the index: one word or several, with the typo tolerance the caller asks for.</summary>
-    private ILuiEmbeddedIndex<long, LuiNoPayload> Create(CorpusKind kind, bool typoTolerance)
+    private ILuiEmbeddedIndex Create(CorpusKind kind, bool typoTolerance)
     {
         if (kind == CorpusKind.MultiWord)
         {
@@ -42,7 +42,7 @@ internal sealed class IndexFixture : IDisposable
 
     internal LuiCatalog Catalog { get; }
 
-    internal ILuiEmbeddedIndex<long, LuiNoPayload> Index { get; }
+    internal ILuiEmbeddedIndex Index { get; }
 
     public void Dispose()
     {

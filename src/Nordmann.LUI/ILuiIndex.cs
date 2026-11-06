@@ -5,18 +5,22 @@ namespace Nordmann.LUI;
 /// (LUI-Spezifikation §2). It only reads; what keeps an index in order — <c>Check</c>, the typo dictionary's warm-up and
 /// rebuild — belongs to the interfaces that write (review of 2026-11-04, B.3). Every index has this interface, whatever its content
 /// source; an index whose content the application writes through LUI is also an
-/// <see cref="ILuiEmbeddedIndex{TKey, TPayload}"/>. An index is a singleton and safe
+/// <see cref="ILuiEmbeddedIndex"/>. An index is a singleton and safe
 /// to use from many threads.
 /// </summary>
-/// <typeparam name="TKey">The key of the application: <see cref="long"/> or <see cref="string"/>.</typeparam>
-/// <typeparam name="TPayload">The payload that comes back with a hit; <see cref="LuiNoPayload"/> when there is none.</typeparam>
-public interface ILuiIndex<TKey, TPayload>
+public interface ILuiIndex
 {
     /// <summary>The name of the index.</summary>
     string Name { get; }
 
     /// <summary>How the index is searched.</summary>
     LuiIndexKind Kind { get; }
+
+    /// <summary>
+    /// What the keys of the index are: numbers or texts (ADR-0035). A key of the other kind is refused on the write; a
+    /// <c>Linked</c> index has numbers — the INTEGER PRIMARY KEY of its table.
+    /// </summary>
+    LuiKeyKind KeyKind { get; }
 
     /// <summary>
     /// Whether a query of this instance corrects a typo unless it says otherwise (<c>TypoTolerance()</c> of the builder,
@@ -38,12 +42,12 @@ public interface ILuiIndex<TKey, TPayload>
     /// <summary>Starts a query (fluent); <c>Execute()</c> runs it.</summary>
     /// <param name="text">What the user typed.</param>
     /// <returns>The query.</returns>
-    LuiQuery<TKey, TPayload> Query(string text);
+    LuiQuery Query(string text);
 
     /// <summary>Runs a query — with the default options, or with options that come from a file or a form.</summary>
     /// <param name="text">What the user typed.</param>
     /// <param name="options">The options; <see langword="null"/> takes the defaults.</param>
     /// <param name="cancellationToken">Checked while the candidates are read.</param>
     /// <returns>The answer.</returns>
-    LuiResult<TKey, TPayload> Search(string text, LuiQueryOptions? options = null, CancellationToken cancellationToken = default);
+    LuiResult Search(string text, LuiQueryOptions? options = null, CancellationToken cancellationToken = default);
 }

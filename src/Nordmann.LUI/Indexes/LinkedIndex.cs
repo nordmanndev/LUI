@@ -14,9 +14,8 @@ namespace Nordmann.LUI.Indexes;
 /// opened read-only refuses every write with a <see cref="LuiReadOnlyException"/>.
 /// </para>
 /// </summary>
-/// <typeparam name="TPayload">The payload that comes back with a hit.</typeparam>
 #pragma warning disable CA1001 // see TypoDictionary: the lock of the dictionary needs no disposal, and an index lives as long as its catalog
-internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
+internal sealed class LinkedIndex : ILuiLinkedIndex
 #pragma warning restore CA1001
 {
     /// <summary>The rows a sync indexes per statement: the cancellation is checked between chunks.</summary>
@@ -33,14 +32,14 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
     private readonly Database _database;
     private readonly LinkedSource _source;
     private readonly TypoDictionary _typos;
-    private readonly QueryRunner<long, TPayload> _runner;
+    private readonly QueryRunner _runner;
     private readonly IReadOnlyList<string> _payloadColumns;
 
     internal LinkedIndex(
         Database database,
         TypoDictionaries typoDictionaries,
         LinkedSource source,
-        PayloadReader<TPayload> payload,
+        PayloadReader payload,
         ILuiSimilarity similarity,
         bool typoTolerance)
     {
@@ -49,13 +48,15 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
         Name = source.IndexName;
         Kind = source.Rules.Kind;
         _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql));
-        _runner = new QueryRunner<long, TPayload>(database, source, payload, similarity, _typos, typoTolerance);
+        _runner = new QueryRunner(database, source, payload, similarity, _typos, typoTolerance);
         _payloadColumns = payload.Columns;
     }
 
     public string Name { get; }
 
     public LuiIndexKind Kind { get; }
+
+    public LuiKeyKind KeyKind => LuiKeyKind.Number;
 
     public bool TypoTolerance => _runner.TypoTolerance;
 
@@ -102,9 +103,9 @@ internal sealed class LinkedIndex<TPayload> : ILuiLinkedIndex<TPayload>
             : LuiTriggerState.Stale;
     }
 
-    public LuiQuery<long, TPayload> Query(string text) => new(this, text);
+    public LuiQuery Query(string text) => new(this, text);
 
-    public LuiResult<long, TPayload> Search(
+    public LuiResult Search(
         string text,
         LuiQueryOptions? options = null,
         CancellationToken cancellationToken = default) =>

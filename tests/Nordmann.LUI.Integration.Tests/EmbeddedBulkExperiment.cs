@@ -130,7 +130,7 @@ public sealed class EmbeddedBulkExperiment(ITestOutputHelper output)
         }
     }
 
-    private static (double P50, double P95) Queries95(ILuiIndex<long, LuiNoPayload> index, List<string> inputs)
+    private static (double P50, double P95) Queries95(ILuiIndex index, List<string> inputs)
     {
         foreach (var input in inputs.Take(200))
         {

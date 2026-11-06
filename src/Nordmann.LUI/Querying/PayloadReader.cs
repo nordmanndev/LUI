@@ -3,21 +3,20 @@ using Microsoft.Data.Sqlite;
 namespace Nordmann.LUI.Querying;
 
 /// <summary>
-/// Reads the payload of a hit from the row of the hits statement (<c>ContentSource.HitsSql</c>), starting at
-/// the column after the key. Where the payload comes from is a matter of the content source: bytes of a
-/// serialiser for <c>Embedded</c>, columns of the application's table for <c>Linked</c>. The reader names its
-/// columns, and the hits statement is built from that list — the columns and the order they are read in are
-/// decided in one place (review of pull request 14, S3).
+/// Reads the payload of a hit out of its row (ADR-0035): the stored bytes of an embedded index, or what the map of a
+/// linked index builds out of its columns. Nothing is deserialised here — the hit does that when it is asked.
 /// </summary>
-/// <typeparam name="TPayload">The payload type.</typeparam>
-internal abstract class PayloadReader<TPayload>
+internal abstract class PayloadReader
 {
-    /// <summary>The column of the hits statement where the payload begins.</summary>
+    /// <summary>The first column of the payload in the row of a hit: after <c>doc_id</c> and <c>key</c>.</summary>
     internal const int FirstColumn = 2;
 
-    /// <summary>The columns of the content table the payload is read from, in the order <see cref="Read"/> reads them.</summary>
+    /// <summary>The columns the payload is read from.</summary>
     internal abstract IReadOnlyList<string> Columns { get; }
 
-    /// <summary>The payload of the current row; the default when there is none.</summary>
-    internal abstract TPayload? Read(SqliteDataReader row);
+    /// <summary>Where the payloads come from, for the hits.</summary>
+    internal abstract PayloadSource Source { get; }
+
+    /// <summary>The payload of the row; <see langword="null"/> when it has none.</summary>
+    internal abstract object? Read(SqliteDataReader row);
 }

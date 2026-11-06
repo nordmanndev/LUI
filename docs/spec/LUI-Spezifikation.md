@@ -214,11 +214,14 @@ gewünschten passt. Eine Abweichung ist ein Fehler mit klarer Meldung — ein
 Index wird nie stillschweigend umgebaut (§ 12.2).
 
 Die Definition ist JSON und trägt alles, was ein **geöffneter** Index braucht:
-die Art, die Quelle, den Schlüsseltyp, die Faltversion, **den Typ der Payload**
-(`null` ohne Payload) und — bei einem verknüpften Index mit Payload — **die
-Spalten des Payloads in ihrer Reihenfolge**. Damit kann ein Index gelesen
-werden, ohne dass die Anwendung etwas dazutun muss (ADR-0033): `Index` liest
-die Definition, prüft Schemaversion, Faltversion und die Typen und baut den
+die Art, die Quelle, **die Art des Schlüssels** (Zahlen oder Texte), die
+Faltversion und — bei einem verknüpften Index mit Payload — **die Spalten des
+Payloads in ihrer Reihenfolge**. **Keinen Typ der Anwendung** (ADR-0035): Die
+Payload ist Bytes, die der Serialisierer des Katalogs schreibt und liest; was sie
+ist, verantwortet die Anwendung. Eine ältere Definition mit `payload` und
+`payloadType` wird gelesen, die beiden Felder werden übergangen. Damit kann ein
+Index gelesen werden, ohne dass die Anwendung etwas dazutun muss (ADR-0033):
+`Index` liest die Definition, prüft Schemaversion und Faltversion und baut den
 Index daraus auf — **ohne zu schreiben**: keine Tabelle, keine Definition, kein
 Schreib-Lock.
 
@@ -290,6 +293,22 @@ CREATE VIRTUAL TABLE lui_tags_fts USING fts5(
 Die Formen (`s_norm`, `s_compact`, Präfixe, Rowid) berechnen dieselben SQL-Ausdrücke wie die berechneten
 Spalten bei `Embedded`, nur in den Statements, die den Index schreiben. Kandidaten und Treffer lesen Text und
 Payload über den Primärschlüssel aus der Tabelle der Anwendung; der Text liegt nicht doppelt in der Datei.
+
+**Was LUI bei `Linked` behält — und was nicht** (ADR-0035): **keine Kopie der Zeile.** Der Suchindex hält den
+normalisierten Text der Textspalte; `lui_<index>` hält die Dokument-Id, die gepackte Rowid — Priorität und Gewicht,
+also die Reihenfolge der Kandidaten — und die beiden Präfixe. **Text und Payload** eines Treffers werden **beim Lesen**
+aus der Tabelle der Anwendung geholt. Daraus folgt:
+
+| Ändert sich in der Tabelle … | sichtbar … |
+|---|---|
+| eine Spalte der Payload | sofort, beim nächsten Treffer |
+| der **Text** | im Treffer sofort, solange die Zeile noch gefunden wird; **suchbar** erst nach `Refresh`/`Sync`/`ApplyPending` — nur der normalisierte Text ist im Suchindex. Bis dahin ist ein Kandidat, dessen aktueller Text die Eingabe nicht mehr enthält, kein Treffer (siehe unten) |
+| das Gewicht oder die Priorität | erst nach `Refresh`/`Sync`/`ApplyPending`, im Treffer und in der Reihenfolge: beide stehen in der gepackten Rowid |
+| eine gelöschte Zeile | sofort kein Treffer mehr; der Eintrag im Suchindex geht mit `Refresh`/`Sync`/`ApplyPending` |
+
+Die Payload eines verknüpften Index ist darum **keine gespeicherte Payload**: Die Anwendung nennt die Spalten und
+eine Abbildung, die aus der Zeile ihr Objekt baut (`WithPayload(columns, map)`, § 12.3). Den Serialisierer des
+Katalogs braucht sie nicht.
 
 Voraussetzungen, geprüft bei jedem `Create()` (sonst `LuiLinkedTableException`, nichts wird geändert):
 
@@ -428,27 +447,33 @@ Ein Test hält den Plan fest (§ 19).
 ### 8.3 Ergebnis
 
 ```csharp
-public sealed record LuiResult<TKey, TPayload>
+public sealed record LuiResult
 {
     public required string Query { get; init; }
-    public required IReadOnlyList<LuiHit<TKey, TPayload>> Hits { get; init; }
+    public required IReadOnlyList<LuiHit> Hits { get; init; }
     public int CandidatesConsidered { get; init; }  // wie viele bewertet wurden (≤ Candidates)
     public bool Truncated { get; init; }            // es gab mehr als Candidates Kandidaten
     public string? CorrectedQuery { get; init; }    // gesetzt, wenn die Tippfehler-Korrektur gegriffen hat
     public LuiTimings? Timings { get; init; }       // nur mit .TrackTimings()
 }
 
-public readonly record struct LuiHit<TKey, TPayload>
+public readonly record struct LuiHit
 {
-    public required TKey Key { get; init; }
+    public required LuiKey Key { get; init; }       // eine Zahl oder ein Text (§ 12.3)
     public required string Text { get; init; }
-    public TPayload? Payload { get; init; }
     public int Weight { get; init; }
     public LuiPriority Priority { get; init; }
     public double Similarity { get; init; }
     public bool AtWordStart { get; init; }
+    public bool HasPayload { get; }
+    public T? GetPayload<T>();                       // gelesen, wo sie gebraucht wird (ADR-0035)
+    public bool TryGetPayload<T>(out T payload);
 }
 ```
+
+Der Treffer kennt **keinen Typ der Payload** (ADR-0035): Die Abfrage reicht die gespeicherten Bytes durch, und
+`GetPayload<T>()` liest sie mit dem Serialisierer des Katalogs als den Typ, den der Aufrufer verlangt — bei jedem
+Aufruf, nicht vorher. Ein Treffer, dessen Payload nie gelesen wird, kostet keine Deserialisierung.
 
 Die Ergebnistypen haben **benannte Eigenschaften, keine Positionen** (ADR-0013): Ein neues Feld ist eine
 Ergänzung, kein Bruch, und zwei Felder gleichen Typs können nicht still die Plätze tauschen. Eine Markierung
@@ -655,8 +680,12 @@ using var lui = LuiCatalog.Open("Data Source=app.db", new LuiCatalogOptions
     CacheSizeMegabytes = 256,
     MemoryMapMegabytes = 1024,
     TimeProvider = TimeProvider.System,
+    PayloadSerializer = LuiPayloadSerializer.Json(AppJsonContext.Default),   // die Payloads aller eingebetteten Indizes
 });
 ```
+
+Der **Serialisierer der Payloads gehört dem Katalog** (ADR-0035): einer für alle eingebetteten Indizes der Datei.
+Ohne ihn speichern die Indizes keine Payload (§ 12.3).
 
 Die Optionen sind ein Record mit `init`-Eigenschaften — aus der Konfiguration bindbar — und prüfen jeden Wert,
 wenn er gesetzt wird (ADR-0013).
@@ -668,18 +697,17 @@ jeden Schreibvorgang (§ 7.1, § 12.8). Dieselbe Anwendung läuft damit im schre
 ### 12.2 Index anlegen (fluent)
 
 ```csharp
-// eingebettet — der Standard: eigene Inhaltstabelle, Schlüssel long
-ILuiEmbeddedIndex<long, RecipeChip> recipes = lui.Create("recipes", index =>   // der Name
-    index.MultiWord()                                                          // die Art; danach: Embedded mit long-Schlüssel
-        .WithPayload(RecipeJsonContext.Default.RecipeChip)                      // System.Text.Json, quellgeneriert (AOT)
-        .Similarity(LuiSimilarity.NgramDice)                                    // Standard für MultiWord, hier explizit
+// eingebettet — der Standard: eigene Inhaltstabelle, Zahlen als Schlüssel
+ILuiEmbeddedIndex recipes = lui.Create("recipes", index =>   // der Name
+    index.MultiWord()                                        // die Art; danach: Embedded mit Zahlen als Schlüssel
+        .Similarity(LuiSimilarity.NgramDice)                  // Standard für MultiWord, hier explizit
         .TypoTolerance());
 
-// ohne Payload, mit einem Text-Schlüssel
-ILuiEmbeddedIndex<string, LuiNoPayload> words = lui.Create("words", index => index.SingleWord().WithKey<string>());
+// mit Texten als Schlüssel
+ILuiEmbeddedIndex words = lui.Create("words", index => index.SingleWord().WithKey(LuiKeyKind.Text));
 
 // verknüpft: liest eine Tabelle der Anwendung, ohne sie zu ändern (ADR-0015)
-ILuiLinkedIndex<TagChip> labels = lui.Create("labels", index =>   // der Name
+ILuiLinkedIndex labels = lui.Create("labels", index =>   // der Name
     index.SingleWord()
         .LinkTo(table: "tag", key: "id", text: "name", weight: "usage_count", priority: "priority")
         .WithPayload(["slug", "color"], row => new TagChip(row.GetString("slug"), row.GetString("color")))   // aus Spalten der Tabelle
@@ -701,48 +729,61 @@ mehr anlegen. Auf einer nur lesbaren Datei verweigert `Create` den Dienst
 Regeln:
 
 - **Jede Stufe ist ein eigener Typ** und bietet nur an, was auf sie folgen darf: Ein Index ohne Art lässt sich
-  nicht kompilieren. Nach der Art ist der Index `Embedded` mit einem `long`-Schlüssel; `WithKey<string>()` wählt
-  einen Text-Schlüssel und prüft den Typ dort, wo er gewählt wird (ADR-0015).
-- Ein Index beginnt **ohne Payload** (`LuiNoPayload`); `WithPayload(…)` gibt ihm eine und behält die
-  Einstellungen, die davor gemacht wurden.
-- **`LinkTo(…)`** wechselt zu einem verknüpften Index — angeboten nur, solange weder `WithKey` noch `WithPayload`
-  gewählt ist: Ein verknüpfter Index hat den Schlüssel seiner Tabelle und liest seine Payload aus deren Spalten.
-  Der Compiler hält das fest. Gewicht und Priorität sind optional.
+  nicht kompilieren. Nach der Art ist der Index `Embedded` mit Zahlen als Schlüssel; `WithKey(LuiKeyKind.Text)`
+  wählt Texte (ADR-0035). **Kein Schritt nennt einen Typ der Anwendung**: Jeder Eintrag eines eingebetteten Index
+  darf eine Payload tragen, die der Serialisierer des Katalogs schreibt.
+- **`LinkTo(…)`** wechselt zu einem verknüpften Index; nach `WithKey(LuiKeyKind.Text)` verweigert es das
+  (`InvalidOperationException`): Ein verknüpfter Index hat die Zahlen seiner Tabelle als Schlüssel und liest seine
+  Payload aus deren Spalten. Gewicht und Priorität sind optional.
 - `Create()` ist **idempotent**: Existiert der Index mit gleicher Definition,
   wird er geöffnet; weicht die Definition ab, wird mit einer Meldung abgebrochen,
   die beide Definitionen nennt. Bei `Linked` gehören Tabelle und Spalten zur Definition.
-  Der Typ der Payload gehört zur Definition: Ein Index, der `TagChip` speichert,
-  wird nicht mit `RecipeChip` angelegt (§ 12.3).
+  Die Payload gehört nicht dazu (ADR-0035): Ein Index mit Payloads ist derselbe Index wie einer ohne.
 - `lui.DropIndex(name)` entfernt einen Index samt **seinen** Tabellen — gleich, welche Definition gespeichert ist.
   Die Tabelle der Anwendung und ihre Zeilen bleiben. Hat ein verknüpfter Index Trigger, verlangt das Entfernen
   `DropIndex(name, dropTriggers: true)`; danach ist er nach `Create()` leer und ohne Trigger.
 
 ### 12.3 Schlüssel und Payload
 
-- `TKey` ist `long` oder `string`. Bei `Linked` ist er `long` (Primärschlüssel).
-- **`Embedded`**: Die Payload wird serialisiert gespeichert. Die API nimmt eine
-  `JsonTypeInfo<TPayload>` (AOT- und trimmsicher) oder einen eigenen
-  `ILuiPayloadSerializer<TPayload>`.
+**Der Index kennt keine Typen** (ADR-0035). Die Datei speichert jeden Schlüssel als Text und jede Payload als Bytes;
+der Typ der Payload ist das Wissen des Aufrufers und steht dort, wo die Payload benutzt wird.
+
+- **Der Schlüssel** ist ein `LuiKey`: eine Zahl oder ein Text, ohne Cast aus `long` und `string` gemacht
+  (`index.Remove(42)`, `index.Remove("01J…")`) und mit einem expliziten zurückgelesen (`(long)hit.Key`). Die
+  Umwandlungen in einen Schlüssel verlieren nichts und werfen nie; die heraus werfen für die andere Art
+  (`InvalidCastException`). `1` und `"1"` sind verschiedene Schlüssel. Die Definition merkt sich, ob die Schlüssel
+  eines Index Zahlen oder Texte sind (`ILuiIndex.KeyKind`); ein Schlüssel der anderen Art ist beim Schreiben ein
+  `ArgumentException`. Bei `Linked` sind es die Zahlen des Primärschlüssels.
+- **`Embedded`**: Die Payload wird serialisiert gespeichert — von **einem Serialisierer des Katalogs**
+  (`LuiCatalogOptions.PayloadSerializer`, ein `ILuiPayloadSerializer` ohne Typparameter). Er schreibt eine Payload
+  mit dem Typ, den sie zur Laufzeit hat, und liest sie mit dem Typ, den der Aufrufer verlangt.
+  `LuiPayloadSerializer.Json(context)` ist der, den LUI mitbringt: der `JsonSerializerContext` der Anwendung,
+  quellgeneriert, also sicher fürs Trimming und AOT. Ein Typ, der nicht im Context steht, ist beim Schreiben ein
+  `NotSupportedException`, das ihn nennt. Ohne Serialisierer speichert der Katalog keine Payload; ein Eintrag mit
+  einer ist ein `InvalidOperationException`. `null` heißt „keine Payload", jeder andere Wert ist eine — auch `0`.
 - **`Linked`**: Die Payload wird aus Spalten der Tabelle gelesen; die API nimmt
   die Liste der benötigten Spalten und eine Abbildung `Func<LuiPayloadRow, TPayload>`. Die Spalten werden mit den
   Treffern gelesen, in dieser Reihenfolge; `LuiPayloadRow` kennt nur sie und gilt nur, solange die Abbildung läuft.
+  Die Abbildung ist Code der Anwendung und steht darum nicht in der Datei: Sie wird beim Anlegen und beim Öffnen
+  übergeben (§ 12.9); der Typ folgt aus ihr.
 - In beiden Fällen: Payload **nur für die Treffer**, eine Abfrage
-  `WHERE key IN (…)` bzw. `WHERE id IN (…)`.
-- **Die Definition merkt sich den Typ der Payload** (ADR-0033): Beim Erstellen wird er aus dem Typparameter des
-  Builders geschrieben, beim Öffnen wird er geprüft. Ein Index, der `TagChip` speichert, wird nicht mit
-  `RecipeChip` geöffnet — das ist ein `LuiDefinitionMismatchException`, das beide Typen nennt. Der **Serialisierer**
-  wird nicht gespeichert: er ist ein Objekt der Anwendung, und die Anwendung übergibt ihn beim Öffnen (§ 12.9).
+  `WHERE key IN (…)` bzw. `WHERE id IN (…)`. **Gelesen wird sie im Treffer**, mit `hit.GetPayload<T>()` oder
+  `hit.TryGetPayload<T>(out var payload)`. Lässt sie sich nicht als `T` lesen — ein Typ, der nicht im Context steht,
+  ein Katalog ohne Serialisierer, eine Abbildung, die etwas anderes baute —, ist das ein `LuiPayloadException`, das
+  den Index, den Schlüssel und den verlangten Typ nennt.
+- **Die Definition merkt sich keinen Typ der Payload** (ADR-0035). Ändert die Anwendung den Typ ihrer Payload, ist
+  das ihre Sache; die Bibliothek merkt es frühestens, wenn der Serialisierer die Bytes nicht lesen kann.
 
 ### 12.4 Schreiben (`Embedded`)
 
-Lesen und Schreiben sind zwei Schnittstellen (ADR-0013): `ILuiIndex<TKey, TPayload>` hat jeder Index und liest nur —
-`Query`, `Search`, `Count`, `TypoTolerance`, `TypoDictionaryState` —; `ILuiEmbeddedIndex<TKey, TPayload>` ergänzt die
+Lesen und Schreiben sind zwei Schnittstellen (ADR-0013): `ILuiIndex` hat jeder Index und liest nur —
+`Query`, `Search`, `Count`, `KeyKind`, `TypoTolerance`, `TypoDictionaryState` —; `ILuiEmbeddedIndex` ergänzt die
 Schreibmethoden und die Pflege des Index (`Check`, `WarmUpTypoDictionary`, `RebuildTypoDictionary`; ADR-0024). Dasselbe gilt für
-`ILuiLinkedIndex<TPayload>`. Ein Eintrag ist ein `LuiEntry<TKey, TPayload>`; ein Upsert speichert **ihn ganz** — Text,
-Gewicht, Priorität und Payload.
+`ILuiLinkedIndex`. Keine der Schnittstellen hat einen Typparameter (ADR-0035). Ein Eintrag ist ein `LuiEntry`; ein
+Upsert speichert **ihn ganz** — Text, Gewicht, Priorität und Payload.
 
 ```csharp
-recipes.Upsert(new LuiEntry<long, RecipeChip>(42, "Gedeckter Apfelkuchen") { Weight = 9000, Payload = chip });
+recipes.Upsert(new LuiEntry(42, "Gedeckter Apfelkuchen") { Weight = 9000, Payload = chip });
 recipes.UpdateWeight(42, 9500);
 recipes.Remove(42);
 
@@ -753,11 +794,11 @@ words.UpdatePriority("vegan", LuiPriority.Normal);
 // in der Transaktion der Anwendung — Fachdaten und Index ändern sich atomar
 using var tx = connection.BeginTransaction();
 // … eigenes INSERT …
-recipes.Upsert(new LuiEntry<long, RecipeChip>(42, "Gedeckter Apfelkuchen") { Weight = 9000, Payload = chip }, tx);
+recipes.Upsert(new LuiEntry(42, "Gedeckter Apfelkuchen") { Weight = 9000, Payload = chip }, tx);
 tx.Commit();
 
 // viele Einträge in einer Transaktion — so wird ein Index gefüllt, nie Zeile für Zeile
-recipes.UpsertMany(rows.Select(r => new LuiEntry<long, RecipeChip>(r.Id, r.Title) { Weight = r.Views }));
+recipes.UpsertMany(rows.Select(r => new LuiEntry(r.Id, r.Title) { Weight = r.Views }));
 
 // Abgleich mit einer Quelle: ergänzt, was fehlt, ändert, was abweicht, entfernt, was die Quelle nicht hat (ADR-0016)
 LuiSyncReport report = recipes.Sync(entries, new LuiSyncOptions { BatchSize = 10_000, Progress = progress }, cancellationToken);
@@ -798,7 +839,7 @@ Derselbe Anwendungscode läuft damit im schreibenden und im nur lesenden Dienst.
 ### 12.5 Abfragen (fluent)
 
 ```csharp
-LuiResult<long, RecipeChip> result = recipes
+LuiResult result = recipes
     .Query("apfelkuch")
     .Take(20)                                        // MaxResults, Standard 20
     .Candidates(500)                                 // Standard 500
@@ -812,6 +853,7 @@ LuiResult<long, RecipeChip> result = recipes
 
 // kurz, mit den Standardwerten:
 var hits = recipes.Search("apfelkuch").Hits;
+RecipeChip? chip = hits[0].GetPayload<RecipeChip>();   // der Typ steht, wo die Payload gebraucht wird
 
 // ohne Builder, für Konfiguration aus Dateien:
 var same = recipes.Search("apfelkuch", new LuiQueryOptions { MaxResults = 20 });
@@ -842,14 +884,13 @@ speichert ihn nicht; eine Abfrage zeigt ihn trotzdem nie (§ 7.3), und `Sync()` 
 ### 12.7 Dependency Injection
 
 ```csharp
-services.AddLui("Data Source=app.db");   // oder AddLui(sp => …Verbindungszeichenfolge aus der Konfiguration…)
+services.AddLui("Data Source=app.db", new LuiCatalogOptions { PayloadSerializer = LuiPayloadSerializer.Json(AppJsonContext.Default) });
 
 // Verwendung: der Katalog wird injiziert — der Index wird beim Bedarf geholt
 public sealed class SuggestEndpoint(LuiCatalog catalog)
 {
     public IReadOnlyList<string> Suggest(string q) =>
-        catalog.Index<long, RecipeChip>("recipes", RecipeJsonContext.Default.RecipeChip)
-            .Search(q).Hits.Select(hit => hit.Text).ToList();
+        catalog.Index("recipes").Search(q).Hits.Select(hit => hit.Text).ToList();
 }
 ```
 
@@ -875,7 +916,11 @@ public sealed class SuggestEndpoint(LuiCatalog catalog)
 | Situation | Ausnahme |
 |---|---|
 | ungültiger Index- oder Spaltenname | `ArgumentException` mit dem erlaubten Muster |
-| Schlüsseltyp weder `long` noch `string` | `NotSupportedException` bei `WithKey<TKey>()` |
+| eine Art des Schlüssels, die es nicht gibt | `ArgumentOutOfRangeException` bei `WithKey(kind)` |
+| ein Schlüssel der anderen Art (eine Zahl für Texte, ein Text für Zahlen) | `ArgumentException` beim Schreiben (nennt den Index und beide Arten) |
+| eine Payload, deren Typ der Serialisierer nicht kennt | `NotSupportedException` beim Schreiben (nennt den Typ) |
+| eine Payload in einem Katalog ohne Serialisierer | `InvalidOperationException` beim Schreiben |
+| eine Payload, die sich nicht als der verlangte Typ lesen lässt | `LuiPayloadException` bei `GetPayload<T>()` (nennt Index, Schlüssel und Typ) |
 | Definition weicht von `lui_meta` ab | `LuiDefinitionMismatchException` (nennt beide) |
 | Index gibt es nicht (beim Öffnen) | `LuiIndexNotFoundException` (nennt den Namen) |
 | SQLite zu alt, ohne FTS5-Trigram-Tokenizer oder mit anderer Faltung | `LuiEnvironmentException` beim `LuiCatalog.Open` |
@@ -885,8 +930,8 @@ public sealed class SuggestEndpoint(LuiCatalog catalog)
 | ein `LuiPayloadRow`, der nach der Abbildung von `WithPayload` gelesen wird | `InvalidOperationException` (die Zeile gilt nur, solange die Abbildung läuft) |
 | die Datei darf nicht geschrieben werden (`Mode=ReadOnly`) | `LuiReadOnlyException` (nennt den verweigerten Vorgang; § 7.1) |
 
-Die fünf Ausnahmen der Bibliothek — `LuiEnvironmentException`, `LuiDefinitionMismatchException`,
-`LuiLinkedTableException`, `LuiIndexNotFoundException` und `LuiReadOnlyException` — haben die gemeinsame, abstrakte
+Die sechs Ausnahmen der Bibliothek — `LuiEnvironmentException`, `LuiDefinitionMismatchException`,
+`LuiLinkedTableException`, `LuiIndexNotFoundException`, `LuiReadOnlyException` und `LuiPayloadException` — haben die gemeinsame, abstrakte
 Basis `LuiException`, die ihrerseits eine `InvalidOperationException` ist: `catch (LuiException)`
 trennt die Fälle der Bibliothek von den Fehlern der Anwendung, und ein bestehendes `catch (InvalidOperationException)` fängt sie
 weiter (ADR-0024).
@@ -899,25 +944,24 @@ geschrieben**: keine Tabelle, keine Definition, kein Schreib-Lock, kein Wörterb
 die anderswo geschrieben wird: eine Replikation, eine Datei im Modus `ro`, ein Dienst, der nicht schreiben darf.
 
 ```csharp
-// typisiert: die Typen der Anwendung — der Schlüssel und die Payload
-ILuiEmbeddedIndex<long, TagChip> opened = lui.Index<long, TagChip>("tags", TagJsonContext.Default.TagChip);
+// eingebettet: nur der Name — die Art des Schlüssels steht in der Datei
+ILuiEmbeddedIndex opened = lui.Index("tags");
 
 foreach (var hit in opened.Search("vegan").Hits)
 {
-    Console.WriteLine($"{hit.Key}: {hit.Text}");   // 1: vegan
+    Console.WriteLine($"{hit.Key}: {hit.Text} {hit.GetPayload<TagChip>()?.Color}");   // 1: vegan #3a3
 }
 
 // verknüpft: die Spalten stehen in der Definition, die Abbildung ist die der Anwendung
-ILuiLinkedIndex<TagChip> openedLabels = lui.Index<TagChip>("labels", row => new TagChip(row.GetString("slug"), row.GetString("color")));
+ILuiLinkedIndex openedLabels = lui.LinkedIndex("labels", row => new TagChip(row.GetString("slug"), row.GetString("color")));
 
 // verknüpft ohne Payload
-ILuiLinkedIndex<LuiNoPayload> openedTagWords = lui.Index("tagwords");
+ILuiLinkedIndex openedTagWords = lui.LinkedIndex("tagwords");
 ```
 
-Die **Payload** kommt mit der `JsonTypeInfo` der Anwendung — quellgeneriert, also sicher fürs Trimming und AOT. Eine
-Payload, die kein JSON ist, bringt ihren eigenen Serialisierer mit:
-`lui.Index<long, TagChip>("tags", new MySerializer())`. Ein Index ohne Payload wird ohne Argument geöffnet:
-`lui.Index<string, LuiNoPayload>("words")`.
+Beim Öffnen wird **kein Typ genannt** (ADR-0035): Die Art des Schlüssels kommt aus der Datei, die **Payload** liest
+der Serialisierer des Katalogs, der die Datei öffnet, mit dem Typ, den der Treffer verlangt. Der Name sagt die
+Quelle: `Index` öffnet einen eingebetteten Index, `LinkedIndex` einen verknüpften.
 
 Regeln:
 
@@ -925,9 +969,9 @@ Regeln:
   table" aus SQLite.
 - **Die Datei muss von dieser Version von LUI sein**: Schemaversion und Faltversion der Definition werden geprüft; eine
   fremde Version ist ein `LuiDefinitionMismatchException`, das die gefundene und die erwartete nennt.
-- **Die Typen werden geprüft** (nur beim typisierten Öffnen): ein Schlüsseltyp, den die Datei nicht hat, eine Payload,
-  die der Index nicht speichert, oder ein **anderer Typ der Payload** als der in der Definition gespeicherte ist ein
-  `LuiDefinitionMismatchException` — er nennt beide (§ 12.3).
+- **Die Quelle wird geprüft**: `Index` auf einem verknüpften Index, `LinkedIndex` auf einem eingebetteten,
+  `LinkedIndex(name)` auf einem Index mit Payload-Spalten und `LinkedIndex(name, map)` auf einem ohne sind ein
+  `LuiDefinitionMismatchException`, das beide nennt. Ein Typ wird nicht geprüft — die Datei kennt keinen (§ 12.3).
 - **Die Ähnlichkeit ist der Standard der Art** des Index, die **Tippfehler-Toleranz ist aus**: ein geöffneter Index
   korrigiert nichts. Eine Abfrage fragt danach (`LuiQueryOptions.TypoTolerance`, `LuiQueryOptions.Similarity`).
 - **Ein geöffneter Index schreibt, wenn die Datei es erlaubt**: Der Index ist ein Blick auf die Datei, keine Kopie

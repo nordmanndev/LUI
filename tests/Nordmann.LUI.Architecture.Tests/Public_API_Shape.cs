@@ -1,5 +1,4 @@
 using System.Reflection;
-using System.Text.Json.Serialization.Metadata;
 using Microsoft.Extensions.DependencyInjection;
 using NetArchTest.Rules;
 using Shouldly;
@@ -88,7 +87,7 @@ public sealed class Public_API_Shape
         // that swap places do not even fail to compile (ADR-0013).
         string[] named =
         [
-            "LuiHit`2", "LuiResult`2", "LuiTimings", "LuiQueryOptions", "LuiCatalogOptions",
+            "LuiHit", "LuiResult", "LuiTimings", "LuiQueryOptions", "LuiCatalogOptions",
             "LuiLinkedSyncReport", "LuiSyncOptions", "LuiSyncReport", "LuiIntegrityReport",
         ];
 
@@ -124,7 +123,7 @@ public sealed class Public_API_Shape
             .ShouldBe(
             [
                 "LuiDefinitionMismatchException", "LuiEnvironmentException", "LuiException",
-                "LuiIndexNotFoundException", "LuiLinkedTableException", "LuiReadOnlyException",
+                "LuiIndexNotFoundException", "LuiLinkedTableException", "LuiPayloadException", "LuiReadOnlyException",
             ]);
     }
 
@@ -140,8 +139,8 @@ public sealed class Public_API_Shape
             .Select(property => renamed.GetValueOrDefault(property.Name, property.Name))
             .Order(StringComparer.Ordinal)
             .ToArray();
-        var settings = typeof(LuiQuery<,>).GetMethods(declared)
-            .Where(method => method.ReturnType.IsGenericType && method.ReturnType.GetGenericTypeDefinition() == typeof(LuiQuery<,>))
+        var settings = typeof(LuiQuery).GetMethods(declared)
+            .Where(method => method.ReturnType == typeof(LuiQuery))
             .Select(method => method.Name)
             .Order(StringComparer.Ordinal)
             .ToArray();
@@ -163,10 +162,10 @@ public sealed class Public_API_Shape
             .. type.GetEvents(declared).Select(@event => @event.Name),
         ];
 
-        Members(typeof(ILuiIndex<,>)).Order(StringComparer.Ordinal)
-            .ShouldBe(["Count", "Kind", "Name", "Query", "Search", "TypoDictionaryState", "TypoTolerance"]);
+        Members(typeof(ILuiIndex)).Order(StringComparer.Ordinal)
+            .ShouldBe(["Count", "KeyKind", "Kind", "Name", "Query", "Search", "TypoDictionaryState", "TypoTolerance"]);
 
-        foreach (var write in new[] { typeof(ILuiEmbeddedIndex<,>), typeof(ILuiLinkedIndex<>) })
+        foreach (var write in new[] { typeof(ILuiEmbeddedIndex), typeof(ILuiLinkedIndex) })
         {
             foreach (var maintenance in new[] { "Check", "WarmUpTypoDictionary", "RebuildTypoDictionary" })
             {
@@ -190,53 +189,66 @@ public sealed class Public_API_Shape
             .ToArray();
 
         offenders.ShouldBeEmpty("No public type, member or parameter says 'Owned' — the content source is 'Embedded'.");
-        types.ShouldContain(type => string.Equals(type.Name, "ILuiEmbeddedIndex`2", StringComparison.Ordinal), "the guard sees the renamed type");
+        types.ShouldContain(type => string.Equals(type.Name, "ILuiEmbeddedIndex", StringComparison.Ordinal), "the guard sees the renamed type");
     }
 
     [Fact]
     public void The_catalog_creates_an_index_and_opens_one_that_is_there()
     {
         // ADR-0033: `Create` is the write path — it was called `Ensure`, and that name is gone (ADR-0026 allows a change of
-        // a name before 0.1.0). `Index` is the read path: it opens an index that is there and writes nothing.
+        // a name before 0.1.0). `Index` and `LinkedIndex` are the read path: they open an index that is there and write
+        // nothing. ADR-0035: none of them names a type of the application — the map of a linked index is the one type
+        // argument, and the compiler infers it from the lambda.
         const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        MethodInfo[] Named(string name) =>
+            [.. typeof(LuiCatalog).GetMethods(declared).Where(method => string.Equals(method.Name, name, StringComparison.Ordinal))];
 
-        var created = typeof(LuiCatalog).GetMethods(declared)
-            .Where(method => string.Equals(method.Name, "Create", StringComparison.Ordinal))
-            .ToArray();
+        var created = Named("Create");
         created.Length.ShouldBe(2, "one Create per content source");
-        created.ShouldContain(method => method.ReturnType.GetGenericTypeDefinition() == typeof(ILuiEmbeddedIndex<,>));
-        created.ShouldContain(method => method.ReturnType.GetGenericTypeDefinition() == typeof(ILuiLinkedIndex<>));
+        created.ShouldAllBe(method => !method.IsGenericMethodDefinition);
+        created.Select(method => method.ReturnType).ShouldBe([typeof(ILuiEmbeddedIndex), typeof(ILuiLinkedIndex)], ignoreOrder: true);
 
-        var opened = typeof(LuiCatalog).GetMethods(declared)
-            .Where(method => string.Equals(method.Name, "Index", StringComparison.Ordinal))
-            .ToArray();
-        opened.Length.ShouldBe(4, "the embedded index with a JsonTypeInfo, the embedded index with a serialiser, the linked index with a payload, the linked index without one");
-        opened.ShouldContain(method => method.IsGenericMethodDefinition
-            && method.GetGenericArguments().Length == 2
-            && method.ReturnType.GetGenericTypeDefinition() == typeof(ILuiEmbeddedIndex<,>));
-        opened.ShouldContain(method => method.IsGenericMethodDefinition
+        var embedded = Named("Index").ShouldHaveSingleItem("an embedded index is opened by its name, and by nothing else");
+        embedded.IsGenericMethodDefinition.ShouldBeFalse();
+        embedded.ReturnType.ShouldBe(typeof(ILuiEmbeddedIndex));
+        embedded.GetParameters().Select(parameter => parameter.ParameterType).ShouldBe([typeof(string)]);
+
+        var linked = Named("LinkedIndex");
+        linked.Length.ShouldBe(2, "a linked index without payload columns, and one with them and the map of the application");
+        linked.ShouldAllBe(method => method.ReturnType == typeof(ILuiLinkedIndex));
+        linked.ShouldContain(method => !method.IsGenericMethodDefinition && method.GetParameters().Length == 1);
+        linked.ShouldContain(method => method.IsGenericMethodDefinition
             && method.GetGenericArguments().Length == 1
-            && method.ReturnType.GetGenericTypeDefinition() == typeof(ILuiLinkedIndex<>));
-        opened.ShouldContain(method => !method.IsGenericMethodDefinition
-            && method.ReturnType == typeof(ILuiLinkedIndex<LuiNoPayload>));
-
-        // the two ways to open an embedded index: the JsonTypeInfo of the application and its own serialiser. They must
-        // not come in the way of each other: a call with one of them resolves to exactly one overload.
-        var embedded = opened
-            .Where(method => method.IsGenericMethodDefinition && method.GetGenericArguments().Length == 2)
-            .Select(method => method.GetParameters().Last().ParameterType.GetGenericTypeDefinition())
-            .ToArray();
-        embedded.ShouldBe(
-        [
-            typeof(JsonTypeInfo<>),
-            typeof(ILuiPayloadSerializer<>),
-        ], ignoreOrder: true);
+            && method.GetParameters().Last().ParameterType.GetGenericTypeDefinition() == typeof(Func<,>));
 
         // the factory of the catalog stays: `Open` opens the catalog, `Index` opens the index (ADR-0033)
         typeof(LuiCatalog).GetMethod(
             "Open",
             BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly,
             [typeof(string), typeof(LuiCatalogOptions)]).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void The_index_knows_no_types()
+    {
+        // ADR-0035: the file stores a key as text and a payload as bytes, whatever a type parameter would say. The types
+        // that a caller holds while working with an index have none — the type of a payload is named where it is read
+        // (GetPayload<T>), and the serialiser that reads it is the catalog's.
+        Type[] untyped =
+        [
+            typeof(ILuiIndex), typeof(ILuiEmbeddedIndex), typeof(ILuiLinkedIndex), typeof(LuiEntry), typeof(LuiHit),
+            typeof(LuiResult), typeof(LuiQuery), typeof(LuiEmbeddedIndexBuilder), typeof(LuiLinkedIndexBuilder),
+            typeof(ILuiPayloadSerializer),
+        ];
+        untyped.Where(type => type.IsGenericType).Select(type => type.Name).ShouldBeEmpty();
+
+        // the payload is read with the type the caller asks for, on the hit
+        typeof(LuiHit).GetMethod(nameof(LuiHit.GetPayload))!.IsGenericMethodDefinition.ShouldBeTrue();
+        typeof(LuiHit).GetProperty("Payload").ShouldBeNull("the payload is a method that deserialises, not a property");
+
+        // one serialiser per catalog
+        typeof(LuiCatalogOptions).GetProperty(nameof(LuiCatalogOptions.PayloadSerializer))!.PropertyType
+            .ShouldBe(typeof(ILuiPayloadSerializer));
     }
 
     [Fact]
@@ -261,6 +273,13 @@ public sealed class Public_API_Shape
             .Select(type => type.Name)
             .ToArray();
         facade.ShouldBeEmpty("the untyped facade is gone");
+
+        // ADR-0035: the placeholder of "no payload" and the typed serialiser are gone with the type parameters
+        PackageAssemblies
+            .SelectMany(assembly => assembly.GetExportedTypes())
+            .Where(type => type.Name is "LuiNoPayload" or "LuiJsonPayloadSerializer`1" or "ILuiPayloadSerializer`1" or "LuiEmbeddedIndexBuilderExtensions")
+            .Select(type => type.Name)
+            .ShouldBeEmpty("the placeholder and the typed serialiser are gone");
     }
 
     [Fact]

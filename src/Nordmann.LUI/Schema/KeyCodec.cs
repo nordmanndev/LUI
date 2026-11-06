@@ -3,44 +3,35 @@ using System.Globalization;
 namespace Nordmann.LUI.Schema;
 
 /// <summary>
-/// The key of the application as the <c>key</c> column holds it. A key is a
-/// <see cref="long"/> or a <see cref="string"/> (LUI-Spezifikation §12.3);
-/// both are stored as text.
+/// The key between the application and the file (ADR-0035): the file stores every key as text, the definition says
+/// whether the texts are numbers (<c>"long"</c>) or texts (<c>"string"</c>) — the names stay those the files already
+/// carry.
 /// </summary>
-internal static class KeyCodec<TKey>
+internal static class KeyCodec
 {
-    internal static string KeyType => Describe();
+    /// <summary>The name of a kind in the definition.</summary>
+    internal static string KeyType(LuiKeyKind kind) => kind == LuiKeyKind.Text ? "string" : "long";
 
-    internal static string ToText(TKey key)
+    /// <summary>The kind of a name in the definition.</summary>
+    internal static LuiKeyKind KindOf(string keyType) =>
+        string.Equals(keyType, "string", StringComparison.Ordinal) ? LuiKeyKind.Text : LuiKeyKind.Number;
+
+    /// <summary>The stored text of a key; a key of the other kind is refused.</summary>
+    internal static string ToText(LuiKey key, LuiKeyKind kind, string indexName)
     {
-        if (typeof(TKey) == typeof(long))
+        if (key.Kind != kind)
         {
-            return ((long)(object)key!).ToString(CultureInfo.InvariantCulture);
+            throw new ArgumentException(
+                $"The index '{indexName}' has keys that are {Describe(kind)}; the key '{key}' is {Describe(key.Kind)}.",
+                nameof(key));
         }
 
-        var text = (string?)(object?)key;
-        ArgumentNullException.ThrowIfNull(text, nameof(key));
-        return text;
+        return key.ToString();
     }
 
-    internal static TKey FromText(string text) =>
-        typeof(TKey) == typeof(long)
-            ? (TKey)(object)long.Parse(text, CultureInfo.InvariantCulture)
-            : (TKey)(object)text;
+    /// <summary>The key of a stored text.</summary>
+    internal static LuiKey FromText(string text, LuiKeyKind kind) =>
+        kind == LuiKeyKind.Number ? long.Parse(text, CultureInfo.InvariantCulture) : text;
 
-    private static string Describe()
-    {
-        if (typeof(TKey) == typeof(long))
-        {
-            return "long";
-        }
-
-        if (typeof(TKey) == typeof(string))
-        {
-            return "string";
-        }
-
-        throw new NotSupportedException(
-            $"A key is a long or a string; '{typeof(TKey)}' is not supported (LUI-Spezifikation §12.3).");
-    }
+    private static string Describe(LuiKeyKind kind) => kind == LuiKeyKind.Text ? "texts" : "numbers";
 }

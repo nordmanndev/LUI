@@ -7,11 +7,9 @@ namespace Nordmann.LUI;
 /// text, weight, priority and payload — in place of the entry with the same key
 /// (LUI-Spezifikation §12.4). The values are checked when they are set.
 /// </summary>
-/// <typeparam name="TKey">The key of the application: <see cref="long"/> or <see cref="string"/>.</typeparam>
-/// <typeparam name="TPayload">The payload that comes back with a hit.</typeparam>
-/// <param name="Key">The key of the application.</param>
+/// <param name="Key">The key of the application: a number or a text, of the kind the index has.</param>
 /// <param name="Text">What is searched and shown; not empty.</param>
-public sealed record LuiEntry<TKey, TPayload>(TKey Key, string Text)
+public sealed record LuiEntry(LuiKey Key, string Text)
 {
     /// <summary>What is searched and shown; not empty.</summary>
     public string Text
@@ -35,8 +33,8 @@ public sealed record LuiEntry<TKey, TPayload>(TKey Key, string Text)
     } = LuiPriority.Normal;
 
     /// <summary>
-    /// Sent back with the hit; stored only if the index has a payload. <see langword="null"/> — and, for a
-    /// value type, its default — means "no payload".
+    /// Sent back with the hit (ADR-0035): any object the serialiser of the catalog can write, written with the type it
+    /// has. <see langword="null"/> means "no payload".
     /// </summary>
-    public TPayload? Payload { get; init; }
+    public object? Payload { get; init; }
 }

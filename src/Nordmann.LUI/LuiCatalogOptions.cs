@@ -51,6 +51,15 @@ public sealed record LuiCatalogOptions
     /// </summary>
     public bool WriteAheadLog { get; init; } = true;
 
+    /// <summary>
+    /// The serialiser of the payloads of every embedded index of the catalog (ADR-0035): it writes a payload with the
+    /// type it has and reads it with the type the caller asks for (<see cref="LuiHit.GetPayload{T}"/>). Default:
+    /// <see langword="null"/> — the indexes store no payloads, and an entry that has one is refused.
+    /// <see cref="LuiPayloadSerializer.Json"/> with the JSON context of the application is the usual one. A
+    /// <c>Linked</c> index does not use it: it builds its payload from the columns of its table.
+    /// </summary>
+    public ILuiPayloadSerializer? PayloadSerializer { get; init; }
+
     /// <summary>The clock of the catalog (<c>created_at</c> in <c>lui_meta</c>). Default: <see cref="TimeProvider.System"/>.</summary>
     public TimeProvider TimeProvider
     {

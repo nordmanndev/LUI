@@ -10,8 +10,9 @@ namespace Nordmann.LUI.Sample.Indexes;
 /// application created on purpose (they note the key in LUI's outbox) and the hosted service that applies the outbox,
 /// or by <c>Refresh</c> when the application tells it.
 /// </summary>
-internal sealed class LinkedSampleIndex<TPayload>(
-    ILuiLinkedIndex<TPayload> index,
+internal sealed class LinkedSampleIndex(
+    ILuiLinkedIndex index,
+    Func<LuiHit, object?> payload,
     string connectionString,
     string payloadDescription,
     string description) : ILinkedSampleIndex
@@ -31,7 +32,7 @@ internal sealed class LinkedSampleIndex<TPayload>(
         index.Triggers().ToString());
 
     public SuggestResponse Suggest(string text, LuiQueryOptions options, CancellationToken cancellationToken) =>
-        SuggestMapper.Run(index, text, options, cancellationToken);
+        SuggestMapper.Run(index, text, options, payload, cancellationToken);
 
     public long UpsertRow(TagRowRequest request)
     {

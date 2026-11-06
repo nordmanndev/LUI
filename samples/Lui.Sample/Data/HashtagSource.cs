@@ -28,7 +28,7 @@ internal sealed class HashtagSource : IBulkSource
 
     public Task PrepareAsync(Action<string>? note, CancellationToken cancellationToken) => Task.CompletedTask;
 
-    public IEnumerable<LuiEntry<long, LuiNoPayload>> Entries(int count)
+    public IEnumerable<LuiEntry> Entries(int count)
     {
         var faker = new Faker("de") { Random = new Randomizer(Seed) };
 
@@ -37,7 +37,7 @@ internal sealed class HashtagSource : IBulkSource
             // The place name of the locale is written as one word: a tag is one token ("Neustadt", not "Neu Stadt").
             var place = faker.Address.City().Replace(" ", string.Empty, StringComparison.Ordinal);
             var text = $"#{place}-{faker.Name.LastName()}";
-            yield return new LuiEntry<long, LuiNoPayload>(i + 1, text) { Weight = BulkWeights.Of(text) };
+            yield return new LuiEntry(i + 1, text) { Weight = BulkWeights.Of(text) };
         }
     }
 }

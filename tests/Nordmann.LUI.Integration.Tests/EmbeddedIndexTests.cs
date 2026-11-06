@@ -71,14 +71,48 @@ public sealed class EmbeddedIndexTests
     }
 
     [Fact]
-    public void A_payload_changes_the_definition()
+    public void A_payload_is_no_part_of_the_definition()
+    {
+        // ADR-0035: every entry of an embedded index may carry a payload, of any type the serialiser of the catalog
+        // writes; the definition names neither a payload nor a type, so the index with payloads is the same index
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Create("tags", index => index.SingleWord()).Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("gruen") });
+
+        Should.NotThrow(() => catalog.Create("tags", index => index.SingleWord()));
+
+        var definition = database.Scalar<string>("SELECT definition FROM lui_meta WHERE index_name = 'tags';");
+        definition.ShouldNotContain("payload", Case.Insensitive);
+        definition.ShouldNotContain(nameof(Chip));
+    }
+
+    [Fact]
+    public void A_payload_whose_type_the_serialiser_does_not_know_is_refused_on_the_write()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create("tags", index => index.SingleWord());
 
-        Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip)));
+        var exception = Should.Throw<NotSupportedException>(
+            () => tags.Upsert(new LuiEntry(1, "vegan") { Payload = new Uri("https://example.org") }));
+
+        exception.Message.ShouldContain("System.Uri");
+        tags.Count().ShouldBe(0, "nothing was written");
+    }
+
+    [Fact]
+    public void A_payload_in_a_catalog_without_a_serialiser_is_refused_on_the_write()
+    {
+        using var database = new TestDatabase();
+        using var catalog = LuiCatalog.Open(database.ConnectionString);
+        var tags = catalog.Create("tags", index => index.SingleWord());
+
+        var exception = Should.Throw<InvalidOperationException>(
+            () => tags.UpsertMany([new LuiEntry(1, "vegan"), new LuiEntry(2, "veganer") { Payload = new Chip("v") }]));
+
+        exception.Message.ShouldContain(nameof(LuiCatalogOptions.PayloadSerializer));
+        tags.Count().ShouldBe(0, "the batch is one transaction");
+        Should.NotThrow(() => tags.Upsert(3, "ohne"), "an entry without a payload needs no serialiser");
     }
 
     [Fact]
@@ -89,7 +123,7 @@ public sealed class EmbeddedIndexTests
         catalog.Create("tags", index => index.SingleWord());
 
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Create("tags", index => index.SingleWord().WithKey<string>()));
+            () => catalog.Create("tags", index => index.SingleWord().WithKey(LuiKeyKind.Text)));
     }
 
     [Fact]
@@ -310,7 +344,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().WithKey<string>());
+        var tags = catalog.Create("tags", index => index.SingleWord().WithKey(LuiKeyKind.Text));
 
         tags.Upsert("rezept-42", "apfelkuchen", 10);
         tags.UpdateWeight("rezept-42", 11).ShouldBeTrue();
@@ -324,23 +358,24 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip));
+        var tags = catalog.Create("tags", index => index.SingleWord());
 
         tags.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan", "#0a0") });
         tags.Upsert(2, "veganer-kuchen", 4);
 
         var hits = tags.Query("vegan").Rank(LuiRankingOrder.WeightOnly).Execute().Hits;
-        hits[0].Payload.ShouldBe(new Chip("vegan", "#0a0"));
-        hits[1].Payload.ShouldBeNull();
+        hits[0].GetPayload<Chip>().ShouldBe(new Chip("vegan", "#0a0"));
+        hits[1].HasPayload.ShouldBeFalse();
     }
 
     [Fact]
-    public void A_payload_is_read_for_the_hits_only()
+    public void A_payload_is_read_when_it_is_asked_for_and_not_before()
     {
+        // ADR-0035: the query hands out the stored bytes; the hit deserialises them when the application asks
         using var database = new TestDatabase();
-        using var catalog = database.Open();
         var serializer = new CountingSerializer();
-        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(serializer));
+        using var catalog = database.Open(new LuiCatalogOptions { PayloadSerializer = serializer });
+        var tags = catalog.Create("tags", index => index.SingleWord());
         for (var i = 1; i <= 200; i++)
         {
             tags.Upsert(new(i, $"kuchen{i:000}") { Weight = i, Payload = new Chip($"k{i}") });
@@ -350,7 +385,10 @@ public sealed class EmbeddedIndexTests
 
         result.CandidatesConsidered.ShouldBe(200);
         result.Hits.Count.ShouldBe(5);
-        serializer.Deserialized.ShouldBe(5);
+        serializer.Deserialized.ShouldBe(0, "the query deserialises nothing");
+
+        result.Hits[0].GetPayload<Chip>().ShouldNotBeNull();
+        serializer.Deserialized.ShouldBe(1, "one hit was asked");
     }
 
     [Fact]
@@ -415,16 +453,16 @@ public sealed class EmbeddedIndexTests
         return names;
     }
 
-    private sealed class CountingSerializer : ILuiPayloadSerializer<Chip>
+    private sealed class CountingSerializer : ILuiPayloadSerializer
     {
         internal int Deserialized { get; private set; }
 
-        public byte[] Serialize(Chip payload) => System.Text.Encoding.UTF8.GetBytes(payload.Slug);
+        public byte[] Serialize(object payload) => System.Text.Encoding.UTF8.GetBytes(((Chip)payload).Slug);
 
-        public Chip Deserialize(ReadOnlySpan<byte> bytes)
+        public T Deserialize<T>(ReadOnlySpan<byte> bytes)
         {
             Deserialized++;
-            return new Chip(System.Text.Encoding.UTF8.GetString(bytes));
+            return (T)(object)new Chip(System.Text.Encoding.UTF8.GetString(bytes));
         }
     }
 }

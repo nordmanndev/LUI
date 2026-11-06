@@ -247,8 +247,8 @@ public sealed class LinkedIndexTests
 
         var hits = tags.Search("vegan").Hits;
 
-        hits[0].Payload.ShouldBe(new Chip("vegan", "#0a0"));
-        hits[1].Payload.ShouldBe(new Chip("veganer"));
+        hits[0].GetPayload<Chip>().ShouldBe(new Chip("vegan", "#0a0"));
+        hits[1].GetPayload<Chip>().ShouldBe(new Chip("veganer"));
     }
 
     [Fact]
@@ -270,7 +270,7 @@ public sealed class LinkedIndexTests
 
         var hits = tags.Search("vegan").Hits;
 
-        hits.Select(hit => hit.Payload).ShouldBe(["vegan", "veganer"], "the row works while the mapping runs");
+        hits.Select(hit => hit.GetPayload<string>()).ShouldBe(["vegan", "veganer"], "the row works while the mapping runs");
         kept.Count.ShouldBe(2);
         foreach (var row in kept)
         {
@@ -365,7 +365,7 @@ public sealed class LinkedIndexTests
         var linked = Tags(catalog);
         linked.Sync();
         var embedded = catalog.Create("embedded", index => index.SingleWord());
-        embedded.UpsertMany(rows.Select(row => new LuiEntry<long, LuiNoPayload>(row.Item1, row.Item2!) { Weight = row.Item3 }));
+        embedded.UpsertMany(rows.Select(row => new LuiEntry(row.Item1, row.Item2!) { Weight = row.Item3 }));
 
         foreach (var input in new[] { "a", "ap", "apf", "kuchen", "nka", "veg", "#äpf", "äpfel", "strasse", "torte3", "zimtz" })
         {
@@ -649,6 +649,36 @@ public sealed class LinkedIndexTests
     }
 
     [Fact]
+    public void A_linked_index_reads_the_text_and_the_payload_live_and_keeps_the_weight_until_a_refresh()
+    {
+        // ADR-0035, spec § 7.3: LUI keeps no copy of the row — the normalised text in the search index, the weight and the
+        // priority in the order of the candidates; the text and the payload of a hit come from the table when it is read
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "vegan", 5), (2, "vegetarisch", 3));
+        Run(database, "UPDATE tag SET color = 'green';");
+        using var catalog = database.Open();
+        var tags = catalog.Create("tags", index => index.SingleWord()
+            .LinkTo("tag", "id", "name", weight: "usage_count")
+            .WithPayload(["color"], row => row.GetString("color")));
+        tags.Sync();
+
+        Run(database, "UPDATE tag SET color = 'teal', usage_count = 900, name = 'veganer' WHERE id = 1; DELETE FROM tag WHERE id = 2;");
+
+        var hit = tags.Search("vegan").Hits.ShouldHaveSingleItem("the deleted row is no hit, before any refresh");
+        hit.GetPayload<string>().ShouldBe("teal", "a payload column is read live");
+        hit.Text.ShouldBe("veganer", "the text of a row that is still found is read live");
+        hit.Weight.ShouldBe(5, "the weight is in the order of the candidates, and that waits for the refresh");
+        tags.Search("veganer").Hits.ShouldBeEmpty("the new text is not searchable before the refresh");
+
+        tags.Refresh(1);
+
+        var refreshed = tags.Search("veganer").Hits.ShouldHaveSingleItem();
+        refreshed.Weight.ShouldBe(900);
+        refreshed.Text.ShouldBe("veganer");
+    }
+
+    [Fact]
     public void A_text_that_changed_under_a_multi_word_index_is_not_a_hit()
     {
         using var database = new TestDatabase();
@@ -744,7 +774,7 @@ public sealed class LinkedIndexTests
         Run(database, "UPDATE tag SET name = 'zucker' || id WHERE id > 750;");
         var found = tags.Search("vegan");
         found.Hits.Count.ShouldBe(20);
-        found.Hits.ShouldAllBe(hit => hit.Key <= 750);
+        found.Hits.ShouldAllBe(hit => hit.Key.ToInt64() <= 750);
         found.Hits[0].Key.ShouldBe(750);
 
         // 1,150 among the best: more than a second budget — the answer is empty and says it was cut off
@@ -827,7 +857,7 @@ public sealed class LinkedIndexTests
         tags.Search("vegan").Hits.ShouldHaveSingleItem();
     }
 
-    private static ILuiLinkedIndex<LuiNoPayload> Tags(LuiCatalog catalog) =>
+    private static ILuiLinkedIndex Tags(LuiCatalog catalog) =>
         catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
 
     private static void Insert(TestDatabase database, params (long Id, string? Name, int Weight)[] rows)

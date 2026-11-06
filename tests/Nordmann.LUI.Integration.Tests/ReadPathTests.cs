@@ -9,8 +9,8 @@ namespace Nordmann.LUI.Integration.Tests;
 /// The read path (ADR-0033): an index that is <b>opened</b> and not created. Nothing is written, no table is
 /// created, no write lock is taken — and the file of a database that is written elsewhere can be read.
 /// <para>
-/// The untyped facade is gone: there is one way into an index, and it is typed — the key and the payload are the
-/// types of the application.
+/// There is one way into an index, and it names no type (ADR-0035): the kind of the key comes from the file, the payload
+/// is read where it is used, with the serialiser of the catalog.
 /// </para>
 /// </summary>
 public sealed class ReadPathTests
@@ -32,7 +32,7 @@ public sealed class ReadPathTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        var exception = Should.Throw<LuiIndexNotFoundException>(() => catalog.Index<long, LuiNoPayload>("tags"));
+        var exception = Should.Throw<LuiIndexNotFoundException>(() => catalog.Index("tags"));
 
         exception.IndexName.ShouldBe("tags");
         exception.Message.ShouldContain("tags");
@@ -47,7 +47,7 @@ public sealed class ReadPathTests
         catalog.Create("tags", index => index.SingleWord());
         Run(database, "UPDATE lui_meta SET schema_version = 99 WHERE index_name = 'tags';");
 
-        var exception = Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index<long, LuiNoPayload>("tags"));
+        var exception = Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags"));
 
         exception.IndexName.ShouldBe("tags");
         exception.Message.ShouldContain("99");
@@ -62,7 +62,7 @@ public sealed class ReadPathTests
         var definition = database.Scalar<string>("SELECT definition FROM lui_meta WHERE index_name = 'tags';");
         WriteDefinition(database, "tags", definition.Replace("\"foldTable\":\"", "\"foldTable\":\"foreign-", StringComparison.Ordinal));
 
-        var exception = Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index<long, LuiNoPayload>("tags"));
+        var exception = Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags"));
 
         exception.IndexName.ShouldBe("tags");
         exception.Message.ShouldContain("foreign-");
@@ -81,7 +81,7 @@ public sealed class ReadPathTests
         var tables = database.Scalar<long>("SELECT count(*) FROM sqlite_master;");
         var before = Fingerprint(database);
 
-        catalog.Index<long, LuiNoPayload>("tags");
+        catalog.Index("tags");
 
         database.Scalar<long>("SELECT count(*) FROM lui_meta;").ShouldBe(rows, "no row of lui_meta was written");
         database.Scalar<long>("SELECT count(*) FROM sqlite_master;").ShouldBe(tables, "no table was created");
@@ -101,7 +101,7 @@ public sealed class ReadPathTests
 
         // the read path answers at once
         var opened = Stopwatch.StartNew();
-        var index = catalog.Index<long, LuiNoPayload>("tags");
+        var index = catalog.Index("tags");
         opened.Elapsed.ShouldBeLessThan(TimeSpan.FromMilliseconds(500), "the read path waits for no lock");
 
         index.Search("vegan").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
@@ -123,63 +123,41 @@ public sealed class ReadPathTests
 
         using var reader = LuiCatalog.Open($"Data Source={database.FilePath};Mode=ReadOnly", new LuiCatalogOptions { WriteAheadLog = false });
 
-        var index = reader.Index<long, LuiNoPayload>("tags");
+        var index = reader.Index("tags");
         index.Search("vegan").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
         index.Count().ShouldBe(1);
     }
 
-    // ---- the types of the caller against the types of the file --------------------------------------------------------
+    // ---- what the file decides, and what is the application's (ADR-0035) -------------------------------------------
 
     [Fact]
-    public void An_opened_index_refuses_a_key_type_the_file_does_not_have()
+    public void An_opened_index_takes_the_kind_of_its_keys_from_the_file()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Create("tags", index => index.SingleWord().WithKey(LuiKeyKind.Text)).Upsert("tag-vegan", "vegan");
+
+        var index = catalog.Index("tags");
+
+        index.KeyKind.ShouldBe(LuiKeyKind.Text);
+        index.Search("vegan").Hits.ShouldHaveSingleItem().Key.ShouldBe((LuiKey)"tag-vegan");
+    }
+
+    [Fact]
+    public void An_opened_index_refuses_a_key_of_the_other_kind_on_the_write()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
         catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+        var index = catalog.Index("tags");
 
-        var exception = Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index<string, LuiNoPayload>("tags"));
+        var exception = Should.Throw<ArgumentException>(() => index.Upsert("tag-vegan", "vegan"));
 
-        exception.IndexName.ShouldBe("tags");
-        exception.Message.ShouldContain("long");
-        exception.Message.ShouldContain("string");
-    }
-
-    [Fact]
-    public void An_opened_index_refuses_a_payload_type_the_file_does_not_have()
-    {
-        using var database = new TestDatabase();
-        using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip))
-            .Upsert(new LuiEntry<long, Chip>(1, "vegan") { Payload = new Chip("gruen") });
-
-        var exception = Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index<long, OtherChip>("tags", new OtherSerializer()));
-
-        exception.IndexName.ShouldBe("tags");
-        exception.Message.ShouldContain(nameof(Chip));
-        exception.Message.ShouldContain(nameof(OtherChip));
-    }
-
-    [Fact]
-    public void An_opened_index_refuses_a_payload_the_file_does_not_have()
-    {
-        using var database = new TestDatabase();
-        using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip))
-            .Upsert(new LuiEntry<long, Chip>(1, "vegan") { Payload = new Chip("gruen") });
-
-        // the file stores a payload, the caller brings none
-        var withoutPayload = Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index<long, Chip>("tags"));
-        withoutPayload.IndexName.ShouldBe("tags");
-        withoutPayload.Message.ShouldContain("payload");
-
-        // the file stores none, the caller brings one
-        catalog.Create("plain", index => index.SingleWord()).Upsert(1, "vegan");
-        var withPayload = Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index<long, Chip>("plain", ChipJsonContext.Default.Chip));
-        withPayload.IndexName.ShouldBe("plain");
-        withPayload.Message.ShouldContain("payload");
+        exception.Message.ShouldContain("tags");
+        exception.Message.ShouldContain("numbers");
+        exception.Message.ShouldContain("tag-vegan");
+        Should.Throw<ArgumentException>(() => index.Remove("1"), "the text \"1\" is not the number 1");
+        index.Count().ShouldBe(1, "nothing was written");
     }
 
     [Fact]
@@ -187,48 +165,96 @@ public sealed class ReadPathTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip))
-            .Upsert(new LuiEntry<long, Chip>(1, "vegan") { Payload = new Chip("gruen", "green") });
+        catalog.Create("tags", index => index.SingleWord())
+            .Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("gruen", "green") });
 
-        var index = catalog.Index<long, Chip>("tags", ChipJsonContext.Default.Chip);
+        var hit = catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
 
-        var hit = index.Search("vegan").Hits.ShouldHaveSingleItem();
-        hit.Key.ShouldBe(1);
-        hit.Payload.ShouldBe(new Chip("gruen", "green"));
+        hit.Key.ShouldBe((LuiKey)1);
+        hit.HasPayload.ShouldBeTrue();
+        hit.GetPayload<Chip>().ShouldBe(new Chip("gruen", "green"));
     }
 
     [Fact]
-    public void An_opened_index_with_a_type_info_refuses_a_payload_type_the_file_does_not_have()
+    public void The_payload_is_read_by_the_serialiser_of_the_catalog_that_opens_the_file()
     {
-        // ADR-0033: the type of the payload is in the definition, and the type the caller asks for is compared with it.
+        // the bytes are in the file, the serialiser is not: a catalog without one opens the index and finds the hits,
+        // and says what is missing when the payload is asked for
         using var database = new TestDatabase();
-        using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord().WithPayload(new OtherSerializer()))
-            .Upsert(new LuiEntry<long, OtherChip>(1, "vegan") { Payload = new OtherChip("gruen") });
+        using (var writer = database.Open())
+        {
+            writer.Create("tags", index => index.SingleWord()).Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("gruen") });
+        }
 
-        var exception = Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Index<long, Chip>("tags", ChipJsonContext.Default.Chip));
+        using var reader = LuiCatalog.Open(database.ConnectionString);
+        var hit = reader.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
 
+        hit.HasPayload.ShouldBeTrue();
+        var exception = Should.Throw<LuiPayloadException>(() => hit.GetPayload<Chip>());
         exception.IndexName.ShouldBe("tags");
-        exception.Message.ShouldContain(nameof(Chip));
-        exception.Message.ShouldContain(nameof(OtherChip));
+        exception.Key.ShouldBe((LuiKey)1);
+        exception.RequestedType.ShouldBe(typeof(Chip));
+        exception.Message.ShouldContain(nameof(LuiCatalogOptions.PayloadSerializer));
     }
 
     [Fact]
-    public void An_opened_index_with_a_serialiser_of_the_application_reads_the_entries_of_the_file()
+    public void A_payload_that_cannot_be_read_as_the_type_asked_for_names_the_index_the_key_and_the_type()
     {
-        // The overload with a serialiser stays for an application whose payload is not JSON — the bytes of the file are
-        // the same, whichever serialiser reads them.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip))
-            .Upsert(new LuiEntry<long, Chip>(1, "vegan") { Payload = new Chip("gruen", "green") });
+        catalog.Create("tags", index => index.SingleWord()).Upsert(new LuiEntry(7, "vegan") { Payload = new Chip("gruen") });
+        var hit = catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
 
-        var index = catalog.Index<long, Chip>("tags", new ChipSerializer());
+        var exception = Should.Throw<LuiPayloadException>(() => hit.GetPayload<Uri>());
 
-        var hit = index.Search("vegan").Hits.ShouldHaveSingleItem();
-        hit.Key.ShouldBe(1);
-        hit.Payload.ShouldBe(new Chip("gruen", "green"));
+        exception.Message.ShouldContain("tags");
+        exception.Message.ShouldContain("'7'");
+        exception.Message.ShouldContain("System.Uri");
+        exception.InnerException.ShouldBeOfType<NotSupportedException>();
+    }
+
+    [Fact]
+    public void An_entry_without_a_payload_has_none_and_says_so()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+
+        var hit = catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
+
+        hit.HasPayload.ShouldBeFalse();
+        hit.TryGetPayload<Chip>(out var payload).ShouldBeFalse();
+        payload.ShouldBeNull();
+        hit.GetPayload<Chip>().ShouldBeNull();
+    }
+
+    [Fact]
+    public void A_definition_with_the_payload_type_of_an_older_version_is_opened_and_its_type_ignored()
+    {
+        // ADR-0035: the file names no type any more. A definition that still carries `payload` and `payloadType` is the
+        // same index — the two fields are read and ignored.
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Create("tags", index => index.SingleWord()).Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("gruen") });
+        var stored = database.Scalar<string>("SELECT definition FROM lui_meta WHERE index_name = 'tags';");
+        WriteDefinition(database, "tags", stored.Replace("{", "{\"payload\":true,\"payloadType\":\"Some.Old.Chip\",", StringComparison.Ordinal));
+
+        catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem().GetPayload<Chip>().ShouldBe(new Chip("gruen"));
+        Should.NotThrow(() => catalog.Create("tags", index => index.SingleWord()), "the definition is the same");
+    }
+
+    [Fact]
+    public void An_index_is_opened_as_what_it_is()
+    {
+        using var database = new TestDatabase();
+        Run(database, TagTable);
+        using var catalog = database.Open();
+        catalog.Create("plain", index => index.SingleWord());
+        catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags")).IndexName.ShouldBe("tags");
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.LinkedIndex("plain")).IndexName.ShouldBe("plain");
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.LinkedIndex("plain", row => row.GetString("name")));
     }
 
     [Fact]
@@ -239,7 +265,7 @@ public sealed class ReadPathTests
         using var catalog = database.Open();
         catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
 
-        var index = catalog.Index<long, LuiNoPayload>("tags");
+        var index = catalog.Index("tags");
 
         index.Upsert(2, "vegetarisch");
         index.Count().ShouldBe(2);
@@ -259,11 +285,17 @@ public sealed class ReadPathTests
             .WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.GetString("color"))))
             .Sync();
 
-        var hit = catalog.Index<Chip>("tags", row => new Chip(row.GetString("slug"), row.GetString("color")))
+        var hit = catalog.LinkedIndex("tags", row => new Chip(row.GetString("slug"), row.GetString("color")))
             .Search("vegan").Hits.ShouldHaveSingleItem();
 
-        hit.Key.ShouldBe(1, "the key of the table");
-        hit.Payload.ShouldBe(new Chip("vegan", "green"), "the object of the columns");
+        hit.Key.ShouldBe((LuiKey)1, "the key of the table");
+        hit.GetPayload<Chip>().ShouldBe(new Chip("vegan", "green"), "the object of the columns");
+
+        // the map built a Chip: a hit read as something else says what it is
+        Should.Throw<LuiPayloadException>(() => hit.GetPayload<Uri>()).Message.ShouldContain(typeof(Chip).FullName!);
+
+        // the columns are in the definition: an index with payload columns is not opened without the map
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.LinkedIndex("tags")).Message.ShouldContain("slug");
     }
 
     [Fact]
@@ -310,8 +342,8 @@ public sealed class ReadPathTests
         catalog.Create("tags", index => index.SingleWord()).Upsert(1, "Apfelkuchen");
         catalog.Create("titles", index => index.MultiWord()).Upsert(1, "Apfelkuchen");
 
-        var single = catalog.Index<long, LuiNoPayload>("tags").Search("apfel").Hits.ShouldHaveSingleItem();
-        var multi = catalog.Index<long, LuiNoPayload>("titles").Search("apfel").Hits.ShouldHaveSingleItem();
+        var single = catalog.Index("tags").Search("apfel").Hits.ShouldHaveSingleItem();
+        var multi = catalog.Index("titles").Search("apfel").Hits.ShouldHaveSingleItem();
 
         single.Similarity.ShouldBe(LuiSimilarity.JaroWinkler.Similarity("apfel", "apfelkuchen"));
         multi.Similarity.ShouldBe(LuiSimilarity.NgramDice.Similarity("apfel", "apfelkuchen"));
@@ -324,7 +356,7 @@ public sealed class ReadPathTests
         using var catalog = database.Open();
         catalog.Create("tags", index => index.SingleWord()).Upsert(1, "Apfelkuchen");
 
-        var index = catalog.Index<long, LuiNoPayload>("tags");
+        var index = catalog.Index("tags");
         index.TypoTolerance.ShouldBeFalse("an opened index corrects no typo");
 
         index.Search("apflekuchen").Hits.ShouldBeEmpty("nothing corrects the typo");
@@ -392,26 +424,5 @@ public sealed class ReadPathTests
     private sealed class Constant(double value) : ILuiSimilarity
     {
         public double Similarity(string query, string text) => value;
-    }
-
-    /// <summary>A payload of another type than the one the index stores (ADR-0033).</summary>
-    private sealed record OtherChip(string Slug);
-
-    /// <summary>The serialiser of that payload — the application brings it, the file does not store it.</summary>
-    private sealed class OtherSerializer : ILuiPayloadSerializer<OtherChip>
-    {
-        public byte[] Serialize(OtherChip payload) => System.Text.Encoding.UTF8.GetBytes(payload.Slug);
-
-        public OtherChip Deserialize(ReadOnlySpan<byte> bytes) =>
-            new OtherChip(System.Text.Encoding.UTF8.GetString(bytes));
-    }
-
-    /// <summary>A serialiser of the application — the way to open an index whose payload is not JSON.</summary>
-    private sealed class ChipSerializer : ILuiPayloadSerializer<Chip>
-    {
-        public byte[] Serialize(Chip payload) => System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(payload);
-
-        public Chip Deserialize(ReadOnlySpan<byte> bytes) =>
-            System.Text.Json.JsonSerializer.Deserialize<Chip>(bytes)!;
     }
 }

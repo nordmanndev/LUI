@@ -7,9 +7,7 @@ namespace Nordmann.LUI;
 /// it (<c>Embedded</c>, LUI-Spezifikation §5, §12.4). Inside a transaction of the
 /// application, its rows and the entries change atomically.
 /// </summary>
-/// <typeparam name="TKey">The key of the application: <see cref="long"/> or <see cref="string"/>.</typeparam>
-/// <typeparam name="TPayload">The payload that comes back with a hit; <see cref="LuiNoPayload"/> when there is none.</typeparam>
-public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
+public interface ILuiEmbeddedIndex : ILuiIndex
 {
     /// <summary>
     /// Adds an entry, or <b>replaces the whole entry</b> with the same key — text, weight, priority
@@ -21,12 +19,14 @@ public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// </summary>
     /// <param name="entry">The entry.</param>
     /// <param name="transaction">The transaction of the application, or <see langword="null"/> for one of its own.</param>
-    /// <exception cref="InvalidOperationException">The entry has a payload, and the index stores none.</exception>
-    void Upsert(LuiEntry<TKey, TPayload> entry, SqliteTransaction? transaction = null);
+    /// <exception cref="ArgumentException">The key is not of the kind the index has (<see cref="ILuiIndex.KeyKind"/>).</exception>
+    /// <exception cref="InvalidOperationException">The entry has a payload, and the catalog has no serialiser.</exception>
+    /// <exception cref="NotSupportedException">The serialiser cannot write the type of the payload.</exception>
+    void Upsert(LuiEntry entry, SqliteTransaction? transaction = null);
 
     /// <summary>
     /// Adds an entry without a payload, or replaces the whole entry with the same key — the short form of
-    /// <see cref="Upsert(LuiEntry{TKey, TPayload}, SqliteTransaction?)"/>; a payload that was stored is cleared.
+    /// <see cref="Upsert(LuiEntry, SqliteTransaction?)"/>; a payload that was stored is cleared.
     /// </summary>
     /// <param name="key">The key of the application.</param>
     /// <param name="text">What is searched and shown; not empty.</param>
@@ -34,8 +34,9 @@ public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// <param name="priority">The class of the entry.</param>
     /// <param name="transaction">The transaction of the application, or <see langword="null"/> for one of its own.</param>
     /// <exception cref="ArgumentOutOfRangeException">The weight or the priority is out of range.</exception>
+    /// <exception cref="ArgumentException">The key is not of the kind the index has (<see cref="ILuiIndex.KeyKind"/>).</exception>
     void Upsert(
-        TKey key,
+        LuiKey key,
         string text,
         int weight = 0,
         LuiPriority priority = LuiPriority.Normal,
@@ -46,7 +47,7 @@ public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// than the entry. Without <paramref name="transaction"/> LUI opens one of its own and commits it at the
     /// end: all entries are written, or — on an error or a cancellation — none. With the transaction of the
     /// application the entries are part of it, and the application commits or rolls back; the typo dictionary
-    /// learns their words at once, as with <see cref="Upsert(LuiEntry{TKey, TPayload}, SqliteTransaction?)"/>.
+    /// learns their words at once, as with <see cref="Upsert(LuiEntry, SqliteTransaction?)"/>.
     /// </summary>
     /// <param name="entries">The entries; a key that comes twice is written twice, and the last one stays.</param>
     /// <param name="transaction">The transaction of the application, or <see langword="null"/> for one of its own.</param>
@@ -57,7 +58,7 @@ public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// </returns>
     /// <exception cref="OperationCanceledException">The token was cancelled; LUI's own transaction is rolled back.</exception>
     int UpsertMany(
-        IEnumerable<LuiEntry<TKey, TPayload>> entries,
+        IEnumerable<LuiEntry> entries,
         SqliteTransaction? transaction = null,
         CancellationToken cancellationToken = default);
 
@@ -66,14 +67,14 @@ public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// <param name="weight">The popularity, 0 … 536,870,911.</param>
     /// <param name="transaction">The transaction of the application, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> when the entry exists.</returns>
-    bool UpdateWeight(TKey key, int weight, SqliteTransaction? transaction = null);
+    bool UpdateWeight(LuiKey key, int weight, SqliteTransaction? transaction = null);
 
     /// <summary>Changes the priority of an entry.</summary>
     /// <param name="key">The key of the application.</param>
     /// <param name="priority">The class of the entry.</param>
     /// <param name="transaction">The transaction of the application, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> when the entry exists.</returns>
-    bool UpdatePriority(TKey key, LuiPriority priority, SqliteTransaction? transaction = null);
+    bool UpdatePriority(LuiKey key, LuiPriority priority, SqliteTransaction? transaction = null);
 
     /// <summary>
     /// Brings the index in step with a source (§12.4, §14, ADR-0016): adds what is missing, changes what differs, leaves
@@ -99,12 +100,12 @@ public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// <returns>What was added, changed, kept and removed.</returns>
     /// <exception cref="OperationCanceledException">The token was cancelled; the committed batches stay.</exception>
     LuiSyncReport Sync(
-        IEnumerable<LuiEntry<TKey, TPayload>> entries,
+        IEnumerable<LuiEntry> entries,
         LuiSyncOptions? options = null,
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// <see cref="Sync(IEnumerable{LuiEntry{TKey, TPayload}}, LuiSyncOptions?, CancellationToken)"/> with a source that is
+    /// <see cref="Sync(IEnumerable{LuiEntry}, LuiSyncOptions?, CancellationToken)"/> with a source that is
     /// asynchronous — an EF Core query against another database, a stream of a service (§13). The writes to SQLite stay
     /// synchronous: the call blocks until the sync is done. Run it on a thread that may block (a background service).
     /// </summary>
@@ -113,7 +114,7 @@ public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// <param name="cancellationToken">Passed to the source, and checked between the entries.</param>
     /// <returns>What was added, changed, kept and removed.</returns>
     LuiSyncReport Sync(
-        IAsyncEnumerable<LuiEntry<TKey, TPayload>> entries,
+        IAsyncEnumerable<LuiEntry> entries,
         LuiSyncOptions? options = null,
         CancellationToken cancellationToken = default);
 
@@ -121,7 +122,7 @@ public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// Checks the index against itself (§12.6, §14) and changes nothing: the stored definition is the one of this instance,
     /// the search index passes FTS5's integrity check, and the three triggers that keep it in step with the content table
     /// are in place. The integrity check reads the whole search index under SQLite's write lock (about 2 s for a million
-    /// entries). <see cref="Check(IEnumerable{LuiEntry{TKey, TPayload}}, CancellationToken)"/> compares it with a source.
+    /// entries). <see cref="Check(IEnumerable{LuiEntry}, CancellationToken)"/> compares it with a source.
     /// </summary>
     /// <returns>What was found; <see cref="LuiIntegrityReport.IsHealthy"/> when nothing.</returns>
     LuiIntegrityReport Check();
@@ -154,7 +155,7 @@ public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// <param name="entries">The entries the index should hold.</param>
     /// <param name="cancellationToken">Checked between the entries.</param>
     /// <returns>The counts, and a finding with a few keys for each kind of difference.</returns>
-    LuiIntegrityReport Check(IEnumerable<LuiEntry<TKey, TPayload>> entries, CancellationToken cancellationToken = default);
+    LuiIntegrityReport Check(IEnumerable<LuiEntry> entries, CancellationToken cancellationToken = default);
 
     /// <summary>
     /// Builds what is derived from the content table anew (§12.6): the three triggers, and the search index — FTS5 reads
@@ -173,5 +174,5 @@ public interface ILuiEmbeddedIndex<TKey, TPayload> : ILuiIndex<TKey, TPayload>
     /// <param name="key">The key of the application.</param>
     /// <param name="transaction">The transaction of the application, or <see langword="null"/>.</param>
     /// <returns><see langword="true"/> when the entry existed.</returns>
-    bool Remove(TKey key, SqliteTransaction? transaction = null);
+    bool Remove(LuiKey key, SqliteTransaction? transaction = null);
 }

@@ -90,5 +90,5 @@ public sealed class QueryPlanTests
 
     /// <summary>The statements of the index <c>tags</c>, as the query path gets them from its content source.</summary>
     private static EmbeddedSource Tags(LuiIndexKind kind) =>
-        new("tags", new IndexDefinition(kind, EmbeddedSource.SourceName, "long", GermanTransliteration: true, Payload: false, TokenizerFold.Version));
+        new("tags", new IndexDefinition(kind, EmbeddedSource.SourceName, "long", GermanTransliteration: true, TokenizerFold.Version));
 }

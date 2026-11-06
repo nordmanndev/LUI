@@ -17,10 +17,11 @@ namespace Nordmann.LUI.Indexes;
 /// incremental merge off while it loads, and one merge at the end.
 /// </para>
 /// </summary>
-internal sealed class EmbeddedSync<TKey, TPayload>(
+internal sealed class EmbeddedSync(
     Database database,
     EmbeddedSource source,
-    Func<TPayload?, byte[]?> payloadBytes,
+    Func<LuiKey, string> keyText,
+    Func<object?, byte[]?> payloadBytes,
     TypoDictionary typos)
 {
     /// <summary>FTS5's default for <c>automerge</c>: the merge a sync turns off is turned on again with it.</summary>
@@ -28,7 +29,7 @@ internal sealed class EmbeddedSync<TKey, TPayload>(
 
     private static long _startTables;
 
-    internal LuiSyncReport Run(IEnumerable<LuiEntry<TKey, TPayload>> entries, LuiSyncOptions options, CancellationToken cancellationToken)
+    internal LuiSyncReport Run(IEnumerable<LuiEntry> entries, LuiSyncOptions options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(entries);
         ArgumentNullException.ThrowIfNull(options);
@@ -66,7 +67,7 @@ internal sealed class EmbeddedSync<TKey, TPayload>(
     }
 
     /// <summary>Writes one batch: what is missing or different, in the order of the search index.</summary>
-    private LuiSyncReport WriteBatch(LuiEntry<TKey, TPayload>[] chunk, string start, LuiSyncReport report, CancellationToken cancellationToken)
+    private LuiSyncReport WriteBatch(LuiEntry[] chunk, string start, LuiSyncReport report, CancellationToken cancellationToken)
     {
         var batch = Prepare(chunk);
         var learned = new List<(string Text, int Weight)>();
@@ -123,13 +124,13 @@ internal sealed class EmbeddedSync<TKey, TPayload>(
     /// The entries of a batch, each key once — the last one stays, as in <c>UpsertMany</c> — and in the order of the
     /// search index: priority, then weight descending.
     /// </summary>
-    private List<(string Key, LuiEntry<TKey, TPayload> Entry, byte[]? Payload)> Prepare(LuiEntry<TKey, TPayload>[] chunk)
+    private List<(string Key, LuiEntry Entry, byte[]? Payload)> Prepare(LuiEntry[] chunk)
     {
-        var last = new Dictionary<string, LuiEntry<TKey, TPayload>>(chunk.Length, StringComparer.Ordinal);
+        var last = new Dictionary<string, LuiEntry>(chunk.Length, StringComparer.Ordinal);
         foreach (var entry in chunk)
         {
             ArgumentNullException.ThrowIfNull(entry, "source");
-            last[KeyCodec<TKey>.ToText(entry.Key)] = entry;
+            last[keyText(entry.Key)] = entry;
         }
 
         return
@@ -265,7 +266,7 @@ internal sealed class EmbeddedSync<TKey, TPayload>(
         }
 
         /// <summary>Whether the stored entry of the key is the same; <see langword="null"/> when there is none.</summary>
-        internal bool? Compare(string key, LuiEntry<TKey, TPayload> entry, byte[]? payload)
+        internal bool? Compare(string key, LuiEntry entry, byte[]? payload)
         {
             Bind(_compare, key, entry, payload);
             using var reader = _compare.ExecuteReader();
@@ -273,7 +274,7 @@ internal sealed class EmbeddedSync<TKey, TPayload>(
         }
 
         /// <summary>Writes the entry.</summary>
-        internal void Upsert(string key, LuiEntry<TKey, TPayload> entry, byte[]? payload)
+        internal void Upsert(string key, LuiEntry entry, byte[]? payload)
         {
             Bind(_upsert, key, entry, payload);
             _upsert.ExecuteNonQuery();
@@ -292,7 +293,7 @@ internal sealed class EmbeddedSync<TKey, TPayload>(
             _found.Dispose();
         }
 
-        private static void Bind(SqliteCommand command, string key, LuiEntry<TKey, TPayload> entry, byte[]? payload)
+        private static void Bind(SqliteCommand command, string key, LuiEntry entry, byte[]? payload)
         {
             command.Parameters[0].Value = key;
             command.Parameters[1].Value = entry.Text;

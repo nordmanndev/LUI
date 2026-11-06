@@ -21,11 +21,11 @@ public sealed class ReadOnlyCatalogTests
 
         using var reader = ReadOnly(database);
 
-        var tags = reader.Index<long, LuiNoPayload>("tags");
+        var tags = reader.Index("tags");
         tags.Search("vegan").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
         tags.Count().ShouldBe(1);
 
-        var titles = reader.Index<long, LuiNoPayload>("titles");
+        var titles = reader.Index("titles");
         titles.Search("apfelkuchen").Hits.ShouldHaveSingleItem().Text.ShouldBe("Gedeckter Apfelkuchen");
     }
 
@@ -44,7 +44,7 @@ public sealed class ReadOnlyCatalogTests
 
         using (var reader = ReadOnly(database))
         {
-            reader.Index<long, LuiNoPayload>("tags").Search("vegan").Hits.ShouldHaveSingleItem();
+            reader.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
         }
 
         JournalMode(database).ShouldBe(mode, "the read path does not switch the file to write-ahead logging");
@@ -65,7 +65,7 @@ public sealed class ReadOnlyCatalogTests
 
         using (var reader = ReadOnly(database))
         {
-            reader.Index<long, LuiNoPayload>("tags").ShouldNotBeNull();
+            reader.Index("tags").ShouldNotBeNull();
         }
 
         database.Scalar<long>("SELECT count(*) FROM lui_meta;").ShouldBe(rows, "no row of lui_meta was written");
@@ -81,7 +81,7 @@ public sealed class ReadOnlyCatalogTests
         }
 
         using var reader = ReadOnly(database);
-        var index = reader.Index<long, LuiNoPayload>("tags");
+        var index = reader.Index("tags");
 
         var exception = Should.Throw<LuiReadOnlyException>(() => index.Upsert(2, "vegetarisch"));
 
@@ -134,10 +134,10 @@ public sealed class ReadOnlyCatalogTests
         }
 
         using var reader = ReadOnly(database);
-        var index = reader.Index<long, LuiNoPayload>("tags");
+        var index = reader.Index("tags");
 
         var exception = Should.Throw<LuiReadOnlyException>(
-            () => index.Sync([new LuiEntry<long, LuiNoPayload>(1, "vegan")]));
+            () => index.Sync([new LuiEntry(1, "vegan")]));
 
         exception.Operation.ShouldBe("syncing an index");
         index.Count().ShouldBe(0, "nothing was indexed");

@@ -1,5 +1,12 @@
 # 0033 — The read path opens an index without writing
 
+> **Note (ADR-0035, 2026-11-06):** the read path stays as decided here, its types do not. `Index<TKey, TPayload>(…)`,
+> `Index<TPayload>(name, map)` and the payload type in the definition are gone: the index knows no types, the
+> serialiser belongs to the catalog, and the payload is read where it is used (`hit.GetPayload<T>()`). An embedded index
+> is opened with `Index(name)`, a linked one with `LinkedIndex(name)` or `LinkedIndex(name, map)`. "The untyped facade
+> is gone" holds: the facade was a *second* way into the data beside the typed one; there is still one way, and it names
+> no type. The text below is history and stays as it was written.
+
 - **Status:** Accepted
 - **Date:** 2026-11-05
 - **Builds on:** [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (the public API grows and never shrinks),

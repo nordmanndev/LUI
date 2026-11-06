@@ -5,7 +5,7 @@ public sealed record LuiTimings
 {
     /// <summary>
     /// Reading the candidates of the input out of SQLite — a duration, as the other properties are. The budget of candidates
-    /// is <see cref="LuiQueryOptions.Candidates"/>; how many were read is <see cref="LuiResult{TKey, TPayload}.CandidatesConsidered"/>.
+    /// is <see cref="LuiQueryOptions.Candidates"/>; how many were read is <see cref="LuiResult.CandidatesConsidered"/>.
     /// </summary>
     public TimeSpan CandidateRead { get; init; }
 

@@ -14,21 +14,21 @@ public sealed class ApiShapeTests
     [Fact]
     public void An_entry_checks_its_values_where_they_are_set()
     {
-        Should.Throw<ArgumentException>(() => new LuiEntry<long, LuiNoPayload>(1, string.Empty))
+        Should.Throw<ArgumentException>(() => new LuiEntry(1, string.Empty))
             .Message.ShouldContain("Text");
-        Should.Throw<ArgumentNullException>(() => new LuiEntry<long, LuiNoPayload>(1, null!));
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry<long, LuiNoPayload>(1, "a") { Weight = -1 });
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry<long, LuiNoPayload>(1, "a") { Weight = 536_870_912 });
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry<long, LuiNoPayload>(1, "a") { Priority = (LuiPriority)7 });
+        Should.Throw<ArgumentNullException>(() => new LuiEntry(1, null!));
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry(1, "a") { Weight = -1 });
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry(1, "a") { Weight = 536_870_912 });
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry(1, "a") { Priority = (LuiPriority)7 });
 
-        var entry = new LuiEntry<long, LuiNoPayload>(1, "a");
+        var entry = new LuiEntry(1, "a");
         Should.Throw<ArgumentException>(() => entry with { Text = string.Empty });
     }
 
     [Fact]
     public void An_entry_is_normal_and_weightless_unless_it_says_otherwise()
     {
-        var entry = new LuiEntry<long, LuiNoPayload>(1, "vegan");
+        var entry = new LuiEntry(1, "vegan");
 
         entry.Weight.ShouldBe(0);
         entry.Priority.ShouldBe(LuiPriority.Normal);
@@ -39,13 +39,13 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip));
+        var tags = catalog.Create("tags", index => index.SingleWord());
 
-        tags.Upsert(new LuiEntry<long, Chip>(1, "vegan") { Weight = 5, Payload = new Chip("v"), Priority = LuiPriority.System });
+        tags.Upsert(new LuiEntry(1, "vegan") { Weight = 5, Payload = new Chip("v"), Priority = LuiPriority.System });
         tags.Upsert(1, "vegan", 7);
 
         var hit = tags.Search("vegan").Hits.ShouldHaveSingleItem();
-        hit.Payload.ShouldBeNull();
+        hit.HasPayload.ShouldBeFalse();
         hit.Weight.ShouldBe(7);
         hit.Priority.ShouldBe(LuiPriority.Normal);
     }
@@ -57,14 +57,14 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip));
+        var tags = catalog.Create("tags", index => index.SingleWord());
 
         var written = tags.UpsertMany(Enumerable.Range(1, 1_000).Select(
-            i => new LuiEntry<long, Chip>(i, $"kuchen{i}") { Weight = i, Payload = new Chip($"k{i}") }));
+            i => new LuiEntry(i, $"kuchen{i}") { Weight = i, Payload = new Chip($"k{i}") }));
 
         written.ShouldBe(1_000);
         tags.Count().ShouldBe(1_000);
-        tags.Search("kuchen1000").Hits[0].Payload.ShouldBe(new Chip("k1000"));
+        tags.Search("kuchen1000").Hits[0].GetPayload<Chip>().ShouldBe(new Chip("k1000"));
     }
 
     [Fact]
@@ -76,8 +76,8 @@ public sealed class ApiShapeTests
 
         tags.UpsertMany(
         [
-            new LuiEntry<long, LuiNoPayload>(1, "apfel") { Weight = 1 },
-            new LuiEntry<long, LuiNoPayload>(1, "birne") { Weight = 2 },
+            new LuiEntry(1, "apfel") { Weight = 1 },
+            new LuiEntry(1, "birne") { Weight = 2 },
         ]);
 
         tags.Count().ShouldBe(1);
@@ -98,7 +98,7 @@ public sealed class ApiShapeTests
 
         // the writer is free again: a single write and another batch go through
         tags.Upsert(1, "apfel", 1);
-        tags.UpsertMany([new LuiEntry<long, LuiNoPayload>(2, "birne")]).ShouldBe(1);
+        tags.UpsertMany([new LuiEntry(2, "birne")]).ShouldBe(1);
         tags.Count().ShouldBe(2);
     }
 
@@ -110,7 +110,7 @@ public sealed class ApiShapeTests
         var tags = catalog.Create("tags", index => index.SingleWord());
         using var cancellation = new CancellationTokenSource();
 
-        IEnumerable<LuiEntry<long, LuiNoPayload>> Entries()
+        IEnumerable<LuiEntry> Entries()
         {
             for (var i = 1; i <= 100; i++)
             {
@@ -119,7 +119,7 @@ public sealed class ApiShapeTests
                     cancellation.Cancel();
                 }
 
-                yield return new LuiEntry<long, LuiNoPayload>(i, $"kuchen{i}");
+                yield return new LuiEntry(i, $"kuchen{i}");
             }
         }
 
@@ -138,7 +138,7 @@ public sealed class ApiShapeTests
         using (var connection = database.Connect())
         using (var transaction = connection.BeginTransaction())
         {
-            tags.UpsertMany([new LuiEntry<long, LuiNoPayload>(1, "apfel"), new LuiEntry<long, LuiNoPayload>(2, "birne")], transaction)
+            tags.UpsertMany([new LuiEntry(1, "apfel"), new LuiEntry(2, "birne")], transaction)
                 .ShouldBe(2);
             transaction.Rollback();
         }
@@ -148,7 +148,7 @@ public sealed class ApiShapeTests
         using (var connection = database.Connect())
         using (var transaction = connection.BeginTransaction())
         {
-            tags.UpsertMany([new LuiEntry<long, LuiNoPayload>(1, "apfel")], transaction);
+            tags.UpsertMany([new LuiEntry(1, "apfel")], transaction);
             transaction.Commit();
         }
 
@@ -168,7 +168,7 @@ public sealed class ApiShapeTests
             index.WarmUpTypoDictionary();
         }
 
-        batch.UpsertMany([new LuiEntry<long, LuiNoPayload>(2, "Himbeere") { Weight = 50 }]);
+        batch.UpsertMany([new LuiEntry(2, "Himbeere") { Weight = 50 }]);
         single.Upsert(2, "Himbeere", 50);
 
         var learned = batch.Search("himbere");
@@ -195,7 +195,7 @@ public sealed class ApiShapeTests
 
         for (var round = 0; round < 10; round++)
         {
-            batch.UpsertMany(Enumerable.Range((round * 100) + 1, 100).Select(i => new LuiEntry<long, LuiNoPayload>(i, $"kuchen{i}")));
+            batch.UpsertMany(Enumerable.Range((round * 100) + 1, 100).Select(i => new LuiEntry(i, $"kuchen{i}")));
         }
 
         await writer.WaitAsync(TimeSpan.FromSeconds(30));
@@ -244,9 +244,9 @@ public sealed class ApiShapeTests
         Should.Throw<ArgumentOutOfRangeException>(() => new LuiCatalogOptions { CacheSizeMegabytes = 0 }).ParamName.ShouldBe("CacheSizeMegabytes");
         Should.Throw<ArgumentOutOfRangeException>(() => new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(-1) }).ParamName.ShouldBe("BusyTimeout");
         Should.Throw<ArgumentNullException>(() => new LuiCatalogOptions { TimeProvider = null! }).ParamName.ShouldBe("TimeProvider");
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry<long, LuiNoPayload>(1, "a") { Weight = -1 }).ParamName.ShouldBe("Weight");
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry<long, LuiNoPayload>(1, "a") { Priority = (LuiPriority)7 }).ParamName.ShouldBe("Priority");
-        Should.Throw<ArgumentException>(() => new LuiEntry<long, LuiNoPayload>(1, string.Empty)).ParamName.ShouldBe("Text");
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry(1, "a") { Weight = -1 }).ParamName.ShouldBe("Weight");
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry(1, "a") { Priority = (LuiPriority)7 }).ParamName.ShouldBe("Priority");
+        Should.Throw<ArgumentException>(() => new LuiEntry(1, string.Empty)).ParamName.ShouldBe("Text");
     }
 
     [Fact]
@@ -266,13 +266,24 @@ public sealed class ApiShapeTests
     // ---- the builder and the interfaces --------------------------------------------------------
 
     [Fact]
-    public void An_unsupported_key_type_fails_where_it_is_chosen()
+    public void An_undefined_kind_of_key_fails_where_it_is_chosen()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.Throw<NotSupportedException>(
-            () => catalog.Create("tags", index => index.SingleWord().WithKey<Guid>())).Message.ShouldContain("long or a string");
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => catalog.Create("tags", index => index.SingleWord().WithKey((LuiKeyKind)7))).ParamName.ShouldBe("kind");
+    }
+
+    [Fact]
+    public void A_linked_index_has_the_numbers_of_its_table_as_keys()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+
+        Should.Throw<InvalidOperationException>(
+            () => catalog.Create("tags", index => index.SingleWord().WithKey(LuiKeyKind.Text).LinkTo("tag", "id", "name")))
+            .Message.ShouldContain("INTEGER PRIMARY KEY");
     }
 
     [Fact]
@@ -280,8 +291,8 @@ public sealed class ApiShapeTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance().GermanTransliteration(false).Similarity(new Constant(0.25)).WithPayload(ChipJsonContext.Default.Chip));
-        words.Upsert(new LuiEntry<long, Chip>(1, "Apfelkuchen") { Weight = 10, Payload = new Chip("a") });
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance().GermanTransliteration(false).Similarity(new Constant(0.25)));
+        words.Upsert(new LuiEntry(1, "Apfelkuchen") { Weight = 10, Payload = new Chip("a") });
 
         // the typo tolerance
         words.Search("apflekuchen").CorrectedQuery.ShouldBe("apfelkuchen");
@@ -291,7 +302,7 @@ public sealed class ApiShapeTests
 
         // the transliteration: it is part of the definition, so an index with it on is another index
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Create("words", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip)));
+            () => catalog.Create("words", index => index.SingleWord()));
     }
 
     [Fact]
@@ -309,7 +320,7 @@ public sealed class ApiShapeTests
         using (var connection = database.Connect())
         using (var transaction = connection.BeginTransaction())
         {
-            titles.UpsertMany([new LuiEntry<long, LuiNoPayload>(2, "Schiffbruecke")], transaction);
+            titles.UpsertMany([new LuiEntry(2, "Schiffbruecke")], transaction);
             transaction.Rollback();
         }
 
@@ -331,7 +342,7 @@ public sealed class ApiShapeTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var tags = catalog.Create("tags", index => index.SingleWord());
-        tags.UpsertMany(Enumerable.Range(1, 30).Select(i => new LuiEntry<long, LuiNoPayload>(i, $"kuchen{i}") { Weight = i }));
+        tags.UpsertMany(Enumerable.Range(1, 30).Select(i => new LuiEntry(i, $"kuchen{i}") { Weight = i }));
 
         var result = tags.Search("kuchen");
 
@@ -347,7 +358,7 @@ public sealed class ApiShapeTests
         var tags = catalog.Create("tags", index => index.SingleWord());
         tags.Upsert(1, "vegan", 5);
 
-        ILuiIndex<long, LuiNoPayload> reader = tags;
+        ILuiIndex reader = tags;
 
         reader.Search("vegan").Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
         reader.Count().ShouldBe(1);
@@ -387,9 +398,7 @@ public sealed class ApiShapeTests
         IndexOptions.Default.ShouldBe(new IndexOptions(Similarity: null, GermanTransliteration: true, TypoTolerance: false));
         new LuiIndexKindBuilder(catalog, "plain").SingleWord().Options.ShouldBe(IndexOptions.Default);
         described.Options.ShouldBe(expected);
-        described.WithKey<string>().Options.ShouldBe(expected, "WithKey");
-        described.WithPayload(ChipJsonContext.Default.Chip).Options.ShouldBe(expected, "WithPayload(typeInfo)");
-        described.WithPayload(new ChipSerializer()).Options.ShouldBe(expected, "WithPayload(serializer)");
+        described.WithKey(LuiKeyKind.Number).Options.ShouldBe(expected, "WithKey");
 
         var linked = described.LinkTo("tag", "id", "name");
         linked.Options.ShouldBe(expected, "LinkTo");
@@ -415,19 +424,18 @@ public sealed class ApiShapeTests
     }
 
     /// <summary>A serialiser of the application — the way to describe a payload that is not JSON.</summary>
-    private sealed class ChipSerializer : ILuiPayloadSerializer<Chip>
+    private sealed class ChipSerializer : ILuiPayloadSerializer
     {
-        public byte[] Serialize(Chip payload) => System.Text.Json.JsonSerializer.SerializeToUtf8Bytes(payload);
+        public byte[] Serialize(object payload) => System.Text.Encoding.UTF8.GetBytes(((Chip)payload).Slug);
 
-        public Chip Deserialize(ReadOnlySpan<byte> bytes) =>
-            System.Text.Json.JsonSerializer.Deserialize<Chip>(bytes)!;
+        public T Deserialize<T>(ReadOnlySpan<byte> bytes) => (T)(object)new Chip(System.Text.Encoding.UTF8.GetString(bytes));
     }
 
-    private static IEnumerable<LuiEntry<long, LuiNoPayload>> FailingAfter(int count)
+    private static IEnumerable<LuiEntry> FailingAfter(int count)
     {
         for (var i = 1; i <= count; i++)
         {
-            yield return new LuiEntry<long, LuiNoPayload>(i, $"kuchen{i}");
+            yield return new LuiEntry(i, $"kuchen{i}");
         }
 
         throw new InvalidOperationException("the source failed");

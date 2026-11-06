@@ -38,7 +38,7 @@ public sealed class LinkedLayoutExperiment(ITestOutputHelper output)
 
         var build = Stopwatch.StartNew();
         var embedded = catalog.Create("tags", index => index.SingleWord());
-        embedded.UpsertMany(stock.Select(e => new LuiEntry<long, LuiNoPayload>(e.Id, e.Text) { Weight = e.Weight }));
+        embedded.UpsertMany(stock.Select(e => new LuiEntry(e.Id, e.Text) { Weight = e.Weight }));
         Report($"embedded:  build {build.Elapsed.TotalSeconds:F1} s");
 
         using var linked = linkedDatabase.Connect();
@@ -53,7 +53,7 @@ public sealed class LinkedLayoutExperiment(ITestOutputHelper output)
         Checkpoint(linked);
         Report($"file: embedded {Megabytes(embeddedDatabase)} MB, linked {Megabytes(linkedDatabase)} MB, application table alone {HostMegabytes(stock)} MB");
 
-        var source = new EmbeddedSource("tags", new IndexDefinition(LuiIndexKind.SingleWord, EmbeddedSource.SourceName, "long", true, false, TokenizerFold.Version));
+        var source = new EmbeddedSource("tags", new IndexDefinition(LuiIndexKind.SingleWord, EmbeddedSource.SourceName, "long", true, TokenizerFold.Version));
         var inputs = Inputs(stock, new Random(7));
 
         Plan(linked, LinkedCandidateSql, "$expr", "s_norm : \"gan\"").ShouldContain(line => line.Contains("VIRTUAL TABLE INDEX 64", StringComparison.Ordinal));
@@ -76,7 +76,7 @@ public sealed class LinkedLayoutExperiment(ITestOutputHelper output)
     }
 
     /// <summary>Removes a thousand entries and changes the weight of a thousand, in both layouts — contentless_delete by rowid alone.</summary>
-    private void ApplyWrites(ILuiEmbeddedIndex<long, LuiNoPayload> embedded, SqliteConnection linked, List<Entry> stock)
+    private void ApplyWrites(ILuiEmbeddedIndex embedded, SqliteConnection linked, List<Entry> stock)
     {
         var random = new Random(3);
         var changed = Enumerable.Range(0, 2_000).Select(_ => stock[random.Next(stock.Count)]).DistinctBy(e => e.Id).ToList();

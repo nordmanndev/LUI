@@ -5,6 +5,15 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-06 — The read path (#56, PR #57 merged as `73ef344`)
+
+- The catalog is the entry point (ADR-0033): `Create(name, builder)` writes, `Index(…)` opens without writing; a
+  `Mode=ReadOnly` file refuses every write with `LuiReadOnlyException`; the container holds the catalog and nothing else
+  (ADR-0034). The typed `Index<TKey, TPayload>` of that PR was replaced the same day by #58 (ADR-0035).
+- The owner's discussion of the document type (a base class `LuiDocument<TKey, TPayload>`) ended in variant C: the
+  base class does not compile as planned (`static virtual` only on interfaces, no inference of `TKey` from `TDoc`), and
+  the types belong where the payload is used. Variant D (a typed view) is #59.
+
 ## 2026-11-05 — The sample fills its own bulk indexes (ADR-0029), third round
 
 - The owner's second review: "the ux is still aweful and clunky of building the index and the query settings are overlapping

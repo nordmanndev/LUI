@@ -52,7 +52,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
         Latency(wordIndex, words, random);
     }
 
-    private void Quality(ILuiEmbeddedIndex<long, LuiNoPayload> index, List<string> words, Random random)
+    private void Quality(ILuiEmbeddedIndex index, List<string> words, Random random)
     {
         foreach (var length in new[] { 4, 5, 6, 7 })
         {
@@ -69,7 +69,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
         }
     }
 
-    private void Latency(ILuiEmbeddedIndex<long, LuiNoPayload> index, List<string> words, Random random)
+    private void Latency(ILuiEmbeddedIndex index, List<string> words, Random random)
     {
         var inputs = Enumerable.Range(0, 1_000).Select(_ =>
         {
@@ -102,7 +102,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
             + $"alloc p50 {allocations[allocations.Count / 2] / 1024:F0} KB, p95 {allocations[(int)(allocations.Count * 0.95)] / 1024:F0} KB; corrected {corrected} of {inputs.Count}");
     }
 
-    private static bool Found(ILuiEmbeddedIndex<long, LuiNoPayload> index, string typed, string word, bool typoTolerance) =>
+    private static bool Found(ILuiEmbeddedIndex index, string typed, string word, bool typoTolerance) =>
         index.Query(typed).Take(20).TypoTolerance(typoTolerance).Execute().Hits
             .Any(h => string.Equals(h.Text, word, StringComparison.Ordinal));
 

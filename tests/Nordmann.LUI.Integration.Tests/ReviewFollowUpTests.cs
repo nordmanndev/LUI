@@ -20,22 +20,26 @@ public sealed class ReviewFollowUpTests
 
         Should.NotThrow(() => nums.Upsert(1, "vegan", 5));
 
-        nums.Query("vegan").Execute().Hits.ShouldHaveSingleItem().Payload.ShouldBe(default(LuiNoPayload));
+        nums.Query("vegan").Execute().Hits.ShouldHaveSingleItem().HasPayload.ShouldBeFalse();
     }
 
     [Fact]
-    public void A_value_type_payload_is_stored_unless_it_is_the_default()
+    public void A_value_type_payload_is_stored_even_when_it_is_its_default()
     {
+        // ADR-0035: the payload is an object, and only null means "none" — a 0 is a payload like any other
         using var database = new TestDatabase();
-        using var catalog = database.Open();
-        var nums = catalog.Create("nums", index => index.SingleWord().WithPayload(new IntSerializer()));
+        using var catalog = database.Open(new LuiCatalogOptions { PayloadSerializer = new IntSerializer() });
+        var nums = catalog.Create("nums", index => index.SingleWord());
 
         nums.Upsert(new(1, "vegan") { Weight = 5, Payload = 42 });
-        nums.Upsert(2, "vegane torte", 4);
+        nums.Upsert(new(2, "veganer") { Weight = 4, Payload = 0 });
+        nums.Upsert(3, "vegane torte", 3);
 
         var hits = nums.Query("vegan").Rank(LuiRankingOrder.WeightOnly).Execute().Hits;
-        hits[0].Payload.ShouldBe(42);
-        hits[1].Payload.ShouldBe(0);
+        hits[0].GetPayload<int>().ShouldBe(42);
+        hits[1].HasPayload.ShouldBeTrue();
+        hits[1].GetPayload<int>().ShouldBe(0);
+        hits[2].HasPayload.ShouldBeFalse();
         database.Scalar<long>("SELECT count(*) FROM lui_nums WHERE payload IS NULL").ShouldBe(1);
     }
 
@@ -46,7 +50,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip));
+        var tags = catalog.Create("tags", index => index.SingleWord());
         tags.Upsert(new(1, "kirsche kuchen") { Weight = 10, Payload = new Chip("old1") });
         tags.Upsert(new(2, "zitrone kuchen") { Weight = 5, Payload = new Chip("old2") });
 
@@ -63,8 +67,8 @@ public sealed class ReviewFollowUpTests
         interference.Called.ShouldBeTrue();
         foreach (var hit in hits)
         {
-            (hit.Text, hit.Key).ShouldBeOneOf(("kirsche kuchen", 1L), ("zitrone kuchen", 2L));
-            hit.Payload!.Slug.ShouldBe(hit.Key == 1 ? "old1" : "old2");
+            (hit.Text, hit.Key.ToInt64()).ShouldBeOneOf(("kirsche kuchen", 1L), ("zitrone kuchen", 2L));
+            hit.GetPayload<Chip>()!.Slug.ShouldBe(hit.Key == 1 ? "old1" : "old2");
         }
     }
 
@@ -114,12 +118,12 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip));
+        var tags = catalog.Create("tags", index => index.SingleWord());
         tags.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan") });
 
         tags.Upsert(1, "vegan", 5);
 
-        tags.Query("vegan").Execute().Hits.ShouldHaveSingleItem().Payload.ShouldBeNull();
+        tags.Query("vegan").Execute().Hits.ShouldHaveSingleItem().HasPayload.ShouldBeFalse();
     }
 
     // ---- B6: the journal mode ----------------------------------------------------------------
@@ -217,7 +221,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip));
+        var tags = catalog.Create("tags", index => index.SingleWord());
         tags.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("v") });
         tags.Upsert(new(2, "vegane torte") { Weight = 4, Payload = new Chip("t") });
         var before = SearchIndexFingerprint(database);
@@ -235,7 +239,7 @@ public sealed class ReviewFollowUpTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().WithPayload(ChipJsonContext.Default.Chip));
+        var tags = catalog.Create("tags", index => index.SingleWord());
         tags.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("v") });
         var before = SearchIndexFingerprint(database);
 
@@ -244,7 +248,7 @@ public sealed class ReviewFollowUpTests
         tags.UpdatePriority(1, LuiPriority.Normal);
 
         SearchIndexFingerprint(database).ShouldBe(before);
-        tags.Query("vegan").Execute().Hits.ShouldHaveSingleItem().Payload.ShouldBe(new Chip("changed"));
+        tags.Query("vegan").Execute().Hits.ShouldHaveSingleItem().GetPayload<Chip>().ShouldBe(new Chip("changed"));
     }
 
     [Fact]
@@ -318,10 +322,10 @@ public sealed class ReviewFollowUpTests
         }
     }
 
-    private sealed class IntSerializer : ILuiPayloadSerializer<int>
+    private sealed class IntSerializer : ILuiPayloadSerializer
     {
-        public byte[] Serialize(int payload) => BitConverter.GetBytes(payload);
+        public byte[] Serialize(object payload) => BitConverter.GetBytes((int)payload);
 
-        public int Deserialize(ReadOnlySpan<byte> bytes) => BitConverter.ToInt32(bytes);
+        public T Deserialize<T>(ReadOnlySpan<byte> bytes) => (T)(object)BitConverter.ToInt32(bytes);
     }
 }

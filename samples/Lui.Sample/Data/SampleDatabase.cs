@@ -5,7 +5,7 @@ namespace Nordmann.LUI.Sample.Data;
 /// <summary>
 /// The application's own table, which the <c>tags</c> index is linked to. It is the application's, not LUI's: LUI reads
 /// it and never changes it (ADR-0015); the triggers that tell the index about a change are created by the application,
-/// on purpose, by <see cref="Indexes.LinkedSampleIndex{TPayload}"/>.
+/// on purpose, by <see cref="Indexes.LinkedSampleIndex"/>.
 /// </summary>
 internal static class SampleDatabase
 {

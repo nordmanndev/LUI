@@ -31,10 +31,10 @@ public sealed class DependencyInjectionTests
         host.Start();
 
         // ADR-0033: the index is not registered and not injected — the application asks the catalog for it.
-        host.Services.GetService<ILuiEmbeddedIndex<long, LuiNoPayload>>().ShouldBeNull();
-        host.Services.GetService<ILuiLinkedIndex<LuiNoPayload>>().ShouldBeNull();
-        host.Services.GetService<ILuiIndex<long, LuiNoPayload>>().ShouldBeNull();
-        host.Services.GetKeyedService<ILuiEmbeddedIndex<long, LuiNoPayload>>("tags").ShouldBeNull();
+        host.Services.GetService<ILuiEmbeddedIndex>().ShouldBeNull();
+        host.Services.GetService<ILuiLinkedIndex>().ShouldBeNull();
+        host.Services.GetService<ILuiIndex>().ShouldBeNull();
+        host.Services.GetKeyedService<ILuiEmbeddedIndex>("tags").ShouldBeNull();
     }
 
     [Fact]
@@ -49,8 +49,8 @@ public sealed class DependencyInjectionTests
         tags.Upsert(1, "vegan");
 
         // the index lives in the catalog, not in the container
-        host.Services.GetService<ILuiEmbeddedIndex<long, LuiNoPayload>>().ShouldBeNull();
-        catalog.Index<long, LuiNoPayload>("tags").Count().ShouldBe(1);
+        host.Services.GetService<ILuiEmbeddedIndex>().ShouldBeNull();
+        catalog.Index("tags").Count().ShouldBe(1);
     }
 
     [Fact]
@@ -81,7 +81,7 @@ public sealed class DependencyInjectionTests
             await host.StopAsync();
         }
 
-        Should.Throw<ObjectDisposedException>(() => catalog.Index<long, LuiNoPayload>("words"));
+        Should.Throw<ObjectDisposedException>(() => catalog.Index("words"));
     }
 
     [Fact]

@@ -27,7 +27,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
 
         var random = new Random(42);
         var source = Enumerable.Range(1, entries)
-            .Select(i => new LuiEntry<long, LuiNoPayload>(i, i <= words.Count ? words[i - 1] : words[random.Next(words.Count)] + words[random.Next(words.Count)].ToLowerInvariant())
+            .Select(i => new LuiEntry(i, i <= words.Count ? words[i - 1] : words[random.Next(words.Count)] + words[random.Next(words.Count)].ToLowerInvariant())
             {
                 Weight = random.Next(0, 1_000_000),
             })
@@ -107,8 +107,8 @@ public sealed class SyncPerformance(ITestOutputHelper output)
         wordIndex.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
     }
 
-    private static IEnumerable<LuiEntry<long, LuiNoPayload>> CancelAt(
-        List<LuiEntry<long, LuiNoPayload>> source,
+    private static IEnumerable<LuiEntry> CancelAt(
+        List<LuiEntry> source,
         int count,
         CancellationTokenSource cancellation)
     {
@@ -123,14 +123,14 @@ public sealed class SyncPerformance(ITestOutputHelper output)
         }
     }
 
-    private static List<string> Inputs(List<LuiEntry<long, LuiNoPayload>> source, Random random) =>
+    private static List<string> Inputs(List<LuiEntry> source, Random random) =>
         [.. Enumerable.Range(0, Queries).Select(_ =>
         {
             var text = source[random.Next(source.Count)].Text;
             return text[..Math.Min(text.Length, random.Next(1, 9))];
         })];
 
-    private static (double P50, double P95) QueryTimes(ILuiIndex<long, LuiNoPayload> index, List<string> inputs)
+    private static (double P50, double P95) QueryTimes(ILuiIndex index, List<string> inputs)
     {
         foreach (var input in inputs.Take(200))
         {
