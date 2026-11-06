@@ -95,8 +95,8 @@ one were wrong.
 - **The guard follows the tables** ([ADR-0022](./0022-the-benchmark-results-in-the-readme.md)): `Readme_Benchmarks`
   renders into `docs/benchmarks.md` and fails when the file and the committed reports differ. It did not lose its teeth:
   the mutation of a number by hand still fails the build, from the other side of the move.
-- **The package smoke test still runs every C# block of the README** — four blocks instead of six, all of them
-  executed. The expectations of the smoke test follow the blocks; the quick start of the README still has to print
+- **The package smoke test still runs every C# block of the README** — four executed blocks instead of eleven, all of
+  them executed. The expectations of the smoke test follow the blocks; the quick start of the README still has to print
   what its comments say.
 - **The map of the documentation is a list of links**, and it grows with the documents: `docs/README.md` (the map of
   the documents themselves) is written by the same issue.
