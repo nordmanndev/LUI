@@ -226,6 +226,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The budget table of the README is the promise of §16, and a test holds it up**
+  ([ADR-0040](.agents/adr/0040-the-budget-table-of-the-entrance-is-a-promise.md), #38). The limits of the table were
+  copied by hand, and they had drifted: the allocation still promised the old target of ≤ 250 / ≤ 350 KB, while the
+  specification and the budget test have held ≤ 60 / ≤ 100 KB since ADR-0032.
+  - A new architecture test (`Readme_Budgets`) reads the target table of §16 out of the specification and compares it
+    with the budget table of the README, with the target table of the record and with its status table — in order, so
+    a swapped limit is caught as well as a changed one.
+  - The status table of the record stood apart from the contract twice: it promised the old limits, and it listed the
+    allocation before the correction. Its rows follow the order of the contract now.
+  - The allocation row of both tables carries the limits of §16 and the measured values of the run of 2026-11-06
+    (46 / 51 KB — bytes, so the machine does not matter).
+  - The mutation check has two mutations for it: a limit of the README and a limit of the record edited by hand turn
+    the build red.
+  - **No change to the public API.**
+
 - **The entrance shows the measurement, the bulk path, the kinds and the sources**
   ([ADR-0039](.agents/adr/0039-the-entrance-shows-the-measurement.md),
   [ADR-0038](.agents/adr/0038-the-public-api-has-a-page-of-its-own.md),
