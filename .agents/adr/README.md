@@ -93,3 +93,4 @@ decided about the query path" without opening 36 files.
 | [0037](./0037-the-papers-of-the-work-live-under-agents.md) | The papers of the work live under `.agents/`, the documentation of the library under `docs/` | Documentation | Accepted |
 | [0038](./0038-the-public-api-has-a-page-of-its-own.md) | The public API has a page of its own, and a test holds it up | Documentation | Accepted |
 | [0039](./0039-the-entrance-shows-the-measurement.md) | The entrance shows the measurement, the bulk path, the kinds and the sources | Documentation | Accepted |
+| [0040](./0040-the-budget-table-of-the-entrance-is-a-promise.md) | The budget table of the entrance is the promise of §16, and a test holds it up | Measurement | Accepted |

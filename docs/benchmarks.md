@@ -9,15 +9,16 @@
 **Every target of §16 is measured in its scenario and met** (PR-009,
 ADR-0020) — three of them as draft 2 set them, five as the owner
 stated them anew after the measurement (2026-11-04, ADR-0010, ADR-0020). The table is the output of
-`PerformanceBudgets`, which asserts every row. The allocation is met and still a bug (#30). The benchmark project
-(`benchmarks/Nordmann.LUI.Benchmarks/`) measures the code on the same corpus.
+`PerformanceBudgets`, which asserts every row. The allocation was lowered to its target (ADR-0032) and measured again
+on 2026-11-06: 46 / 51 KB. The benchmark project (`benchmarks/Nordmann.LUI.Benchmarks/`) measures the code on the same
+corpus.
 
 | Target | Measured at the scenario | Limit |
 |---|---:|---:|
 | query p50 | 1.34–1.71 ms | ≤ 2 ms |
 | query p95, 1–4 characters | ≤ 3.1 ms | ≤ 5 ms |
 | query p95, 5–8 characters | 13.4–17.5 ms | ≤ 20 ms |
-| allocation p50 / p95 | 83 / 298 KB | ≤ 250 / ≤ 350 KB (#30) |
+| allocation p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | query with correction p95 | 27.9–32.5 ms | ≤ 35 ms |
 | single write p95 | 0.51–0.78 ms | ≤ 1 ms |
 | build of 3 M | 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 240 s (#32) |
@@ -33,7 +34,7 @@ measurement has something to contradict.
 |---|---|---|
 | Query without correction | 3 M entries, inputs of 1–8 characters | p50 ≤ 2 ms; p95 ≤ 5 ms for 1–4 characters, ≤ 20 ms for 5–8 |
 | Query with typo correction | 3 M entries, a beginning with one typo | p95 ≤ 35 ms |
-| Allocation per query | 3 M entries, inputs of 1–8 characters | p50 ≤ 250 KB, p95 ≤ 350 KB (too much — bug #30) |
+| Allocation per query | 3 M entries, inputs of 1–8 characters, the candidate budget of 500 | p50 ≤ 60 KB, p95 ≤ 100 KB |
 | `Upsert` / `UpdateWeight` / `Remove` | one at a time, own transaction | p95 ≤ 1 ms |
 | Build-up | 3 M entries, `Embedded`, a first load by `Sync` | ≤ 4 min |
 | Typo dictionary | 700 000 distinct words | ≤ 200 MB, build ≤ 10 s |
