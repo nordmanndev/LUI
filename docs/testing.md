@@ -43,7 +43,7 @@ the reason is in the report.
 | `LUI_PERF_KIND=multi` | whether a measurement runs on the multi-word index | the same |
 | `LUI_REQUIRE_FULL_WORDLIST=1` | the full 685,829-word parity **must** run, or the test fails | the release gate ([`publish.yml`](../.github/workflows/publish.yml)) |
 | `LUI_WORDLIST` | where the full word list is | a person, on purpose |
-| `LUI_PERF_MACHINE=other` | the machine of the run: `measurement` asserts every target, `other` reports the times and asserts the sizes | the lane ([`performance.yml`](../.github/workflows/performance.yml)) |
+| `LUI_PERF_MACHINE=other` | the machine of the run: `measurement` asserts every target, `other` reports the times and asserts the sizes | the lane (`.github/workflows/performance.yml`) |
 
 **A skipped test that reports itself as passed proves nothing.** The full-word-list
 parity is skipped — and says so — when the list is missing, rather than
