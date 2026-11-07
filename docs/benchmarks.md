@@ -465,3 +465,7 @@ tools/fetch-wordlist.sh   # once: the full word list
 tools/benchmarks.sh       # runs everything, copies the reports, renders the tables, runs the guard
 ```
 
+
+<!-- PROBE (2026-11-07, issue #66): the link below points at nothing. The link check has to name it —
+     this is the red state of the branch, and the next commit takes the probe away. -->
+[the probe of the link check](./this-file-does-not-exist.md)
