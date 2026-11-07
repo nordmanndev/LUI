@@ -60,7 +60,6 @@ internal sealed class PerformanceBudget(ITestOutputHelper output, bool scenario,
             (_, _, _, true) => "reported (belongs to the machine it was measured on)",
             (false, null, _, _) => "MISSED",
             (false, _, _, _) => $"waived: {waiver}",
-            _ => "MISSED",
         };
 
         var line = string.Create(CultureInfo.InvariantCulture, $"budget | {target,-28} | {condition,-58} | {measured,8:F2} {unit,-2} | ≤ {limit} {unit} | {verdict}");
