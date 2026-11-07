@@ -359,6 +359,9 @@ public sealed class TypoToleranceTests
         recipes.Upsert(6, "Apfelstrudel", 5_000);
         recipes.Upsert(7, "Apfelkuchen mit Äpfeln", 300);
         recipes.Upsert(8, "Hauptstraße", 100);
+
+        // the application asks for the build (ADR-0042): a query never does
+        recipes.WarmUpTypoDictionary();
         return new Fixture(recipes);
     }
 
