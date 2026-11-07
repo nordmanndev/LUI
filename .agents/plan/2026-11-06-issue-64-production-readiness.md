@@ -172,13 +172,29 @@
   threads of their own — a test that waits for something must not wait for a free thread.
 
 
-- [ ] **Task 6 — The warm-up is a service of the host (opt-in) (#68)**
-  - [ ] `AddLuiWarmup()` — the dictionaries are warmed at the start, the outbox is brought in; **off by default**.
-  - [ ] **ADR-0043** — the hosting package still carries only the dependency injection (ADR-0034); this is a service the
-        host registers, not a thread the library starts.
-  - [ ] `docs/api.md` carries the new public types — otherwise `Public_API_Documentation` fails the build.
-  - [ ] The CHANGELOG (additive), the README (the ASP.NET section), the tutorial.
-  - **Test delta:** +3 integration tests. **Proof:** the CI run.
+- [x] **Task 6 — The warm-up is a service of the host (opt-in) (#68)**
+  - [x] `AddLuiWarmup()` — the outbox is applied at the start, the dictionaries are warmed, the outbox is applied on an
+        interval (30 s by default); **off by default**.
+  - [x] **ADR-0043** — the hosting package carries the abstractions of the host again (ADR-0034): the rule stands (a
+        package carries what it uses), the list changes. It is a service the host registers, not a thread the library
+        starts.
+  - [x] `docs/api.md` carries the two new methods of the catalog and the new registration.
+  - [x] The CHANGELOG (additive), the README (the ASP.NET section), the tutorial (chapter 5).
+  - **Test delta:** +4 integration tests, +2 public methods (`WarmUpTypoDictionaries`, `ApplyPending`), +1 registration.
+    **Proof:** the red commit `7029503` (2 of 3 cases red, frisch im Worktree nachgeprüft) ⇒ the green run **#154**
+    (`988b670`): Unit 263, Architektur 82, Integration 445 + 14 übersprungen, Client 43, `package-smoke-test: OK`,
+    Mutations-Check 0 failure(s) — alle fünf Jobs grün.
+
+  **Was die Runde fand:** der **Package-Smoke-Test** erwischte das README — er führt alle C#-Blöcke als **ein Programm**
+  aus, und mein zweiter Block registrierte den Katalog ein zweites Mal (`AddLui` wirft). Der Wärmer wanderte in den
+  Block des Hosts, wo der Katalog einmal registriert wird.
+
+  Und die **Windows-Lane** fand ein Rennen, das Task 5 offen gelassen hatte (#67): der Dispose-Test wartete auf den
+  Zustand des Wörterbuchs mit `await Task.Delay(10)` — und die Fortsetzung des `await` braucht einen freien Thread des
+  Pools. Unter der Last der Suite kam sie so spät, dass der Build fertig war (`Current` statt `Building`) und der
+  Dispose den Katalog unter dem Warm-up schloss. Die Warteschleife schläft jetzt auf dem Thread des Tests, und die
+  Behauptung „der Dispose kommt während des Warm-ups" wird über die **Zeitstempel** der beiden Worker bewiesen statt
+  gehofft.
 
 - [ ] **Task 7 — A typed view over the untyped index (#59)**
   - [ ] `index.As<T>()` — a thin, allocation-free view that delegates to the one index and calls `GetPayload<T>()` for
