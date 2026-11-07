@@ -113,47 +113,72 @@ public sealed class ConcurrencyTests
     }
 
     /// <summary>
-    /// Two catalogs on one file: two connections, one writer, one reader. The reader sees a picture
-    /// that exists — the text of a hit belongs to its key, never to another one — and never more
-    /// rows than were written. When the writer is done, the reader sees the same count.
+    /// Two catalogs on one file: two connections, one writer, one reader. The reader holds a query
+    /// open — it reads, and the snapshot is pinned while it ranks (a deferred transaction pins it).
+    /// The writer writes beside it: with the write-ahead log the file belongs to both of them at the
+    /// same time, and the reader sees the picture it pinned. Without it the writer waits for the
+    /// reader's lock, gives up and fails — that is the difference the mutation check mutates.
     /// </summary>
     [Fact]
     public async Task Two_catalogs_on_one_file_see_a_consistent_picture()
     {
         using var database = new TestDatabase();
-        using var writer = database.Open();
-        var written = writer.Create("tags", index => index.SingleWord());
 
-        // the second catalog opens the file after the index exists — the way a second
-        // process of an application finds the index of the first one
+        // the reader holds the query — and with it the snapshot of the file
         using var reader = database.Open();
-        var read = reader.Index("tags");
+        var blocking = new BlockingSimilarity();
+        var ranked = reader.Create("tags", index => index.SingleWord().Similarity(blocking));
 
-        const int Rows = 3_000;
-
-        var writing = Task.Run(() =>
+        const int Seed = 50;
+        for (var i = 0; i < Seed; i++)
         {
-            for (var i = 0; i < Rows; i++)
-            {
-                written.Upsert(i, TextOf(i), i);
-            }
-        });
+            ranked.Upsert(i, TextOf(i), i);
+        }
 
-        var reading = Task.Run(() =>
+        // the writer waits a second for a lock: a conflict has to be an error, not a wait
+        using var writer = database.Open(new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(1) });
+        var written = writer.Index("tags");
+
+        const int Written = 500;
+
+        var reading = Task.Run(() => ranked.Query("kuchen").Take(25).Execute());
+        blocking.Entered.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the reader reached the ranking");
+
+        // the writer writes while the reader holds the snapshot
+        for (var i = Seed; i < Seed + Written; i++)
         {
-            for (var round = 0; round < 150; round++)
-            {
-                var result = read.Query("kuchen").Take(25).Execute();
-                result.Hits.ShouldAllBe(hit => hit.Text == TextOf(hit.Key.ToInt64()));
-                read.Count().ShouldBeLessThanOrEqualTo(Rows);
-            }
-        });
+            written.Upsert(i, TextOf(i), i);
+        }
 
-        await Task.WhenAll(reading, writing);
+        blocking.Release.Set();
+        var result = await reading;
 
-        // the picture after the writer is done is the same on both connections
-        read.Count().ShouldBe(Rows);
-        written.Count().ShouldBe(Rows);
+        // the reader sees the picture it pinned: the rows that were there when its query started
+        result.Hits.Count.ShouldBe(25);
+        result.Hits.ShouldAllBe(hit => hit.Text == TextOf(hit.Key.ToInt64()));
+
+        // and both connections see the same count at the end
+        written.Count().ShouldBe(Seed + Written);
+        reader.Index("tags").Count().ShouldBe(Seed + Written);
+    }
+
+    /// <summary>
+    /// Holds a query in its ranking until the test lets it go. The payload is not read during a
+    /// query any more (ADR-0035), so the ranking is where a query is caught running — and where it
+    /// holds the snapshot of the file.
+    /// </summary>
+    private sealed class BlockingSimilarity : ILuiSimilarity
+    {
+        internal ManualResetEventSlim Entered { get; } = new();
+
+        internal ManualResetEventSlim Release { get; } = new();
+
+        public double Similarity(string query, string text)
+        {
+            Entered.Set();
+            Release.Wait(TimeSpan.FromSeconds(30));
+            return 1;
+        }
     }
 
     /// <summary>
