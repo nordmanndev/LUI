@@ -50,6 +50,21 @@ parity is skipped — and says so — when the list is missing, rather than
 returning green. The release gate sets `LUI_REQUIRE_FULL_WORDLIST=1`, and then
 the test fails with the reason instead of skipping.
 
+### The lanes of the CI
+
+The lanes of [`ci.yml`](../.github/workflows/ci.yml) are the map above, spread over
+the runners — and the lane of the schedule is a lane of its own
+([`performance.yml`](../.github/workflows/performance.yml)):
+
+| Lane | What it runs | What it is there for |
+|---|---|---|
+| Build · Test · Format | the three layers, the client of the sample, the format | the whole tree, on every pull request |
+| The normalisation parity over the whole word list | the parity over the full list (685,829 words) | the rule of §6.2 exists twice — as SQL and as C# |
+| The guards bite | the mutation check | a green test proves nothing until it has been seen red (ADR-0019) |
+| Package · Smoke test | the packed library in a throwaway application | the README's code is part of the test |
+| **Windows** | the three layers on `windows-latest` | the paths, the pragmas and the case of the file names — the platform where a path is a promise (issue #67) |
+| Performance (every night, by hand) | the seven targets of §16 | a time belongs to the machine it was measured on; a size is the same everywhere (ADR-0041) |
+
 ---
 
 ## Unit — the rules on their own
@@ -96,7 +111,7 @@ the test fails with the reason instead of skipping.
 | [`SampleBulkTests`](../tests/Nordmann.LUI.Integration.Tests/SampleBulkTests.cs) | Integration | the bulk indexes of the sample: the button that creates an index and loads it, the progress of the load, and exactly the number of entries that were asked for — and nothing else; the bulk indexes are not registered at startup, and the tests point the sample at the curated word list — a test never downloads 5.5 MB | ADR-0029 |
 | [`SampleIndexPanelTests`](../tests/Nordmann.LUI.Integration.Tests/SampleIndexPanelTests.cs) | Integration | the panel of the indexes: one index that cannot be read does not take the others down with it — an empty panel looks like data that was lost | ADR-0029 |
 | [`TypoQualityTests`](../tests/Nordmann.LUI.Integration.Tests/TypoQualityTests.cs) | Integration | the quality of the correction against a measured floor, by the length of the beginning | spec §10.4, §19, Anhang A4 |
-| [`ConcurrencyTests`](../tests/Nordmann.LUI.Integration.Tests/ConcurrencyTests.cs) | Integration | reads in parallel, writes serial — neither disturbs the other | spec §15 |
+| [`ConcurrencyTests`](../tests/Nordmann.LUI.Integration.Tests/ConcurrencyTests.cs) | Integration | reads in parallel, writes serial — neither disturbs the other; the soak of eight readers and one writer keeps the count; a second catalog on the same file sees a consistent picture while the first one writes; a dispose during a warm-up ends and does not hang | spec §15, issue #67 |
 | [`ApiShapeTests`](../tests/Nordmann.LUI.Integration.Tests/ApiShapeTests.cs) | Integration | the shape of the API before 0.1.0: the entry, the batch, the options that check themselves, the read and the write interface, the options of an index description that every step keeps, the exceptions of the library that are caught as one | ADR-0013, ADR-0024 |
 | [`RowIdTests`](../tests/Nordmann.LUI.Integration.Tests/RowIdTests.cs) | Integration | the rowid carries the priority and the weight — and the SQL and the C# agree on it | spec §7.2 |
 | [`ReviewFollowUpTests`](../tests/Nordmann.LUI.Integration.Tests/ReviewFollowUpTests.cs) | Integration | the findings of the review of pull request 6, each reproduced red before it was fixed | review of PR #6 |

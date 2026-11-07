@@ -19,6 +19,8 @@
 # The architecture rules are mutated in the architecture project, the rules of
 # the library itself in the unit project — the fast one, because it needs no
 # database and a mutation that takes 40 seconds is a mutation nobody runs.
+# The rules of the concurrency need a database, so their mutations run in the
+# integration project: they are the slow ones, and there are two of them.
 #
 set -uo pipefail
 
@@ -27,6 +29,7 @@ readonly WORK="$(mktemp -d)"
 
 readonly ARCHITECTURE_PROJECT="tests/Nordmann.LUI.Architecture.Tests/Nordmann.LUI.Architecture.Tests.csproj"
 readonly UNIT_PROJECT="tests/Nordmann.LUI.Unit.Tests/Nordmann.LUI.Unit.Tests.csproj"
+readonly INTEGRATION_PROJECT="tests/Nordmann.LUI.Integration.Tests/Nordmann.LUI.Integration.Tests.csproj"
 
 cleanup() { rm -rf "${WORK}"; }
 trap cleanup EXIT
@@ -336,7 +339,20 @@ expect_caught "a-link-in-the-documentation-points-at-nothing" "${ARCHITECTURE_PR
   "FullyQualifiedName~Link_Check" \
   "echo '[a link that points at nothing](./this-file-does-not-exist.md)' >> docs/benchmarks.md"
 
-# 25. The clean trees stay green.
+# 25. The concurrency of the round of issue #67: the write-ahead log is switched off. Without it a reader beside a
+#      writer waits for the lock and gives up with an error — the promise of §15 (many readers beside one writer)
+#      is gone, and the test with the second catalog has to notice.
+expect_caught "a-database-without-the-write-ahead-log" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~Two_catalogs_on_one_file_see_a_consistent_picture" \
+  "sed -i 's|PRAGMA journal_mode = WAL;|PRAGMA journal_mode = DELETE;|' src/Nordmann.LUI/Storage/Database.cs"
+
+# 26. The dispose waits for the running operations, but nobody wakes it (issue #67): the catalog waits for a warm-up
+#      that is still running — and the warm-up and the dispose never come back. The test has to end the wait.
+expect_caught "a-dispose-that-never-wakes-the-waiter" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_dispose_during_a_warm_up_ends_and_does_not_hang" \
+  "sed -i '/Monitor.PulseAll(_lifetime);/d' src/Nordmann.LUI/Storage/Database.cs"
+
+# 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

@@ -145,3 +145,49 @@ jobs:
           name: nupkg
           path: artifacts/nuget/*.nupkg
           retention-days: 14
+
+  # The other platform (issue #67): the paths, the pragmas and the case of the file names
+  # are promises that only Windows can break. The three layers run there — the unit, the
+  # architecture and the integration one.
+  #
+  # The format check and the client of the sample stay on Linux: the runner checks the tree
+  # out with CRLF, and `dotnet format` would report the line endings of the tree instead of
+  # the format of the code.
+  windows:
+    name: Windows · the paths, the pragmas, the names of the files
+    runs-on: windows-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore Lui.sln
+
+      - name: Build
+        run: dotnet build Lui.sln --configuration Release --no-restore
+
+      - name: Test · unit
+        run: >
+          dotnet test tests/Nordmann.LUI.Unit.Tests
+          --configuration Release
+          --no-build
+
+      # The architecture tests read the repository from disk — the paths of the map of the
+      # tests, the files of the packages, the links of the documentation.
+      - name: Test · architecture
+        run: >
+          dotnet test tests/Nordmann.LUI.Architecture.Tests
+          --configuration Release
+          --no-build
+
+      # The integration layer against a real SQLite file: the pragmas of the connections and
+      # the lifetime of the file are what the platform decides.
+      - name: Test · integration
+        run: >
+          dotnet test tests/Nordmann.LUI.Integration.Tests
+          --configuration Release
+          --no-build
