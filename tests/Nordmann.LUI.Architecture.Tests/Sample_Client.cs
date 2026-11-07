@@ -181,7 +181,9 @@ public sealed partial class Sample_Client
         var stated = Sha256InReadme().Match(readme).Groups["hash"].Value;
         stated.ShouldNotBeNullOrEmpty("the provenance names the SHA-256 of the file");
 
-        var actual = Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(Path.Combine(vendor, "flexdatalist.es.js"))));
+        // the bytes of the repository, not the bytes of the runner: a checkout with CRLF
+        // changed the line endings, and the provenance names the file of the repository
+        var actual = Convert.ToHexStringLower(SHA256.HashData(Repository.NormalizedBytes(Path.Combine(vendor, "flexdatalist.es.js"))));
 
         actual.ShouldBe(stated, "the vendored file is not the one the provenance describes — a changed library needs the provenance and the browser check redone");
         readme.ShouldContain("3.1.1");
