@@ -266,6 +266,33 @@ the type asked for is a `LuiPayloadException`.
 
 The phases of a query: `CandidateRead`, `Correction`, `Ranking`, `Payload` and `Total` — each a `TimeSpan`.
 
+### The typed view — the payload in the type of the application
+
+The index knows no type (ADR-0035) — the type of the payload stands where the payload is used. An application that
+wants the type checked by the compiler asks for a **view** of the index: `index.As<TagChip>()`. The view is a view — it
+opens nothing, writes nothing, and holds no index of its own. The untyped way stays: `hit.GetPayload<TagChip>()` is
+still there.
+
+```csharp
+var chips = catalog.Index("tags").As<TagChip>().Search("veg").Hits;
+foreach (var chip in chips)
+{
+    Console.WriteLine(chip.Payload.Name);   // TagChip — the compiler knows it
+}
+```
+
+| Type | What it is |
+|---|---|
+| `LuiIndexExtensions` | the class that holds `As<TPayload>()` — an extension method, so the type stays out of the index |
+| `LuiTypedIndex<TPayload>` | the view of an index: `Name`, `Kind`, `KeyKind`, `TypoTolerance`, `TypoDictionaryState`, `Count()` and `Search(...)` |
+| `LuiTypedResult<TPayload>` | the answer: `Query`, `Hits`, `CandidatesConsidered`, `Truncated`, `CorrectedQuery`, `CorrectionSkipped`, `Timings` |
+| `LuiTypedHit<TPayload>` | the hit: `Key`, `Text`, `Weight`, `Priority`, `Similarity`, `AtWordStart`, `HasPayload` and `Payload` |
+
+`LuiTypedIndex<TPayload>.Search(string text, LuiQueryOptions? options = null, CancellationToken cancellationToken =
+default)` answers like the index does — the same query, the same hits, the same corrections — and the payload of a hit
+is read in `TPayload`. The payload is **not** cached: it is deserialised on every access, exactly like
+`GetPayload<T>()`. Keep the result when it is used twice.
+
 ---
 
 ## The bulk path — loading many entries
@@ -411,7 +438,7 @@ The warm-up is a service of the host, not a thread of the library: the host star
 
 ## The whole surface
 
-Thirty-eight public types in `Nordmann.LUI`, one in `Nordmann.LUI.Hosting`. Nothing else is public.
+Forty-two public types in `Nordmann.LUI`, one in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|
@@ -431,6 +458,10 @@ Thirty-eight public types in `Nordmann.LUI`, one in `Nordmann.LUI.Hosting`. Noth
 | `LuiResult` | record | [reading](#reading--the-query-the-result-the-hit) |
 | `LuiHit` | struct | [reading](#reading--the-query-the-result-the-hit) |
 | `LuiTimings` | record | [reading](#reading--the-query-the-result-the-hit) |
+| `LuiIndexExtensions` | class | [reading](#the-typed-view--the-payload-in-the-type-of-the-application) |
+| `LuiTypedIndex` | class | [reading](#the-typed-view--the-payload-in-the-type-of-the-application) |
+| `LuiTypedResult` | record | [reading](#the-typed-view--the-payload-in-the-type-of-the-application) |
+| `LuiTypedHit` | struct | [reading](#the-typed-view--the-payload-in-the-type-of-the-application) |
 | `LuiSyncOptions` | record | [the bulk path](#the-bulk-path--loading-many-entries) |
 | `LuiSyncReport` | record | [the bulk path](#the-bulk-path--loading-many-entries) |
 | `LuiLinkedSyncReport` | record | [the bulk path](#the-bulk-path--loading-many-entries) |

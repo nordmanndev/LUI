@@ -24,11 +24,11 @@ public sealed class Public_API_Documentation
 
     private static Assembly[] PackageAssemblies => [Assembly.Load("Nordmann.LUI"), Assembly.Load("Nordmann.LUI.Hosting")];
 
-    /// <summary>Every public type of the two packages, by its simple name.</summary>
+    /// <summary>Every public type of the two packages, by its simple name — without the arity of a generic type.</summary>
     private static string[] PublicTypes() =>
         PackageAssemblies
             .SelectMany(assembly => assembly.GetExportedTypes())
-            .Select(type => type.Name)
+            .Select(Type_Names.Of)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
 

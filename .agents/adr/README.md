@@ -97,3 +97,4 @@ decided about the query path" without opening 36 files.
 | [0041](./0041-the-budgets-of-16-run-on-a-schedule.md) | The budgets of §16 run on a schedule: the bytes are asserted, the times are reported | Measurement | Accepted |
 | [0042](./0042-the-query-does-not-build-the-typo-dictionary.md) | The query does not build the typo dictionary: the application asks for it | Typo tolerance | Accepted |
 | [0043](./0043-the-warm-up-is-a-service-of-the-host.md) | The warm-up is a service of the host: the host asks for it, the library starts nothing | Hosting | Accepted |
+| [0044](./0044-the-typed-view-over-the-untyped-index.md) | The typed view over the untyped index: `index.As<T>()` gives the payload in the type of the application | API | Accepted |

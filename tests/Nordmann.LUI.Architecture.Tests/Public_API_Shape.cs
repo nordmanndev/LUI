@@ -89,11 +89,13 @@ public sealed class Public_API_Shape
         [
             "LuiHit", "LuiResult", "LuiTimings", "LuiQueryOptions", "LuiCatalogOptions",
             "LuiLinkedSyncReport", "LuiSyncOptions", "LuiSyncReport", "LuiIntegrityReport",
+            "LuiTypedHit", "LuiTypedResult",
         ];
 
+        // the name without the arity: the runtime appends it to a generic type, the list names the type
         var offenders = LibraryAssembly
             .GetExportedTypes()
-            .Where(type => named.Contains(type.Name, StringComparer.Ordinal))
+            .Where(type => named.Contains(Type_Names.Of(type), StringComparer.Ordinal))
             .Where(type => type.GetConstructors().Any(constructor =>
                 constructor.GetParameters().Length > 0
                 && !(constructor.GetParameters().Length == 1 && constructor.GetParameters()[0].ParameterType == type)))
@@ -101,7 +103,7 @@ public sealed class Public_API_Shape
             .ToArray();
 
         offenders.ShouldBeEmpty("The results and options are built with named properties.");
-        LibraryAssembly.GetExportedTypes().Count(type => named.Contains(type.Name, StringComparer.Ordinal)).ShouldBe(named.Length);
+        LibraryAssembly.GetExportedTypes().Count(type => named.Contains(Type_Names.Of(type), StringComparer.Ordinal)).ShouldBe(named.Length);
     }
 
     [Fact]
