@@ -67,6 +67,27 @@ The reference measurements of the specification (Anhang A) were taken on
 The numbers this repository publishes come from the machine the CI ran on —
 which is a smaller one. The difference is stated, not hidden.
 
+## The lane
+
+The targets of §16 run on a schedule of their own
+([`.github/workflows/performance.yml`](../.github/workflows/performance.yml), ADR-0041): every night, and by hand when
+somebody wants to see it. The lane fetches the whole word list, runs the parity with the gate
+(`LUI_REQUIRE_FULL_WORDLIST=1`) and then the budgets.
+
+The lane runs on a shared runner — not on the machine of the record. That changes what a target means there:
+
+| Kind of target | On the machine of the record | On the lane |
+|---|---|---|
+| a **size** — bytes: the allocation, the memory of the dictionary, the file | asserted | **asserted** — the bytes are the bytes |
+| a **time** — the query, the write, the build | asserted | **reported** — a time belongs to the machine it was measured on |
+
+A run without `LUI_PERF_MACHINE` is on the machine of the record and asserts everything, as before. The lane sets
+`LUI_PERF_MACHINE=other` on purpose, and the summary of its run says which machine it was. A size that is missed fails
+the lane; a time that is missed in the lane stands in the log with the machine named.
+
+The numbers of the lane are **not** the numbers of this file: a runner is smaller and louder than the machine of the
+record. What the lane decides is whether the sizes still hold.
+
 ---
 
 ## Results: the single-word index (PR-003)
