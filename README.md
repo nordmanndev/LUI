@@ -314,7 +314,20 @@ var suggest = catalog.Index("recipes");
 Console.WriteLine(suggest.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
 ```
 
-The hosting package carries the dependency injection and nothing else — no background service, no timer.
+The hosting package carries the dependency injection — and, if you ask for it, the **warm-up**:
+
+```csharp
+builder.Services.AddLui("Data Source=app.db");
+builder.Services.AddLuiWarmup();     // the dictionaries at the start, the outbox every 30 s
+```
+
+`AddLuiWarmup()` registers a service of the host: the typo dictionaries of your indexes are built while the host starts
+(so the first query already corrects a typo), and the outbox of a linked index — the rows the triggers noted — is
+applied every 30 seconds. **Off by default**: without the call, the host starts nothing of LUI.
+
+The library starts no thread of its own — the host runs the service, stops it and disposes it. And the library still
+carries no timer of its own: the rebuild of a dictionary stays with your application, because only you know when a
+phase is quiet.
 
 ## Only read
 

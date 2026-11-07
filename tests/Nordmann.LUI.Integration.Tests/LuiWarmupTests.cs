@@ -56,6 +56,27 @@ public sealed class LuiWarmupTests
     }
 
     [Fact]
+    public async Task The_rounds_of_the_outbox_run_on_the_interval()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        tags.CreateTriggers();
+        Insert(database, (1, "vegan", 0));
+
+        using var host = Host(database, warmup: true, interval: TimeSpan.FromMilliseconds(50));
+        await host.StartAsync();
+
+        // a row that comes after the start waits for the next round — the interval is the promise of the service
+        Insert(database, (2, "vegetarian", 0));
+        var tagsOfTheHost = host.Services.GetRequiredService<LuiCatalog>().LinkedIndex("tags");
+
+        await WaitUntil(() => tagsOfTheHost.Pending() == 0);
+        tagsOfTheHost.Search("vegetarian").Hits.ShouldHaveSingleItem();
+    }
+
+    [Fact]
     public async Task Without_the_registration_nothing_happens()
     {
         using var database = new TestDatabase();
@@ -75,16 +96,32 @@ public sealed class LuiWarmupTests
         catalogOfTheHost.LinkedIndex("linked").Pending().ShouldBe(1, "the outbox waits for the application");
     }
 
-    private static IHost Host(TestDatabase database, bool warmup)
+    private static IHost Host(TestDatabase database, bool warmup, TimeSpan? interval = null)
     {
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         builder.Services.AddLui(database.ConnectionString);
         if (warmup)
         {
-            builder.Services.AddLuiWarmup();
+            builder.Services.AddLuiWarmup(interval);
         }
 
         return builder.Build();
+    }
+
+    /// <summary>Waits until the claim of the service holds — ten seconds are enough, the interval is 50 ms.</summary>
+    /// <param name="claim">What must come true.</param>
+    private static async Task WaitUntil(Func<bool> claim)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+        while (!claim())
+        {
+            if (DateTime.UtcNow > deadline)
+            {
+                throw new TimeoutException("The claim of the service did not come true in ten seconds.");
+            }
+
+            await Task.Delay(20).ConfigureAwait(false);
+        }
     }
 
     private static void Run(TestDatabase database, string sql)

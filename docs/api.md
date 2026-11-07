@@ -32,6 +32,8 @@ using var catalog = LuiCatalog.Open("Data Source=app.db");
 | `ILuiEmbeddedIndex Index(string name)` | opens an embedded index that exists, and **writes nothing**: the definition is read out of the file, no table, no write lock. |
 | `ILuiLinkedIndex LinkedIndex(string name)` | opens a linked index without payload columns. |
 | `ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)` | opens a linked index with payload columns; the map builds the payload from the row of the table. |
+| `void WarmUpTypoDictionaries(CancellationToken cancellationToken = default)` | builds the typo dictionary of **every** index of the catalog — the warm-up of a host in one call (ADR-0043). The dictionary belongs to the index of the catalog: an index you open later sees it and reports it as built. |
+| `int ApplyPending(CancellationToken cancellationToken = default)` | applies the outbox of **every** linked index: the rows the triggers noted come into the index. The table of the application is not touched. Returns the number of rows brought in. |
 | `bool DropIndex(string name, bool dropTriggers = false)` | drops the index. The triggers of a linked index are dropped with it only if you say so. |
 | `string ConnectionString { get; }` | the connection string the catalog was opened with. |
 | `void Dispose()` | closes the catalog. It holds the connection pool; the indexes hold no resource of their own. |
@@ -396,9 +398,14 @@ library.
 |---|---|
 | `IServiceCollection AddLui(this IServiceCollection services, string connectionString, LuiCatalogOptions? options = null)` | puts the **catalog** into the container |
 | `IServiceCollection AddLui(this IServiceCollection services, Func<IServiceProvider, string> connectionString, Func<IServiceProvider, LuiCatalogOptions>? options = null)` | the same, with the connection string and the settings resolved from the container |
+| `IServiceCollection AddLuiWarmup(this IServiceCollection services, TimeSpan? outboxInterval = null)` | registers the **warm-up** as a service of the host: the typo dictionaries of every index are built at the start of the host, and the outbox of every linked index is applied on an interval (30 s by default). **Off by default** — without this call the host starts nothing of LUI (ADR-0043). |
 
-The container holds the catalog and nothing else: **an index is not registered and not injected**. The application asks
-the catalog for the index it needs. A second `AddLui` throws — the catalog is the one thing of LUI in the container.
+The container holds the catalog and — if the application asks for it — the warm-up: **an index is not registered and
+not injected**. The application asks the catalog for the index it needs. A second `AddLui` throws — the catalog is the
+one thing of LUI in the container.
+
+The warm-up is a service of the host, not a thread of the library: the host starts it, stops it and disposes it
+(ADR-0043). The library starts nothing on its own.
 
 ---
 

@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The warm-up is a service of the host** ([ADR-0043](.agents/adr/0043-the-warm-up-is-a-service-of-the-host.md), #68).
+  After [ADR-0042](#unreleased) the application builds the typo dictionary — and an application forgets. The warm-up is
+  the opt-in answer: the host asks for it, the library starts nothing on its own.
+  - `AddLuiWarmup()` in `Nordmann.LUI.Hosting` registers a hosted service that applies the outbox of every linked
+    index at the start of the host, builds the typo dictionary of every index, and applies the outbox on an interval
+    (30 s by default). **Off by default** — without the call the host starts nothing of LUI.
+  - `LuiCatalog.WarmUpTypoDictionaries()` and `LuiCatalog.ApplyPending()` do the same work in one call, for an
+    application that warms the catalog itself. Both are additive ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)).
+  - The hosting package carries `Microsoft.Extensions.Hosting.Abstractions` again — a hosted service is a type of a
+    host, and the dependency set of a package is its contract ([ADR-0034](.agents/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md)).
+
 - **The read path opens an index without writing** ([ADR-0033](.agents/adr/0033-the-read-path-opens-an-index-without-writing.md),
   #56). A second way into an index: the definition is read out of `lui_meta`, the index is rebuilt from it, and the
   file is not touched — no table, no definition, no write lock. It is the way into a database that is written

@@ -15,7 +15,7 @@
   - `src/Nordmann.LUI/Indexes/IndexStore.cs` (the list of the indexes of a catalog)
   - `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs` (the guard of the registrations of the container)
   - `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs` (the guard of the dependency set of the hosting package)
-  - `tests/Nordmann.LUI.Integration.Tests/LuiWarmupTests.cs` (the three cases)
+  - `tests/Nordmann.LUI.Integration.Tests/LuiWarmupTests.cs` (the four cases)
   - `docs/api.md`, `docs/testing.md`, the CHANGELOG, the README, the tutorial
 - **Issue:** #68
 
@@ -44,8 +44,10 @@ run a service of LUI.
 **The warm-up is a service of the host — and the host asks for it.**
 
 - `AddLuiWarmup()` in `Nordmann.LUI.Hosting` registers the warm-up: a hosted service that
-  1. **warms the typo dictionaries of every index of the catalog at the start of the host**, and
-  2. **applies the outbox of every linked index on an interval** (30 s by default).
+  1. **applies the outbox of every linked index once at the start of the host**,
+  2. **warms the typo dictionaries of every index of the catalog** — after the outbox, so that the dictionary knows
+     the words of the rows that came in, and
+  3. **applies the outbox on an interval** (30 s by default).
 - **Off by default.** Without the call the host starts nothing of LUI: no dictionary is built, no outbox is applied.
 - **The library starts no thread of its own.** The service is an `IHostedService` — the host runs it, the host stops it,
   the host disposes it. The timer of the outbox belongs to the service and dies with it.
@@ -76,6 +78,9 @@ run a service of LUI.
   dependency set of a package is its contract), the list does.
 - **The warm-up at the start blocks the start of the host**: the host is ready when the dictionaries are built. The
   build is CPU-bound and runs on a thread of its own — the pool of the application belongs to the application.
+- **A round of the outbox that fails does not take the host with it**: the rows stay in the outbox, the next round tries
+  again, and the application sees the backlog with `Pending()`. The package carries no logging (ADR-0034) — a failure
+  is not swallowed silently but left to the backlog that the application can watch.
 - A file that may not be written is warmed like any other: the dictionary lives in the memory, the build reads.
 
 ## Alternatives

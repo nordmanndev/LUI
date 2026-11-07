@@ -1,4 +1,5 @@
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Nordmann.LUI.Hosting;
 
 namespace Nordmann.LUI;
@@ -67,10 +68,25 @@ public static class LuiServiceCollectionExtensions
     /// </para>
     /// </summary>
     /// <param name="services">The services of the application.</param>
+    /// <param name="outboxInterval">
+    /// How long the service waits between two rounds of the outbox; <see langword="null"/> takes the default of 30 s.
+    /// </param>
     /// <returns>The services of the application; the warm-up is in them.</returns>
-    public static IServiceCollection AddLuiWarmup(this IServiceCollection services)
+    public static IServiceCollection AddLuiWarmup(this IServiceCollection services, TimeSpan? outboxInterval = null)
     {
         ArgumentNullException.ThrowIfNull(services);
+
+        var interval = outboxInterval ?? LuiWarmupService.DefaultOutboxInterval;
+        if (interval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(
+                nameof(outboxInterval),
+                interval,
+                "The interval between two rounds of the outbox must be positive.");
+        }
+
+        services.AddSingleton(provider => new LuiWarmupService(provider.GetRequiredService<LuiCatalog>(), interval));
+        services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<LuiWarmupService>());
 
         return services;
     }

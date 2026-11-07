@@ -169,10 +169,88 @@ public sealed class LuiCatalog : IDisposable
     /// </exception>
     public ILuiEmbeddedIndex Index(string name)
     {
-        var definition = ReadEntry(name).Definition;
-        EnsureEmbedded(name, definition);
+        var entry = ReadEntry(name);
+        EnsureEmbedded(name, entry.Definition);
 
-        var source = new EmbeddedSource(name, definition);
+        return OpenEmbedded(name, entry);
+    }
+
+    /// <summary>
+    /// Builds the typo dictionary of every index of the catalog (ADR-0043) — the warm-up of a host in one call.
+    /// <para>
+    /// The dictionary belongs to the index of the catalog, not to the instance of it: an index that the application
+    /// opens later sees the same dictionary and reports it as built (ADR-0025).
+    /// </para>
+    /// <para>
+    /// The build takes seconds and needs memory — 138 MB for 685,829 words (ADR-0021). A host that wants corrections
+    /// from its first query warms the catalog at the start; the registration <c>AddLuiWarmup()</c> of the hosting
+    /// package does it for the host (ADR-0043).
+    /// </para>
+    /// </summary>
+    /// <param name="cancellationToken">Checked between the indexes.</param>
+    /// <exception cref="LuiDefinitionMismatchException">
+    /// An index of the file was written by another version of the library (another schema version, another folding).
+    /// </exception>
+    public void WarmUpTypoDictionaries(CancellationToken cancellationToken = default)
+    {
+        foreach (var name in IndexStore.ReadIndexNames(Database))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var entry = ReadEntry(name);
+            if (string.Equals(entry.Source, EmbeddedSource.SourceName, StringComparison.Ordinal))
+            {
+                OpenEmbedded(name, entry).WarmUpTypoDictionary(cancellationToken);
+            }
+            else
+            {
+                OpenLinked(name, entry.Definition, new NoPayload(name)).WarmUpTypoDictionary(cancellationToken);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Applies the outbox of every linked index of the catalog: the rows the triggers noted come into the index
+    /// (ADR-0015, ADR-0043).
+    /// <para>
+    /// The table of the application is not touched — the outbox is brought into the index, and the index is as current
+    /// as the last call.
+    /// </para>
+    /// </summary>
+    /// <param name="cancellationToken">Checked between the indexes.</param>
+    /// <returns>The number of rows brought in.</returns>
+    /// <exception cref="LuiDefinitionMismatchException">
+    /// An index of the file was written by another version of the library (another schema version, another folding).
+    /// </exception>
+    public int ApplyPending(CancellationToken cancellationToken = default)
+    {
+        var applied = 0;
+
+        foreach (var name in IndexStore.ReadIndexNames(Database))
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+
+            var entry = ReadEntry(name);
+            if (!string.Equals(entry.Source, LinkedSource.SourceName, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            applied += OpenLinked(name, entry.Definition, new NoPayload(name)).ApplyPending(cancellationToken);
+        }
+
+        return applied;
+    }
+
+    /// <summary>
+    /// The read path of an embedded index (ADR-0033): built from the stored definition, without writing anything.
+    /// </summary>
+    /// <param name="name">The name of the index.</param>
+    /// <param name="entry">What the file holds about the index.</param>
+    /// <returns>The index; it reads, and it writes if the file allows it.</returns>
+    private EmbeddedIndex OpenEmbedded(string name, IndexStoreEntry entry)
+    {
+        var source = new EmbeddedSource(name, entry.Definition);
 
         // an opened index takes the default of its kind and no typo tolerance: a query asks for a correction
         // (LuiQueryOptions.TypoTolerance)

@@ -206,11 +206,11 @@ public sealed class Repository_Layout
     }
 
     [Fact]
-    public void The_hosting_ships_the_core_and_the_dependency_injection()
+    public void The_hosting_ships_the_core_the_dependency_injection_and_the_hosting_abstraction()
     {
-        // ADR-0034: the container holds the catalog and nothing else (ADR-0033) — the hosted services are gone, and with
-        // them the abstractions of a host. What the package needs is the dependency injection: AddLui and the
-        // IServiceCollection it returns.
+        // ADR-0034: the dependency set of a package is its contract — a package carries what it uses. The warm-up is a
+        // hosted service (ADR-0043), and a hosted service is a type of the host: the abstraction of the host is in the
+        // list again, because the package uses it now. The rule did not change — the list did.
         var runtime = Repository
             .Elements(Repository.LoadXml(HostingProject()), "PackageReference")
             .Where(reference => reference.Attribute("PrivateAssets") is null)
@@ -221,7 +221,8 @@ public sealed class Repository_Layout
 
         runtime.ShouldBe(
         [
-            "Microsoft.Extensions.DependencyInjection.Abstractions"
+            "Microsoft.Extensions.DependencyInjection.Abstractions",
+            "Microsoft.Extensions.Hosting.Abstractions"
         ]);
     }
 
