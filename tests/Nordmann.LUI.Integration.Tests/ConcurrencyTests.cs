@@ -144,13 +144,21 @@ public sealed class ConcurrencyTests
         var reading = Task.Run(() => ranked.Query("kuchen").Take(25).Execute());
         blocking.Entered.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the reader reached the ranking");
 
-        // the writer writes while the reader holds the snapshot
-        for (var i = Seed; i < Seed + Written; i++)
+        try
         {
-            written.Upsert(i, TextOf(i), i);
+            // the writer writes while the reader holds the snapshot
+            for (var i = Seed; i < Seed + Written; i++)
+            {
+                written.Upsert(i, TextOf(i), i);
+            }
+        }
+        finally
+        {
+            // the reader is let go in every case: a test that leaves a query running makes
+            // the dispose wait for it, and a failure would look like a hang
+            blocking.Release.Set();
         }
 
-        blocking.Release.Set();
         var result = await reading;
 
         // the reader sees the picture it pinned: the rows that were there when its query started
