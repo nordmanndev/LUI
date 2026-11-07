@@ -38,12 +38,12 @@
 
 ## The checklist
 
-- [ ] **Task 0 — The house**
+- [x] **Task 0 — The house**
   - [x] The epic issue #64: the seven tasks as acceptance criteria, the list of the sub-issues.
   - [x] The four sub-issues: #65 (task 2), #66 (task 3), #67 (task 5), #68 (task 6).
   - [x] The branch `feat/production-readiness`, cut from `main` at `dd756498`.
-  - [ ] The pull request, base `main`, head `feat/production-readiness` — **this pull request carries the whole plan**;
-        its body is the live checklist.
+  - [x] The pull request, base `main`, head `feat/production-readiness` — **this pull request carries the whole plan**;
+        its body is the live checklist. It is #69.
   - [x] This plan in `.agents/plan/`, named after the epic issue.
   - [x] **The state file stays with the session in flight.** `.agents/state/active-task.md` belongs to the session that
         is running; this round keeps its state in this plan, in issue #64 and in the body of the pull request. The file
@@ -57,7 +57,8 @@
       it found the real drift (≤ 250 / ≤ 350 KB against the contract's ≤ 60 / ≤ 100 KB) and both tables carry the limits
       of the contract now, with the measured values of the run of 2026-11-06 (46 / 51 KB). The mutation
       `a-budget-limit-in-the-readme-edited-by-hand` gives the guard teeth, ADR-0040 is the decision, and the plan of
-      the task is `.agents/plan/2026-11-06-issue-38-the-budget-table-of-the-entrance.md`.
+      the task is `.agents/plan/2026-11-06-issue-38-the-budget-table-of-the-entrance.md`. **Issue #38 is closed** — the
+      proof of the head of #63 (run #111, `60eda3e0`) and of the merge into `main` (run #114, `e30ba166`) stands in it.
       **Nothing of this round touches it** — the issue, the tables, the guard and the ADR belong to that round.
 
 - [x] **Task 2 — A lane of the CI checks the budgets of §16 (#65)**
