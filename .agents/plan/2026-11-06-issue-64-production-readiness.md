@@ -76,14 +76,23 @@
         fail instead of measuring a sample and calling it the scenario.
   - [ ] **The measurement of the lane itself:** the first run is triggered by hand and read — how long the build of
         three million entries takes on a runner, whether the disk and the memory hold. The lane is sized by that
-        measurement, not by an assumption. **The file is in place now** (`.github/workflows/performance.yml`); the run
-        is triggered by hand and read.
+        measurement, not by an assumption. **The file is in place now** (`.github/workflows/performance.yml`).
+        *A dispatch from the agent's side is impossible, and it is not a matter of trying harder — there are two
+        independent causes, and both are measured: the token of the owner reads the runs (`GET /actions/runs` → 200)
+        but may not write them (`GET /actions/permissions` → 403, "Resource not accessible by personal access
+        token"), and the lane is not registered while it lives only on a branch (`GET
+        /actions/workflows/performance.yml` → 404 — a workflow with `workflow_dispatch` must stand on the default
+        branch). **The first run therefore happens after the merge** — by the hand of the owner in the tab of the
+        actions, or by the agent if the token gets the permission "Actions: write". Meanwhile the steps of the lane
+        ran here, in the same order with the same environment and the same filter: the numbers of this machine
+        (2 cores, 3 GB) are not the measurement of a runner, they only prove that the lane works.*
   - [x] The gates table in `docs/testing.md` names the lane, and `docs/benchmarks.md` says what a target means on a
         shared runner.
   - **Test delta:** +6 integration tests (`PerformanceBudget_Machine`); the seven targets of §16 move from *never* to
         *nightly*. **Proof:** the red run #117 (exactly one test failed, with the assertion of the missing rule), the
         green run #125 (263 unit, 81 architecture, 436 integration, 43 client, mutation 0 failures), and the first run of
-        the lane — **pending**.
+        the lane — **pending** (the file is in place; the run waits for the merge). *The SHAs of the runs name the
+        commits of the old history — see "The history of the branch was rebuilt".*
 
 - [x] **Task 3 — The link check runs in the CI (#66)**
   - [x] The check is the tool of the repository (`tools/link-check.py` — 395 links, 0 broken at the time of PR #62) and
@@ -95,14 +104,16 @@
   - [x] The teeth: the red run shows the guard naming the broken link — file, line and target — and exactly one test
         failing. A guard that was never seen red is a guard that proves nothing.
   - [x] The map of the tests names the new file (`Link_Check`, Architecture).
-  - [ ] **Carry-over:** the mutation `a-link-in-the-documentation-points-at-nothing` in `tools/mutation-check.sh`. It
-        waits for the same reason as the row of ADR-0041: the file of the owner's round ends with the mutations of
-        issue #38, and two sides that append at the same place cannot be merged. It comes with the base.
+  - [x] **Carry-over:** the mutation `a-link-in-the-documentation-points-at-nothing` in `tools/mutation-check.sh` — it
+        is in the branch (`e52bb6c`). It waited for the same reason as the row of ADR-0041: the file of the owner's
+        round ends with the mutations of issue #38, and two sides that append at the same place cannot be merged.
+        With the base on `main` it came in without a conflict. **Verified here:** the mutation hangs a link that
+        points at nothing into `docs/benchmarks.md`, the guard of the architecture layer names it, the link is reset.
   - **Test delta:** +1 architecture test; the links of the documentation are checked by every run of the CI.
         **Proof:** the red run **#129** (head `071893c4`) — one test failed, and the guard named the broken link
         (`docs/benchmarks.md:471: ./this-file-does-not-exist.md does not exist`); the green run **#132** (head
         `9693375f`) — 263 unit, **82 architecture** (the new one among them), 436 integration, 43 client, mutation
-        0 failures.
+        0 failures. *The SHAs name the commits of the old history — see "The history of the branch was rebuilt".*
 
 - [x] **Task 4 — A query does not build the typo dictionary (#35)**
   - [x] **Rot first:** a test that proves a correcting query on an index without a dictionary leaves it *not built* and
@@ -119,15 +130,34 @@
         **Proof:** the red run **#134** (head `2299d059`) — exactly two tests failed, the second one after the 2 s busy
         timeout, so the lock conflict is real; the green run **#143** (head `d77f3c16`) — 263 unit, 82 architecture,
         **438** integration (14 skipped), 43 client, the mutation check with 0 failures and the smoke test of the packed
-        library green. #35 got the comment and is closed.
+        library green. #35 got the comment and is closed. *The red commit of this task carries the **same patch**
+        today (`git patch-id` is equal: `48acd2d3`), the green one differs only in the base.*
 
-- [ ] **Task 5 — The concurrency is hardened (#67)**
-  - [ ] A soak: more readers, more rounds, a bigger corpus — no exception, the counts stay consistent.
-  - [ ] Two catalogs on one file (two connections): the reader sees a consistent picture while the writer writes.
-  - [ ] A dispose while a warm-up runs: it ends, it does not hang.
-  - [ ] A Windows lane in the CI (`windows-latest`): the paths, the pragmas, the case of the file names.
-  - [ ] The map in `docs/testing.md` names the new tests.
+- [x] **Task 5 — The concurrency is hardened (#67)**
+  - [x] A soak: more readers, more rounds, a bigger corpus — no exception, the counts stay consistent.
+  - [x] Two catalogs on one file (two connections): the reader sees a consistent picture while the writer writes.
+  - [x] A dispose while a warm-up runs: it ends, it does not hang.
+  - [x] A Windows lane in the CI (`windows-latest`): the paths, the pragmas, the case of the file names.
+  - [x] The map in `docs/testing.md` names the new tests.
   - **Test delta:** +3 integration tests, +1 CI lane. **Proof:** the CI run of the commit (both runners).
+
+  **What the round found:** the library held up — every new test is green **without a change of the library**. What
+  was missing was the proof and the teeth. The teeth are two mutations, and both were seen red before they went
+  into the script: the write-ahead log off (`PRAGMA journal_mode = DELETE`) — the reader beside the writer waits
+  for the lock and gives up, and the test with the second catalog fails; and the dispose that never wakes the
+  waiter (no `Monitor.PulseAll`) — the dispose waits for a warm-up that is still running, and neither comes back,
+  and the test with the warm-up fails.
+
+  **The lane of Windows:** `windows-latest` runs the three layers. The format check and the client of the sample
+  stay on Linux — the runner checks the tree out with CRLF, and `dotnet format` would report the line endings of
+  the tree instead of the format of the code. *This lane has never run here — the sandbox is Linux. The first run
+  on the runner is the proof, and it is the owner's to read.*
+
+  **A finding of the way, not of the library:** the existing tests of the integration layer carry time windows of
+  10 s to 30 s — and one of 300 ms (`CatalogTests.Dispose_waits_for_a_query_that_is_running`). Under a machine
+  that runs a measurement of three million entries **beside** the suite, one of them goes red. It is a property of
+  the windows, not of the library; the CI runs one job at a time and has four cores.
+
 
 - [ ] **Task 6 — The warm-up is a service of the host (opt-in) (#68)**
   - [ ] `AddLuiWarmup()` — the dictionaries are warmed at the start, the outbox is brought in; **off by default**.
@@ -159,6 +189,32 @@ budget table, and this plan keeps its place in the history. Two consequences for
 - **the state file belongs to the session in flight.** `.agents/state/active-task.md` is the owner's; this branch does
   not touch it, and the state of this round lives in this plan, in #64 and in the body of the pull request.
 
+### The history of the branch was rebuilt (2026-11-07)
+
+The owner gave the agent a token. That changed the ground under the work in three ways, and all three are written
+down here instead of being worked around in silence:
+
+1. **The work happens with a real git** — a clone, a branch, a push with the token in the header of the request and
+   never in the URL of the remote, never in `.git/config` and never in a commit.
+2. **The branch was rebuilt on the base of `main`** (`e30ba166`): 32 commits, one thing per commit. The six identical
+   duplicates (the push of the agent had run three times) and the six probe commits are gone — they were noise in a
+   history, not work.
+3. **The content of the round did not change.** `git diff --stat d77f3c16 e52bb6c` (the green head of task 4 in the
+   old history against the head of today) names seven files: the round of the owner (#63 — `Readme_Budgets.cs` and its
+   plan), the carry-over of the round (the two rows of the ADR index, the mutation, the lane file) and the text of this
+   plan. **The source, the tests and the documents of the round differ by not a single line.**
+
+⇒ **The SHAs of the commits of the round have changed; the runs stay.** A run is the proof — a SHA is only the
+address of a commit. The runs #117, #125, #129, #132, #133, #134, #143 and #144 are the red and the green phases of
+the tasks; run **#145** (`e52bb6c`) is green on the branch as it stands now.
+
+### The carry-over is done (2026-11-07)
+
+The three things that waited for the base are in the branch (`e52bb6c`): the rows **0041** and **0042** in the index
+of the decisions, the mutation `a-link-in-the-documentation-points-at-nothing` and the lane file — which stands at
+`.github/workflows/performance.yml` now, because the token lets the agent move it there itself. **A lane outside of
+`.github/workflows/` never runs**: the file at `tools/performance-lane.yml` was a file, not a lane.
+
 ## The steps of every task
 
 The same eight steps, every time — the order is part of the contract:
@@ -182,9 +238,11 @@ The same eight steps, every time — the order is part of the contract:
 3. **The public API is not broken.** Task 4 changes a *documented behaviour* — before the tag `v0.1.0` that is
    allowed, but it needs an ADR and a note in the CHANGELOG. Tasks 6 and 7 are additive. No task changes the schema
    or the dependency set.
-4. **The work happens over the Contents API** — there is no PAT and no clone in this environment. The commits get fresh
-   SHAs, the test suite cannot be run here, and **the proof of every task is the CI run of the pushed commit**, read
-   from the logs of the run.
+4. **The work happens with a real git** — since 2026-11-07 the owner gave the agent a token: a clone, a branch, a
+   push. The token never lands in the URL of the remote, in `.git/config` or in a commit — the authentication goes
+   through the header of the request. The test suite runs here as well (the .NET SDK of the channel 10.0), so the
+   **proof of every task is the CI run of the pushed commit**, read from the logs of the run — and the local run
+   before the push.
 5. **`main` moves during the round.** Before every push the head of `main` is read; a file that changed there is
    re-read and carried over, never overwritten — a pull request against a dead tree is more dangerous than no pull
    request.
