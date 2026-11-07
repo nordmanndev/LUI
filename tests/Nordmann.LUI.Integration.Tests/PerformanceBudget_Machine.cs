@@ -28,7 +28,7 @@ public sealed class PerformanceBudget_Machine(ITestOutputHelper output)
     [Fact]
     public void Another_machine_reports_a_missed_time_and_does_not_fail()
     {
-        var budget = new PerformanceBudget(output, scenario: true, PerformanceBudget.Machine.Other);
+        var budget = new PerformanceBudget(output, scenario: true, BudgetMachine.Other);
 
         budget.AtMost("query p50", "the condition of the target", measured: 5.0, limit: 2.0, unit: "ms");
 
@@ -38,7 +38,7 @@ public sealed class PerformanceBudget_Machine(ITestOutputHelper output)
     [Fact]
     public void Another_machine_asserts_a_missed_size_and_fails()
     {
-        var budget = new PerformanceBudget(output, scenario: true, PerformanceBudget.Machine.Other);
+        var budget = new PerformanceBudget(output, scenario: true, BudgetMachine.Other);
 
         budget.AtMost("allocation p95", "the condition of the target", measured: 150.0, limit: 100.0, unit: "KB");
 
@@ -48,7 +48,7 @@ public sealed class PerformanceBudget_Machine(ITestOutputHelper output)
     [Fact]
     public void The_machine_of_the_record_asserts_a_missed_time_and_fails()
     {
-        var budget = new PerformanceBudget(output, scenario: true, PerformanceBudget.Machine.Measurement);
+        var budget = new PerformanceBudget(output, scenario: true, BudgetMachine.Measurement);
 
         budget.AtMost("query p50", "the condition of the target", measured: 5.0, limit: 2.0, unit: "ms");
 
@@ -58,7 +58,7 @@ public sealed class PerformanceBudget_Machine(ITestOutputHelper output)
     [Fact]
     public void A_run_that_is_not_the_scenario_reports_every_target_and_fails_nothing()
     {
-        var budget = new PerformanceBudget(output, scenario: false, PerformanceBudget.Machine.Measurement);
+        var budget = new PerformanceBudget(output, scenario: false, BudgetMachine.Measurement);
 
         budget.AtMost("query p50", "the condition of the target", measured: 5.0, limit: 2.0, unit: "ms");
 
