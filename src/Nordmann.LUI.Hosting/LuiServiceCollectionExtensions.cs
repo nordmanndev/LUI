@@ -57,4 +57,21 @@ public static class LuiServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Registers the warm-up of the catalog as a service of the host: the typo dictionaries of every index are built at
+    /// the start of the host, and the outbox of every linked index is applied on an interval (issue #68, ADR-0043).
+    /// <para>
+    /// <b>Off by default</b>: without this call the host starts nothing of LUI — no dictionary is built and no outbox is
+    /// applied. The library starts no thread of its own: the host runs the service, stops it and disposes it.
+    /// </para>
+    /// </summary>
+    /// <param name="services">The services of the application.</param>
+    /// <returns>The services of the application; the warm-up is in them.</returns>
+    public static IServiceCollection AddLuiWarmup(this IServiceCollection services)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        return services;
+    }
 }

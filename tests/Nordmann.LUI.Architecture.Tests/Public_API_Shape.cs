@@ -283,10 +283,11 @@ public sealed class Public_API_Shape
     }
 
     [Fact]
-    public void The_container_holds_the_catalog_and_nothing_else()
+    public void The_container_holds_the_catalog_and_the_warm_up_but_no_index()
     {
-        // ADR-0033: the container does not describe indexes — the application asks the catalog for what it needs, and
-        // `AddLui` is the only registration the hosting package has.
+        // ADR-0033: the container does not describe indexes — the application asks the catalog for what it needs.
+        // ADR-0043: the warm-up is a service of the host, and the host asks for it — it is the second registration, and
+        // it registers no index either.
         const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
 
         var hosting = Assembly.Load("Nordmann.LUI.Hosting").GetExportedTypes();
@@ -299,8 +300,8 @@ public sealed class Public_API_Shape
             .SelectMany(type => type.GetMethods(declared))
             .Where(method => method.Name.StartsWith("Add", StringComparison.Ordinal))
             .ToArray();
-        registrations.Length.ShouldBe(2, "AddLui and AddLui with the connection string from the container");
-        registrations.ShouldAllBe(method => string.Equals(method.Name, "AddLui", StringComparison.Ordinal));
+        registrations.Length.ShouldBe(3, "AddLui, AddLui with the connection string from the container, and AddLuiWarmup");
+        registrations.ShouldAllBe(method => method.Name == "AddLui" || method.Name == "AddLuiWarmup");
         registrations.ShouldAllBe(method => method.ReturnType == typeof(IServiceCollection));
     }
 
