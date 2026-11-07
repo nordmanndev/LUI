@@ -29,7 +29,7 @@
 |---|---|---|---|---|
 | 0 | **The house:** the epic issue, the four sub-issues, the branch, the pull request, this plan, the state of the session | #64 | — | 0 (no code) |
 | 1 | **The §16 table of the README and of the benchmarks agrees with the specification — and a guard keeps it there** | #38 | ADR-0040 (the owner's round) | **taken over** — see "What actually happened" |
-| 2 | **A lane of the CI checks the budgets of §16** (the allocations are asserted, the times are reported) | #65 | ADR-0041 (Measurement) | 0 new tests, +1 lane, +1 ADR |
+| 2 | **A lane of the CI checks the budgets of §16** (the allocations are asserted, the times are reported) | #65 | ADR-0041 (Measurement) | +6 integration tests, +1 lane, +1 ADR |
 | 3 | **The link check runs in the CI** | #66 | — | 0 new tests, +1 step |
 | 4 | **A query does not build the typo dictionary any more** | #35 | ADR-0042 (Typo tolerance) | **+2** integration tests, 1 ADR, spec + CHANGELOG |
 | 5 | **The concurrency is hardened:** a soak, a second connection on one file, a dispose during a build, a Windows lane | #67 | — | **+3** integration tests, +1 CI lane |
@@ -60,20 +60,27 @@
       the task is `.agents/plan/2026-11-06-issue-38-the-budget-table-of-the-entrance.md`.
       **Nothing of this round touches it** — the issue, the tables, the guard and the ADR belong to that round.
 
-- [ ] **Task 2 — A lane of the CI checks the budgets of §16 (#65)**
-  - [ ] The decision written down: **ADR-0041** — what runs, when, what is asserted against what is only reported.
-  - [ ] **The rule of the measurement:** the *allocations* are machine-independent and are asserted; the *times* belong
-        to the machine they were measured on and are only reported, with the machine named.
-  - [ ] A job `performance` in `.github/workflows/ci.yml`: a schedule (nightly) and `workflow_dispatch` with an input
-        for the size of the scenario.
-  - [ ] The job runs the budget test with `LUI_PERF=1` in the scenario of §16 (three million entries, the corpus of the
-        specification).
+- [x] **Task 2 — A lane of the CI checks the budgets of §16 (#65)**
+  - [x] The decision written down: **ADR-0041** — what runs, when, what is asserted against what is only reported.
+  - [x] **The rule of the measurement:** the *allocations* are machine-independent and are asserted; the *times* belong
+        to the machine they were measured on and are only reported, with the machine named. The rule is one method and
+        one enum (`BudgetMachine`), and the unit of the target decides its verdict.
+  - [x] A lane of its own: `.github/workflows/performance.yml` — a schedule (nightly) and `workflow_dispatch` with an
+        input for the size of the scenario. **Not** a job in `ci.yml`: a job cannot have a schedule of its own.
+        *The file stands at `tools/performance-lane.yml` until the owner moves it — the connector of the agent may not
+        write into `.github/workflows/`. One command: `git mv tools/performance-lane.yml .github/workflows/performance.yml`.*
+  - [x] The lane runs the budget test with `LUI_PERF=1` in the scenario of §16 (three million entries, the corpus of the
+        specification), and the parity with the gate `LUI_REQUIRE_FULL_WORDLIST=1` — a missing word list makes the lane
+        fail instead of measuring a sample and calling it the scenario.
   - [ ] **The measurement of the lane itself:** the first run is triggered by hand and read — how long the build of
         three million entries takes on a runner, whether the disk and the memory hold. The lane is sized by that
-        measurement, not by an assumption.
-  - [ ] The gates table in `docs/testing.md` names the lane.
-  - **Test delta:** 0 new tests; the seven assertions of §16 move from *never* to *nightly*. **Proof:** the triggered
-        run, its log, the numbers.
+        measurement, not by an assumption. **It waits for the owner:** the file has to move first.
+  - [x] The gates table in `docs/testing.md` names the lane, and `docs/benchmarks.md` says what a target means on a
+        shared runner.
+  - **Test delta:** +6 integration tests (`PerformanceBudget_Machine`); the seven targets of §16 move from *never* to
+        *nightly*. **Proof:** the red run #117 (exactly one test failed, with the assertion of the missing rule), the
+        green run #125 (263 unit, 81 architecture, 436 integration, 43 client, mutation 0 failures), and the first run of
+        the lane — **pending**.
 
 - [ ] **Task 3 — The link check runs in the CI (#66)**
   - [ ] One step in the build job: `python3 tools/link-check.py` — 395 links, 0 broken at the time of PR #62.
