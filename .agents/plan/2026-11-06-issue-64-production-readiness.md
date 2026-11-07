@@ -31,7 +31,7 @@
 | 1 | **The §16 table of the README and of the benchmarks agrees with the specification — and a guard keeps it there** | #38 | ADR-0040 (the owner's round) | **taken over** — see "What actually happened" |
 | 2 | **A lane of the CI checks the budgets of §16** (the allocations are asserted, the times are reported) | #65 | ADR-0041 (Measurement) | +6 integration tests, +1 lane, +1 ADR |
 | 3 | **The link check runs in the CI** | #66 | — | 0 new tests, +1 step |
-| 4 | **A query does not build the typo dictionary any more** | #35 | ADR-0042 (Typo tolerance) | **+2** integration tests, 1 ADR, spec + CHANGELOG |
+| 4 | **A query does not build the typo dictionary any more** | #35 | ADR-0042 (Typo tolerance) | **+2** integration tests (9 test files), 1 ADR, spec + CHANGELOG |
 | 5 | **The concurrency is hardened:** a soak, a second connection on one file, a dispose during a build, a Windows lane | #67 | — | **+3** integration tests, +1 CI lane |
 | 6 | **The warm-up is a service of the host — opt-in** (`AddLuiWarmup`) | #68 | ADR-0043 (Runtime) | **+3** integration tests, +1 ADR, `docs/api.md` |
 | 7 | **A typed view over the untyped index: `index.As()`** | #59 | ADR-0044 (API) | **+2** integration tests, +1 ADR, `docs/api.md` |
@@ -102,16 +102,22 @@
         `9693375f`) — 263 unit, **82 architecture** (the new one among them), 436 integration, 43 client, mutation
         0 failures.
 
-- [ ] **Task 4 — A query does not build the typo dictionary (#35)**
-  - [ ] **Rot first:** a test that proves a correcting query on an index without a dictionary leaves it *not built* and
+- [x] **Task 4 — A query does not build the typo dictionary (#35)**
+  - [x] **Rot first:** a test that proves a correcting query on an index without a dictionary leaves it *not built* and
         sets `CorrectionSkipped` — the query does not build.
-  - [ ] The build path leaves the query (`TypoCorrection.IsReady`, `TypoDictionary.TryEnsureBuilt`); the build stays
+  - [x] The build path leaves the query (`TypoCorrection.IsReady`, `TypoDictionary.TryEnsureBuilt`); the build stays
         where it belongs: `WarmUpTypoDictionary`, `RebuildTypoDictionary`, the writes.
-  - [ ] The specification (§10.1) and the README are updated in the same commit; the CHANGELOG says what changes.
-  - [ ] **ADR-0042** — why the query does not build, and what replaces it.
-  - [ ] `docs/api.md` if a public member disappears — the guard `Public_API_Documentation` says so.
-  - **Test delta:** +2 integration tests, the existing `TypoDictionaryLifecycleTests` brought to the new contract.
-        **Proof:** the CI run; #35 gets the comment and is closed.
+  - [x] The specification (§10.1) and the README are updated in the same commit; the CHANGELOG says what changes.
+  - [x] **ADR-0042** — why the query does not build, and what replaces it.
+  - [x] `docs/api.md` if a public member disappears — the guard `Public_API_Documentation` says so.
+  - **Test delta:** +2 integration tests (the two new ones in `TypoDictionaryLifecycleTests`), **9** test files touched
+        (the seven above plus `ReadPathTests` and `LinkedIndexTests`: the tests that want a correction ask for the
+        dictionary now). The unit layer keeps its 263 tests: the two tests of `TypoDictionaryStateTests` were renamed,
+        because the query that built the dictionary is gone.
+        **Proof:** the red run **#134** (head `2299d059`) — exactly two tests failed, the second one after the 2 s busy
+        timeout, so the lock conflict is real; the green run **#143** (head `d77f3c16`) — 263 unit, 82 architecture,
+        **438** integration (14 skipped), 43 client, the mutation check with 0 failures and the smoke test of the packed
+        library green. #35 got the comment and is closed.
 
 - [ ] **Task 5 — The concurrency is hardened (#67)**
   - [ ] A soak: more readers, more rounds, a bigger corpus — no exception, the counts stay consistent.
