@@ -30,7 +30,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
     {
         var entries = Entries(Scenario);
         var corpus = Corpus.Generate(Words(), entries, CorpusKind.SingleWord);
-        var budget = new PerformanceBudget(output, entries >= Scenario, PerformanceBudget.Machine());
+        var budget = new PerformanceBudget(output, entries >= Scenario, PerformanceBudget.CurrentMachine());
         budget.SayTheMachine();
 
         using var database = new TestDatabase();
@@ -75,7 +75,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
     public void The_typo_dictionary_of_the_whole_word_list()
     {
         var words = Words();
-        var budget = new PerformanceBudget(output, words.Count >= TestCorpus.FullWordListCount - 1_000, PerformanceBudget.Machine());
+        var budget = new PerformanceBudget(output, words.Count >= TestCorpus.FullWordListCount - 1_000, PerformanceBudget.CurrentMachine());
         budget.SayTheMachine();
 
         using var database = new TestDatabase();
@@ -101,7 +101,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
     public void The_file_of_a_million_titles()
     {
         var entries = Entries(TitlesScenario);
-        var budget = new PerformanceBudget(output, entries >= TitlesScenario, PerformanceBudget.Machine());
+        var budget = new PerformanceBudget(output, entries >= TitlesScenario, PerformanceBudget.CurrentMachine());
         budget.SayTheMachine();
 
         using var database = new TestDatabase();
