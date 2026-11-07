@@ -157,6 +157,9 @@ try
         titles.Upsert(1, "Apfel Kuchen", weight: 10);
         titles.Upsert(2, "Bratapfelkuchen", weight: 1000);
 
+        // the application asks for the dictionary of the typos — a query never does
+        titles.WarmUpTypoDictionary();
+
         var reordered = titles.Query("kuchen apfel").Execute().Hits.FirstOrDefault().Text;
         var compact = titles.Query("apfelkuch").Execute().Hits.FirstOrDefault().Text;
         Console.WriteLine($"kuchen apfel -> {reordered}; apfelkuch -> {compact}");

@@ -52,6 +52,9 @@ var recipes = lui.Create("recipes", index => index.MultiWord().TypoTolerance());
 recipes.Upsert(1, "Gedeckter Apfelkuchen", weight: 9000);
 recipes.Upsert(3, "Bratapfelkuchen", weight: 800);
 
+// the application asks for the dictionary of the typos — a query never does
+recipes.WarmUpTypoDictionary();
+
 foreach (var hit in recipes.Search("apfelkuch").Hits)
 {
     Console.WriteLine($"{hit.Text} ({hit.Weight})");
