@@ -190,7 +190,7 @@ public sealed class TypoDictionaryLifecycleTests
     }
 
     [Fact]
-    public void An_index_without_typo_tolerance_has_a_dictionary_that_is_never_built()
+    public void An_index_without_typo_tolerance_has_a_dictionary_that_a_query_never_builds()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();

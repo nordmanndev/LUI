@@ -403,7 +403,12 @@ public sealed class ReadPathTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "Apfelkuchen");
+        var tags = catalog.Create("tags", index => index.SingleWord());
+        tags.Upsert(1, "Apfelkuchen");
+
+        // the application asks for the build (ADR-0042): a query never does. The read path writes nothing,
+        // so the warm-up belongs to the index that writes.
+        tags.WarmUpTypoDictionary();
 
         var index = catalog.Index("tags");
         index.TypoTolerance.ShouldBeFalse("an opened index corrects no typo");
