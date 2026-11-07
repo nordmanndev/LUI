@@ -182,11 +182,14 @@ public sealed class ConcurrencyTests
     private sealed class Worker
     {
         private Exception? _error;
+        private long _startedAt;
+        private long _endedAt;
 
         internal Worker(Action action)
         {
             Thread = new Thread(() =>
             {
+                _startedAt = DateTime.UtcNow.Ticks;
                 try
                 {
                     action();
@@ -194,6 +197,10 @@ public sealed class ConcurrencyTests
                 catch (Exception exception)
                 {
                     _error = exception;
+                }
+                finally
+                {
+                    _endedAt = DateTime.UtcNow.Ticks;
                 }
             })
             {
@@ -204,6 +211,12 @@ public sealed class ConcurrencyTests
         internal Thread Thread { get; }
 
         internal Exception? Error => _error;
+
+        /// <summary>When the work began — the proof that a dispose came while the warm-up ran.</summary>
+        internal DateTime StartedAt => new DateTime(Interlocked.Read(ref _startedAt), DateTimeKind.Utc);
+
+        /// <summary>When the work was done.</summary>
+        internal DateTime EndedAt => new DateTime(Interlocked.Read(ref _endedAt), DateTimeKind.Utc);
 
         internal void Start() => Thread.Start();
     }
@@ -233,7 +246,7 @@ public sealed class ConcurrencyTests
     /// build comes back. Neither of them hangs.
     /// </summary>
     [Fact]
-    public async Task A_dispose_during_a_warm_up_ends_and_does_not_hang()
+    public void A_dispose_during_a_warm_up_ends_and_does_not_hang()
     {
         using var database = new TestDatabase();
         var catalog = database.Open();
@@ -244,12 +257,14 @@ public sealed class ConcurrencyTests
         var warm = new Worker(() => tags.WarmUpTypoDictionary());
         warm.Start();
 
-        // the build has to run before the dispose comes — a dispose after the build would
-        // prove nothing about a dispose *during* one
+        // The build has to run before the dispose comes — a dispose after the build would prove nothing about a
+        // dispose *during* one. The wait sleeps on the thread of the test: a test that waits for a state must not
+        // wait for a free thread of the pool (the Windows runner found that — the continuation came so late that
+        // the build was over and the dispose had closed the catalog under the warm-up).
         var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (tags.TypoDictionaryState != LuiTypoDictionaryState.Building && DateTime.UtcNow < deadline)
+        while (tags.TypoDictionaryState == LuiTypoDictionaryState.NotBuilt && DateTime.UtcNow < deadline)
         {
-            await Task.Delay(10);
+            Thread.Sleep(1);
         }
 
         tags.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Building, "the warm-up builds while the dispose comes");
@@ -261,8 +276,11 @@ public sealed class ConcurrencyTests
         var end = DateTime.UtcNow.AddSeconds(30);
         while ((warm.Thread.IsAlive || disposing.Thread.IsAlive) && DateTime.UtcNow < end)
         {
-            await Task.Delay(50);
+            Thread.Sleep(20);
         }
+
+        // the times are the proof that the dispose came while the warm-up ran — not the hope that it did
+        disposing.StartedAt.ShouldBeLessThan(warm.EndedAt, "the dispose comes while the warm-up runs");
 
         warm.Thread.IsAlive.ShouldBeFalse("the warm-up ends — it does not hang");
         disposing.Thread.IsAlive.ShouldBeFalse("the dispose ends — it does not hang");
