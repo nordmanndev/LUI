@@ -9,6 +9,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The typed view over the untyped index** ([ADR-0044](.agents/adr/0044-the-typed-view-over-the-untyped-index.md),
+  #59). The index knows no type ([ADR-0035](.agents/adr/0035-the-index-knows-no-types.md)) — the type of the payload
+  stands where the payload is used, and a typo in it is a runtime error instead of a compile error. The view is the
+  way out: `index.As<TagChip>()` gives the index as the application sees it, with the payload in the type of the
+  application.
+  - `LuiIndexExtensions.As<TPayload>()` is an extension method — the type stays out of the index, and the index keeps
+    no type. The view opens nothing, writes nothing, and holds no index of its own.
+  - `LuiTypedIndex<TPayload>` (the view), `LuiTypedResult<TPayload>` (the answer) and `LuiTypedHit<TPayload>` (the
+    hit) mirror the three untyped types — `ILuiIndex`, `LuiResult` and `LuiHit`. The key stays `LuiKey`; the payload
+    is not cached, it is read on every access, exactly like `GetPayload<T>()`.
+  - The untyped way stays: `hit.GetPayload<T>()` is still there, and still the one way for the application that does
+    not want a view. The view is additive ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)).
+
 - **The warm-up is a service of the host** ([ADR-0043](.agents/adr/0043-the-warm-up-is-a-service-of-the-host.md), #68).
   After [ADR-0042](#unreleased) the application builds the typo dictionary — and an application forgets. The warm-up is
   the opt-in answer: the host asks for it, the library starts nothing on its own.

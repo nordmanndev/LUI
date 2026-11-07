@@ -37,6 +37,25 @@ public sealed class LuiTypedIndex<TPayload>
     /// <param name="options">The options; <see langword="null"/> takes the defaults.</param>
     /// <param name="cancellationToken">Checked while the candidates are read.</param>
     /// <returns>The answer.</returns>
-    public LuiTypedResult<TPayload> Search(string text, LuiQueryOptions? options = null, CancellationToken cancellationToken = default) =>
-        new() { Query = text, Hits = [] };
+    public LuiTypedResult<TPayload> Search(string text, LuiQueryOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        var result = _index.Search(text, options, cancellationToken);
+
+        var hits = new LuiTypedHit<TPayload>[result.Hits.Count];
+        for (var i = 0; i < hits.Length; i++)
+        {
+            hits[i] = new LuiTypedHit<TPayload> { Hit = result.Hits[i] };
+        }
+
+        return new LuiTypedResult<TPayload>
+        {
+            Query = result.Query,
+            Hits = hits,
+            CandidatesConsidered = result.CandidatesConsidered,
+            Truncated = result.Truncated,
+            CorrectedQuery = result.CorrectedQuery,
+            CorrectionSkipped = result.CorrectionSkipped,
+            Timings = result.Timings,
+        };
+    }
 }

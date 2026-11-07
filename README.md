@@ -277,7 +277,9 @@ var chips = withChips.Create("chips", index => index.SingleWord());
 chips.Upsert(new LuiEntry(1, "vegan") { Weight = 120, Payload = new TagChip("#3a3", "System") });
 
 var chip = chips.Search("veg").Hits[0].GetPayload<TagChip>();   // the type stands where the payload is used
+var typed = chips.As<TagChip>().Search("veg").Hits[0].Payload;  // the same, through a view — the compiler checks the type
 Console.WriteLine(chip!.Colour);                                 // #3a3
+Console.WriteLine(typed!.Colour);                                // #3a3
 ```
 
 ```csharp
@@ -291,7 +293,9 @@ public sealed partial class TagJson : JsonSerializerContext;
 ```
 
 The index knows no types: the file stores the payload as bytes, and the type stands where the payload is used — a
-payload that cannot be read is a `LuiPayloadException`.
+payload that cannot be read is a `LuiPayloadException`. An application that wants the type checked by the compiler asks
+for a **view** of the index: `chips.As<TagChip>()`. The view is a view — it opens nothing, writes nothing, and holds no
+index of its own.
 
 ## In an ASP.NET Core application
 
