@@ -139,24 +139,37 @@
   - [x] A dispose while a warm-up runs: it ends, it does not hang.
   - [x] A Windows lane in the CI (`windows-latest`): the paths, the pragmas, the case of the file names.
   - [x] The map in `docs/testing.md` names the new tests.
-  - **Test delta:** +3 integration tests, +1 CI lane. **Proof:** the CI run of the commit (both runners).
+  - **Test delta:** +3 integration tests, +1 CI lane, +2 mutations. **Proof:** run **#149** (head `3645543`) — all five
+    jobs green: *Build · Test · Format* (263 unit, 82 architecture, 441 integration + 14 skipped, 43 client), *The
+    normalisation parity over the whole word list*, *The guards bite* (both new mutations `CAUGHT BY TEST`, **0
+    failures**), *Package · Smoke test* and — for the first time — *Windows · the paths, the pragmas, the names of
+    the files* (263 unit, 82 architecture, 441 integration + 14 skipped).
 
   **What the round found:** the library held up — every new test is green **without a change of the library**. What
   was missing was the proof and the teeth. The teeth are two mutations, and both were seen red before they went
-  into the script: the write-ahead log off (`PRAGMA journal_mode = DELETE`) — the reader beside the writer waits
-  for the lock and gives up, and the test with the second catalog fails; and the dispose that never wakes the
-  waiter (no `Monitor.PulseAll`) — the dispose waits for a warm-up that is still running, and neither comes back,
-  and the test with the warm-up fails.
+  into the script: the write-ahead log off (`PRAGMA journal_mode = DELETE`) — the writer waits for the lock of the
+  reader and fails (`SQLite Error 5: 'database is locked'`); and the dispose that never wakes the waiter (no
+  `Monitor.PulseAll`) — the dispose waits for a warm-up that is still running, and neither comes back.
 
-  **The lane of Windows:** `windows-latest` runs the three layers. The format check and the client of the sample
-  stay on Linux — the runner checks the tree out with CRLF, and `dotnet format` would report the line endings of
-  the tree instead of the format of the code. *This lane has never run here — the sandbox is Linux. The first run
-  on the runner is the proof, and it is the owner's to read.*
+  **The lane of Windows earned its place on its first run.** It found three platform differences that Linux cannot
+  see: two guards compared the *bytes* of a file and broke on the CRLF of the checkout (the hash of the vendored
+  library, the benchmark tables of the README) — they compare the content now; a test read the bytes of the
+  database file while the catalog held it open — on Windows the handle of SQLite denies the read, so the claims
+  about the rows and the tables are checked there and the claim about the bytes only where the bytes can be read;
+  and the sample's abandoned request had four seconds to be noticed — enough on an empty machine, too little on a
+  loaded one.
+
+  **And a bug of the library, which does not belong to this task: issue #70.** The `BusyTimeout` of the catalog does
+  not shorten the wait for a lock: with `BusyTimeout = 1 s` a write waits **31 s** — the pragma reads `1000` back
+  and the wait is still 31 s, because Microsoft.Data.Sqlite sets `sqlite3_busy_timeout` from the command's timeout
+  before every command. The repair needs a decision of its own (a short `CommandTimeout` would interrupt the long
+  statements as well), so it has its own issue.
 
   **A finding of the way, not of the library:** the existing tests of the integration layer carry time windows of
   10 s to 30 s — and one of 300 ms (`CatalogTests.Dispose_waits_for_a_query_that_is_running`). Under a machine
   that runs a measurement of three million entries **beside** the suite, one of them goes red. It is a property of
-  the windows, not of the library; the CI runs one job at a time and has four cores.
+  the windows, not of the library; the CI runs one job at a time and has four cores. The tests of the round get
+  threads of their own — a test that waits for something must not wait for a free thread.
 
 
 - [ ] **Task 6 — The warm-up is a service of the host (opt-in) (#68)**
