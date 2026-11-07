@@ -70,7 +70,7 @@ which is a smaller one. The difference is stated, not hidden.
 ## The lane
 
 The targets of §16 run on a schedule of their own
-([`.github/workflows/performance.yml`](../.github/workflows/performance.yml), ADR-0041): every night, and by hand when
+(`.github/workflows/performance.yml`, ADR-0041): every night, and by hand when
 somebody wants to see it. The lane fetches the whole word list, runs the parity with the gate
 (`LUI_REQUIRE_FULL_WORDLIST=1`) and then the budgets.
 
