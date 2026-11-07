@@ -58,10 +58,10 @@ public sealed class Link_Check
 
             startInfo.ArgumentList.Add(script);
 
-            Process? process;
+            Process? started;
             try
             {
-                process = Process.Start(startInfo);
+                started = Process.Start(startInfo);
             }
             catch (Win32Exception exception)
             {
@@ -70,18 +70,20 @@ public sealed class Link_Check
                 continue;
             }
 
-            if (process is null)
+            if (started is null)
             {
                 last = new InvalidOperationException($"The process {interpreter} did not start.");
                 continue;
             }
+
+            using var process = started;
 
             var standardOutput = process.StandardOutput.ReadToEndAsync();
             var standardError = process.StandardError.ReadToEndAsync();
 
             try
             {
-                await process.WaitForExitAsync(TimeSpan.FromMinutes(2));
+                await process.WaitForExitAsync().WaitAsync(TimeSpan.FromMinutes(2)).ConfigureAwait(false);
             }
             catch (TimeoutException exception)
             {
@@ -89,7 +91,8 @@ public sealed class Link_Check
                 throw new InvalidOperationException("The link check did not finish in two minutes — a link check that hangs is a link check that lies.", exception);
             }
 
-            return (process.ExitCode, (await standardOutput) + (await standardError));
+            var output = (await standardOutput.ConfigureAwait(false)) + (await standardError.ConfigureAwait(false));
+            return (process.ExitCode, output);
         }
 
         throw new InvalidOperationException(
