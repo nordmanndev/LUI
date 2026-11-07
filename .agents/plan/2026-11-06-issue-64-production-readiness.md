@@ -68,14 +68,16 @@
         one enum (`BudgetMachine`), and the unit of the target decides its verdict.
   - [x] A lane of its own: `.github/workflows/performance.yml` — a schedule (nightly) and `workflow_dispatch` with an
         input for the size of the scenario. **Not** a job in `ci.yml`: a job cannot have a schedule of its own.
-        *The file stands at `tools/performance-lane.yml` until the owner moves it — the connector of the agent may not
-        write into `.github/workflows/`. One command: `git mv tools/performance-lane.yml .github/workflows/performance.yml`.*
+        *The file stood at `tools/performance-lane.yml` until the owner gave the agent a token — the connector may not
+        write into `.github/workflows/`, and a lane outside of it never runs. It stands at
+        `.github/workflows/performance.yml` now.*
   - [x] The lane runs the budget test with `LUI_PERF=1` in the scenario of §16 (three million entries, the corpus of the
         specification), and the parity with the gate `LUI_REQUIRE_FULL_WORDLIST=1` — a missing word list makes the lane
         fail instead of measuring a sample and calling it the scenario.
   - [ ] **The measurement of the lane itself:** the first run is triggered by hand and read — how long the build of
         three million entries takes on a runner, whether the disk and the memory hold. The lane is sized by that
-        measurement, not by an assumption. **It waits for the owner:** the file has to move first.
+        measurement, not by an assumption. **The file is in place now** (`.github/workflows/performance.yml`); the run
+        is triggered by hand and read.
   - [x] The gates table in `docs/testing.md` names the lane, and `docs/benchmarks.md` says what a target means on a
         shared runner.
   - **Test delta:** +6 integration tests (`PerformanceBudget_Machine`); the seven targets of §16 move from *never* to

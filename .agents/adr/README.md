@@ -94,3 +94,5 @@ decided about the query path" without opening 36 files.
 | [0038](./0038-the-public-api-has-a-page-of-its-own.md) | The public API has a page of its own, and a test holds it up | Documentation | Accepted |
 | [0039](./0039-the-entrance-shows-the-measurement.md) | The entrance shows the measurement, the bulk path, the kinds and the sources | Documentation | Accepted |
 | [0040](./0040-the-budget-table-of-the-entrance-is-a-promise.md) | The budget table of the entrance is the promise of §16, and a test holds it up | Measurement | Accepted |
+| [0041](./0041-the-budgets-of-16-run-on-a-schedule.md) | The budgets of §16 run on a schedule: the bytes are asserted, the times are reported | Measurement | Accepted |
+| [0042](./0042-the-query-does-not-build-the-typo-dictionary.md) | The query does not build the typo dictionary: the application asks for it | Typo tolerance | Accepted |

@@ -329,6 +329,13 @@ expect_caught "a-budget-limit-in-the-record-edited-by-hand" "${ARCHITECTURE_PROJ
   "FullyQualifiedName~Readme_Budgets" \
   "sed -i '0,/≤ 20 ms/s//≤ 21 ms/' docs/benchmarks.md"
 
+# 24g. A link of the documentation points at nothing (issue #66): the promise of the link check is that every
+#      relative link of every markdown file names a file that exists. A link that points at nothing is a broken
+#      promise, and the guard `Link_Check` has to name it.
+expect_caught "a-link-in-the-documentation-points-at-nothing" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Link_Check" \
+  "echo '[a link that points at nothing](./this-file-does-not-exist.md)' >> docs/benchmarks.md"
+
 # 25. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

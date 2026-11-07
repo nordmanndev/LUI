@@ -1,8 +1,6 @@
-# This file belongs to .github/workflows/performance.yml — the lane of the schedule for the
-# targets of §16 (ADR-0041). The connector of the agent may not write into .github/workflows/,
-# so the file stands here until the owner moves it:
-#
-#     git mv tools/performance-lane.yml .github/workflows/performance.yml
+# The lane of the schedule for the targets of §16 (ADR-0041). The file stood at
+# tools/performance-lane.yml until the owner gave the agent a token: the connector may not write
+# into .github/workflows/, and a lane that lives outside of it never runs.
 #
 name: Performance
 
