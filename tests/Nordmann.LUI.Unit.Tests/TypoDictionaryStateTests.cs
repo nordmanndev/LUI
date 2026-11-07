@@ -71,7 +71,7 @@ public sealed class TypoDictionaryStateTests
     }
 
     [Fact]
-    public async Task A_build_that_runs_says_so_and_a_second_one_does_not_wait_for_it()
+    public async Task A_build_that_runs_says_so_and_the_dictionary_is_not_there_until_it_is_done()
     {
         using var release = new ManualResetEventSlim();
         using var reading = new ManualResetEventSlim();
@@ -81,12 +81,12 @@ public sealed class TypoDictionaryStateTests
         reading.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the first build reads its source");
 
         dictionary.State.ShouldBe(LuiTypoDictionaryState.Building);
-        dictionary.TryEnsureBuilt().ShouldBeFalse("another build runs: no waiting behind it");
+        dictionary.IsBuilt.ShouldBeFalse("the build runs: there is no dictionary yet");
 
         release.Set();
         await first.WaitAsync(TimeSpan.FromSeconds(10));
         dictionary.State.ShouldBe(LuiTypoDictionaryState.Current);
-        dictionary.TryEnsureBuilt().ShouldBeTrue();
+        dictionary.IsBuilt.ShouldBeTrue();
         dictionary.Corrections("kartofel").ShouldContain(word => word == "kartoffel");
     }
 
@@ -105,17 +105,18 @@ public sealed class TypoDictionaryStateTests
     }
 
     [Fact]
-    public void A_build_of_a_query_that_fails_says_there_is_no_dictionary_and_the_next_one_tries_again()
+    public void A_build_that_fails_leaves_no_dictionary_and_the_next_one_tries_again()
     {
-        // review of pull request 34, I3: a failed build is a correction not searched, not a failed query
+        // review of pull request 34, I3: a failed build is a correction not searched, not a failed query. Since the query
+        // does not build any more (ADR-0042), the build is asked for — and the failure is where it was asked for.
         var fail = true;
         var dictionary = new TypoDictionary(new NormalizationOptions(), () => fail ? Failing() : [("kartoffel", 1)]);
 
-        dictionary.TryEnsureBuilt().ShouldBeFalse();
+        Should.Throw<InvalidOperationException>(() => dictionary.EnsureBuilt(CancellationToken.None));
         dictionary.State.ShouldBe(LuiTypoDictionaryState.NotBuilt);
 
         fail = false;
-        dictionary.TryEnsureBuilt().ShouldBeTrue();
+        dictionary.EnsureBuilt(CancellationToken.None);
         dictionary.State.ShouldBe(LuiTypoDictionaryState.Current);
     }
 
