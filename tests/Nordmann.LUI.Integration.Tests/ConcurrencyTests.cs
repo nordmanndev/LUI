@@ -120,7 +120,7 @@ public sealed class ConcurrencyTests
     /// reader's lock, gives up and fails — that is the difference the mutation check mutates.
     /// </summary>
     [Fact]
-    public async Task Two_catalogs_on_one_file_see_a_consistent_picture()
+    public void Two_catalogs_on_one_file_see_a_consistent_picture()
     {
         using var database = new TestDatabase();
 
@@ -141,7 +141,10 @@ public sealed class ConcurrencyTests
 
         const int Written = 500;
 
-        var reading = Task.Run(() => ranked.Query("kuchen").Take(25).Execute());
+        LuiResult? pinned = null;
+        var reading = new Worker(() => pinned = ranked.Query("kuchen").Take(25).Execute());
+        reading.Start();
+
         blocking.Entered.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the reader reached the ranking");
 
         try
@@ -159,15 +162,50 @@ public sealed class ConcurrencyTests
             blocking.Release.Set();
         }
 
-        var result = await reading;
+        reading.Thread.Join();
+        reading.Error.ShouldBeNull("the reader fails not");
 
         // the reader sees the picture it pinned: the rows that were there when its query started
-        result.Hits.Count.ShouldBe(25);
-        result.Hits.ShouldAllBe(hit => hit.Text == TextOf(hit.Key.ToInt64()));
+        pinned.ShouldNotBeNull("the reader answered");
+        pinned!.Hits.Count.ShouldBe(25);
+        pinned.Hits.ShouldAllBe(hit => hit.Text == TextOf(hit.Key.ToInt64()));
 
         // and both connections see the same count at the end
         written.Count().ShouldBe(Seed + Written);
         reader.Index("tags").Count().ShouldBe(Seed + Written);
+    }
+
+    /// <summary>
+    /// A thread of its own. The pool of the threads can be busy — the suite runs its classes
+    /// in parallel — and a test that waits for something must not wait for a free thread.
+    /// </summary>
+    private sealed class Worker
+    {
+        private Exception? _error;
+
+        internal Worker(Action action)
+        {
+            Thread = new Thread(() =>
+            {
+                try
+                {
+                    action();
+                }
+                catch (Exception exception)
+                {
+                    _error = exception;
+                }
+            })
+            {
+                IsBackground = true,
+            };
+        }
+
+        internal Thread Thread { get; }
+
+        internal Exception? Error => _error;
+
+        internal void Start() => Thread.Start();
     }
 
     /// <summary>
@@ -203,7 +241,8 @@ public sealed class ConcurrencyTests
 
         tags.UpsertMany(Enumerable.Range(0, 20_000).Select(i => new LuiEntry(i, "wort" + i.ToString("D6", CultureInfo.InvariantCulture))));
 
-        var warm = Task.Run(() => tags.WarmUpTypoDictionary());
+        var warm = new Worker(() => tags.WarmUpTypoDictionary());
+        warm.Start();
 
         // the build has to run before the dispose comes — a dispose after the build would
         // prove nothing about a dispose *during* one
@@ -215,13 +254,21 @@ public sealed class ConcurrencyTests
 
         tags.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Building, "the warm-up builds while the dispose comes");
 
-        var disposing = Task.Run(() => catalog.Dispose());
+        var disposing = new Worker(catalog.Dispose);
+        disposing.Start();
 
-        var both = Task.WhenAll(warm, disposing);
-        var finished = await Task.WhenAny(both, Task.Delay(TimeSpan.FromSeconds(30)));
+        // both threads have to end — the dispose waits for the warm-up, and the warm-up ends
+        var end = DateTime.UtcNow.AddSeconds(30);
+        while ((warm.Thread.IsAlive || disposing.Thread.IsAlive) && DateTime.UtcNow < end)
+        {
+            await Task.Delay(50);
+        }
 
-        finished.ShouldBe(both, "the warm-up and the dispose end — neither of them hangs");
-        await both;
+        warm.Thread.IsAlive.ShouldBeFalse("the warm-up ends — it does not hang");
+        disposing.Thread.IsAlive.ShouldBeFalse("the dispose ends — it does not hang");
+
+        warm.Error.ShouldBeNull("the warm-up fails not");
+        disposing.Error.ShouldBeNull("the dispose fails not");
 
         // the catalog is closed afterwards
         Should.Throw<ObjectDisposedException>(() => tags.Query("wort").Execute());
