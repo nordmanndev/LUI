@@ -83,10 +83,21 @@
         green run #125 (263 unit, 81 architecture, 436 integration, 43 client, mutation 0 failures), and the first run of
         the lane — **pending**.
 
-- [ ] **Task 3 — The link check runs in the CI (#66)**
-  - [ ] One step in the build job: `python3 tools/link-check.py` — 395 links, 0 broken at the time of PR #62.
-  - [ ] The exit code of the tool decides: a broken link or a broken anchor fails the build.
-  - **Test delta:** 0 new tests, +1 step. **Proof:** the CI run; a broken link in the branch fails it.
+- [x] **Task 3 — The link check runs in the CI (#66)**
+  - [x] The check is the tool of the repository (`tools/link-check.py` — 395 links, 0 broken at the time of PR #62) and
+        it runs as a **test of the architecture layer**: `Link_Check` starts the tool in the root of the repository and
+        asks for its exit code. It runs in every lane of the CI, on every pull request and in the release gate — and
+        the developer sees it locally, too.
+        *The plan had it as a step of the workflow. A workflow file is a file the agent may not write, and a test needs
+        nobody but the branch. The tool stays the tool — the test runs it and asks for its exit code.*
+  - [x] The teeth: the red run shows the guard naming the broken link — file, line and target — and exactly one test
+        failing. A guard that was never seen red is a guard that proves nothing.
+  - [x] The map of the tests names the new file (`Link_Check`, Architecture).
+  - [ ] **Carry-over:** the mutation `a-link-in-the-documentation-points-at-nothing` in `tools/mutation-check.sh`. It
+        waits for the same reason as the row of ADR-0041: the file of the owner's round ends with the mutations of
+        issue #38, and two sides that append at the same place cannot be merged. It comes with the base.
+  - **Test delta:** +1 architecture test; the links of the documentation are checked by every run of the CI.
+        **Proof:** the red run (one test, the guard names the broken link) and the green run of the head that follows.
 
 - [ ] **Task 4 — A query does not build the typo dictionary (#35)**
   - [ ] **Rot first:** a test that proves a correcting query on an index without a dictionary leaves it *not built* and
