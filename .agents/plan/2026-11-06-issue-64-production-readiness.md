@@ -196,15 +196,31 @@
   Behauptung „der Dispose kommt während des Warm-ups" wird über die **Zeitstempel** der beiden Worker bewiesen statt
   gehofft.
 
-- [ ] **Task 7 — A typed view over the untyped index (#59)**
-  - [ ] `index.As<T>()` — a thin, allocation-free view that delegates to the one index and calls `GetPayload<T>()` for
+- [x] **Task 7 — A typed view over the untyped index (#59)**
+  - [x] `index.As<T>()` — a thin, allocation-free view that delegates to the one index and calls `GetPayload<T>()` for
         the caller; the index keeps no type, the file keeps no type name.
-  - [ ] The open questions of #59 are decided in **ADR-0044**: the name is `As<T>()`, the key stays `LuiKey` (a second
+  - [x] The open questions of #59 are decided in **ADR-0044**: the name is `As<T>()`, the key stays `LuiKey` (a second
         typed key view would be a second concept), and the payload is **not** cached (a cache per hit is memory and an
         invalidation).
-  - [ ] `docs/api.md` carries the new public types — otherwise `Public_API_Documentation` fails the build.
-  - [ ] The CHANGELOG (additive — allowed by ADR-0026), the README, the tutorial.
+  - [x] `docs/api.md` carries the new public types — otherwise `Public_API_Documentation` fails the build.
+  - [x] The CHANGELOG (additive — allowed by ADR-0026), the README, the tutorial.
   - **Test delta:** +2 integration tests. **Proof:** the CI run; #59 gets the comment and is closed.
+
+  **Der rote Zustand zuerst:** Commit `36ec435` — die Sicht ist die Form ohne die Arbeit ⇒ Lauf **42393907837**:
+  genau die zwei neuen Tests sind rot, alles andere ist grün (Unit 263, Architektur 82, Integration 445 + 14
+  übersprungen; die Windows-Lane meldet dieselben zwei roten Tests). Der grüne Commit `c7260ce` ⇒ Lauf **42394766341**:
+  alle fünf Jobs grün — Unit 263, Architektur 82, Integration 447 + 14 übersprungen, Windows-Lane, Parität,
+  Mutations-Check `=== 0 failure(s) ===`, `package-smoke-test: OK`. **#59 ist kommentiert und geschlossen.**
+
+  **Was die Runde fand:** die drei neuen Typen sind die **ersten generischen Typen** der öffentlichen Oberfläche. Die
+  Laufzeit hängt die Aritätät an den Namen eines generischen Typs — und die Wächter, die die Seite mit den Assemblies
+  vergleichen, stellten die Frage auf beiden Seiten verschieden: die Seite schrieb `LuiTypedHit`, der Namensvergleich
+  suchte die Arität. Ein kleiner Helfer (`Type_Names`) fragt jetzt auf beiden Seiten gleich — und die beiden Wächter,
+  die die Typen mit benannten Eigenschaften und die API-Dokumentation prüfen, decken die generischen Typen jetzt
+  überhaupt erst ab.
+
+  Und eine Regel des Hauses, die auch hier galt: **eine Datei, ein Typ** (MA0048) — die Antwort, der Treffer und die
+  Sicht liegen in drei Dateien, nicht in einer.
 
 ## What actually happened
 
