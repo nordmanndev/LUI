@@ -97,7 +97,10 @@
         waits for the same reason as the row of ADR-0041: the file of the owner's round ends with the mutations of
         issue #38, and two sides that append at the same place cannot be merged. It comes with the base.
   - **Test delta:** +1 architecture test; the links of the documentation are checked by every run of the CI.
-        **Proof:** the red run (one test, the guard names the broken link) and the green run of the head that follows.
+        **Proof:** the red run **#129** (head `071893c4`) — one test failed, and the guard named the broken link
+        (`docs/benchmarks.md:471: ./this-file-does-not-exist.md does not exist`); the green run **#132** (head
+        `9693375f`) — 263 unit, **82 architecture** (the new one among them), 436 integration, 43 client, mutation
+        0 failures.
 
 - [ ] **Task 4 — A query does not build the typo dictionary (#35)**
   - [ ] **Rot first:** a test that proves a correcting query on an index without a dictionary leaves it *not built* and
