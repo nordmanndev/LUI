@@ -565,9 +565,11 @@ Wer markieren will, tut es in der Anwendung, mit dem, was sie über ihre Schrift
   der Summe der Gewichte als Häufigkeit.
 - **Werkzeug:** SymSpell (`symspell` 6.7.3, MIT), maximal **1** Fehler.
 - **Ort:** im Arbeitsspeicher, **pro Index** (ADR-0025): Die Wörterbücher sind nach dem Namen des Index getrennt — eine
-  Suche in Tags korrigiert nie zu Namen und umgekehrt. Aufbau beim ersten Zugriff aus der Inhaltstabelle (im Stapel:
-  `SuggestionStage` + `CommitStaged`); danach ergänzt jeder Schreibzugriff durch LUI (`Upsert`, `UpsertMany`, das `Sync` eines
-  `Embedded`-Index, `Refresh`) die neuen Wortanfänge sofort.
+  Suche in Tags korrigiert nie zu Namen und umgekehrt. Aufbau **auf ausdrücklichen Wunsch** aus der Inhaltstabelle (im
+  Stapel: `SuggestionStage` + `CommitStaged`): `WarmUpTypoDictionary()` baut das Wörterbuch, `RebuildTypoDictionary()`
+  baut es neu; danach ergänzt jeder Schreibzugriff durch LUI (`Upsert`, `UpsertMany`, das `Sync` eines
+  `Embedded`-Index, `Refresh`) die neuen Wortanfänge sofort. **Eine Abfrage baut das Wörterbuch nie** (ADR-0042): sie fragt
+  nur, ob eines da ist — ohne eines antwortet sie ohne Korrektur und setzt `CorrectionSkipped`.
 - **Es wächst nur.** `Remove`, eine Textänderung und das `Sync` eines `Embedded`-Index lassen entfernte Wörter stehen
   (SymSpell kennt kein Entfernen); nichts baut das Wörterbuch von selbst neu. **Ausnahme:** `Sync()` eines `Linked`-Index
   füllt den Index aus der Tabelle der Anwendung neu auf — ein ausdrückliches „von vorn" — und baut ein gebautes Wörterbuch
@@ -577,7 +579,8 @@ Wer markieren will, tut es in der Anwendung, mit dem, was sie über ihre Schrift
   verloren, Abfragen nutzen bis dahin das alte Wörterbuch.
 - **Zustand** (`TypoDictionaryState`, ADR-0021, ADR-0025): `NotBuilt`, `Building`, `Current`. Es gibt keinen Zustand „veraltet"
   (ADR-0021 hatte `Stale`, einen Zähler und einen Hintergrunddienst; ADR-0025 nimmt sie zurück). Keine Abfrage wartet auf
-  einen Aufbau: Eine, die währenddessen korrigieren müsste, antwortet ohne Korrektur und setzt `CorrectionSkipped`.
+  einen Aufbau und **keine startet einen**: Eine, die währenddessen korrigieren müsste, antwortet ohne Korrektur und
+  setzt `CorrectionSkipped`. Das Wörterbuch baut die Anwendung, die es braucht — mit `WarmUpTypoDictionary()`.
 
 ### 10.2 Wann korrigiert wird
 

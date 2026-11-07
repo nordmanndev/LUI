@@ -11,9 +11,9 @@ namespace Nordmann.LUI.Typos;
 /// typo (Anhang A4).
 /// </para>
 /// <para>
-/// It lives in memory, is built <b>lazily</b> on the first correction (the word beginnings of 685,000 words
-/// cost about 140 MB and a few seconds, which the application should not pay at start), and grows with
-/// <see cref="Add"/>. A word that is removed stays (SymSpell cannot forget): a correction towards it finds
+/// It lives in memory, is built <b>on the request of the application</b> — <c>WarmUpTypoDictionary</c> (the word
+/// beginnings of 685,000 words cost about 140 MB and a few seconds, which the application should not pay at start, and a
+/// query never pays it: ADR-0042) — and grows with <see cref="Add"/>. A word that is removed stays (SymSpell cannot forget): a correction towards it finds
 /// nothing. <see cref="Rebuild"/> starts anew. SymSpell is not made for reading while writing, so the
 /// dictionary has a lock: lookups share it, an addition has it alone (§15) — the build does not, it works
 /// on a dictionary of its own and swaps it in, so a write never waits for it.
@@ -82,53 +82,6 @@ internal sealed class TypoDictionary
         Volatile.Read(ref _building) > 0 ? LuiTypoDictionaryState.Building
         : !IsBuilt ? LuiTypoDictionaryState.NotBuilt
         : LuiTypoDictionaryState.Current;
-
-    /// <summary>
-    /// Builds the dictionary if it is not built and no other build runs; returns whether there is a dictionary to ask
-    /// (ADR-0021). The build of a query:
-    /// <list type="bullet">
-    ///   <item>does not wait behind another build — the warm-up after the start, the build of another query: the query
-    ///   gets <see langword="false"/> at once (review of pull request 23, S1). A rebuild of a built dictionary does not
-    ///   count: the old one answers meanwhile;</item>
-    ///   <item>is the index's, not the query's: it takes no token. An autocomplete cancels its request at the next
-    ///   keystroke; a build bound to it would start anew and be thrown away each time, and never finish (review of pull
-    ///   request 34, I3);</item>
-    ///   <item>that fails gives <see langword="false"/> too, not an exception: the query answers without the correction,
-    ///   and the next one that needs it tries again (I3). Only a catalog that is gone ends the query.</item>
-    /// </list>
-    /// </summary>
-    internal bool TryEnsureBuilt()
-    {
-        if (IsBuilt)
-        {
-            return true;
-        }
-
-        if (!_buildGate.TryEnter())
-        {
-            return false;
-        }
-
-        try
-        {
-            if (!IsBuilt)
-            {
-                BuildAndPublish(CancellationToken.None);
-            }
-
-            return true;
-        }
-#pragma warning disable CA1031 // a failed build is a correction not searched, not a failed query (review of pull request 34, I3)
-        catch (Exception exception) when (exception is not ObjectDisposedException)
-#pragma warning restore CA1031
-        {
-            return false;
-        }
-        finally
-        {
-            _buildGate.Exit();
-        }
-    }
 
     /// <summary>Builds the dictionary from the content table, once; later calls return at once.</summary>
     /// <param name="cancellationToken">Ends the build, and the wait for a build that runs.</param>

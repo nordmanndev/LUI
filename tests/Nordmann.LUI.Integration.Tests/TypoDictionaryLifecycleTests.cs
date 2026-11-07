@@ -84,9 +84,10 @@ public sealed class TypoDictionaryLifecycleTests
     }
 
     [Fact]
-    public void A_query_whose_build_fails_answers_without_the_correction_and_the_next_one_builds_it()
+    public void A_failed_warm_up_says_so_and_the_query_does_not_build_the_dictionary_either()
     {
-        // review of pull request 34, I3: a failed build is a correction not searched, not a failed query
+        // review of pull request 34, I3: a failed build is a correction not searched, not a failed query. Since the query
+        // does not build any more (ADR-0042), the failure is where the build was asked for: in the warm-up.
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var fail = true;
@@ -94,36 +95,43 @@ public sealed class TypoDictionaryLifecycleTests
         var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         words.Upsert(1, "kartoffel");
 
-        var failed = words.Search("kartofel");
-        failed.CorrectionSkipped.ShouldBeTrue();
-        failed.CorrectedQuery.ShouldBeNull();
+        Should.Throw<InvalidOperationException>(() => words.WarmUpTypoDictionary());
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
 
+        var query = words.Search("kartofel");
+        query.CorrectionSkipped.ShouldBeTrue();
+        query.CorrectedQuery.ShouldBeNull();
+        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt, "the query does not build the dictionary");
+
         fail = false;
-        words.Search("kartofel").CorrectedQuery.ShouldBe("kartoffel");
+        words.WarmUpTypoDictionary();
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        words.Search("kartofel").CorrectedQuery.ShouldBe("kartoffel");
     }
 
     [Fact]
-    public async Task A_query_that_is_cancelled_while_it_builds_the_dictionary_leaves_it_built()
+    public void A_cancelled_warm_up_leaves_the_dictionary_unbuilt_and_the_query_does_not_build_it()
     {
         // review of pull request 34, I3: the build is the index's, not the query's — an autocomplete cancels at every
-        // keystroke, and a build bound to the request would never finish
+        // keystroke, and a build bound to the request would never finish. Since the query does not build any more
+        // (ADR-0042), the build belongs to the caller of the warm-up: a cancelled warm-up leaves the dictionary unbuilt,
+        // and a query does not build it either.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        using var reading = new ManualResetEventSlim();
-        using var release = new ManualResetEventSlim();
-        using var request = new CancellationTokenSource();
-        catalog.TypoDictionaries.For("words", new NormalizationOptions(), () => Blocking(reading, release));
         var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         words.Upsert(1, "kartoffel");
 
-        var query = Task.Run(() => words.Search("kartofel", cancellationToken: request.Token));
-        reading.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the query builds the dictionary");
-        await request.CancelAsync();
-        release.Set();
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
 
-        await Should.ThrowAsync<OperationCanceledException>(query.WaitAsync(TimeSpan.FromSeconds(10)));
+        Should.Throw<OperationCanceledException>(() => words.WarmUpTypoDictionary(cancelled.Token));
+        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
+
+        var query = words.Search("kartofel");
+        query.CorrectionSkipped.ShouldBeTrue();
+        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt, "the query does not build the dictionary");
+
+        words.WarmUpTypoDictionary();
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
         words.Search("kartofel").CorrectedQuery.ShouldBe("kartoffel");
     }
@@ -163,6 +171,10 @@ public sealed class TypoDictionaryLifecycleTests
         var names = catalog.Create("names", index => index.SingleWord().TypoTolerance());
         tags.Sync(Entries("vegan", "glutenfrei"));
         names.Sync(Entries("megan", "mueller"));
+
+        // the application asks for the build (ADR-0042): a query never does
+        tags.WarmUpTypoDictionary();
+        names.WarmUpTypoDictionary();
 
         var tagQuery = tags.Search("megn");
         tagQuery.Hits.ShouldBeEmpty("'megan' is a name, not a tag");

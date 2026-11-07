@@ -26,11 +26,12 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
     }
 
     /// <summary>
-    /// Whether the dictionary can be asked now: it is built, or this query builds it — not when another build runs or the
-    /// build fails, then the query answers without a correction (ADR-0021). The build takes no token of the query
-    /// (<see cref="TypoDictionary.TryEnsureBuilt"/>).
+    /// Whether the dictionary can be asked now: it is built. A query does <b>not</b> build it (ADR-0042, issue #35) — the
+    /// build belongs to the application, which asks for it with <c>WarmUpTypoDictionary</c>, and to the rebuild and to
+    /// the writes. A query that finds no dictionary answers with what the input found and says that it skipped the
+    /// correction (ADR-0021).
     /// </summary>
-    internal bool IsReady() => typos.TryEnsureBuilt();
+    internal bool IsReady() => typos.IsBuilt;
 
     /// <summary>
     /// The candidates of the input and of its corrections, united; the inputs that were searched (the

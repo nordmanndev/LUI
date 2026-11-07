@@ -72,7 +72,19 @@ internal sealed class BulkSampleIndex(LuiCatalog catalog, IBulkSource source) : 
 
         // A big batch: a first load into a file that no one else writes is about 30 % faster with 100,000 entries than
         // with the default of 10,000 (ADR-0016) — and the page hears the progress after every batch.
-        return Index.Sync(Entries(count), new LuiSyncOptions { BatchSize = BatchSize, Progress = progress }, cancellationToken);
+        var report = await Index
+            .Sync(Entries(count), new LuiSyncOptions { BatchSize = BatchSize, Progress = progress }, cancellationToken)
+            .ConfigureAwait(false);
+
+        // The typo tolerance needs its dictionary, and a query never builds it (ADR-0042): the application asks for
+        // the build, here — after the entries are there.
+        if (source.TypoTolerance)
+        {
+            note?.Invoke("The typo dictionary is built …");
+            Index.WarmUpTypoDictionary(cancellationToken);
+        }
+
+        return report;
     }
 
     /// <summary>Creates the index of LUI: one word or several, with the typo tolerance the source asks for.</summary>

@@ -36,6 +36,13 @@ internal static class SampleSeed
                 index.Sync(CancellationToken.None);
             }
 
+            // The typo tolerance needs its dictionary, and a query never builds it (ADR-0042): the application asks
+            // for the build, here — after the entries are there.
+            if (index.Describe().TypoTolerance)
+            {
+                index.WarmUpTypoDictionary(CancellationToken.None);
+            }
+
             if (index is ILinkedSampleIndex linked)
             {
                 linked.SetTriggers(create: true);

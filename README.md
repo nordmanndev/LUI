@@ -225,6 +225,10 @@ A correction happens only when **no candidate** matches the input at the beginni
 find hits in the middle of other words. The dictionary belongs to the index: a query in a tag index never corrects
 towards the words of a name index.
 
+**The dictionary is built on request.** `WarmUpTypoDictionary()` reads the content table and builds it — at three million
+entries that is seconds and 138 MB, which the application should not pay at the start. A query never builds it: it
+answers with what the input found, sets `CorrectionSkipped` and waits for the application to ask for the build.
+
 ## Embedded or linked
 
 The content of an index comes either from the library's own table or from a table of the application. Three questions

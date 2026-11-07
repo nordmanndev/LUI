@@ -74,5 +74,8 @@ public sealed class TypoQualityTests(ITestOutputHelper output)
         }
 
         transaction.Commit();
+
+        // the application asks for the build (ADR-0042): a query never does
+        index.WarmUpTypoDictionary();
     }
 }

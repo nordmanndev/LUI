@@ -226,6 +226,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The query does not build the typo dictionary — the application asks for it**
+  ([ADR-0042](.agents/adr/0042-the-query-does-not-build-the-typo-dictionary.md), #35). The dictionary was built by the
+  first query that needed a correction, inside the read transaction of that query: the build takes seconds at three
+  million entries, the WAL grows while it runs, and with the WAL switched off a writer that waits and the query that
+  builds held each other up until the busy timeout.
+  - **A query never builds the dictionary.** It asks whether one is there; if not, it answers with what the input found
+    and sets `CorrectionSkipped` — as it always did while another build ran.
+  - **The application asks for the build**: `WarmUpTypoDictionary()`, `RebuildTypoDictionary()`, and the writes that
+    learn the new beginnings. A failed build now says so where it was asked for: the warm-up throws, instead of the
+    query swallowing it.
+  - **The state of the dictionary stays** `NotBuilt`, `Building`, `Current`.
+  - **No change to the public API**: `WarmUpTypoDictionary()` and `RebuildTypoDictionary()` exist already, on the
+    embedded and on the linked index.
+  - **What an application has to do:** call `WarmUpTypoDictionary()` after it has loaded its entries, if it wants the
+    correction. The sample does it — after the seed and after a fill.
+
 - **The budget table of the README is the promise of §16, and a test holds it up**
   ([ADR-0040](.agents/adr/0040-the-budget-table-of-the-entrance-is-a-promise.md), #38). The limits of the table were
   copied by hand, and they had drifted: the allocation still promised the old target of ≤ 250 / ≤ 350 KB, while the
