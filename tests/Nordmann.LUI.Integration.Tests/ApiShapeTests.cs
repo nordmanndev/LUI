@@ -294,7 +294,8 @@ public sealed class ApiShapeTests
         var words = catalog.Create("words", index => index.SingleWord().TypoTolerance().GermanTransliteration(false).Similarity(new Constant(0.25)));
         words.Upsert(new LuiEntry(1, "Apfelkuchen") { Weight = 10, Payload = new Chip("a") });
 
-        // the typo tolerance
+        // the typo tolerance: the application asks for the build (ADR-0042), a query never does
+        words.WarmUpTypoDictionary();
         words.Search("apflekuchen").CorrectedQuery.ShouldBe("apfelkuchen");
 
         // the similarity

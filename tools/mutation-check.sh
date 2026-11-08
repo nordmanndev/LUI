@@ -19,6 +19,8 @@
 # The architecture rules are mutated in the architecture project, the rules of
 # the library itself in the unit project — the fast one, because it needs no
 # database and a mutation that takes 40 seconds is a mutation nobody runs.
+# The rules of the concurrency need a database, so their mutations run in the
+# integration project: they are the slow ones, and there are two of them.
 #
 set -uo pipefail
 
@@ -27,6 +29,7 @@ readonly WORK="$(mktemp -d)"
 
 readonly ARCHITECTURE_PROJECT="tests/Nordmann.LUI.Architecture.Tests/Nordmann.LUI.Architecture.Tests.csproj"
 readonly UNIT_PROJECT="tests/Nordmann.LUI.Unit.Tests/Nordmann.LUI.Unit.Tests.csproj"
+readonly INTEGRATION_PROJECT="tests/Nordmann.LUI.Integration.Tests/Nordmann.LUI.Integration.Tests.csproj"
 
 cleanup() { rm -rf "${WORK}"; }
 trap cleanup EXIT
@@ -329,7 +332,39 @@ expect_caught "a-budget-limit-in-the-record-edited-by-hand" "${ARCHITECTURE_PROJ
   "FullyQualifiedName~Readme_Budgets" \
   "sed -i '0,/≤ 20 ms/s//≤ 21 ms/' docs/benchmarks.md"
 
-# 25. The clean trees stay green.
+# 24g. A link of the documentation points at nothing (issue #66): the promise of the link check is that every
+#      relative link of every markdown file names a file that exists. A link that points at nothing is a broken
+#      promise, and the guard `Link_Check` has to name it.
+expect_caught "a-link-in-the-documentation-points-at-nothing" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Link_Check" \
+  "echo '[a link that points at nothing](./this-file-does-not-exist.md)' >> docs/benchmarks.md"
+
+# 25. The concurrency of the round of issue #67: the write-ahead log is switched off. Without it a reader beside a
+#      writer waits for the lock and gives up with an error — the promise of §15 (many readers beside one writer)
+#      is gone, and the test with the second catalog has to notice.
+expect_caught "a-database-without-the-write-ahead-log" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~Two_catalogs_on_one_file_see_a_consistent_picture" \
+  "sed -i 's|PRAGMA journal_mode = WAL;|PRAGMA journal_mode = DELETE;|' src/Nordmann.LUI/Storage/Database.cs"
+
+# 26. The dispose waits for the running operations, but nobody wakes it (issue #67): the catalog waits for a warm-up
+#      that is still running — and the warm-up and the dispose never come back. The test has to end the wait.
+expect_caught "a-dispose-that-never-wakes-the-waiter" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_dispose_during_a_warm_up_ends_and_does_not_hang" \
+  "sed -i '/Monitor.PulseAll(_lifetime);/d' src/Nordmann.LUI/Storage/Database.cs"
+
+# 26a. A round of the outbox that fails is swallowed again (ADR-0045, review of pull request 69): the warm-up catches
+#      the failure and tells nobody. The test that renames the table under a running host has to miss the warning.
+expect_caught "a-failed-round-of-the-outbox-is-silent" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_round_that_fails_is_told_to_the_logger_of_the_host" \
+  "sed -i 's|LogRoundFailed(exception, _interval.TotalSeconds);|_ = exception;|' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
+
+# 26b. The typed hit gets a property that deserialises (ADR-0044, review of pull request 69): a property is a promise
+#      of a field, and the read of a payload does work and can fail. The guard of the untyped index has to name it.
+expect_caught "the-typed-hit-gets-a-payload-property" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_index_knows_no_types" \
+  "sed -i 's|    public TPayload? GetPayload() => Hit.GetPayload<TPayload>();|    public TPayload? GetPayload() => Hit.GetPayload<TPayload>();\n\n    /// <summary>x</summary>\n    public TPayload? Payload => GetPayload();|' src/Nordmann.LUI/LuiTypedHit.cs"
+
+# 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

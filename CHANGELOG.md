@@ -9,6 +9,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The typed view over the untyped index** ([ADR-0044](.agents/adr/0044-the-typed-view-over-the-untyped-index.md),
+  #59). The index knows no type ([ADR-0035](.agents/adr/0035-the-index-knows-no-types.md)) — the type of the payload
+  stands where the payload is used, and a typo in it is a runtime error instead of a compile error. The view is the
+  way out: `index.As<TagChip>()` gives the index as the application sees it, with the payload in the type of the
+  application.
+  - `LuiIndexExtensions.As<TPayload>()` is an extension method — the type stays out of the index, and the index keeps
+    no type. The view opens nothing, writes nothing, and holds no index of its own.
+  - `LuiTypedIndex<TPayload>` (the view), `LuiTypedResult<TPayload>` (the answer) and `LuiTypedHit<TPayload>` (the
+    hit) mirror the three untyped types — `ILuiIndex`, `LuiResult` and `LuiHit`. The key stays `LuiKey`; the payload
+    is not cached, it is read on every call of `LuiTypedHit<TPayload>.GetPayload()` / `TryGetPayload(out …)`, exactly
+    like `GetPayload<T>()` — a method, not a property, because it does work and can fail.
+  - `LuiResult.As<TPayload>()` is the typed end of the fluent query: `index.Query("veg").Take(5).Execute().As<TagChip>()`.
+  - The untyped way stays: `hit.GetPayload<T>()` is still there, and still the one way for the application that does
+    not want a view. The view is additive ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)).
+
+- **The warm-up is a service of the host** ([ADR-0043](.agents/adr/0043-the-warm-up-is-a-service-of-the-host.md), #68).
+  After [ADR-0042](#unreleased) the application builds the typo dictionary — and an application forgets. The warm-up is
+  the opt-in answer: the host asks for it, the library starts nothing on its own.
+  - `AddLuiWarmup(Action<LuiWarmupOptions>? configure = null)` in `Nordmann.LUI.Hosting` registers a hosted service
+    that applies the outbox of every linked index at the start of the host, builds the typo dictionaries, and applies
+    the outbox on an interval. **Off by default** — without the call the host starts nothing of LUI. Once per
+    container. The start of the host waits for the dictionaries.
+  - `LuiWarmupOptions`: `WarmUpTypoDictionaries` (default `true`), `TypoDictionaryIndexes` (the indexes that get a
+    dictionary; empty: every index — a dictionary costs 138 MB for 685,829 words) and `OutboxInterval` (default 30 s).
+  - `LuiCatalog.WarmUpTypoDictionaries()`, `LuiCatalog.WarmUpTypoDictionaries(IEnumerable<string> names)` and
+    `LuiCatalog.ApplyPending()` do the same work in one call, for an application that warms the catalog itself. All
+    are additive ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)).
+  - **The warm-up tells the logger of the host** what it did and what failed
+    ([ADR-0045](.agents/adr/0045-the-warm-up-tells-the-logger-of-the-host.md)): the dictionaries it built
+    (`Information`), the rows it applied (`Debug`), and a round of the outbox that failed (`Warning`, with the
+    exception) — instead of swallowing it.
+  - The hosting package carries `Microsoft.Extensions.Hosting.Abstractions` again — a hosted service is a type of a
+    host, and the dependency set of a package is its contract ([ADR-0034](.agents/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md)) —
+    and names `Microsoft.Extensions.Logging.Abstractions`, which was in its closure already.
+
 - **The read path opens an index without writing** ([ADR-0033](.agents/adr/0033-the-read-path-opens-an-index-without-writing.md),
   #56). A second way into an index: the definition is read out of `lui_meta`, the index is rebuilt from it, and the
   file is not touched — no table, no definition, no write lock. It is the way into a database that is written
@@ -434,6 +469,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   ([ADR-0033](.agents/adr/0033-the-read-path-opens-an-index-without-writing.md)): `lui.Create("tags", index => index.SingleWord())`
   is a whole index.
 - `DropIndex` decides by the stored source and refuses a source it does not know.
+
+- **The query does not build the typo dictionary — the application asks for it**
+  ([ADR-0042](.agents/adr/0042-the-query-does-not-build-the-typo-dictionary.md), #35). The dictionary was built by the
+  first query that needed a correction, inside the read transaction of that query: the build takes seconds at three
+  million entries, the WAL grows while it runs, and with the WAL switched off a writer that waits and the query that
+  builds held each other up until the busy timeout.
+  - **A query never builds the dictionary.** It asks whether one is there; if not, it answers with what the input found
+    and sets `CorrectionSkipped` — as it always did while another build ran.
+  - **The application asks for the build**: `WarmUpTypoDictionary()`, `RebuildTypoDictionary()`, and the writes that
+    learn the new beginnings. A failed build now says so where it was asked for: the warm-up throws, instead of the
+    query swallowing it.
+  - **The state of the dictionary stays** `NotBuilt`, `Building`, `Current`.
+  - **No change to the public API**: `WarmUpTypoDictionary()` and `RebuildTypoDictionary()` exist already, on the
+    embedded and on the linked index.
+  - **What an application has to do:** call `WarmUpTypoDictionary()` after it has loaded its entries, if it wants the
+    correction. The sample does it — after the seed and after a fill.
 
 - **The API shape before the first release** ([ADR-0013](.agents/adr/0013-the-api-shape-before-the-first-release.md)) —
   a break on purpose, while it costs nothing:

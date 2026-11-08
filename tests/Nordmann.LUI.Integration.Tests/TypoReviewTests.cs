@@ -131,6 +131,9 @@ public sealed class TypoReviewTests
 
         words.Upsert(100, "Apfelkuchen", 1);
 
+        // the application asks for the build (ADR-0042): a query never does
+        words.WarmUpTypoDictionary();
+
         var result = words.Query("apfle").Candidates(candidates).Execute();
 
         result.CorrectedQuery.ShouldBe("apfel");
@@ -147,6 +150,9 @@ public sealed class TypoReviewTests
         using var catalog = database.Open();
         var titles = catalog.Create("titles", index => index.MultiWord().TypoTolerance());
         titles.Upsert(1, "Bratapfle Apfel", 10);
+
+        // the application asks for the build (ADR-0042): a query never does
+        titles.WarmUpTypoDictionary();
 
         var plain = titles.Query("apfle").Execute();
         var distinct = titles.Query("apfle").DistinctText().Execute();
@@ -167,6 +173,9 @@ public sealed class TypoReviewTests
         titles.Upsert(2, "teigapfle", 20);
         titles.Upsert(3, "Apfelkuchen", 5);
 
+        // the application asks for the build (ADR-0042): a query never does
+        titles.WarmUpTypoDictionary();
+
         var hits = titles.Query("apfle").DistinctText().Execute().Hits;
 
         hits.Count(h => string.Equals(h.Text, "Teigapfle", StringComparison.OrdinalIgnoreCase)).ShouldBe(1);
@@ -182,7 +191,7 @@ public sealed class TypoReviewTests
         using var catalog = database.Open();
         var reader = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         reader.Upsert(1, "Apfelkuchen", 10);
-        reader.Query("apflekuchen").Execute();   // reader builds the dictionary
+        reader.WarmUpTypoDictionary();   // the application builds the dictionary (ADR-0042)
 
         var importer = catalog.Create("words", index => index.SingleWord());
         importer.Upsert(2, "Zwetschge", 5);
@@ -199,6 +208,7 @@ public sealed class TypoReviewTests
         using var catalog = database.Open();
         var first = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         first.Upsert(1, "Apfelkuchen", 10);
+        first.WarmUpTypoDictionary();
         first.Query("apflekuchen").Execute().CorrectedQuery.ShouldBe("apfelkuchen");
 
         catalog.DropIndex("words");
@@ -241,6 +251,10 @@ public sealed class TypoReviewTests
         var off = catalog.Create("b", index => index.SingleWord().TypoTolerance(true).TypoTolerance(false));
         on.Upsert(1, "Apfelkuchen", 1);
         off.Upsert(1, "Apfelkuchen", 1);
+
+        // the application asks for the build (ADR-0042): a query never does
+        on.WarmUpTypoDictionary();
+        off.WarmUpTypoDictionary();
 
         on.Query("apflekuchen").Execute().CorrectedQuery.ShouldBe("apfelkuchen");
         off.Query("apflekuchen").Execute().CorrectedQuery.ShouldBeNull();

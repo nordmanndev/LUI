@@ -125,8 +125,10 @@ public sealed class Readme_Benchmarks
         begin.ShouldBeGreaterThanOrEqualTo(0, $"the README marks the generated section with '{Begin}'");
         end.ShouldBeGreaterThan(begin, $"the README ends the generated section with '{End}'");
 
-        var shown = document[(begin + Begin.Length)..end];
-        var rendered = Render();
+        // the line endings of the checkout are not a difference of the content: a runner that
+        // checks the tree out with CRLF (Windows) must not fail the guard of the tables
+        var shown = document[(begin + Begin.Length)..end].Replace("\r\n", "\n", StringComparison.Ordinal);
+        var rendered = Render().Replace("\r\n", "\n", StringComparison.Ordinal);
 
         if (string.Equals(Environment.GetEnvironmentVariable(UpdateVariable), "1", StringComparison.Ordinal))
         {

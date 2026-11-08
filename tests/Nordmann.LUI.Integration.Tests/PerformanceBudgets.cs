@@ -1,6 +1,5 @@
 using System.Diagnostics;
 using System.Globalization;
-using Shouldly;
 using Xunit.Abstractions;
 
 namespace Nordmann.LUI.Integration.Tests;
@@ -26,20 +25,13 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
     private const int Queries = 2_000;
 
-    /// <summary>
-    /// The targets that are missed on purpose, with the reason and the record that holds it. A target that is not here
-    /// has to be met. The owner's decisions of 2026-11-04 (ADR-0020) stated four targets anew, and they are asserted; ADR-0032
-    /// lowered the allocation (the causes of #30 are measured, the allocation is 83 % lower) and the build stays at four minutes
-    /// with an issue for a faster first load (#32). Empty.
-    /// </summary>
-    private static readonly Dictionary<string, string> Waivers = new(StringComparer.Ordinal);
-
     [PerformanceFact]
     public void The_single_word_index_at_three_million_entries()
     {
         var entries = Entries(Scenario);
         var corpus = Corpus.Generate(Words(), entries, CorpusKind.SingleWord);
-        var budget = new Budget(output, entries >= Scenario);
+        var budget = new PerformanceBudget(output, entries >= Scenario, PerformanceBudget.CurrentMachine());
+        budget.SayTheMachine();
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
@@ -61,7 +53,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
         budget.AtMost("query p95, 1–4 characters", "3 M entries, no correction", Percentile(OfLength(inputs, latencies, 1, 4), 95), 5.0, "ms");
         budget.AtMost("query p95, 5–8 characters", "3 M entries, no correction", Percentile(OfLength(inputs, latencies, 5, 8), 95), 20.0, "ms");
 
-        // §16 since ADR-0032: the causes of #30 are measured and the allocation is lowered — the target is p50 ≤ 40 KB, p95 ≤ 90 KB
+        // §16 since ADR-0032: the causes of #30 are measured and the allocation is lowered — the target is p50 ≤ 60 KB, p95 ≤ 100 KB
         budget.AtMost("allocation p50", "per query, the same inputs", Percentile(allocations, 50) / 1024, 60, "KB");
         budget.AtMost("allocation p95", "per query, the same inputs (#30)", Percentile(allocations, 95) / 1024, 100, "KB");
 
@@ -83,7 +75,8 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
     public void The_typo_dictionary_of_the_whole_word_list()
     {
         var words = Words();
-        var budget = new Budget(output, words.Count >= TestCorpus.FullWordListCount - 1_000);
+        var budget = new PerformanceBudget(output, words.Count >= TestCorpus.FullWordListCount - 1_000, PerformanceBudget.CurrentMachine());
+        budget.SayTheMachine();
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
@@ -108,7 +101,8 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
     public void The_file_of_a_million_titles()
     {
         var entries = Entries(TitlesScenario);
-        var budget = new Budget(output, entries >= TitlesScenario);
+        var budget = new PerformanceBudget(output, entries >= TitlesScenario, PerformanceBudget.CurrentMachine());
+        budget.SayTheMachine();
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
@@ -230,37 +224,5 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
     {
         output.WriteLine(line);
         Console.Error.WriteLine("[perf] " + line);
-    }
-
-    /// <summary>The targets of one scenario: each one measured, then met, waived or missed.</summary>
-    private sealed class Budget(ITestOutputHelper output, bool scenario)
-    {
-        private readonly List<string> _missed = [];
-
-        internal void AtMost(string target, string condition, double measured, double limit, string unit)
-        {
-            var met = measured <= limit;
-            var waiver = Waivers.GetValueOrDefault(target);
-            var verdict = (met, waiver, scenario) switch
-            {
-                (_, _, false) => "reported (not the scenario)",
-                (true, null, _) => "met",
-                (true, _, _) => "met — the waiver can go",
-                (false, null, _) => "MISSED",
-                (false, _, _) => $"waived: {waiver}",
-            };
-
-            var line = string.Create(CultureInfo.InvariantCulture, $"budget | {target,-28} | {condition,-58} | {measured,8:F2} {unit,-2} | ≤ {limit} {unit} | {verdict}");
-            output.WriteLine(line);
-            Console.Error.WriteLine("[perf] " + line);
-
-            if (scenario && !met && waiver is null)
-            {
-                _missed.Add($"{target}: {measured:F2} {unit} > {limit} {unit} ({condition})");
-            }
-        }
-
-        internal void Verify() =>
-            _missed.ShouldBeEmpty("A target of §16 that is missed is fixed or waived with a reason and a record (ADR-0020) — never lowered quietly.");
     }
 }

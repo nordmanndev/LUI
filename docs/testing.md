@@ -43,11 +43,27 @@ the reason is in the report.
 | `LUI_PERF_KIND=multi` | whether a measurement runs on the multi-word index | the same |
 | `LUI_REQUIRE_FULL_WORDLIST=1` | the full 685,829-word parity **must** run, or the test fails | the release gate ([`publish.yml`](../.github/workflows/publish.yml)) |
 | `LUI_WORDLIST` | where the full word list is | a person, on purpose |
+| `LUI_PERF_MACHINE=other` | the machine of the run: `measurement` asserts every target, `other` reports the times and asserts the sizes | the lane (`.github/workflows/performance.yml`) |
 
 **A skipped test that reports itself as passed proves nothing.** The full-word-list
 parity is skipped — and says so — when the list is missing, rather than
 returning green. The release gate sets `LUI_REQUIRE_FULL_WORDLIST=1`, and then
 the test fails with the reason instead of skipping.
+
+### The lanes of the CI
+
+The lanes of [`ci.yml`](../.github/workflows/ci.yml) are the map above, spread over
+the runners — and the lane of the schedule is a lane of its own
+([`performance.yml`](../.github/workflows/performance.yml)):
+
+| Lane | What it runs | What it is there for |
+|---|---|---|
+| Build · Test · Format | the three layers, the client of the sample, the format | the whole tree, on every pull request |
+| The normalisation parity over the whole word list | the parity over the full list (685,829 words) | the rule of §6.2 exists twice — as SQL and as C# |
+| The guards bite | the mutation check | a green test proves nothing until it has been seen red (ADR-0019) |
+| Package · Smoke test | the packed library in a throwaway application | the README's code is part of the test |
+| **Windows** | the three layers on `windows-latest` | the paths, the pragmas and the case of the file names — the platform where a path is a promise (issue #67) |
+| Performance (every night, by hand) | the seven targets of §16 | a time belongs to the machine it was measured on; a size is the same everywhere (ADR-0041) |
 
 ---
 
@@ -76,6 +92,8 @@ the test fails with the reason instead of skipping.
 | Test file | Layer | Proves | The rule |
 |---|---|---|
 | [`DependencyInjectionTests`](../tests/Nordmann.LUI.Integration.Tests/DependencyInjectionTests.cs) | Integration | LUI in a host: the catalog is the one service of the container, no index is registered, the settings of the container are its own, the catalog goes with the host | spec §12.7, ADR-0017, ADR-0018, ADR-0033 |
+| [`LuiWarmupTests`](../tests/Nordmann.LUI.Integration.Tests/LuiWarmupTests.cs) | Integration | the warm-up as a service of the host: the dictionaries are warmed at the start, the outbox of a linked index is applied, the rounds run on the interval, and without the registration nothing happens; only the named dictionaries are built, the outbox runs without them, an unknown name fails the start, a failed round reaches the logger of the host (with `RecordingLoggerProvider`, the logger that keeps what it heard), and the registration is once and with a positive interval | issue #68, ADR-0043, ADR-0045 |
+| [`TypedIndexTests`](../tests/Nordmann.LUI.Integration.Tests/TypedIndexTests.cs) | Integration | the typed view of an index: the payload is read in the type of the application (a method, `GetPayload()`, not a property), the view answers as the index answers, and the fluent path ends in the same typed answer (`LuiResult.As<T>()`) | issue #59, ADR-0044 |
 | [`CatalogTests`](../tests/Nordmann.LUI.Integration.Tests/CatalogTests.cs) | Integration | opening a catalog, the meta table, the lifetime, the clock, the disposal while a query runs | spec §12.1, §12.8 |
 | [`ReadPathTests`](../tests/Nordmann.LUI.Integration.Tests/ReadPathTests.cs) | Integration | the read path: an index that is opened and not created — the index that is not there, a foreign schema version, a foreign folding, nothing written, no write lock, a read-only file, the kind of the key from the file and a key of the other kind, the payload read by the serialiser of the catalog that opens the file, a payload that cannot be read as the type asked for, a payload read as a type of another shape, whatever a serialiser of the application throws, the definition of an older version and of an unknown key type, an index opened as what it is, a linked index with a payload | ADR-0033, ADR-0035, issues #56, #58 |
 | [`ReadOnlyCatalogTests`](../tests/Nordmann.LUI.Integration.Tests/ReadOnlyCatalogTests.cs) | Integration | the catalog on a file that may not be written: it reads and searches, it writes nothing, and every write is refused with a `LuiReadOnlyException` | ADR-0033, issue #56 |
@@ -95,11 +113,12 @@ the test fails with the reason instead of skipping.
 | [`SampleBulkTests`](../tests/Nordmann.LUI.Integration.Tests/SampleBulkTests.cs) | Integration | the bulk indexes of the sample: the button that creates an index and loads it, the progress of the load, and exactly the number of entries that were asked for — and nothing else; the bulk indexes are not registered at startup, and the tests point the sample at the curated word list — a test never downloads 5.5 MB | ADR-0029 |
 | [`SampleIndexPanelTests`](../tests/Nordmann.LUI.Integration.Tests/SampleIndexPanelTests.cs) | Integration | the panel of the indexes: one index that cannot be read does not take the others down with it — an empty panel looks like data that was lost | ADR-0029 |
 | [`TypoQualityTests`](../tests/Nordmann.LUI.Integration.Tests/TypoQualityTests.cs) | Integration | the quality of the correction against a measured floor, by the length of the beginning | spec §10.4, §19, Anhang A4 |
-| [`ConcurrencyTests`](../tests/Nordmann.LUI.Integration.Tests/ConcurrencyTests.cs) | Integration | reads in parallel, writes serial — neither disturbs the other | spec §15 |
+| [`ConcurrencyTests`](../tests/Nordmann.LUI.Integration.Tests/ConcurrencyTests.cs) | Integration | reads in parallel, writes serial — neither disturbs the other; the soak of eight readers and one writer keeps the count; a second catalog on the same file sees a consistent picture while the first one writes; a dispose during a warm-up ends and does not hang | spec §15, issue #67 |
 | [`ApiShapeTests`](../tests/Nordmann.LUI.Integration.Tests/ApiShapeTests.cs) | Integration | the shape of the API before 0.1.0: the entry, the batch, the options that check themselves, the read and the write interface, the options of an index description that every step keeps, the exceptions of the library that are caught as one | ADR-0013, ADR-0024 |
 | [`RowIdTests`](../tests/Nordmann.LUI.Integration.Tests/RowIdTests.cs) | Integration | the rowid carries the priority and the weight — and the SQL and the C# agree on it | spec §7.2 |
 | [`ReviewFollowUpTests`](../tests/Nordmann.LUI.Integration.Tests/ReviewFollowUpTests.cs) | Integration | the findings of the review of pull request 6, each reproduced red before it was fixed | review of PR #6 |
 | [`TypoReviewTests`](../tests/Nordmann.LUI.Integration.Tests/TypoReviewTests.cs) | Integration | the findings of the review of pull request 10, each reproduced red before it was fixed | review of PR #10 |
+| [`PerformanceBudget_Machine`](../tests/Nordmann.LUI.Integration.Tests/PerformanceBudget_Machine.cs) | Integration | the two kinds of target of §16: a time belongs to the machine it was measured on and is reported elsewhere; a size is the same everywhere and is asserted | spec §16, ADR-0041 |
 
 ### The measurements — they run on purpose
 
@@ -107,6 +126,9 @@ They are not tests of behaviour; they are the numbers in
 [`docs/benchmarks.md`](./benchmarks.md). They are skipped unless `LUI_PERF=1`. The corpus they measure is
 generated by `Corpus` in `Nordmann.LUI.Testing` — the same one the benchmark project
 (`benchmarks/Nordmann.LUI.Benchmarks`) measures (ADR-0020).
+
+The lane of the schedule runs them every night on a shared runner: there the **times** are reported — a time belongs to the
+machine it was measured on — and the **sizes** are asserted (ADR-0041).
 
 | Test file | Layer | Measures | The number |
 |---|---|---|
@@ -128,6 +150,7 @@ generated by `Corpus` in `Nordmann.LUI.Testing` — the same one the benchmark p
 |---|---|---|
 | [`Internal_Layering`](../tests/Nordmann.LUI.Architecture.Tests/Internal_Layering.cs) | Architecture | the inside of the library has a direction: a namespace knows only the ones below it, and no layer reaches up through the facade | ADR-0014 |
 | [`Public_API_Shape`](../tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs) | Architecture | the public API is a promise: no web stack, no `Task`, one namespace, one prefix, no positional constructors, the content sources are called `Embedded` and `Linked` (the retired word `Owned` is gone), every exception is a `LuiException`, every option of a query can be set on the query, the read interface only reads, the catalog creates and opens an index, the container holds the catalog and nothing else, and the retired names are gone; the index knows no types — no type parameter on the index, the hit, the result, the query, the entry or the builders, the payload a method of the hit, one serialiser per catalog | spec §13, ADR-0013, ADR-0023, ADR-0024, ADR-0033, ADR-0035 |
+| [`Link_Check`](../tests/Nordmann.LUI.Architecture.Tests/Link_Check.cs) | Architecture | every relative link of every markdown file points at something that exists — a link that points at nothing is a broken promise | issue #66, review of 2026-11-06, D |
 | [`Public_API_Documentation`](../tests/Nordmann.LUI.Architecture.Tests/Public_API_Documentation.cs) | Architecture | the public API has a page of its own: every public type of the two packages is on [`docs/api.md`](./api.md), the page names no type the code does not have, and the README names none either | ADR-0038 |
 | [`Repository_Layout`](../tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs) | Architecture | the build wiring is part of the contract: one place for the versions, exactly one packable project, the documented dependency set | ADR-0001, ADR-0002, ADR-0004, ADR-0034 |
 | [`Namespace_Convention`](../tests/Nordmann.LUI.Architecture.Tests/Namespace_Convention.cs) | Architecture | folder = namespace, every namespace below the root | spec §17.2 |

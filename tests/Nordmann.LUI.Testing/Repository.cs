@@ -1,3 +1,4 @@
+using System.Text;
 using System.Xml.Linq;
 
 namespace Nordmann.LUI.Testing;
@@ -101,4 +102,21 @@ public static class Repository
         throw new InvalidOperationException(
             "Could not locate the repository root (a directory with Directory.Build.props and src/).");
     }
+
+    /// <summary>
+    /// The text of a file <b>as the repository has it</b>: the line endings of the checkout are
+    /// normalised back to LF. A runner that checks the tree out with CRLF (Windows) changes the
+    /// file without changing its content — and a guard that compares the content must not fail on
+    /// the platform and call it a difference.
+    /// </summary>
+    public static string NormalizedText(string path) =>
+        File.ReadAllText(path).Replace("\r\n", "\n", StringComparison.Ordinal);
+
+    /// <summary>
+    /// The bytes of a file as the repository has them — the line endings normalised back to LF.
+    /// The hash of a vendored file is taken over these bytes: the hash in the provenance names the
+    /// file of the repository, not the file of the runner.
+    /// </summary>
+    public static byte[] NormalizedBytes(string path) =>
+        new UTF8Encoding(encoderShouldEmitUTF8Identifier: false).GetBytes(NormalizedText(path));
 }

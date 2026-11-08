@@ -89,11 +89,13 @@ public sealed class Public_API_Shape
         [
             "LuiHit", "LuiResult", "LuiTimings", "LuiQueryOptions", "LuiCatalogOptions",
             "LuiLinkedSyncReport", "LuiSyncOptions", "LuiSyncReport", "LuiIntegrityReport",
+            "LuiTypedHit", "LuiTypedResult",
         ];
 
+        // the name without the arity: the runtime appends it to a generic type, the list names the type
         var offenders = LibraryAssembly
             .GetExportedTypes()
-            .Where(type => named.Contains(type.Name, StringComparer.Ordinal))
+            .Where(type => named.Contains(Type_Names.Of(type), StringComparer.Ordinal))
             .Where(type => type.GetConstructors().Any(constructor =>
                 constructor.GetParameters().Length > 0
                 && !(constructor.GetParameters().Length == 1 && constructor.GetParameters()[0].ParameterType == type)))
@@ -101,7 +103,7 @@ public sealed class Public_API_Shape
             .ToArray();
 
         offenders.ShouldBeEmpty("The results and options are built with named properties.");
-        LibraryAssembly.GetExportedTypes().Count(type => named.Contains(type.Name, StringComparer.Ordinal)).ShouldBe(named.Length);
+        LibraryAssembly.GetExportedTypes().Count(type => named.Contains(Type_Names.Of(type), StringComparer.Ordinal)).ShouldBe(named.Length);
     }
 
     [Fact]
@@ -245,6 +247,8 @@ public sealed class Public_API_Shape
         // the payload is read with the type the caller asks for, on the hit
         typeof(LuiHit).GetMethod(nameof(LuiHit.GetPayload))!.IsGenericMethodDefinition.ShouldBeTrue();
         typeof(LuiHit).GetProperty("Payload").ShouldBeNull("the payload is a method that deserialises, not a property");
+        typeof(LuiTypedHit<object>).GetProperty("Payload")
+            .ShouldBeNull("the typed hit reads the payload as the hit does: a method that deserialises, not a property (ADR-0044)");
 
         // one serialiser per catalog
         typeof(LuiCatalogOptions).GetProperty(nameof(LuiCatalogOptions.PayloadSerializer))!.PropertyType
@@ -283,10 +287,11 @@ public sealed class Public_API_Shape
     }
 
     [Fact]
-    public void The_container_holds_the_catalog_and_nothing_else()
+    public void The_container_holds_the_catalog_and_the_warm_up_but_no_index()
     {
-        // ADR-0033: the container does not describe indexes — the application asks the catalog for what it needs, and
-        // `AddLui` is the only registration the hosting package has.
+        // ADR-0033: the container does not describe indexes — the application asks the catalog for what it needs.
+        // ADR-0043: the warm-up is a service of the host, and the host asks for it — it is the second registration, and
+        // it registers no index either.
         const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
 
         var hosting = Assembly.Load("Nordmann.LUI.Hosting").GetExportedTypes();
@@ -299,8 +304,8 @@ public sealed class Public_API_Shape
             .SelectMany(type => type.GetMethods(declared))
             .Where(method => method.Name.StartsWith("Add", StringComparison.Ordinal))
             .ToArray();
-        registrations.Length.ShouldBe(2, "AddLui and AddLui with the connection string from the container");
-        registrations.ShouldAllBe(method => string.Equals(method.Name, "AddLui", StringComparison.Ordinal));
+        registrations.Length.ShouldBe(3, "AddLui, AddLui with the connection string from the container, and AddLuiWarmup");
+        registrations.ShouldAllBe(method => method.Name == "AddLui" || method.Name == "AddLuiWarmup");
         registrations.ShouldAllBe(method => method.ReturnType == typeof(IServiceCollection));
     }
 

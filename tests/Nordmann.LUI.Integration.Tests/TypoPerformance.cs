@@ -38,11 +38,11 @@ public sealed class TypoPerformance(ITestOutputHelper output)
 
         Report($"index: {words.Count:N0} words");
 
-        // the first correction builds the dictionary
+        // the warm-up builds the dictionary (ADR-0042): a query never does
         GC.Collect();
         var before = GC.GetTotalMemory(forceFullCollection: true);
         var build = Stopwatch.StartNew();
-        wordIndex.Query("apflekuchen").TypoTolerance().Execute();
+        wordIndex.WarmUpTypoDictionary();
         build.Stop();
         GC.Collect();
         var after = GC.GetTotalMemory(forceFullCollection: true);

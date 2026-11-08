@@ -8,9 +8,9 @@
   </PropertyGroup>
 
   <!--
-    The second package (ADR-0018): LUI in a .NET host — AddLui, and nothing else. The container holds the catalog and
-    no index (ADR-0033); the application asks the catalog for what it needs. The package knows only the public API of
-    Nordmann.LUI and is released with it, with the same version (VersionPrefix in Directory.Build.props).
+    The second package (ADR-0018): LUI in a .NET host — AddLui, AddLuiWarmup, and nothing else. The container holds the
+    catalog and no index (ADR-0033); the application asks the catalog for what it needs. The package knows only the
+    public API of Nordmann.LUI and is released with it, with the same version (VersionPrefix in Directory.Build.props).
   -->
   <PropertyGroup>
     <PackageId>Nordmann.LUI.Hosting</PackageId>
@@ -37,8 +37,17 @@
     <ProjectReference Include="../Nordmann.LUI/Nordmann.LUI.csproj" />
   </ItemGroup>
 
+  <!--
+    ADR-0034: the dependency set of a package is its contract — a package carries what it uses. The warm-up is a hosted
+    service (ADR-0043), and a hosted service is a type of the host: the abstraction of the host comes back into the
+    list, because the package uses it now.
+  -->
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <!-- ADR-0045: the warm-up tells the logger of the host what it did and what failed; already in the closure of the
+         hosting abstraction, named here because the package uses it -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>

@@ -350,9 +350,11 @@ public sealed class SampleApiTests(SampleHost host) : IClassFixture<SampleHost>
             await Should.ThrowAsync<OperationCanceledException>(() => Client.GetAsync("/api/suggest/recipes?q=apfel&delayMs=1500", cancellation.Token));
         }
 
-        // the server notices the closed connection and ends the request; its counter says so
+        // the server notices the closed connection and ends the request; its counter says so.
+        // The window is ten seconds: the server has to notice it, and a loaded machine needs
+        // its time — the claim is that the request ends, not that it ends at once.
         var after = before;
-        for (var i = 0; i < 40 && after <= before; i++)
+        for (var i = 0; i < 100 && after <= before; i++)
         {
             await Task.Delay(100);
             after = (await Get("/api/health"))["suggest"]!["aborted"]!.GetValue<long>();

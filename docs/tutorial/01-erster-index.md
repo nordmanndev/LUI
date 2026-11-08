@@ -130,6 +130,9 @@ places.Upsert(1, "Bahnhof", weight: 10);
 places.Upsert(2, "Hauptbahnhof", weight: 20);
 places.Upsert(3, "Bahnhofstrasse", weight: 30);
 
+// the application asks for the dictionary of the typos — a query never does
+places.WarmUpTypoDictionary();
+
 var result = places.Search("bahnhfo");
 
 Console.WriteLine(result.CorrectedQuery);
@@ -148,12 +151,13 @@ Hauptbahnhof
 
 `CorrectedQuery` says what was searched instead of what was typed — it is
 `null` when nothing was corrected. A query that needed a correction but could
-not get one (the dictionary was still being built) answers without it and says
-so in `CorrectionSkipped`; it never waits for the build.
+not get one answers without it and says so in `CorrectionSkipped`; it never
+waits for the build and it never starts one — the application asks for the
+dictionary with `WarmUpTypoDictionary()` and builds it when it needs it.
 
-The dictionary is built when the first input needs it, or by
-`WarmUpTypoDictionary()` at the start of your application — so that the first
-typo does not pay for it. It costs memory, and step 4 has the measured size.
+Call `WarmUpTypoDictionary()` once the entries are in — at the start of your
+application, or after a load. Without it the index answers every query, and
+corrects none. The dictionary costs memory, and step 4 has the measured size.
 
 > **Why so?**
 > The correction is a *search* over the word beginnings of the index, not a

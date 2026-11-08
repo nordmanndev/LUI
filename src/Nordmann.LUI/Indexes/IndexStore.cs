@@ -181,6 +181,28 @@ internal static class IndexStore
         return new IndexStoreEntry(kind, source, definition, schemaVersion);
     }
 
+    /// <summary>
+    /// The names of the indexes of the file — the list of what <c>lui_meta</c> holds (ADR-0043: the warm-up of a host
+    /// asks the catalog for its indexes).
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <returns>The names, in the order of the table.</returns>
+    internal static IReadOnlyList<string> ReadIndexNames(Database database)
+    {
+        using var connection = database.OpenConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT index_name FROM lui_meta ORDER BY index_name;";
+
+        var names = new List<string>();
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            names.Add(reader.GetString(0));
+        }
+
+        return names;
+    }
+
     /// <summary>The kind of the stored index; a kind this version does not know is a file of another version.</summary>
     private static LuiIndexKind ReadKind(string kind, string indexName) =>
         Enum.TryParse(kind, out LuiIndexKind parsed)

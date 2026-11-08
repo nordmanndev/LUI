@@ -149,17 +149,19 @@ service that only reads: `LuiCatalog.Open("Data Source=app.db")` and
 writes nothing at all — no write-ahead logging, no `lui_meta` — and every
 write is refused with a `LuiReadOnlyException`.
 
-## The background work is yours
+## The background work is yours — or LUI's, if you ask
 
-The hosting package brings the dependency injection and nothing else. Two
-things stay in your application, because they are your application's:
+Two things repeat in every application that searches with LUI, and both are
+the application's business:
 
 - **The warm-up of the typo dictionary.** `WarmUpTypoDictionary()` at the
-  start builds it, so that the first typo does not pay for it. No query waits
-  for a warm-up: a query that would need a correction meanwhile answers
-  without it and says `CorrectionSkipped`.
+  start builds it — a query never does. Until it is built, a query that would
+  need a correction answers without it and says `CorrectionSkipped`.
 - **The outbox of a linked index.** `ApplyPending()` brings the rows the
   triggers noted into the index — after your writes, or on a timer.
+
+The hosting package offers both as one service — **off by default**. The host
+asks for it, and the library starts nothing on its own:
 
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
@@ -170,26 +172,36 @@ var builder = Host.CreateApplicationBuilder(args);
 
 builder.Services.AddLui("Data Source=app.db");
 
-// The application keeps its own index current — the container does not.
-builder.Services.AddHostedService<OutboxWorker>();
+// The dictionaries are built while the host starts; the outbox is applied every 30 seconds.
+builder.Services.AddLuiWarmup(options => options.TypoDictionaryIndexes.Add("tags"));
 
 using var host = builder.Build();
 host.Run();
-
-/// <summary>Brings the noted rows of the linked index into the index, every five seconds.</summary>
-internal sealed class OutboxWorker(LuiCatalog catalog) : BackgroundService
-{
-    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
-    {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(5));
-
-        while (await timer.WaitForNextTickAsync(stoppingToken))
-        {
-            catalog.LinkedIndex("articles").ApplyPending(stoppingToken);
-        }
-    }
-}
 ```
+
+`AddLuiWarmup()` registers a service of the host: the host starts it, stops it
+and disposes it. The typo dictionaries of your indexes are built at the start —
+after the outbox, so that the dictionary knows the words of the rows that came
+in — and the outbox of every linked index is applied on an interval (30 s by
+default, `options.OutboxInterval = TimeSpan.FromSeconds(5)` says otherwise).
+
+- **Name the indexes that correct typos.** A dictionary costs memory — 138 MB
+  for 685,829 words. `TypoDictionaryIndexes` names the indexes that get one;
+  left empty, every index does. `WarmUpTypoDictionaries = false` leaves only
+  the outbox to the service.
+- **The host waits for the dictionaries.** It is ready when they are built —
+  seconds for a large index — so that the first query already corrects.
+- **The logger of the host hears what happened**: the dictionaries it built,
+  and a round of the outbox that failed (a `Warning`, with the exception). The
+  rows of a failed round stay in the outbox; the next round tries again.
+
+**The rebuild stays yours.** A dictionary only grows: what was removed lingers
+in it until `RebuildTypoDictionary()` (ADR-0025). Only your application knows
+when a phase is quiet enough for it.
+
+Without the call, nothing of LUI runs in the background: the container holds
+the catalog, and the application asks it for what it needs.
+
 
 ## What you have now
 

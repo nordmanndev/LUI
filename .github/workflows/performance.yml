@@ -1,0 +1,93 @@
+# The lane of the schedule for the targets of §16 (ADR-0041). The file stood at
+# tools/performance-lane.yml until the owner gave the agent a token: the connector may not write
+# into .github/workflows/, and a lane that lives outside of it never runs.
+#
+name: Performance
+
+# The targets of §16 run on a schedule of their own: the sizes are asserted on
+# every runner, the times are reported with the machine they were measured on
+# (ADR-0041). The record of the numbers stays docs/benchmarks.md — a lane that
+# runs without writing down what it measured proves nothing.
+on:
+  schedule:
+    # 03:17 UTC — a time when nobody waits for a runner.
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+    inputs:
+      entries:
+        description: 'How many entries the scenario builds'
+        required: false
+        default: '3000000'
+      machine:
+        description: "The machine: 'measurement' asserts every target, 'other' reports the times"
+        required: false
+        default: 'other'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: performance-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  budgets:
+    name: The budgets of §16
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    env:
+      LUI_PERF: '1'
+      LUI_PERF_ENTRIES: ${{ inputs.entries || '3000000' }}
+      LUI_PERF_MACHINE: ${{ inputs.machine || 'other' }}
+      LUI_REQUIRE_FULL_WORDLIST: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore
+        run: dotnet restore Lui.sln
+
+      # The whole word list, or the corpus of the scenario is not the corpus of
+      # the specification: the script fails if the list is short.
+      - name: Fetch the word list
+        run: bash tools/fetch-wordlist.sh
+
+      - name: Build
+        run: dotnet build Lui.sln --configuration Release --no-restore
+
+      # The machine of this run, written down: a number without a machine is a
+      # rumour (docs/benchmarks.md).
+      - name: The machine of this run
+        run: |
+          set -euo pipefail
+          {
+            echo "cores: $(nproc)"
+            echo "memory: $(free -g | awk '/^Mem:/ {print $2}') GB"
+            echo "disk: $(df -BG / | awk 'NR==2 {print $4}') free"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
+
+      # The pipe needs pipefail: without it a failing test would look green,
+      # because tee was the last command of the line.
+      - name: The budgets of §16
+        run: |
+          set -euo pipefail
+          mkdir -p artifacts
+          dotnet test tests/Nordmann.LUI.Integration.Tests \
+            --configuration Release --no-build \
+            --filter 'PerformanceBudgets|NormalizationParity' \
+            --logger "console;verbosity=detailed" 2>&1 | tee artifacts/budgets.log
+
+      - name: The result in the summary of the run
+        if: always()
+        run: |
+          set -euo pipefail
+          {
+            echo '### The budgets of §16'
+            echo ''
+            echo '```text'
+            grep -F '[perf]' artifacts/budgets.log || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

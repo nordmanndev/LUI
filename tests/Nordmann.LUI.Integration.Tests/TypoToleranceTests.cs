@@ -90,6 +90,9 @@ public sealed class TypoToleranceTests
         people.Upsert(1, "Anna Müller", 10);
         people.Upsert(2, "Hans Schmidt", 20);
 
+        // the application asks for the build (ADR-0042): a query never does
+        people.WarmUpTypoDictionary();
+
         var result = people.Query("muller").Execute();
 
         result.CorrectedQuery.ShouldBe("mueller");
@@ -106,6 +109,9 @@ public sealed class TypoToleranceTests
         words.Upsert(1, "Apfelkuchen", 10);
         words.Upsert(2, "Teigapflekuchen", 20);
 
+        // the application asks for the build (ADR-0042): a query never does
+        words.WarmUpTypoDictionary();
+
         var result = words.Query("apflekuchen").Execute();
 
         result.CorrectedQuery.ShouldBe("apfelkuchen");
@@ -121,6 +127,10 @@ public sealed class TypoToleranceTests
         using var catalog = database.Open();
         var words = catalog.Create("words", index => index.SingleWord());
         words.Upsert(1, "Apfelkuchen", 10);
+
+        // the application asks for the build (ADR-0042): a query never does — the query asks for the
+        // correction, the application pays for the dictionary
+        words.WarmUpTypoDictionary();
 
         var off = words.Query("apflekuchen").Execute();
         off.Hits.ShouldBeEmpty();
@@ -176,6 +186,9 @@ public sealed class TypoToleranceTests
         var titles = catalog.Create("titles", index => index.MultiWord().TypoTolerance());
         titles.Upsert(1, "Apfel Kuchen", 10);
 
+        // the application asks for the build (ADR-0042): a query never does
+        titles.WarmUpTypoDictionary();
+
         var together = titles.Query("apflekuchen").Execute();
         together.Hits.ShouldBeEmpty();
         together.CorrectedQuery.ShouldBeNull();
@@ -205,6 +218,9 @@ public sealed class TypoToleranceTests
         var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         words.Upsert(1, "Donaudampfschifffahrtsgesellschaft", 10);
 
+        // the application asks for the build (ADR-0042): a query never does
+        words.WarmUpTypoDictionary();
+
         var result = words.Query("donaudampgschifffahrtsgesellschaft").Execute();
 
         result.CorrectedQuery.ShouldBe("donaudampfschifffahrtsgesellschaft");
@@ -216,7 +232,7 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var recipes = Recipes(database);
-        recipes.Index.Query("apflekuchen").Execute();   // builds the dictionary
+        recipes.Index.Query("apflekuchen").Execute();   // the dictionary is built (the helper warms it up)
 
         recipes.Index.Upsert(20, "Himbeere", 50);
 
@@ -274,6 +290,9 @@ public sealed class TypoToleranceTests
         var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance());
         tags.Upsert(1, "vegan", 0, priority: LuiPriority.System);
         tags.Upsert(2, "veganer kuchen", 900);
+
+        // the application asks for the build (ADR-0042): a query never does
+        tags.WarmUpTypoDictionary();
 
         var result = tags.Query("vegna").Execute();
 
@@ -340,6 +359,9 @@ public sealed class TypoToleranceTests
         recipes.Upsert(6, "Apfelstrudel", 5_000);
         recipes.Upsert(7, "Apfelkuchen mit Äpfeln", 300);
         recipes.Upsert(8, "Hauptstraße", 100);
+
+        // the application asks for the build (ADR-0042): a query never does
+        recipes.WarmUpTypoDictionary();
         return new Fixture(recipes);
     }
 

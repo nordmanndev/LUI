@@ -384,6 +384,9 @@ public sealed class LinkedIndexTests
         var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count"));
         tags.Sync();
 
+        // the application asks for the build (ADR-0042): a query never does
+        tags.WarmUpTypoDictionary();
+
         tags.Search("apflekuchen").CorrectedQuery.ShouldBe("apfelkuchen");
 
         Insert(database, (2, "Himbeere", 50));
