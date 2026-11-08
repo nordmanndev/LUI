@@ -181,8 +181,9 @@ mutations of `tools/mutation-check.sh`; `OwnedBulkExperiment` and `SyncPerforman
 
 ## Note (2026-11-08, issue #76)
 
-The experiment of this decision — `EmbeddedBulkExperiment` — was a spike, and it is gone from the tree with the restructure of the
-tests (epic #72). Its numbers stay above; its code is in the history:
+The experiment of this decision — `EmbeddedBulkExperiment`, called `OwnedBulkExperiment` in the text above (its name before
+PR #46) — was a spike, and it is gone from the tree with the restructure of the tests (epic #72). Its numbers stay above; its
+code is in the history:
 
 ```bash
 git show 0cbc02fb9ab700ee5d7585e590f9bfad60af3627:tests/Nordmann.LUI.Integration.Tests/EmbeddedBulkExperiment.cs

@@ -39,7 +39,7 @@ Three sources are at hand:
 
 - **the German word list.** `tools/fetch-wordlist.sh` downloads 685,829 words (CC0, `enz/german-wordlist`) into
   `artifacts/wordlist/german-words.txt` — deliberately *not* checked into the repository (5.5 MB). The repository tracks a
-  curated 7,071-word subset of it for the tests (`tests/Nordmann.LUI.TestData/wordlist/german-words.sample.txt`), and the
+  curated 7,071-word subset of it for the tests (`tests/TestData/wordlist/german-words.sample.txt`), and the
   convention `LUI_WORDLIST` already names the place of the full list.
 - **Bogus** (`bchavez/Bogus`), the .NET library of fake data. Its German locale holds 1,688 surnames, 1,145 first names, 1,031
   street names, 237 countries and 15,482 distinct place names in 20,000 draws; it is deterministic with a fixed seed, and
