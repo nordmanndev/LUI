@@ -53,7 +53,7 @@ The settings of the catalog. Every one of them has a default; none of them has t
 |---|---|---|
 | `int? CacheSizeMegabytes` | the SQLite default | the page cache of the file |
 | `int? MemoryMapMegabytes` | the SQLite default | the memory map of the file |
-| `TimeSpan BusyTimeout` | 5 s | how long a writer waits for the lock of the file |
+| `TimeSpan BusyTimeout` | 5 s | how long a writer waits for the lock of the file — then `SqliteException` with `SQLITE_BUSY`. At least about one second: below it, Microsoft.Data.Sqlite retries until a second has passed (ADR-0046). It bounds the wait for a lock, not the time a statement runs. |
 | `bool WriteAheadLog` | `true` | the WAL — readers do not block the writer |
 | `ILuiPayloadSerializer? PayloadSerializer` | none | the serialiser of the payloads of this catalog — one for every index of it |
 | `TimeProvider TimeProvider` | `TimeProvider.System` | the clock of the catalog, for the timings and for tests |
