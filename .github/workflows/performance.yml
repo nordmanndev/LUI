@@ -33,7 +33,7 @@ concurrency:
 jobs:
   budgets:
     name: The budgets of §16
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 120
     env:
       LUI_PERF: '1'
@@ -41,14 +41,9 @@ jobs:
       LUI_PERF_MACHINE: ${{ inputs.machine || 'other' }}
       LUI_REQUIRE_FULL_WORDLIST: '1'
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore
-        run: dotnet restore Lui.sln
+      - uses: ./.github/actions/setup
 
       # The whole word list, or the corpus of the scenario is not the corpus of
       # the specification: the script fails if the list is short.
@@ -78,7 +73,17 @@ jobs:
           dotnet test tests/Nordmann.LUI.Integration.Tests \
             --configuration Release --no-build \
             --filter 'PerformanceBudgets|NormalizationParity' \
-            --logger "console;verbosity=detailed" 2>&1 | tee artifacts/budgets.log
+            --logger "console;verbosity=detailed" --blame-hang-timeout 60m --blame-hang-dump-type full \
+            --results-directory artifacts/test-results 2>&1 | tee artifacts/budgets.log
+
+      # Only a failure leaves something worth reading: the dump of a hang, the output of a test.
+      - name: Upload the evidence of a failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: performance-test-results
+          path: artifacts/test-results
+          retention-days: 14
 
       - name: The result in the summary of the run
         if: always()

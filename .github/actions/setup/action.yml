@@ -1,0 +1,32 @@
+# The setup of every job that builds (issue #74, ADR-0047): the SDK that global.json names, the NuGet cache, the restore
+# of the solution — in one place, so that five jobs do not spell it five times.
+#
+# A composite action is read from the checked-out tree: the job checks the repository out first, then calls it.
+name: Setup
+description: The .NET SDK of global.json, the NuGet cache and the restore of the solution.
+
+inputs:
+  restore:
+    description: "Whether the solution is restored ('true' or 'false')"
+    required: false
+    default: 'true'
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-dotnet@67a3573c9a986a3f9c594539f4ab511d57bb3ce9 # v4.3.1
+      with:
+        global-json-file: global.json
+
+    # The packages of the central versions: the key changes when a version, a project or the SDK changes.
+    - uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+      with:
+        path: ~/.nuget/packages
+        key: nuget-${{ runner.os }}-${{ hashFiles('global.json', 'Directory.Packages.props', 'Directory.Build.props', '**/*.csproj') }}
+        restore-keys: |
+          nuget-${{ runner.os }}-
+
+    - name: Restore
+      if: inputs.restore == 'true'
+      shell: bash
+      run: dotnet restore Lui.sln
