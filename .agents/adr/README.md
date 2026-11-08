@@ -101,3 +101,4 @@ decided about the query path" without opening 36 files.
 | [0045](./0045-the-warm-up-tells-the-logger-of-the-host.md) | The warm-up tells the logger of the host what it did and what failed | Hosting | Accepted |
 | [0046](./0046-the-busy-timeout-is-the-wait-for-a-lock.md) | The busy timeout of the catalog is the wait for a lock — not the 30 s of the provider | Storage | Accepted |
 | [0047](./0047-the-pipelines-change-only-with-the-repository.md) | The pipelines change only with the repository: the SDK of `global.json`, named images, actions pinned by commit, timeouts, Dependabot | Build | Accepted |
+| [0048](./0048-the-release-is-the-pull-request-gate-the-owner-and-a-key-of-one-hour.md) | The release: the gates of every pull request, the owner's approval, a key of one hour (Trusted Publishing) | Build | Accepted |

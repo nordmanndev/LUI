@@ -45,9 +45,11 @@ public sealed partial class Workflow_Rules
     [Fact]
     public void Every_job_has_a_timeout()
     {
-        // GitHub's default is six hours: a test that hangs burns them, and nobody reads the result
+        // GitHub's default is six hours: a test that hangs burns them, and nobody reads the result. A job that calls a
+        // workflow has no runner and no timeout of its own — the jobs of the called workflow have theirs.
         var offenders = Workflows()
             .SelectMany(file => Jobs(file).Select(job => (File: file, Job: job)))
+            .Where(entry => !CallsAWorkflow(entry.Job.Body))
             .Where(entry => !entry.Job.Body.Contains("\n    timeout-minutes:", StringComparison.Ordinal))
             .Select(entry => $"{Relative(entry.File)}: the job {entry.Job.Name}")
             .ToArray();
@@ -88,6 +90,30 @@ public sealed partial class Workflow_Rules
     }
 
     [Fact]
+    public void The_release_runs_the_gates_of_every_pull_request_and_stores_no_key()
+    {
+        // ADR-0048: the release has no gate of its own — it calls ci.yml, and the push waits for it and for the owner
+        var release = Jobs(Path.Combine(Repository.RootPath, ".github", "workflows", "publish.yml")).ToArray();
+
+        var gate = release.Where(job => job.Body.Contains("\n    uses: ./.github/workflows/ci.yml", StringComparison.Ordinal))
+            .Select(job => job.Name)
+            .ToArray();
+        gate.ShouldHaveSingleItem("The release calls the workflow of every pull request (ci.yml) as one of its jobs.");
+
+        var push = release.Where(job => job.Body.Contains("dotnet nuget push", StringComparison.Ordinal)).ToArray();
+        push.ShouldHaveSingleItem("One job of the release pushes to nuget.org.");
+        var body = push[0].Body;
+
+        var needs = NeedsList().Match(body).Groups["needs"].Value.Split(',').Select(need => need.Trim()).ToArray();
+        needs.Contains(gate[0], StringComparer.Ordinal)
+            .ShouldBeTrue($"The push needs the gates ({gate[0]}) — it does not run before they are green; it needs {string.Join(", ", needs)}.");
+        body.ShouldContain("\n    environment: nuget", Case.Sensitive, "The push runs in the environment the owner approves.");
+        body.ShouldContain("id-token: write", Case.Sensitive, "The push asks GitHub for the OIDC token of Trusted Publishing.");
+        body.ShouldContain("uses: NuGet/login@", Case.Sensitive, "The key of the push is the one nuget.org issues for one hour.");
+        body.ShouldNotContain("secrets.NUGET_API_KEY", Case.Sensitive, "No key of nuget.org is stored in the repository.");
+    }
+
+    [Fact]
     public void The_sdk_is_the_one_of_global_json()
     {
         // the SDK of the pipelines and of the developer is one file; a pipeline that names a version of its own drifts
@@ -120,6 +146,10 @@ public sealed partial class Workflow_Rules
 
         offenders.ShouldBeEmpty("No pipeline names a dotnet-version of its own — the setup action reads global.json.");
     }
+
+    /// <summary>Whether a job calls a reusable workflow instead of running steps.</summary>
+    private static bool CallsAWorkflow(string jobBody) =>
+        jobBody.Contains("\n    uses: ./.github/workflows/", StringComparison.Ordinal);
 
     /// <summary>The workflows and the actions of the repository.</summary>
     private static IEnumerable<string> PipelineFiles() =>
@@ -211,6 +241,9 @@ public sealed partial class Workflow_Rules
 
     [GeneratedRegex(@"\n\s*-\s+(?=[A-Za-z][A-Za-z0-9_-]*:)", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
     private static partial Regex StepStart();
+
+    [GeneratedRegex(@"\n    needs:\s*\[?(?<needs>[^\]\n]*)\]?", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
+    private static partial Regex NeedsList();
 
     [GeneratedRegex(@"^\d+\.\d+\.\d+$", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
     private static partial Regex ExactVersion();

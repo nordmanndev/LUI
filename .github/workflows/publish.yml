@@ -1,21 +1,75 @@
 name: Publish
 
-# The tag is the owner's decision: the version in the tag must match the
-# version in Directory.Build.props, and the push needs the NUGET_API_KEY
-# secret. Nothing here runs without a tag.
+# The release (issue #75, ADR-0048). A tag v* on a commit of main starts it — and the tag is the owner's decision.
+#
+#   tag      the version of the tag is the version of Directory.Build.props, and the tagged commit is on main
+#   gate     exactly the gates of every pull request: ci.yml, called — not a gate of its own
+#   publish  in the environment "nuget", which waits for the owner's approval; the packages are packed and smoke-tested
+#            at the version of the tag and pushed with a key that nuget.org issues for one hour (Trusted Publishing,
+#            OIDC) — no key is stored in the repository
+#
+# The steps the owner does once are in .agents/release.md.
 on:
   push:
     tags: ['v*']
-  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  # one release per tag, and a release is never cancelled half-way
+  group: publish-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
+  tag:
+    name: The tag is a release of main
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          fetch-depth: 0
+
+      - name: The version of the tag is the version of the packages
+        id: version
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME#v}"
+          props="$(grep -oP '(?<=<VersionPrefix>)[^<]+' Directory.Build.props)"
+          if [ "${tag}" != "${props}" ]; then
+            echo "The tag (${tag}) and Directory.Build.props (${props}) disagree." >&2
+            exit 1
+          fi
+          echo "version=${tag}" >> "$GITHUB_OUTPUT"
+
+      # A tag on a branch that never reached main would publish code that no pull request has seen.
+      - name: The tagged commit is on main
+        run: |
+          set -euo pipefail
+          git fetch --no-tags origin main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "The tagged commit ${GITHUB_SHA} is not on main — a release is made from main." >&2
+            exit 1
+          fi
+
+  gate:
+    name: The gates of every pull request
+    needs: tag
+    uses: ./.github/workflows/ci.yml
+
   publish:
     name: Pack · Push to nuget.org
+    needs: [tag, gate]
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 30
+    # the owner approves the push here — the environment has the owner as its required reviewer
+    environment: nuget
+    permissions:
+      contents: read
+      id-token: write   # the OIDC token that nuget.org exchanges for a key of one hour
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
@@ -23,53 +77,21 @@ jobs:
         with:
           restore: 'false'
 
-      - name: Read the version
-        id: version
-        run: |
-          set -euo pipefail
-          tag="${GITHUB_REF_NAME#v}"
-          props="$(grep -oP '(?<=<VersionPrefix>)[^<]+' Directory.Build.props)"
-          echo "tag=${tag}" >> "$GITHUB_OUTPUT"
-          echo "props=${props}" >> "$GITHUB_OUTPUT"
-          if [ "${tag}" != "${props}" ]; then
-            echo "The tag (${tag}) and Directory.Build.props (${props}) disagree." >&2
-            exit 1
-          fi
+      # No separate pack: the smoke test packs both packages (ADR-0018) into artifacts/nuget at the version of the tag,
+      # installs and runs exactly those, and they are what is pushed (review of main after #23, finding 7).
+      - name: Smoke test the packages of the release
+        run: bash tools/package-smoke-test.sh "${{ needs.tag.outputs.version }}"
 
-      - name: Restore
-        run: dotnet restore Lui.sln
-
-      # The release gate runs the full parity: every word of the German word
-      # list against the live tokenizer. The pull request gate runs the
-      # sample; this one does not take chances.
-      - name: Fetch the word list
-        run: bash tools/fetch-wordlist.sh
-
-      - name: Build and test
-        env:
-          LUI_REQUIRE_FULL_WORDLIST: '1'
-        run: |
-          dotnet build Lui.sln --configuration Release --no-restore
-          dotnet test Lui.sln --configuration Release --no-build --blame-hang-timeout 10m --blame-hang-dump-type full \
-            --results-directory artifacts/test-results
-
-      # Only a failure leaves something worth reading: the dump of a hang, the output of a test.
-      - name: Upload the evidence of a failure
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      # Requested right before the push: the key lives one hour, and one token buys one key.
+      - name: NuGet login (Trusted Publishing)
+        id: login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
         with:
-          name: release-test-results
-          path: artifacts/test-results
-          retention-days: 14
-
-      # No separate pack: the smoke test packs both packages (ADR-0018) into artifacts/nuget, installs and runs
-      # exactly those, and they are what is pushed (review of main after #23, finding 7).
-      - name: Smoke test the package
-        run: bash tools/package-smoke-test.sh "${{ steps.version.outputs.tag }}"
+          user: ${{ vars.NUGET_USER }}
 
       - name: Push to nuget.org
         env:
-          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          NUGET_API_KEY: ${{ steps.login.outputs.NUGET_API_KEY }}
         run: |
           set -euo pipefail
           dotnet nuget push artifacts/nuget/*.nupkg \
@@ -80,3 +102,9 @@ jobs:
             --api-key "${NUGET_API_KEY}" \
             --source https://api.nuget.org/v3/index.json \
             --skip-duplicate
+
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-packages
+          path: artifacts/nuget/
+          retention-days: 90

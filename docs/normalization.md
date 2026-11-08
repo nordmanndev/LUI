@@ -191,7 +191,7 @@ is simply the unfolded one for those characters.
 |---|---|
 | `The_fold_table_matches_the_tokenizer_for_every_code_point` | the table is the tokenizer's behaviour, over the whole BMP |
 | `The_normalizer_and_the_tokenizer_agree_on_the_word_corpus` | the C# search form equals the tokenizer's view of the SQL column, for 7,071 German words |
-| `The_normalizer_and_the_tokenizer_agree_on_the_full_word_list` | the same for all 685,829 words — the release gate |
+| `The_normalizer_and_the_tokenizer_agree_on_the_full_word_list` | the same for all 685,829 words — the lane of the parity, on every pull request and in the release |
 | `The_normalizer_and_the_tokenizer_agree_on_the_edge_cases` | the same for the characters a stride cannot reach for |
 | `The_edge_cases_hold_the_measured_expectations` | the expectations in the corpus file are the measured ones |
 | `The_compact_form_of_the_sql_column_matches_the_compact_form_of_the_normalizer` | the SQL compact column and the C# compact form are the same text |
