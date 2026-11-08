@@ -60,7 +60,7 @@ the runners — and the lane of the schedule is a lane of its own
 |---|---|---|
 | Build · Test · Format | the three layers, the client of the sample, the format | the whole tree, on every pull request |
 | The normalisation parity over the whole word list | the parity over the full list (685,829 words) | the rule of §6.2 exists twice — as SQL and as C# |
-| The guards bite | the mutation check | a green test proves nothing until it has been seen red (ADR-0019) |
+| The guards bite | the mutation check, in four shards side by side (`--shard i/4`), and one job of that name that waits for all four | a green test proves nothing until it has been seen red (ADR-0019) — and every mutation says how it must be caught: by its test (`expect_caught`) or, where the toolchain is the guard on purpose, by the build with a named error (`expect_refused`). A mutation that the build refuses although a test was meant fails the check (issue #73) |
 | Package · Smoke test | the packed library in a throwaway application | the README's code is part of the test |
 | **Windows** | the three layers on `windows-latest` | the paths, the pragmas and the case of the file names — the platform where a path is a promise (issue #67) |
 | Performance (every night, by hand) | the seven targets of §16 | a time belongs to the machine it was measured on; a size is the same everywhere (ADR-0041) |
@@ -210,6 +210,11 @@ dotnet test Lui.sln
 
 # the modules of the sample's client — plain Node, no install, no build (ADR-0027)
 (cd samples/Lui.Sample && npm test)
+
+# the mutation check — all of it, one shard of it, or the one mutation you are writing
+bash tools/mutation-check.sh
+bash tools/mutation-check.sh --shard 2/4
+bash tools/mutation-check.sh --only the-provider-retries-for-thirty-seconds
 
 # a measurement, on purpose
 LUI_PERF=1 LUI_PERF_ENTRIES=3000000 dotnet test tests/Nordmann.LUI.Integration.Tests --filter QueryPerformance
