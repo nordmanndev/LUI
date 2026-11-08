@@ -260,6 +260,22 @@ of the decisions, the mutation `a-link-in-the-documentation-points-at-nothing` a
 `.github/workflows/performance.yml` now, because the token lets the agent move it there itself. **A lane outside of
 `.github/workflows/` never runs**: the file at `tools/performance-lane.yml` was a file, not a lane.
 
+### The review of the owner (2026-11-08)
+
+The review of pull request 69 found the round sound in its code and its tests, and the contract behind it. Worked in on
+the same branch, before the merge:
+
+| | The finding | The change |
+|---|---|---|
+| B1 | a second copy of the specification in the root (`LUI-Spezifikation.md`, commit `f0f9262`) — and two corrections of §10.3 stood only in the copy, so the contract still said that the query builds the dictionary | the corrections in `.agents/spec/`, the copy gone |
+| B2 | §12.7 and §17 said "no hosted service, no timer, no warm-up" and named one dependency of the hosting package; §12 knew neither `As<T>()` nor the two methods of the catalog | §12.3, §12.5, §12.7, §17.1, §17.3 and §20 say what the code does |
+| B3 | tutorial 01 and 04 said "the dictionary is built when the first input needs it"; the new section of tutorial 03 was German in an English tutorial | the tutorials say what ADR-0042 says, in English |
+| A1 | `LuiTypedHit<T>.Payload` was a property that deserialises and can throw — ADR-0035 refused the same on `LuiHit` | `GetPayload()` and `TryGetPayload(out …)`; the guard asks the typed hit too; a mutation |
+| A2 | the fluent query had no typed end | `LuiResult.As<TPayload>()` |
+| A3 | `AddLuiWarmup(TimeSpan?)` — a new setting after the freeze would be a new overload | `AddLuiWarmup(Action<LuiWarmupOptions>?)`, once per container |
+| A4 | the warm-up built the dictionary of every index, whether its queries correct typos or not | `TypoDictionaryIndexes`, `WarmUpTypoDictionaries = false`, `LuiCatalog.WarmUpTypoDictionaries(names)` |
+| A5 | a failed round of the outbox was swallowed | the logger of the host hears it — ADR-0045 (the owner's decision); a mutation |
+
 ## The steps of every task
 
 The same eight steps, every time — the order is part of the contract:
