@@ -57,6 +57,12 @@ internal sealed class Database : IDisposable
     private static bool IsReadOnly(string connectionString) =>
         new SqliteConnectionStringBuilder(connectionString).Mode == SqliteOpenMode.ReadOnly;
 
+    /// <summary>
+    /// How long Microsoft.Data.Sqlite retries a busy command, in seconds — its smallest value that is not "forever" (0).
+    /// The busy timeout of the catalog is the wait of SQLite itself (ADR-0046).
+    /// </summary>
+    internal const int ProviderRetrySeconds = 1;
+
     /// <summary>The lock that serialises the statements on <see cref="Writer"/>.</summary>
     internal Lock WriterGate { get; } = new();
 
@@ -100,6 +106,14 @@ internal sealed class Database : IDisposable
         try
         {
             connection.Open();
+
+            // Microsoft.Data.Sqlite retries a busy command on its own until the timeout of the command (30 s by default),
+            // and every retry waits the busy timeout of SQLite again: the wait was 31 s whatever BusyTimeout said
+            // (issue #70). The retries end after the first wait now — one second is the floor, 0 would mean "never" —
+            // and the busy timeout of SQLite below is the wait. The timeout of the command bounds only the retries of
+            // a busy command, not the time a statement runs (ADR-0046). Commands created afterwards inherit it.
+            connection.DefaultTimeout = ProviderRetrySeconds;
+
             using var command = connection.CreateCommand();
             command.CommandText = Pragmas();
             command.ExecuteNonQuery();

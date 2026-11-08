@@ -374,6 +374,13 @@ an 500.000 Titeln: −36 % Datei, −40 % Aufbau, −30 % Abfragezeit.
 
 Die Bibliothek setzt beim Öffnen einer Verbindung, wenn nicht anders
 konfiguriert: `journal_mode=WAL`, `synchronous=NORMAL`, `busy_timeout`.
+
+**`busy_timeout` ist die Wartezeit auf eine Sperre** (`LuiCatalogOptions.BusyTimeout`, Standard 5 s; ADR-0046).
+Microsoft.Data.Sqlite wiederholt einen Befehl, den SQLite mit `SQLITE_BUSY` beantwortet, von sich aus bis zum Timeout des
+Befehls (Standard 30 s) — und jede Wiederholung wartet `busy_timeout` erneut (Issue #70: 31 s statt 1 s). Jede
+Verbindung der Bibliothek setzt darum `DefaultTimeout = 1`, den kleinsten Wert, der nicht „ewig" heißt: Nach der ersten
+Wartezeit hört der Provider auf. Ein `BusyTimeout` unter einer Sekunde wartet darum etwa eine Sekunde. Der Timeout des
+Befehls begrenzt nur das Wiederholen eines blockierten Befehls, nicht die Laufzeit eines Statements.
 `cache_size` und `mmap_size` sind Optionen des Katalogs; sie bestimmen, ob der
 Index im Speicher liegt (Anhang A, A6).
 
@@ -974,7 +981,7 @@ public sealed class SuggestEndpoint(LuiCatalog catalog)
 | SQLite zu alt, ohne FTS5-Trigram-Tokenizer oder mit anderer Faltung | `LuiEnvironmentException` beim `LuiCatalog.Open` |
 | `Linked`: Tabelle oder Spalte fehlt, Schlüssel ist nicht der `INTEGER PRIMARY KEY`, Schlüssel außerhalb 0 … 2³²−1 beim `Sync` | `LuiLinkedTableException` (nennt, was fehlt; nichts wird geändert) |
 | Gewicht, Priorität oder Option außerhalb des Bereichs | `ArgumentOutOfRangeException`, wenn der Wert gesetzt wird |
-| SQLite meldet `SQLITE_BUSY` nach `busy_timeout` | `SqliteException` wird unverändert weitergereicht |
+| SQLite meldet `SQLITE_BUSY` nach `busy_timeout` (`BusyTimeout`, mindestens etwa 1 s; § 7.5) | `SqliteException` wird unverändert weitergereicht |
 | ein `LuiPayloadRow`, der nach der Abbildung von `WithPayload` gelesen wird | `InvalidOperationException` (die Zeile gilt nur, solange die Abbildung läuft) |
 | die Datei darf nicht geschrieben werden (`Mode=ReadOnly`) | `LuiReadOnlyException` (nennt den verweigerten Vorgang; § 7.1) |
 

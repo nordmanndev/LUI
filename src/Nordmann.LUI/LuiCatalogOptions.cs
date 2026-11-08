@@ -35,6 +35,10 @@ public sealed record LuiCatalogOptions
     /// <summary>
     /// How long a connection waits for a lock before SQLite reports <c>SQLITE_BUSY</c>; not negative.
     /// Default: five seconds.
+    /// <para>
+    /// The wait is at least about one second: below it, Microsoft.Data.Sqlite retries a busy command until one second
+    /// has passed (ADR-0046). It bounds the wait for a lock, not the time a statement runs.
+    /// </para>
     /// </summary>
     public TimeSpan BusyTimeout
     {

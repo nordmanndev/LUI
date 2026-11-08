@@ -99,3 +99,4 @@ decided about the query path" without opening 36 files.
 | [0043](./0043-the-warm-up-is-a-service-of-the-host.md) | The warm-up is a service of the host: the host asks for it, the library starts nothing | Hosting | Accepted |
 | [0044](./0044-the-typed-view-over-the-untyped-index.md) | The typed view over the untyped index: `index.As<T>()` gives the payload in the type of the application | API | Accepted |
 | [0045](./0045-the-warm-up-tells-the-logger-of-the-host.md) | The warm-up tells the logger of the host what it did and what failed | Hosting | Accepted |
+| [0046](./0046-the-busy-timeout-is-the-wait-for-a-lock.md) | The busy timeout of the catalog is the wait for a lock — not the 30 s of the provider | Storage | Accepted |

@@ -364,6 +364,12 @@ expect_caught "the-typed-hit-gets-a-payload-property" "${ARCHITECTURE_PROJECT}" 
   "FullyQualifiedName~The_index_knows_no_types" \
   "sed -i 's|    public TPayload? GetPayload() => Hit.GetPayload<TPayload>();|    public TPayload? GetPayload() => Hit.GetPayload<TPayload>();\n\n    /// <summary>x</summary>\n    public TPayload? Payload => GetPayload();|' src/Nordmann.LUI/LuiTypedHit.cs"
 
+# 26c. The provider retries a busy command for thirty seconds again (issue #70, ADR-0046): without the timeout of
+#      the commands, a write waits 31 s whatever BusyTimeout says. The test of the wait has to notice.
+expect_caught "the-provider-retries-for-thirty-seconds" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_write_that_waits_for_a_lock_waits_the_busy_timeout_of_the_catalog" \
+  "sed -i '/connection.DefaultTimeout = ProviderRetrySeconds;/d' src/Nordmann.LUI/Storage/Database.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

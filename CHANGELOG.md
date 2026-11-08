@@ -233,6 +233,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **`BusyTimeout` is the wait for a lock** ([ADR-0046](.agents/adr/0046-the-busy-timeout-is-the-wait-for-a-lock.md),
+  #70). A write that waited for a lock waited **31 s**, whatever `LuiCatalogOptions.BusyTimeout` said:
+  Microsoft.Data.Sqlite retries a busy command on its own until the timeout of the command (30 s), and every retry
+  waited the busy timeout of SQLite again. Every connection of the catalog sets the timeout of its commands to one
+  second now, and the wait is the busy timeout — 1,011 ms for `BusyTimeout = 1 s`, 2,006 ms for 2 s. Below a second
+  the wait is about one second. A statement that runs is not interrupted.
+  - **What an application may notice:** a writer of the catalog that waited for a long `Sync` of a linked index and got
+    through on the 30 s of the provider now gets `SQLITE_BUSY` after its busy timeout (5 s by default). Give the
+    catalog the busy timeout the wait needs — `new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(60) }` —
+    as ADR-0015 and ADR-0016 advise for a large sync.
+
 - **The distance of two long texts no longer depends on what the pool handed out before.** The table of the
   Damerau-Levenshtein distance does not fit on the stack for texts of more than about 45 characters, so it comes from
   the pool — and the pool hands out arrays that still hold what the last tenant wrote in them. The cell at the corner
