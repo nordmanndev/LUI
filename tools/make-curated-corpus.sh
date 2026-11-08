@@ -16,7 +16,7 @@ set -euo pipefail
 
 readonly ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly FULL="${ROOT}/artifacts/wordlist/german-words.txt"
-readonly TARGET_DIR="${ROOT}/tests/Nordmann.LUI.TestData/wordlist"
+readonly TARGET_DIR="${ROOT}/tests/TestData/wordlist"
 readonly TARGET="${TARGET_DIR}/german-words.sample.txt"
 readonly STRIDE=97
 

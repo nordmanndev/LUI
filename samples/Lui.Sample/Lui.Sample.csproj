@@ -13,7 +13,7 @@
 
   <ItemGroup>
     <!-- The tests of the sample reach into it: they hold what its routes answer (ADR-0027, ADR-0029). -->
-    <InternalsVisibleTo Include="Nordmann.LUI.Integration.Tests" />
+    <InternalsVisibleTo Include="Lui.Sample.Tests" />
   </ItemGroup>
 
   <ItemGroup>

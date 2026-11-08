@@ -178,3 +178,13 @@ a linked index healthy, rows it was not told of, the outbox, stale triggers, a r
 (`RemoveNotFound`, the `automerge` reset and the integrity check taken out: six tests fail);
 `tests/Nordmann.LUI.Architecture.Tests/Internal_Layering.cs` (seven layers, no catalog exception) and the two new
 mutations of `tools/mutation-check.sh`; `OwnedBulkExperiment` and `SyncPerformance` (gated).
+
+## Note (2026-11-08, issue #76)
+
+The experiment of this decision — `EmbeddedBulkExperiment` — was a spike, and it is gone from the tree with the restructure of the
+tests (epic #72). Its numbers stay above; its code is in the history:
+
+```bash
+git show 0cbc02fb9ab700ee5d7585e590f9bfad60af3627:tests/Nordmann.LUI.Integration.Tests/EmbeddedBulkExperiment.cs
+```
+

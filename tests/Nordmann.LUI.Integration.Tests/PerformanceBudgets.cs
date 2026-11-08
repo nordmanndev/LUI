@@ -75,7 +75,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
     public void The_typo_dictionary_of_the_whole_word_list()
     {
         var words = Words();
-        var budget = new PerformanceBudget(output, words.Count >= TestCorpus.FullWordListCount - 1_000, PerformanceBudget.CurrentMachine());
+        var budget = new PerformanceBudget(output, words.Count >= TestFiles.FullWordListCount - 1_000, PerformanceBudget.CurrentMachine());
         budget.SayTheMachine();
 
         using var database = new TestDatabase();
@@ -209,7 +209,7 @@ public sealed class PerformanceBudgets(ITestOutputHelper output)
 
     private IReadOnlyList<string> Words()
     {
-        var words = TestCorpus.MeasurementWords(out var corpus);
+        var words = TestFiles.MeasurementWords(out var corpus);
         Report($"corpus: {corpus} ({words.Count:N0} words), {Environment.ProcessorCount} cores, .NET {Environment.Version}");
         return words;
     }

@@ -30,12 +30,16 @@ public sealed class Test_Landscape
 {
     private const string Map = "docs/testing.md";
 
-    /// <summary>The projects of the tree, and the layer each one holds.</summary>
+    /// <summary>
+    /// The test projects of the tree — by their directory, relative to the root — and the layer each one holds. The tests
+    /// of the sample sit beside the sample, not among the tests of the library (issue #76).
+    /// </summary>
     private static readonly (string Project, string Layer)[] Layers =
     [
-        ("Nordmann.LUI.Unit.Tests", "Unit"),
-        ("Nordmann.LUI.Integration.Tests", "Integration"),
-        ("Nordmann.LUI.Architecture.Tests", "Architecture")
+        ("tests/Nordmann.LUI.Unit.Tests", "Unit"),
+        ("tests/Nordmann.LUI.Integration.Tests", "Integration"),
+        ("tests/Nordmann.LUI.Architecture.Tests", "Architecture"),
+        ("samples/Lui.Sample.Tests", "Sample")
     ];
 
     /// <summary>
@@ -203,15 +207,18 @@ public sealed class Test_Landscape
                 continue;
             }
 
-            var open = link.IndexOf("](../tests/", StringComparison.Ordinal);
+            var open = link.IndexOf("](../", StringComparison.Ordinal);
             if (open < 0)
             {
                 continue;
             }
 
-            var relative = link[(open + "](../tests/".Length)..link.IndexOf(')', open)];
-            var parts = relative.Split('/');
-            if (parts.Length != 2)
+            // the path of the link, relative to the root: <project directory>/<file>
+            var relative = link[(open + "](../".Length)..link.IndexOf(')', open)];
+            var project = Layers
+                .Select(entry => entry.Project)
+                .FirstOrDefault(directory => relative.StartsWith(directory + "/", StringComparison.Ordinal));
+            if (project is null)
             {
                 continue;
             }
@@ -219,7 +226,7 @@ public sealed class Test_Landscape
             var nameStart = link.IndexOf('`', StringComparison.Ordinal) + 1;
             var name = link[nameStart..link.IndexOf('`', nameStart)];
 
-            rows.Add(new Row(name, parts[0], parts[1], layer));
+            rows.Add(new Row(name, project, relative[(project.Length + 1)..], layer));
         }
 
         rows.ShouldNotBeEmpty($"the map ({Map}) lists no test file at all — the row reader is broken.");
@@ -237,7 +244,7 @@ public sealed class Test_Landscape
 
         foreach (var (project, layer) in Layers)
         {
-            var directory = Path.Combine(Repository.RootPath, "tests", project);
+            var directory = Path.Combine(Repository.RootPath, project);
             Directory.Exists(directory).ShouldBeTrue($"the test project {project} is missing");
 
             foreach (var path in Repository.SourceFiles(directory))
@@ -250,7 +257,7 @@ public sealed class Test_Landscape
                     continue;
                 }
 
-                files.Add((project, layer, Path.GetFileName(path)));
+                files.Add((project, layer, Path.GetRelativePath(directory, path).Replace('\\', '/')));
             }
         }
 

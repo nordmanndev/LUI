@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Nordmann.LUI.Sample;
 using Nordmann.LUI.Testing;
 
-namespace Nordmann.LUI.Integration.Tests;
+namespace Nordmann.LUI.Sample.Tests;
 
 /// <summary>
 /// The sample application on a port of its own, over a database file of its own, with its real static client — a real
@@ -39,12 +39,7 @@ public sealed class SampleHost : IAsyncLifetime, IDisposable
     }
 
     /// <summary>The word list the sample of the tests uses — every 97th word of the German word list.</summary>
-    private static string WordList => Path.Combine(
-        Repository.RootPath,
-        "tests",
-        "Nordmann.LUI.TestData",
-        "wordlist",
-        "german-words.sample.txt");
+    private static string WordList => TestFiles.SampleWordListPath;
 
     public async Task DisposeAsync()
     {

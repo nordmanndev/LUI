@@ -20,29 +20,17 @@
     <PackageReference Include="Shouldly" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <!--
-      Since this project hosts the sample, the ASP.NET Core framework brings Microsoft.Extensions.Hosting along, and NuGet
-      says the package is redundant (NU1510). It stays: Directory.Packages.props holds its version for the package smoke test
-      (tools/package-smoke-test.sh reads it) and an architecture test wants every central version referenced.
+      A real host for the tests of Nordmann.LUI.Hosting (the dependency injection, the warm-up). The abstractions of the
+      host come with it; they are named because Directory.Packages.props holds their versions, and an architecture test
+      wants every central version referenced by a project (ADR-0018).
     -->
-    <PackageReference Include="Microsoft.Extensions.Hosting" NoWarn="NU1510" />
-    <!--
-      The abstractions of the host: the ASP.NET Core framework brings them along, and NuGet says the packages are
-      redundant (NU1510). They stay — like Microsoft.Extensions.Hosting above — because Directory.Packages.props holds
-      their versions, and an architecture test wants every central version referenced by a project (ADR-0018). The
-      hosting package itself needs only the dependency injection now (ADR-0034).
-    -->
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" NoWarn="NU1510" />
-    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" NoWarn="NU1510" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <!-- the sample is hosted by SampleApiTests on a port of its own (PR-011, ADR-0027): the framework, no package -->
-    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" />
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="../../src/Nordmann.LUI/Nordmann.LUI.csproj" />
-    <ProjectReference Include="../../samples/Lui.Sample/Lui.Sample.csproj" />
     <ProjectReference Include="../Nordmann.LUI.Testing/Nordmann.LUI.Testing.csproj" />
     <ProjectReference Include="../../src/Nordmann.LUI.Hosting/Nordmann.LUI.Hosting.csproj" />
   </ItemGroup>

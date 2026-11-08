@@ -59,7 +59,7 @@ public sealed class TypoQualityTests(ITestOutputHelper output)
             .Any(h => string.Equals(h.Text, word, StringComparison.Ordinal));
 
     private static List<string> Words() =>
-        [.. File.ReadLines(TestCorpus.SampleWordListPath)
+        [.. File.ReadLines(TestFiles.SampleWordListPath)
             .Where(w => w.Length >= 3 && w.All(char.IsLetter))
             .Distinct(StringComparer.Ordinal)];
 

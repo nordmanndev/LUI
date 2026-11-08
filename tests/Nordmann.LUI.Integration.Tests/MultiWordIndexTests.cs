@@ -419,7 +419,7 @@ public sealed class MultiWordIndexTests
 
     private static List<string> RandomTitles(Random random, int count)
     {
-        var words = File.ReadLines(TestCorpus.SampleWordListPath)
+        var words = File.ReadLines(TestFiles.SampleWordListPath)
             .Where(w => w.Length >= 3).ToList();
 
         return [.. Enumerable.Range(0, count)

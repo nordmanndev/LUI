@@ -65,7 +65,7 @@ public sealed class NormalizationParity
     [Fact]
     public void The_normalizer_and_the_tokenizer_agree_on_the_word_corpus()
     {
-        var words = ReadWords(TestCorpus.SampleWordListPath);
+        var words = ReadWords(TestFiles.SampleWordListPath);
 
         words.Count.ShouldBeGreaterThan(1_000);
 
@@ -75,7 +75,7 @@ public sealed class NormalizationParity
     [FullWordListFact]
     public void The_normalizer_and_the_tokenizer_agree_on_the_full_word_list()
     {
-        var full = TestCorpus.FullWordListPath;
+        var full = TestFiles.FullWordListPath;
 
         if (!File.Exists(full))
         {
@@ -89,7 +89,7 @@ public sealed class NormalizationParity
 
         var words = File.ReadAllLines(full).Where(line => line.Length > 0).ToArray();
 
-        words.Length.ShouldBe(TestCorpus.FullWordListCount, "the German word list has 685,829 entries");
+        words.Length.ShouldBe(TestFiles.FullWordListCount, "the German word list has 685,829 entries");
 
         AssertParity(words);
     }
@@ -134,7 +134,7 @@ public sealed class NormalizationParity
     [Fact]
     public void The_compact_form_of_the_sql_column_matches_the_compact_form_of_the_normalizer()
     {
-        var words = ReadWords(TestCorpus.SampleWordListPath).Take(2_000).ToArray();
+        var words = ReadWords(TestFiles.SampleWordListPath).Take(2_000).ToArray();
 
         using var probe = new TokenizerProbe();
 
@@ -292,7 +292,7 @@ public sealed class NormalizationParity
 
     private static List<EdgeCase> ReadEdgeCases()
     {
-        var path = TestCorpus.EdgeCasesPath;
+        var path = TestFiles.EdgeCasesPath;
 
         File.Exists(path).ShouldBeTrue($"the corpus {path} is missing");
 

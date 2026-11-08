@@ -105,6 +105,16 @@ jobs:
           --logger "trx;LogFileName=integration.trx"
           --results-directory artifacts/test-results
 
+      # The sample application against its API, on a real Kestrel (issue #76): its tests sit beside it.
+      - name: Test · sample
+        run: >
+          dotnet test samples/Lui.Sample.Tests
+          --configuration Release
+          --no-build
+          --blame-hang-timeout 10m --blame-hang-dump-type full
+          --logger "trx;LogFileName=sample.trx"
+          --results-directory artifacts/test-results
+
       # The modules of the sample's client (ADR-0027): plain Node, nothing to install. The version is exact, so that a
       # new release of Node does not change the lane unnoticed.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
@@ -222,7 +232,7 @@ jobs:
 
   # The other platform (issue #67): the paths, the pragmas and the case of the file names
   # are promises that only Windows can break. The three layers run there — the unit, the
-  # architecture and the integration one.
+  # architecture and the integration one — and the tests of the sample.
   #
   # The format check and the client of the sample stay on Linux: the runner checks the tree
   # out with CRLF, and `dotnet format` would report the line endings of the tree instead of
@@ -262,6 +272,14 @@ jobs:
       - name: Test · integration
         run: >
           dotnet test tests/Nordmann.LUI.Integration.Tests
+          --configuration Release
+          --no-build
+          --blame-hang-timeout 10m --blame-hang-dump-type full
+          --results-directory artifacts/test-results
+
+      - name: Test · sample
+        run: >
+          dotnet test samples/Lui.Sample.Tests
           --configuration Release
           --no-build
           --blame-hang-timeout 10m --blame-hang-dump-type full

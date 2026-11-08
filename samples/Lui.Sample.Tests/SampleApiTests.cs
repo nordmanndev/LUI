@@ -3,7 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json.Nodes;
 using Shouldly;
 
-namespace Nordmann.LUI.Integration.Tests;
+namespace Nordmann.LUI.Sample.Tests;
 
 /// <summary>
 /// The sample's API against the real library, over a real Kestrel (PR-011, ADR-0027): every setting of a query is a

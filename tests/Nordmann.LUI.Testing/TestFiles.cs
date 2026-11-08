@@ -7,15 +7,15 @@ namespace Nordmann.LUI.Testing;
 /// tests each built their own path out of the repository root — and a path
 /// that is spelled eight times is a path that is wrong once.
 /// </summary>
-public static class TestCorpus
+public static class TestFiles
 {
     /// <summary>The word list of the repository: the deterministic sample, always there.</summary>
     public static string SampleWordListPath =>
-        Path.Combine(Repository.RootPath, "tests", "Nordmann.LUI.TestData", "wordlist", "german-words.sample.txt");
+        Path.Combine(Repository.RootPath, "tests", "TestData", "wordlist", "german-words.sample.txt");
 
     /// <summary>The characters a stride cannot reach for: umlauts, ß, accents, ligatures.</summary>
     public static string EdgeCasesPath =>
-        Path.Combine(Repository.RootPath, "tests", "Nordmann.LUI.TestData", "wordlist", "edge-cases.txt");
+        Path.Combine(Repository.RootPath, "tests", "TestData", "wordlist", "edge-cases.txt");
 
     /// <summary>
     /// The whole German word list (685,829 words). It is not checked in —
@@ -28,7 +28,7 @@ public static class TestCorpus
 
     /// <summary>The golden schema of an embedded index, as <c>sqlite_master</c> wrote it.</summary>
     public static string GoldenSchemaPath =>
-        Path.Combine(Repository.RootPath, "tests", "Nordmann.LUI.TestData", "golden", "embedded-schema.txt");
+        Path.Combine(Repository.RootPath, "tests", "TestData", "golden", "embedded-schema.txt");
 
     /// <summary>The words of the sample corpus.</summary>
     public static string[] SampleWords() =>

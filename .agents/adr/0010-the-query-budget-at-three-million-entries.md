@@ -195,3 +195,13 @@ rule 5); it is marked as missed, with this record as the reason.
   written down, not a promise the measurement contradicts.
 - PR-004 (`MultiWord`) inherits the same candidate mechanism — and the same
   cost. It makes the decision more pressing: `MultiWord` ANDs several phrases.
+
+## Note (2026-11-08, issue #76)
+
+The experiment of this decision — `FtsLayoutExperiment` — was a spike, and it is gone from the tree with the restructure of the
+tests (epic #72). Its numbers stay above; its code is in the history:
+
+```bash
+git show 0cbc02fb9ab700ee5d7585e590f9bfad60af3627:tests/Nordmann.LUI.Integration.Tests/FtsLayoutExperiment.cs
+```
+
