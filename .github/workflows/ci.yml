@@ -109,8 +109,13 @@ jobs:
           dotnet test tests/Nordmann.LUI.Integration.Tests --configuration Release --no-build
 
   mutation:
-    name: The guards bite
+    name: The guards bite (${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v4
 
@@ -118,10 +123,28 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      # Every rule is mutated and the guard has to react. A green test proves
-      # nothing until it has been seen red (ADR-0019).
+      # Every rule is mutated and the guard has to react — the way each mutation
+      # expects: caught by its test, or refused by the build with a named error
+      # (issue #73). A green test proves nothing until it has been seen red
+      # (ADR-0019). Four shards side by side: every mutation runs in one of them.
       - name: Mutation check
-        run: bash tools/mutation-check.sh
+        run: bash tools/mutation-check.sh --shard ${{ matrix.shard }}/4
+
+  # The one check of the mutations, whatever the number of the shards: a required
+  # status check names a job, and a matrix renames its jobs.
+  mutation-result:
+    name: The guards bite
+    if: always()
+    needs: mutation
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every shard of the mutation check is green
+        run: |
+          if [ "${{ needs.mutation.result }}" != "success" ]; then
+            echo "The mutation check is ${{ needs.mutation.result }} — read the shard that failed." >&2
+            exit 1
+          fi
 
   package:
     name: Package · Smoke test

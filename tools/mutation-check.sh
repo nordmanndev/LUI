@@ -6,21 +6,29 @@
 # test suite holds up is mutated here in an isolated copy of the repository,
 # and the guard must react.
 #
-# Two mechanisms can catch a mutation, and the script reports which one did:
+# Two mechanisms can catch a mutation, and every mutation says which one it
+# expects (issue #73):
 #
-#   CAUGHT BY TEST   the test ran and failed  → the rule is a real test
-#   REFUSED BY BUILD the build itself rejected it → the rule is enforced by
-#                   the toolchain (central package management, for example)
+#   expect_caught    the test of the filter runs and fails → the rule is a real
+#                    test. A build that refuses the mutation is a FAIL here: the
+#                    test was never asked, and a mutation that is caught for the
+#                    wrong reason is worth nothing (pull request #69 had one).
+#   expect_refused   the build refuses it with a named error → the rule is
+#                    enforced by the toolchain on purpose (central package
+#                    management). A test that runs, or another error, is a FAIL.
 #
-# Both are wins, but they are different wins, and a mutation that is caught
-# for the wrong reason is worth nothing. Each mutation runs on its own copy:
-# two runs against the same files destroy each other's evidence.
+# Each mutation runs on its own copy: two runs against the same files destroy
+# each other's evidence.
+#
+# The check takes a shard — `--shard 2/4` or MUTATION_SHARD=2/4 — and runs every
+# fourth mutation, starting at the second. The CI runs the shards side by side;
+# without a shard the script runs every mutation.
 #
 # The architecture rules are mutated in the architecture project, the rules of
 # the library itself in the unit project — the fast one, because it needs no
 # database and a mutation that takes 40 seconds is a mutation nobody runs.
 # The rules of the concurrency need a database, so their mutations run in the
-# integration project: they are the slow ones, and there are two of them.
+# integration project: they are the slow ones.
 #
 set -uo pipefail
 
@@ -37,6 +45,41 @@ trap cleanup EXIT
 export HOME="${HOME:-/root}"
 export DOTNET_CLI_HOME="${DOTNET_CLI_HOME:-${HOME}/.dotnet-home}"
 export DOTNET_NOLOGO=1
+
+# The shard: "i/n" runs the mutations whose number modulo n is i - 1.
+shard="${MUTATION_SHARD:-1/1}"
+only=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --shard) shard="$2"; shift 2 ;;
+    --shard=*) shard="${1#--shard=}"; shift ;;
+    --only) only="$2"; shift 2 ;;
+    --only=*) only="${1#--only=}"; shift ;;
+    *) echo "usage: $0 [--shard i/n] [--only <name of a mutation>]" >&2; exit 2 ;;
+  esac
+done
+if ! [[ "${shard}" =~ ^([1-9][0-9]*)/([1-9][0-9]*)$ ]] || [ "${BASH_REMATCH[1]}" -gt "${BASH_REMATCH[2]}" ]; then
+  echo "ABORT the shard ${shard} is not i/n with 1 <= i <= n" >&2
+  exit 2
+fi
+readonly SHARD_INDEX="${BASH_REMATCH[1]}"
+readonly SHARD_COUNT="${BASH_REMATCH[2]}"
+mutation_number=0
+mutations_run=0
+
+# in_shard <name> — counts every mutation and says whether this run runs it. Every expectation calls it first, so
+# that the numbering is the same in every shard and every mutation runs in exactly one of them. `--only <name>` runs
+# one mutation, whatever its shard — for the developer who is writing it.
+in_shard() {
+  mutation_number=$((mutation_number + 1))
+  if [ -n "${only}" ]; then
+    [ "$1" = "${only}" ] || return 1
+  elif [ $(((mutation_number - 1) % SHARD_COUNT)) -ne $((SHARD_INDEX - 1)) ]; then
+    return 1
+  fi
+  mutations_run=$((mutations_run + 1))
+  return 0
+}
 export DOTNET_CLI_TELEMETRY_OPTOUT=1
 
 failures=0
@@ -56,6 +99,7 @@ prepare_copy() {
 
 # expect_caught <name> <project-file> <test-filter> <mutation-command>
 expect_caught() {
+  in_shard "$1" || return 0
   local name="$1"
   local project="$2"
   local filter="$3"
@@ -78,7 +122,10 @@ expect_caught() {
   elif echo "${output}" | grep -q "Failed!"; then
     echo "PASS  ${name}: CAUGHT BY TEST"
   elif echo "${output}" | grep -qE "error (NU|MSB|CS)[0-9]+"; then
-    echo "PASS  ${name}: REFUSED BY BUILD"
+    # The build refused the mutation, and the test of the filter never ran: it proves nothing about the test.
+    echo "FAIL  ${name}: REFUSED BY BUILD — the mutation was meant for a test; rewrite it so that it builds"
+    echo "${output}" | grep -E "error (NU|MSB|CS)[0-9]+" | head -3
+    failures=$((failures + 1))
   else
     echo "FAIL  ${name}: nothing reacted to the mutation"
     echo "${output}" | tail -6
@@ -86,8 +133,40 @@ expect_caught() {
   fi
 }
 
+# expect_refused <name> <project-file> <error-code> <reason> <mutation-command>
+#
+# The toolchain is the guard on purpose: the build has to refuse the mutation with exactly this error. A test that
+# runs, or another error, means that the guard is not the one the script names.
+expect_refused() {
+  in_shard "$1" || return 0
+  local name="$1"
+  local project="$2"
+  local code="$3"
+  local mutation="$5"
+  local copy
+  copy="$(prepare_copy "${name}")"
+
+  ( cd "${copy}" && eval "${mutation}" ) >/dev/null 2>&1
+
+  local output
+  output="$( cd "${copy}" && dotnet build "${project}" --nologo 2>&1 )"
+
+  if echo "${output}" | grep -qE "error ${code}\b"; then
+    echo "PASS  ${name}: REFUSED BY BUILD (${code})"
+  elif echo "${output}" | grep -qE "error (NU|MSB|CS)[0-9]+"; then
+    echo "FAIL  ${name}: refused by the build, but not with ${code} — the guard is not the one the script names"
+    echo "${output}" | grep -E "error (NU|MSB|CS)[0-9]+" | head -3
+    failures=$((failures + 1))
+  else
+    echo "FAIL  ${name}: the build accepted the mutation — the toolchain does not guard this rule"
+    echo "${output}" | tail -6
+    failures=$((failures + 1))
+  fi
+}
+
 # expect_pass <name> <project-file> <test-filter>
 expect_pass() {
+  in_shard "$1" || return 0
   local name="$1"
   local project="$2"
   local filter="$3"
@@ -111,7 +190,7 @@ expect_pass() {
   fi
 }
 
-echo "=== mutation check ==="
+echo "=== mutation check (shard ${SHARD_INDEX}/${SHARD_COUNT}) ==="
 
 # 0. Pre-flight: the guards are green on the clean tree. When they are not, every mutation below would "fail" for
 #    the same reason — an environment that cannot run dotnet test — and the report would be ten false alarms.
@@ -123,16 +202,18 @@ if ! ( cd "${preflight}" && dotnet test "${ARCHITECTURE_PROJECT}" \
   exit 2
 fi
 
-# 1. A package version sneaks into a project file.
-expect_caught "package-version-in-csproj" "${ARCHITECTURE_PROJECT}" \
-  "No_PackageReference_carries_a_Version" \
+# 1. A package version sneaks into a project file. Central package management refuses it at restore time (NU1008)
+#    — the toolchain is the guard; the test No_PackageReference_carries_a_Version is the second line, for a tree
+#    that turns central management off.
+expect_refused "package-version-in-csproj" "${ARCHITECTURE_PROJECT}" NU1008 \
+  "central package management: a version belongs in Directory.Packages.props" \
   "sed -i 's|<PackageReference Include=\"symspell\" />|<PackageReference Include=\"symspell\" Version=\"6.7.3\" />|' src/Nordmann.LUI/Nordmann.LUI.csproj"
 
 # 2. A package without a central version. Central package management refuses
-#    this at restore time — the toolchain is the guard here, the test is the
-#    second line.
-expect_caught "package-without-central-version" "${ARCHITECTURE_PROJECT}" \
-  "Every_PackageReference_has_a_Central_PackageVersion" \
+#    this at restore time (NU1010) — the toolchain is the guard here, the test
+#    Every_PackageReference_has_a_Central_PackageVersion is the second line.
+expect_refused "package-without-central-version" "${ARCHITECTURE_PROJECT}" NU1010 \
+  "central package management: every package has a central version" \
   "sed -i 's|<PackageReference Include=\"NetArchTest.Rules\" />|<PackageReference Include=\"NetArchTest.Rules\" /><PackageReference Include=\"Serilog\" />|' ${ARCHITECTURE_PROJECT}"
 
 # 3. The sample becomes packable.
@@ -374,5 +455,14 @@ expect_caught "the-provider-retries-for-thirty-seconds" "${INTEGRATION_PROJECT}"
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 
-echo "=== ${failures} failure(s) ==="
+if [ "${mutations_run}" -eq 0 ]; then
+  if [ -n "${only}" ]; then
+    echo "FAIL  no mutation is called ${only}"
+  else
+    echo "FAIL  the shard ${SHARD_INDEX}/${SHARD_COUNT} ran no mutation — the shards are more than the mutations"
+  fi
+  failures=$((failures + 1))
+fi
+
+echo "=== shard ${SHARD_INDEX}/${SHARD_COUNT}: ${mutations_run} of ${mutation_number} mutation(s), ${failures} failure(s) ==="
 exit "${failures}"
