@@ -33,9 +33,10 @@ build it did not use, and the format was checked after every test.
 
 **A build changes only through a change of the repository.**
 
-- **`global.json` names the SDK** (`10.0.114`, `rollForward: latestFeature`). The pipelines install exactly that
-  version (`setup-dotnet` with `global-json-file`); a developer with a later 10.0 SDK still builds. No workflow names a
-  `dotnet-version` of its own.
+- **`global.json` names the SDK** (`10.0.114`, `rollForward: latestPatch`): the feature band `10.0.1xx`, its latest
+  patch. The pipelines install that band (`setup-dotnet` with `global-json-file`), and `dotnet` itself refuses an SDK
+  of another band — on the runner and on the machine of a developer alike. No workflow names a `dotnet-version` of its
+  own.
 - **The images are named** — `ubuntu-24.04`, `windows-2025`.
 - **The actions are pinned by their commit**, with the version as a comment: `uses: actions/checkout@<40 hex> # v4.4.0`.
 - **Dependabot moves the pins** — the actions, the packages of `Directory.Packages.props` and the SDK of `global.json`,
@@ -59,8 +60,13 @@ timeout, and a `dotnet-version` beside `global.json`. Two of its rules are mutat
 
 - A pin is a decision that has to be moved — Dependabot does it, and a pull request of Dependabot is read like any
   other. Without it, the pins would mean "never again".
-- A developer without a 10.0 SDK of at least `10.0.114` is told so by `dotnet` itself, with the version — instead of a
-  build that fails on an analyzer that only the CI has.
+- A developer needs an SDK of the band `10.0.1xx` (at least `10.0.114`); `dotnet` says so itself, with the version —
+  instead of a build that fails on an analyzer that only the CI has. A developer with only a later band installs the
+  `10.0.1xx` SDK beside it (SDKs live side by side), or the band moves for everyone, through `global.json`.
+- **What the first run taught** (the run of pull request #83): with `rollForward: latestFeature` the pin was no pin.
+  `setup-dotnet` turned it into the channel `10.0`, found the SDK `10.0.403` that the image carries, and `dotnet` rolled
+  forward to it — the CI built with `10.0.403` while `global.json` said `10.0.114`. `latestPatch` keeps the band; the
+  guard refuses a roll-forward across bands (`The_sdk_is_the_one_of_global_json`).
 - The guard reads YAML line by line, the way these workflows are written (jobs two spaces deep, steps as list items). A
   workflow written in another shape is a change the guard will notice — and that the guard is changed for, on purpose.
 - Branch protection is not available for this repository (a private repository of the free plan): no check is
@@ -73,6 +79,6 @@ timeout, and a `dotnet-version` beside `global.json`. Two of its rules are mutat
 |---|---|
 | Keep `10.0.x` and `-latest` | The build of tomorrow differs from the build of today with no commit in between — the opposite of a reproducible build. |
 | Pin by tag (`@v4.4.0`) | A tag can be moved; a commit cannot. The version stays readable as the comment. |
-| `rollForward: latestPatch` | A developer with a 10.0 SDK of a later feature band could not build at all. The pipelines are pinned by `setup-dotnet` either way. |
+| `rollForward: latestFeature` (the first version of this decision) | Measured in the first run: the runner image carries a later band (`10.0.403`), and `dotnet` rolls forward to it — the pin pins nothing. A developer with a later band is the price of a pin that holds. |
 | A YAML package for the guard | A dependency of the tests for five rules that read lines. |
 | Renovate instead of Dependabot | Dependabot is built in and knows the three ecosystems here (actions, NuGet with central versions, the SDK). |

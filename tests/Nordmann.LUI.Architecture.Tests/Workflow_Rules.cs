@@ -72,7 +72,16 @@ public sealed partial class Workflow_Rules
     public void The_sdk_is_the_one_of_global_json()
     {
         // the SDK of the pipelines and of the developer is one file; a pipeline that names a version of its own drifts
-        File.Exists(Path.Combine(Repository.RootPath, "global.json")).ShouldBeTrue("global.json names the SDK (ADR-0047).");
+        var globalJson = Path.Combine(Repository.RootPath, "global.json");
+        File.Exists(globalJson).ShouldBeTrue("global.json names the SDK (ADR-0047).");
+
+        // a roll-forward across feature bands is no pin: the image carries a later band, and dotnet takes it — measured
+        // in the first run of pull request #83 (10.0.403 instead of 10.0.114)
+        using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(globalJson));
+        var rollForward = json.RootElement.GetProperty("sdk").GetProperty("rollForward").GetString();
+        string[] keepTheBand = ["latestPatch", "patch", "disable"];
+        keepTheBand.Contains(rollForward, StringComparer.Ordinal)
+            .ShouldBeTrue($"global.json keeps its feature band (ADR-0047) — rollForward is {rollForward}.");
 
         var offenders = PipelineFiles()
             .SelectMany(file => File.ReadAllLines(file).Select(line => (File: file, Line: line.Trim())))
