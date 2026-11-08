@@ -1,32 +1,50 @@
 name: CI
 
+# The gates of every pull request — and of the release, which calls this workflow (workflow_call) instead of keeping a
+# gate of its own (issue #75).
 on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
+  workflow_call:
 
 permissions:
   contents: read
 
 concurrency:
-  group: ci-${{ github.ref }}
+  # a call from the release runs in the group of the release, not in the one of a pull request
+  group: ci-${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# The rules of every job (issue #74, ADR-0047):
+# - the images are named, not "latest": a new image is a change of the repository, not of the weather;
+# - every action is pinned by its commit, the version stands beside it; Dependabot moves both;
+# - every job has a timeout, and every test run a hang timeout that leaves a dump behind;
+# - the SDK is the one of global.json, through the setup action.
 jobs:
-  build:
-    name: Build · Test · Format
-    runs-on: ubuntu-latest
+  format:
+    name: Format
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: ./.github/actions/setup
 
-      - name: Restore
-        run: dotnet restore Lui.sln
+      # First and on its own: a format error is reported in a minute, not after every test.
+      - name: Format
+        run: dotnet format Lui.sln --verify-no-changes --no-restore
+
+  build:
+    name: Build · Test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - uses: ./.github/actions/setup
 
       - name: Build
         run: dotnet build Lui.sln --configuration Release --no-restore
@@ -35,11 +53,13 @@ jobs:
       # one — the rules of the library, without a database. The architecture
       # tests read the repository from disk — they are the mechanical half of
       # the standards' rules (ADR-0002) and the guard of the map of the tests.
+      # A test that hangs for ten minutes is stopped, and its dump is uploaded.
       - name: Test · unit
         run: >
           dotnet test tests/Nordmann.LUI.Unit.Tests
           --configuration Release
           --no-build
+          --blame-hang-timeout 10m
           --logger "trx;LogFileName=unit.trx"
           --results-directory artifacts/test-results
 
@@ -48,6 +68,7 @@ jobs:
           dotnet test tests/Nordmann.LUI.Architecture.Tests
           --configuration Release
           --no-build
+          --blame-hang-timeout 10m
           --logger "trx;LogFileName=architecture.trx"
           --results-directory artifacts/test-results
 
@@ -56,12 +77,13 @@ jobs:
           dotnet test tests/Nordmann.LUI.Integration.Tests
           --configuration Release
           --no-build
+          --blame-hang-timeout 10m
           --logger "trx;LogFileName=integration.trx"
           --results-directory artifacts/test-results
 
-      # The modules of the sample's client (ADR-0027): plain Node, nothing to install. Node 22 is on the runner image; the
-      # step names it so that a change of the image does not change the lane unnoticed.
-      - uses: actions/setup-node@v4
+      # The modules of the sample's client (ADR-0027): plain Node, nothing to install. The version is named, so that a
+      # change of the image does not change the lane unnoticed.
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: '22'
 
@@ -71,33 +93,27 @@ jobs:
 
       - name: Upload test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: test-results
           path: artifacts/test-results
           retention-days: 14
 
-      - name: Format
-        run: dotnet format Lui.sln --verify-no-changes --no-restore
-
   parity:
     name: The normalisation parity over the whole word list
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore
-        run: dotnet restore Lui.sln
+      - uses: ./.github/actions/setup
 
       # The rule of §6.2 exists twice — as SQL and as C# — and the parity test
       # compares them over every word of the German word list. Without the
       # list the test is skipped and says so; this job fetches the list and
       # demands it, so that the parity is proved here and not only in the
-      # release gate (ADR-0019).
+      # release gate (ADR-0019). The rest of the integration layer runs in the
+      # job "Build · Test" — this one runs the parity, and nothing twice.
       - name: Fetch the word list
         run: bash tools/fetch-wordlist.sh
 
@@ -105,23 +121,22 @@ jobs:
         env:
           LUI_REQUIRE_FULL_WORDLIST: '1'
         run: |
-          dotnet build Lui.sln --configuration Release --no-restore
-          dotnet test tests/Nordmann.LUI.Integration.Tests --configuration Release --no-build
+          dotnet build tests/Nordmann.LUI.Integration.Tests --configuration Release --no-restore
+          dotnet test tests/Nordmann.LUI.Integration.Tests --configuration Release --no-build \
+            --filter "FullyQualifiedName~NormalizationParity" --blame-hang-timeout 10m
 
   mutation:
     name: The guards bite (${{ matrix.shard }}/4)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
         shard: [1, 2, 3, 4]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
+      - uses: ./.github/actions/setup
 
       # Every rule is mutated and the guard has to react — the way each mutation
       # expects: caught by its test, or refused by the build with a named error
@@ -130,13 +145,12 @@ jobs:
       - name: Mutation check
         run: bash tools/mutation-check.sh --shard ${{ matrix.shard }}/4
 
-  # The one check of the mutations, whatever the number of the shards: a required
-  # status check names a job, and a matrix renames its jobs.
+  # The one row of the mutations, whatever the number of the shards.
   mutation-result:
     name: The guards bite
     if: always()
     needs: mutation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
       - name: Every shard of the mutation check is green
@@ -148,22 +162,23 @@ jobs:
 
   package:
     name: Package · Smoke test
-    needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-dotnet@v4
+      # The smoke test packs and restores on its own, from a local feed — the setup gives it the SDK and the cache.
+      - uses: ./.github/actions/setup
         with:
-          dotnet-version: '10.0.x'
+          restore: 'false'
 
       # Packs the package, installs it into a throwaway application from a
       # local feed and runs it. The README's code is part of this test from
-      # PR-010 on.
+      # PR-010 on. It needs nothing of the other jobs, so it runs beside them.
       - name: Package smoke test
         run: bash tools/package-smoke-test.sh
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: nupkg
           path: artifacts/nuget/*.nupkg
@@ -178,17 +193,12 @@ jobs:
   # the format of the code.
   windows:
     name: Windows · the paths, the pragmas, the names of the files
-    runs-on: windows-latest
-    timeout-minutes: 60
+    runs-on: windows-2025
+    timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
 
-      - uses: actions/setup-dotnet@v4
-        with:
-          dotnet-version: '10.0.x'
-
-      - name: Restore
-        run: dotnet restore Lui.sln
+      - uses: ./.github/actions/setup
 
       - name: Build
         run: dotnet build Lui.sln --configuration Release --no-restore
@@ -198,6 +208,8 @@ jobs:
           dotnet test tests/Nordmann.LUI.Unit.Tests
           --configuration Release
           --no-build
+          --blame-hang-timeout 10m
+          --results-directory artifacts/test-results
 
       # The architecture tests read the repository from disk — the paths of the map of the
       # tests, the files of the packages, the links of the documentation.
@@ -206,6 +218,8 @@ jobs:
           dotnet test tests/Nordmann.LUI.Architecture.Tests
           --configuration Release
           --no-build
+          --blame-hang-timeout 10m
+          --results-directory artifacts/test-results
 
       # The integration layer against a real SQLite file: the pragmas of the connections and
       # the lifetime of the file are what the platform decides.
@@ -214,3 +228,14 @@ jobs:
           dotnet test tests/Nordmann.LUI.Integration.Tests
           --configuration Release
           --no-build
+          --blame-hang-timeout 10m
+          --results-directory artifacts/test-results
+
+      # Only a failure leaves something worth reading: the dump of a hang, the output of a test.
+      - name: Upload the evidence of a failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: windows-test-results
+          path: artifacts/test-results
+          retention-days: 14

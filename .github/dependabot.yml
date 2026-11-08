@@ -1,0 +1,45 @@
+# Updates come by themselves, as pull requests of their own (issue #74, ADR-0047): the actions are pinned by their
+# commit, the packages by Directory.Packages.props, the SDK by global.json — and each of the three is moved here, so
+# that a pin does not mean "never again". Every update runs the gates of every pull request; a package of the two
+# shipped packages still needs its ADR before it is merged (AGENTS.md).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      actions:
+        patterns: ['*']
+    commit-message:
+      prefix: ci
+
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    groups:
+      # the tooling of the tests and the build — no consumer of the packages sees it
+      test-and-build:
+        patterns:
+          - 'xunit*'
+          - 'Microsoft.NET.Test.Sdk'
+          - 'Shouldly'
+          - 'NetArchTest.Rules'
+          - 'Bogus'
+          - 'BenchmarkDotNet'
+          - 'Meziantou.Analyzer'
+          - 'Microsoft.SourceLink.GitHub'
+          - 'Microsoft.Extensions.TimeProvider.Testing'
+    commit-message:
+      prefix: deps
+
+  - package-ecosystem: dotnet-sdk
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+    commit-message:
+      prefix: ci

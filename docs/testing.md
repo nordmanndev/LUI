@@ -52,18 +52,24 @@ the test fails with the reason instead of skipping.
 
 ### The lanes of the CI
 
-The lanes of [`ci.yml`](../.github/workflows/ci.yml) are the map above, spread over
-the runners — and the lane of the schedule is a lane of its own
-([`performance.yml`](../.github/workflows/performance.yml)):
+The lanes of [`ci.yml`](../.github/workflows/ci.yml) are the map above, spread over the runners — and the lane of the
+schedule is a lane of its own ([`performance.yml`](../.github/workflows/performance.yml)). Every job sets itself up the
+same way ([`.github/actions/setup`](../.github/actions/setup/action.yml): the SDK of [`global.json`](../global.json), the
+cache of the packages, the restore), runs on a named image, has a timeout, and stops a test that hangs for ten minutes
+with a dump in the artifacts (ADR-0047, guarded by `Workflow_Rules`).
 
 | Lane | What it runs | What it is there for |
 |---|---|---|
-| Build · Test · Format | the three layers, the client of the sample, the format | the whole tree, on every pull request |
-| The normalisation parity over the whole word list | the parity over the full list (685,829 words) | the rule of §6.2 exists twice — as SQL and as C# |
+| Format | `dotnet format --verify-no-changes` | on its own and first: a format error is reported in a minute, not after every test |
+| Build · Test | the three layers, the client of the sample | the whole tree, on every pull request |
+| The normalisation parity over the whole word list | `NormalizationParity` only, with the full list (685,829 words) | the rule of §6.2 exists twice — as SQL and as C#; the rest of the layer runs in *Build · Test*, nothing twice |
 | The guards bite | the mutation check, in four shards side by side (`--shard i/4`), and one job of that name that waits for all four | a green test proves nothing until it has been seen red (ADR-0019) — and every mutation says how it must be caught: by its test (`expect_caught`) or, where the toolchain is the guard on purpose, by the build with a named error (`expect_refused`). A mutation that the build refuses although a test was meant fails the check (issue #73) |
-| Package · Smoke test | the packed library in a throwaway application | the README's code is part of the test |
-| **Windows** | the three layers on `windows-latest` | the paths, the pragmas and the case of the file names — the platform where a path is a promise (issue #67) |
+| Package · Smoke test | the packed library in a throwaway application, beside the other jobs | the README's code is part of the test |
+| **Windows** | the three layers on `windows-2025` | the paths, the pragmas and the case of the file names — the platform where a path is a promise (issue #67) |
 | Performance (every night, by hand) | the seven targets of §16 | a time belongs to the machine it was measured on; a size is the same everywhere (ADR-0041) |
+
+Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) moves the pins — the actions, the packages, the SDK —
+weekly, each as a pull request through every lane above.
 
 ---
 
@@ -158,6 +164,7 @@ machine it was measured on — and the **sizes** are asserted (ADR-0041).
 | [`Readme_Benchmarks`](../tests/Nordmann.LUI.Architecture.Tests/Readme_Benchmarks.cs) | Architecture | the BenchmarkDotNet tables of the README are rendered from the committed reports of one run; every benchmark class has a report and a section | ADR-0022, ADR-0039 |
 | [`Readme_Budgets`](../tests/Nordmann.LUI.Architecture.Tests/Readme_Budgets.cs) | Architecture | the budget table of the README is the promise of §16: the limits of the entrance, of the target table of the record and of its status table are read out of the specification and compared with it — a limit that drifts fails the build | issue #38 |
 | [`Sample_Client`](../tests/Nordmann.LUI.Architecture.Tests/Sample_Client.cs) | Architecture | the sample's client: modules by concern with the direction of the imports as a table, one fetch boundary, no HTML from a string, no inline script or style, no dependency, and the vendored flexdatalist is the file its provenance names | ADR-0027 |
+| [`Workflow_Rules`](../tests/Nordmann.LUI.Architecture.Tests/Workflow_Rules.cs) | Architecture | the pipelines change only with the repository: every action pinned by its commit with its version, every image named, every job with a timeout, every test run with a hang timeout, the SDK only from `global.json` | ADR-0047, issue #74 |
 | [`Test_Landscape`](../tests/Nordmann.LUI.Architecture.Tests/Test_Landscape.cs) | Architecture | this map is the truth: every test file is listed here, every row points at a file that exists; the unit layer opens no database | this file, ADR-0019 |
 
 ---

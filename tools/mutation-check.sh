@@ -451,6 +451,17 @@ expect_caught "the-provider-retries-for-thirty-seconds" "${INTEGRATION_PROJECT}"
   "FullyQualifiedName~A_write_that_waits_for_a_lock_waits_the_busy_timeout_of_the_catalog" \
   "sed -i '/connection.DefaultTimeout = ProviderRetrySeconds;/d' src/Nordmann.LUI/Storage/Database.cs"
 
+# 26d. An action is used by its tag again (issue #74, ADR-0047): a tag can be moved by whoever owns the action, a
+#      commit cannot. The guard of the workflows has to name it.
+expect_caught "an-action-pinned-by-its-tag" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_action_is_pinned_by_its_commit_and_names_its_version" \
+  "sed -i '0,/actions\/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0/s//actions\/checkout@v4/' .github/workflows/ci.yml"
+
+# 26e. A job loses its timeout (issue #74, ADR-0047): the default of GitHub is six hours of a hanging test.
+expect_caught "a-job-without-a-timeout" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_job_has_a_timeout" \
+  "sed -i '0,/    timeout-minutes: 10/{/    timeout-minutes: 10/d}' .github/workflows/ci.yml"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
