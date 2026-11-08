@@ -462,6 +462,12 @@ expect_caught "a-job-without-a-timeout" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~Every_job_has_a_timeout" \
   "sed -i '0,/    timeout-minutes: 10/{/    timeout-minutes: 10/d}' .github/workflows/ci.yml"
 
+# 26f. The SDK of global.json becomes a channel (review of pull request 83): setup-dotnet turns "10.0.x" into the channel
+#      10.0 and installs the latest 10.0 of the image — the pin is gone. The guard of the SDK has to name it.
+expect_caught "the-sdk-version-is-a-channel" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_sdk_is_the_one_of_global_json" \
+  "sed -i 's/\"version\": \"10.0.114\"/\"version\": \"10.0.x\"/' global.json"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

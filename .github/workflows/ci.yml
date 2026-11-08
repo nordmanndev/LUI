@@ -21,7 +21,8 @@ concurrency:
 # The rules of every job (issue #74, ADR-0047):
 # - the images are named, not "latest": a new image is a change of the repository, not of the weather;
 # - every action is pinned by its commit, the version stands beside it; Dependabot moves both;
-# - every job has a timeout, and every test run a hang timeout that leaves a dump behind;
+# - every job has a timeout, and every test run a hang timeout that leaves a full dump behind — the dump type is named,
+#   because its default differs between machines (review of pull request 83);
 # - the SDK is the one of global.json, through the setup action.
 jobs:
   format:
@@ -59,7 +60,7 @@ jobs:
           dotnet test tests/Nordmann.LUI.Unit.Tests
           --configuration Release
           --no-build
-          --blame-hang-timeout 10m
+          --blame-hang-timeout 10m --blame-hang-dump-type full
           --logger "trx;LogFileName=unit.trx"
           --results-directory artifacts/test-results
 
@@ -68,7 +69,7 @@ jobs:
           dotnet test tests/Nordmann.LUI.Architecture.Tests
           --configuration Release
           --no-build
-          --blame-hang-timeout 10m
+          --blame-hang-timeout 10m --blame-hang-dump-type full
           --logger "trx;LogFileName=architecture.trx"
           --results-directory artifacts/test-results
 
@@ -77,15 +78,15 @@ jobs:
           dotnet test tests/Nordmann.LUI.Integration.Tests
           --configuration Release
           --no-build
-          --blame-hang-timeout 10m
+          --blame-hang-timeout 10m --blame-hang-dump-type full
           --logger "trx;LogFileName=integration.trx"
           --results-directory artifacts/test-results
 
-      # The modules of the sample's client (ADR-0027): plain Node, nothing to install. The version is named, so that a
-      # change of the image does not change the lane unnoticed.
+      # The modules of the sample's client (ADR-0027): plain Node, nothing to install. The version is exact, so that a
+      # new release of Node does not change the lane unnoticed.
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
-          node-version: '22'
+          node-version: '22.22.0'
 
       - name: Test · sample client
         working-directory: samples/Lui.Sample
@@ -112,8 +113,9 @@ jobs:
       # compares them over every word of the German word list. Without the
       # list the test is skipped and says so; this job fetches the list and
       # demands it, so that the parity is proved here and not only in the
-      # release gate (ADR-0019). The rest of the integration layer runs in the
-      # job "Build · Test" — this one runs the parity, and nothing twice.
+      # release gate (ADR-0019). The rest of the integration layer — the other
+      # tests of the parity too — runs in the job "Build · Test": this one runs
+      # the test of the whole list, and nothing twice.
       - name: Fetch the word list
         run: bash tools/fetch-wordlist.sh
 
@@ -123,7 +125,18 @@ jobs:
         run: |
           dotnet build tests/Nordmann.LUI.Integration.Tests --configuration Release --no-restore
           dotnet test tests/Nordmann.LUI.Integration.Tests --configuration Release --no-build \
-            --filter "FullyQualifiedName~NormalizationParity" --blame-hang-timeout 10m
+            --filter "FullyQualifiedName~NormalizationParity.The_normalizer_and_the_tokenizer_agree_on_the_full_word_list" \
+            --blame-hang-timeout 10m --blame-hang-dump-type full \
+            --results-directory artifacts/test-results
+
+      # Only a failure leaves something worth reading: the dump of a hang, the output of a test.
+      - name: Upload the evidence of a failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: parity-test-results
+          path: artifacts/test-results
+          retention-days: 14
 
   mutation:
     name: The guards bite (${{ matrix.shard }}/4)
@@ -208,7 +221,7 @@ jobs:
           dotnet test tests/Nordmann.LUI.Unit.Tests
           --configuration Release
           --no-build
-          --blame-hang-timeout 10m
+          --blame-hang-timeout 10m --blame-hang-dump-type full
           --results-directory artifacts/test-results
 
       # The architecture tests read the repository from disk — the paths of the map of the
@@ -218,7 +231,7 @@ jobs:
           dotnet test tests/Nordmann.LUI.Architecture.Tests
           --configuration Release
           --no-build
-          --blame-hang-timeout 10m
+          --blame-hang-timeout 10m --blame-hang-dump-type full
           --results-directory artifacts/test-results
 
       # The integration layer against a real SQLite file: the pragmas of the connections and
@@ -228,7 +241,7 @@ jobs:
           dotnet test tests/Nordmann.LUI.Integration.Tests
           --configuration Release
           --no-build
-          --blame-hang-timeout 10m
+          --blame-hang-timeout 10m --blame-hang-dump-type full
           --results-directory artifacts/test-results
 
       # Only a failure leaves something worth reading: the dump of a hang, the output of a test.

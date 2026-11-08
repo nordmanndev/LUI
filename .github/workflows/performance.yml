@@ -73,7 +73,17 @@ jobs:
           dotnet test tests/Nordmann.LUI.Integration.Tests \
             --configuration Release --no-build \
             --filter 'PerformanceBudgets|NormalizationParity' \
-            --logger "console;verbosity=detailed" --blame-hang-timeout 60m 2>&1 | tee artifacts/budgets.log
+            --logger "console;verbosity=detailed" --blame-hang-timeout 60m --blame-hang-dump-type full \
+            --results-directory artifacts/test-results 2>&1 | tee artifacts/budgets.log
+
+      # Only a failure leaves something worth reading: the dump of a hang, the output of a test.
+      - name: Upload the evidence of a failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: performance-test-results
+          path: artifacts/test-results
+          retention-days: 14
 
       - name: The result in the summary of the run
         if: always()

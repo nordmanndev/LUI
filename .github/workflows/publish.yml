@@ -50,7 +50,17 @@ jobs:
           LUI_REQUIRE_FULL_WORDLIST: '1'
         run: |
           dotnet build Lui.sln --configuration Release --no-restore
-          dotnet test Lui.sln --configuration Release --no-build --blame-hang-timeout 10m
+          dotnet test Lui.sln --configuration Release --no-build --blame-hang-timeout 10m --blame-hang-dump-type full \
+            --results-directory artifacts/test-results
+
+      # Only a failure leaves something worth reading: the dump of a hang, the output of a test.
+      - name: Upload the evidence of a failure
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: release-test-results
+          path: artifacts/test-results
+          retention-days: 14
 
       # No separate pack: the smoke test packs both packages (ADR-0018) into artifacts/nuget, installs and runs
       # exactly those, and they are what is pushed (review of main after #23, finding 7).

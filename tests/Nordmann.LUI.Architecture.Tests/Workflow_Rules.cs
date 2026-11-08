@@ -61,11 +61,30 @@ public sealed partial class Workflow_Rules
         var offenders = Workflows()
             .SelectMany(file => Steps(file).Select(step => (File: file, Step: step)))
             .Where(entry => entry.Step.Contains("dotnet test", StringComparison.Ordinal))
-            .Where(entry => !entry.Step.Contains("--blame-hang-timeout", StringComparison.Ordinal))
+            .Where(entry => !HangFlags.All(flag => entry.Step.Contains(flag, StringComparison.Ordinal)))
             .Select(entry => $"{Relative(entry.File)}: {FirstLine(entry.Step)}")
             .ToArray();
 
-        offenders.ShouldBeEmpty("Every dotnet test of a pipeline runs with --blame-hang-timeout: a hang is stopped, and its dump says where it hung.");
+        // the type of the dump is named: without it one machine writes the dump and another only announces it (review
+        // of pull request 83 — measured both ways)
+        offenders.ShouldBeEmpty(
+            "Every dotnet test of a pipeline runs with " + string.Join(", ", HangFlags)
+            + ": a hang is stopped, and its dump lands where the upload looks.");
+    }
+
+    [Fact]
+    public void Every_job_that_tests_uploads_the_evidence()
+    {
+        // a dump that is written and not uploaded is gone with the runner
+        var offenders = Workflows()
+            .SelectMany(file => Jobs(file).Select(job => (File: file, Job: job)))
+            .Where(entry => entry.Job.Body.Contains("dotnet test", StringComparison.Ordinal))
+            .Where(entry => !entry.Job.Body.Contains("actions/upload-artifact@", StringComparison.Ordinal)
+                || !entry.Job.Body.Contains("path: " + ResultsDirectory, StringComparison.Ordinal))
+            .Select(entry => $"{Relative(entry.File)}: the job {entry.Job.Name}")
+            .ToArray();
+
+        offenders.ShouldBeEmpty($"Every job that runs dotnet test uploads {ResultsDirectory} — the test results and the dump of a hang.");
     }
 
     [Fact]
@@ -78,10 +97,20 @@ public sealed partial class Workflow_Rules
         // a roll-forward across feature bands is no pin: the image carries a later band, and dotnet takes it — measured
         // in the first run of pull request #83 (10.0.403 instead of 10.0.114)
         using var json = System.Text.Json.JsonDocument.Parse(File.ReadAllText(globalJson));
-        var rollForward = json.RootElement.GetProperty("sdk").GetProperty("rollForward").GetString();
+        var sdk = json.RootElement.GetProperty("sdk");
+        var rollForward = sdk.GetProperty("rollForward").GetString();
         string[] keepTheBand = ["latestPatch", "patch", "disable"];
         keepTheBand.Contains(rollForward, StringComparer.Ordinal)
             .ShouldBeTrue($"global.json keeps its feature band (ADR-0047) — rollForward is {rollForward}.");
+
+        // the version is the other half that setup-dotnet reads: "10.0.x" becomes the channel 10.0, and the pin is gone
+        // (review of pull request 83)
+        var version = sdk.GetProperty("version").GetString() ?? string.Empty;
+        ExactVersion().IsMatch(version).ShouldBeTrue($"global.json names an exact SDK (major.minor.patch) — the version is {version}.");
+
+        // the setup action reads that file, and no other
+        var setup = Repository.NormalizedText(Path.Combine(Repository.RootPath, ".github", "actions", "setup", "action.yml"));
+        setup.ShouldContain("global-json-file: global.json", Case.Sensitive, "The setup action takes the SDK from global.json.");
 
         var offenders = PipelineFiles()
             .SelectMany(file => File.ReadAllLines(file).Select(line => (File: file, Line: line.Trim())))
@@ -97,9 +126,23 @@ public sealed partial class Workflow_Rules
         Workflows().Concat(Directory.EnumerateFiles(Path.Combine(Repository.RootPath, ".github", "actions"), "action.yml", SearchOption.AllDirectories))
             .OrderBy(path => path, StringComparer.Ordinal);
 
+    /// <summary>
+    /// The workflows — both spellings GitHub reads: a workflow renamed to <c>.yaml</c> must not leave the sight of the
+    /// guard (review of pull request 83).
+    /// </summary>
     private static IEnumerable<string> Workflows() =>
-        Directory.EnumerateFiles(Path.Combine(Repository.RootPath, ".github", "workflows"), "*.yml")
+        WorkflowPatterns
+            .SelectMany(pattern => Directory.EnumerateFiles(Path.Combine(Repository.RootPath, ".github", "workflows"), pattern))
             .OrderBy(path => path, StringComparer.Ordinal);
+
+    /// <summary>The two file patterns of a workflow.</summary>
+    private static readonly string[] WorkflowPatterns = ["*.yml", "*.yaml"];
+
+    /// <summary>The two flags of a test run in a pipeline: the hang is stopped, and its dump is written in full.</summary>
+    private static readonly string[] HangFlags = ["--blame-hang-timeout", "--blame-hang-dump-type full"];
+
+    /// <summary>Where the test runs of the pipelines put their results — and the dumps.</summary>
+    private const string ResultsDirectory = "artifacts/test-results";
 
     /// <summary>
     /// The jobs of a workflow: every key two spaces deep below <c>jobs:</c>, with the lines up to the next one. The
@@ -145,7 +188,11 @@ public sealed partial class Workflow_Rules
         }
     }
 
-    /// <summary>The steps of a workflow: the items of a list, one string each.</summary>
+    /// <summary>
+    /// The steps of a workflow: the items of a list, one string each. Every item that starts with a key is a step — not
+    /// only <c>name</c>, <c>uses</c>, <c>run</c> and <c>if</c>: a step that starts with <c>env</c> or
+    /// <c>working-directory</c> must not hide in the step before it (review of pull request 83).
+    /// </summary>
     private static IEnumerable<string> Steps(string workflow) =>
         StepStart().Split(Repository.NormalizedText(workflow)).Skip(1);
 
@@ -162,6 +209,9 @@ public sealed partial class Workflow_Rules
     [GeneratedRegex(@"^  (?<name>[A-Za-z0-9_-]+):\s*$", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
     private static partial Regex JobKey();
 
-    [GeneratedRegex(@"\n\s*-\s+(?=name:|uses:|run:|if:)", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
+    [GeneratedRegex(@"\n\s*-\s+(?=[A-Za-z][A-Za-z0-9_-]*:)", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
     private static partial Regex StepStart();
+
+    [GeneratedRegex(@"^\d+\.\d+\.\d+$", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
+    private static partial Regex ExactVersion();
 }
