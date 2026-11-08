@@ -625,12 +625,12 @@ Wörtern.
   trotzdem korrigiert.
 - **Eine Abfrage wartet nicht auf einen laufenden Aufbau** (ADR-0021): baut ein anderer Thread das Wörterbuch gerade, antwortet eine
   Abfrage, die korrigieren müsste, mit den Treffern ihrer Eingabe und setzt `CorrectionSkipped`. Läuft kein Aufbau und ist das
-  Wörterbuch noch nicht gebaut, baut die Abfrage es selbst — nur die erste korrigierende Abfrage ohne Warm-up wartet. Dieser
-  Aufbau gehört dem Index, nicht der Abfrage: Er nimmt ihr Token nicht (eine Autovervollständigung bricht bei jedem
+  Wörterbuch noch nicht gebaut, baut die Abfrage es **nicht** (ADR-0042): sie antwortet ohne Korrektur und setzt
+  `CorrectionSkipped`. Dieser Aufbau gehört dem Index, nicht der Abfrage: Er nimmt ihr Token nicht (eine Autovervollständigung bricht bei jedem
   Tastendruck ab, ein daran gebundener Aufbau würde nie fertig); scheitert er, antwortet die Abfrage ohne Korrektur mit
-  `CorrectionSkipped`, und die nächste korrigierende Abfrage versucht es wieder (Review von PR #34, I3). `WarmUpTypoDictionary()`
-  und `RebuildTypoDictionary()` warten auf einen laufenden Aufbau und beenden dieses Warten mit ihrem Token.
-- Das Wörterbuch wird beim ersten Bedarf gebaut (`WarmUpTypoDictionary()` baut es vorab — die Anwendung ruft es auf, zum Beispiel beim Start); `RebuildTypoDictionary()`
+  `CorrectionSkipped`, und die Anwendung baut es erneut — das Wiederholen gehört ihr, nicht der Abfrage (Review von PR #34, I3).
+  `WarmUpTypoDictionary()` und `RebuildTypoDictionary()` warten auf einen laufenden Aufbau und beenden dieses Warten mit ihrem Token.
+- Das Wörterbuch baut die Anwendung, die es braucht (`WarmUpTypoDictionary()` — zum Beispiel beim Start); `RebuildTypoDictionary()`
   baut es neu (nach vielen `Remove`, und für Schreibvorgänge an der Bibliothek vorbei). Beide nehmen ein `CancellationToken`. Ein `Upsert`
   trägt die Wortanfänge sofort ein, auch wenn seine Transaktion später zurückgerollt wird — wie bei `Remove` findet eine Korrektur dorthin
   dann nichts.
@@ -782,6 +782,14 @@ der Typ der Payload ist das Wissen des Aufrufers und steht dort, wo die Payload 
   Anwendung sie gewählt hat.
 - **Die Definition merkt sich keinen Typ der Payload** (ADR-0035). Ändert die Anwendung den Typ ihrer Payload, ist
   das ihre Sache; die Bibliothek merkt es frühestens, wenn der Serialisierer die Bytes nicht lesen kann.
+- **Die typisierte Sicht** (ADR-0044): Wer den Typ vom Compiler geprüft haben will, fragt nach einer Sicht —
+  `index.As<RecipeChip>()` (eine Erweiterungsmethode auf `ILuiIndex`) gibt ein `LuiTypedIndex<RecipeChip>` mit
+  `Name`, `Kind`, `KeyKind`, `TypoTolerance`, `TypoDictionaryState`, `Count()` und `Search(…)`; der fluent Weg endet in
+  derselben Antwort: `….Execute().As<RecipeChip>()` (`LuiResult.As<TPayload>()`). Die Antwort ist ein
+  `LuiTypedResult<TPayload>`, der Treffer ein `LuiTypedHit<TPayload>`; der Schlüssel bleibt `LuiKey`. Die Payload des
+  typisierten Treffers liest **eine Methode**, keine Eigenschaft — `GetPayload()` und `TryGetPayload(out …)` —, weil sie
+  bei jedem Aufruf deserialisiert und mit `LuiPayloadException` scheitern kann. Die Sicht öffnet nichts, schreibt
+  nichts, merkt sich nichts; der Index, der Katalog und die Datei kennen weiter keinen Typ.
 
 ### 12.4 Schreiben (`Embedded`)
 
@@ -866,6 +874,10 @@ RecipeChip? chip = hits[0].GetPayload<RecipeChip>();   // der Typ steht, wo die 
 
 // ohne Builder, für Konfiguration aus Dateien:
 var same = recipes.Search("apfelkuch", new LuiQueryOptions { MaxResults = 20 });
+
+// typisiert (ADR-0044): die Sicht, oder das Ende des fluent Wegs
+RecipeChip? first = recipes.As<RecipeChip>().Search("apfelkuch").Hits[0].GetPayload();
+var typed = recipes.Query("apfelkuch").Take(5).Execute().As<RecipeChip>();
 ```
 
 Jeder Wert wird geprüft, wo er gesetzt wird: `Take(0)` wirft beim Aufruf, nicht erst in `Execute()`.
@@ -909,16 +921,42 @@ public sealed class SuggestEndpoint(LuiCatalog catalog)
 - Der Katalog ist ein Singleton, das der Container beim ersten Bedarf öffnet und mit sich entsorgt; `AddLui` einmal
   pro Container. Ein zweites `AddLui` ist ein `InvalidOperationException`.
 - `AddLui` liefert die `IServiceCollection` zurück — es gibt keine weiteren Registrierungen.
-- **Der Katalog wird beim ersten Bedarf geöffnet, nicht beim Start des Hosts**: Ein SQLite, das LUI nicht tragen kann
+- **Der Katalog wird beim ersten Bedarf geöffnet, nicht beim Start des Hosts** — außer die Anwendung registriert das
+  Aufwärmen (`AddLuiWarmup`, unten): dessen Dienst braucht den Katalog beim Start. Ein SQLite, das LUI nicht tragen kann
   (älter als 3.45 oder ohne den FTS5-Trigram-Tokenizer), wirft dann eine `LuiEnvironmentException` (§ 12.8). Die
   Migration der Anwendung — sie legt die Indizes mit `catalog.Create(…)` an — läuft **vor** dem ersten Zugriff:
   Eine abweichende Definition bricht sie ab, nicht der erste Request.
-- Das Paket `Nordmann.LUI.Hosting` trägt **nur die Dependency-Injection** (ADR-0034): keine gehosteten Dienste, kein
-  Timer, kein Aufwärmen der Wörterbücher. Wer die Wörterbücher vorab bauen will, ruft `WarmUpTypoDictionary()` selbst
-  auf — im Hintergrund, ohne dass eine Abfrage darauf wartet (ADR-0021, Issue #19). Wer die Outbox der Trigger eines
-  verknüpften Index im Takt anwenden will, ruft `ApplyPending()` selbst auf (ADR-0015).
+- **Das Aufwärmen ist ein Dienst des Hosts — auf Wunsch** (ADR-0043, ADR-0045). Ohne `AddLuiWarmup()` startet der
+  Host nichts von LUI: kein gehosteter Dienst, kein Timer, kein Aufwärmen. Mit dem Aufruf registriert das Paket **einen**
+  `IHostedService`, den der Host startet, stoppt und entsorgt; die Bibliothek startet keinen eigenen Thread.
+  ```csharp
+  services.AddLuiWarmup(options =>
+  {
+      options.TypoDictionaryIndexes.Add("recipes");   // leer: das Wörterbuch jedes Index
+      options.OutboxInterval = TimeSpan.FromSeconds(30);
+  });
+  ```
+  - **Beim Start des Hosts** wendet der Dienst zuerst die Outbox jedes verknüpften Index an
+    (`LuiCatalog.ApplyPending()`) und baut dann die Wörterbücher (`LuiCatalog.WarmUpTypoDictionaries(…)`), damit
+    sie die Wörter der hereingekommenen Zeilen kennen. **Der Start des Hosts wartet darauf** — die erste Abfrage
+    korrigiert schon; in ASP.NET Core lauscht der Server erst danach.
+  - **`LuiWarmupOptions`**: `WarmUpTypoDictionaries` (Standard `true`; `false` lässt dem Dienst nur die Outbox),
+    `TypoDictionaryIndexes` (die Indizes, die ein Wörterbuch bekommen; **leer heißt jeder** — ein Wörterbuch kostet
+    138 MB für 685.829 Wörter, ein Index ohne Korrektur braucht keins; ein unbekannter Name lässt den Start mit
+    `LuiIndexNotFoundException` scheitern) und `OutboxInterval` (Standard 30 s, positiv).
+  - **Im Takt** wendet er die Outbox wieder an, eine Runde nach der anderen. Eine Runde, die scheitert, nimmt den
+    Host nicht mit: die Zeilen bleiben in der Outbox, die nächste Runde versucht es wieder.
+  - **Der Logger des Hosts erfährt, was geschah** (ADR-0045): die gebauten Wörterbücher und die Dauer
+    (`Information`), die angewandten Zeilen (`Debug`), eine gescheiterte Runde (`Warning`, mit der Ausnahme). Ohne
+    Logger im Container schreibt der Dienst nichts.
+  - `AddLuiWarmup` einmal pro Container; ein zweites ist ein `InvalidOperationException`.
+  - **Was der Dienst nicht tut:** Er baut kein Wörterbuch **neu** (wann eine Phase ruhig ist, weiß nur die
+    Anwendung), registriert keinen Index und schreibt nicht in die Tabelle der Anwendung.
 - Ohne Host — in einer Konsolenanwendung — ruft die Anwendung `Create()`, `Index()`, `WarmUpTypoDictionary()`,
-  `ApplyPending()` und bei Bedarf `RebuildTypoDictionary()` selbst auf.
+  `ApplyPending()` und bei Bedarf `RebuildTypoDictionary()` selbst auf. Für den ganzen Katalog in einem Aufruf
+  (ADR-0043): `catalog.WarmUpTypoDictionaries()` baut das Wörterbuch jedes Index, `catalog.WarmUpTypoDictionaries(names)`
+  das der genannten (jeder Name wird vor dem ersten Aufbau geprüft), und `catalog.ApplyPending()` wendet die Outbox jedes
+  verknüpften Index an und gibt die Zahl der Zeilen zurück.
 
 ### 12.8 Fehler
 
@@ -1144,11 +1182,11 @@ Ein schnellerer erster Ladevorgang ist Issue #32.
 | Paket | Inhalt | Abhängigkeiten |
 |---|---|---|
 | `Nordmann.LUI` | alles, was keinen Host braucht — eine Konsolenanwendung braucht nur dieses | `Microsoft.Data.Sqlite`, `symspell` |
-| `Nordmann.LUI.Hosting` | `AddLui`: der Katalog im Container, sonst nichts (§ 12.7) | `Nordmann.LUI` derselben Version, `Microsoft.Extensions.DependencyInjection.Abstractions` (ADR-0034) |
+| `Nordmann.LUI.Hosting` | `AddLui`: der Katalog im Container; auf Wunsch `AddLuiWarmup`: das Aufwärmen als Dienst des Hosts (§ 12.7) | `Nordmann.LUI` derselben Version, `Microsoft.Extensions.DependencyInjection.Abstractions`, `Microsoft.Extensions.Hosting.Abstractions`, `Microsoft.Extensions.Logging.Abstractions` (ADR-0034, ADR-0043, ADR-0045) |
 
-Der Kern startet keinen Thread und keinen Timer; das Hosting-Paket tut es auch nicht: Es trägt die
-Dependency-Injection und sonst nichts (§ 12.7, ADR-0034). Das Hosting-Paket kennt nur
-die öffentliche API des Kerns.
+Der Kern startet keinen Thread und keinen Timer. Das Hosting-Paket trägt die Dependency-Injection und — nur wenn die
+Anwendung es registriert — einen gehosteten Dienst mit dem Timer der Outbox, den der Host startet, stoppt und entsorgt
+(§ 12.7, ADR-0043). Das Hosting-Paket kennt nur die öffentliche API des Kerns.
 
 ### 17.2 Namespaces (Ordner = Namespace)
 
@@ -1183,17 +1221,18 @@ Tabellennamen. Architekturtests halten das fest (ADR-0014).
 | `symspell` | 6.7.3 | MIT |
 | `F23.StringSimilarity` | 7.0.1 | MIT |
 
-`Nordmann.LUI.Hosting` dazu (ADR-0017, ADR-0018, ADR-0034):
+`Nordmann.LUI.Hosting` dazu (ADR-0017, ADR-0018, ADR-0034, ADR-0043, ADR-0045):
 
 | Paket | Version | Lizenz |
 |---|---|---|
 | `Nordmann.LUI` | dieselbe | MIT |
 | `Microsoft.Extensions.DependencyInjection.Abstractions` | 10.0.14 | MIT |
+| `Microsoft.Extensions.Hosting.Abstractions` | 10.0.14 | MIT |
+| `Microsoft.Extensions.Logging.Abstractions` | 10.0.14 | MIT |
 
-Die Abstraktionen des Hosts (`Microsoft.Extensions.Hosting.Abstractions` und
-`Microsoft.Extensions.Logging.Abstractions`) sind **nicht** dabei: Das Paket
-braucht sie nicht mehr, und ein Paket, das trägt, was es nicht braucht, lässt
-seine Konsumenten das auch tragen (ADR-0034).
+Die Regel von ADR-0034 gilt weiter: Ein Paket trägt, was es benutzt. Das Aufwärmen ist ein gehosteter Dienst
+(`IHostedService`, ADR-0043) und meldet sich beim Logger des Hosts (ADR-0045); die Abstraktion des Loggings lag schon in
+der Hülle der Host-Abstraktion und ist jetzt beim Namen genannt, weil das Paket sie benutzt.
 
 Mindestversion von SQLite: **3.45** (`remove_diacritics` für den
 Trigram-Tokenizer); getestet mit 3.53.3. Die Bibliothek prüft die Version beim
@@ -1257,6 +1296,10 @@ Jeder Schritt ist ein Pull Request mit ADR, Tests und Messung.
 **Der Stand nach #56 (ADR-0033, ADR-0034):** Der Katalog ist der Einstiegspunkt und das Einzige im Container; der
 Container beschreibt keine Indizes mehr, und das Hosting-Paket trägt nur die Dependency-Injection (§ 12.7). Die
 Schritte 1 bis 9 bleiben, wie sie waren.
+
+**Der Stand nach #64 (ADR-0042 bis ADR-0045):** Eine Abfrage baut das Wörterbuch nie (§ 10.1); das Hosting-Paket
+trägt dazu auf Wunsch das Aufwärmen als Dienst des Hosts, der dem Logger des Hosts sagt, was geschah (§ 12.7); die
+typisierte Sicht `As<T>()` liegt über dem untypisierten Index (§ 12.3).
 
 ---
 
@@ -1367,6 +1410,8 @@ Rezepttitel, `MultiWord`. Diese Fälle werden zu goldenen Tests (§ 19).
 | `strasse`, `Straße` | … Straße … | — |
 | `apflekuchen` | Apfelkuchen (`CorrectedQuery = "apfelkuchen"`) | — |
 | `gan`, `veg` (Tags) | **vegan** (Systemtag) ganz oben | alle Nutzer-Tags mit „gan" bzw. „veg" |
+
+Die Korrektur setzt ein gebautes Wörterbuch voraus (§ 10.1): ohne `WarmUpTypoDictionary()` antwortet dieselbe Abfrage ohne Korrektur.
 
 **Die Regeln, so wie der Nutzer sie spürt:** Bei 1–2 Buchstaben kommt das
 Beliebteste. Was er tippt, ist der Anfang eines Wortes, und das kommt zuerst.

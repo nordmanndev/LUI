@@ -182,9 +182,9 @@ its search index in the file; a linked index holds the text only in your own
 table — that is the argument for step 2 when the stock is large.
 
 **The typo dictionary**: 685,829 words take **138 MB** and **4.1–4.8 s** to
-build (limits: ≤ 200 MB, ≤ 10 s). It is built when the first input needs a
-correction, or by `WarmUpTypoDictionary()` at the start of the application —
-so that the first typo does not pay for it.
+build (limits: ≤ 200 MB, ≤ 10 s). A query never builds it: the application
+asks for it with `WarmUpTypoDictionary()` — at the start, or after a load — and
+until then the index answers without corrections (`CorrectionSkipped`).
 
 **A sync of a million entries**, single word, batches of 10,000: **77.8 s**
 into an empty index, **15.2 s** when nothing changes. The same load with
