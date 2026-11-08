@@ -41,13 +41,13 @@ the reason is in the report.
 | `LUI_PERF=1` | the measurements and the layout experiments | a person, on purpose: [`docs/benchmarks.md`](./benchmarks.md) |
 | `LUI_PERF_ENTRIES` | how many entries a measurement builds (default 200,000) | the same |
 | `LUI_PERF_KIND=multi` | whether a measurement runs on the multi-word index | the same |
-| `LUI_REQUIRE_FULL_WORDLIST=1` | the full 685,829-word parity **must** run, or the test fails | the release gate ([`publish.yml`](../.github/workflows/publish.yml)) |
+| `LUI_REQUIRE_FULL_WORDLIST=1` | the full 685,829-word parity **must** run, or the test fails | the lane of the parity in [`ci.yml`](../.github/workflows/ci.yml) — on every pull request, and in the release, which calls `ci.yml` |
 | `LUI_WORDLIST` | where the full word list is | a person, on purpose |
 | `LUI_PERF_MACHINE=other` | the machine of the run: `measurement` asserts every target, `other` reports the times and asserts the sizes | the lane (`.github/workflows/performance.yml`) |
 
 **A skipped test that reports itself as passed proves nothing.** The full-word-list
 parity is skipped — and says so — when the list is missing, rather than
-returning green. The release gate sets `LUI_REQUIRE_FULL_WORDLIST=1`, and then
+returning green. The lane of the parity sets `LUI_REQUIRE_FULL_WORDLIST=1` — on every pull request, and in the release, which calls it — and then
 the test fails with the reason instead of skipping.
 
 ### The lanes of the CI
@@ -60,12 +60,14 @@ with a full dump that is uploaded with the results (ADR-0047, guarded by `Workfl
 
 | Lane | What it runs | What it is there for |
 |---|---|---|
+| Workflows · actionlint | `actionlint` over every workflow (the release, the budgets, this one) | `publish.yml` runs only on a tag — a mistake in it is found on the pull request, not at the release (ADR-0048) |
 | Format | `dotnet format --verify-no-changes` | on its own and first: a format error is reported in a minute, not after every test |
 | Build · Test | the three layers, the client of the sample | the whole tree, on every pull request |
 | The normalisation parity over the whole word list | the one test of `NormalizationParity` that needs the full list (685,829 words) | the rule of §6.2 exists twice — as SQL and as C#; the rest of the layer runs in *Build · Test*, nothing twice |
 | The guards bite | the mutation check, in four shards side by side (`--shard i/4`), and one job of that name that waits for all four | a green test proves nothing until it has been seen red (ADR-0019) — and every mutation says how it must be caught: by its test (`expect_caught`) or, where the toolchain is the guard on purpose, by the build with a named error (`expect_refused`). A mutation that the build refuses although a test was meant fails the check (issue #73) |
 | Package · Smoke test | the packed library in a throwaway application, beside the other jobs | the README's code is part of the test |
 | **Windows** | the three layers on `windows-2025` | the paths, the pragmas and the case of the file names — the platform where a path is a promise (issue #67) |
+| **Publish** (a tag `v*`) | the tag against `Directory.Build.props` and `main`, then **every lane above** (it calls `ci.yml`), then — after the owner's approval — the push with a key of one hour (Trusted Publishing) | a release passes exactly the gates of a pull request, and stores no key (ADR-0048) |
 | Performance (every night, by hand) | the seven targets of §16 | a time belongs to the machine it was measured on; a size is the same everywhere (ADR-0041) |
 
 Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) moves the pins — the actions, the packages, the SDK —
@@ -164,7 +166,7 @@ machine it was measured on — and the **sizes** are asserted (ADR-0041).
 | [`Readme_Benchmarks`](../tests/Nordmann.LUI.Architecture.Tests/Readme_Benchmarks.cs) | Architecture | the BenchmarkDotNet tables of the README are rendered from the committed reports of one run; every benchmark class has a report and a section | ADR-0022, ADR-0039 |
 | [`Readme_Budgets`](../tests/Nordmann.LUI.Architecture.Tests/Readme_Budgets.cs) | Architecture | the budget table of the README is the promise of §16: the limits of the entrance, of the target table of the record and of its status table are read out of the specification and compared with it — a limit that drifts fails the build | issue #38 |
 | [`Sample_Client`](../tests/Nordmann.LUI.Architecture.Tests/Sample_Client.cs) | Architecture | the sample's client: modules by concern with the direction of the imports as a table, one fetch boundary, no HTML from a string, no inline script or style, no dependency, and the vendored flexdatalist is the file its provenance names | ADR-0027 |
-| [`Workflow_Rules`](../tests/Nordmann.LUI.Architecture.Tests/Workflow_Rules.cs) | Architecture | the pipelines change only with the repository: every action pinned by its commit with its version, every image named, every job with a timeout, every test run with a hang timeout and a full dump, every job that tests uploads its results, the SDK only from `global.json` — exact, in its feature band, read by the setup action (a roll-forward across bands and a `10.0.x` pin nothing) — over `*.yml` and `*.yaml` | ADR-0047, issue #74, review of pull request 83 |
+| [`Workflow_Rules`](../tests/Nordmann.LUI.Architecture.Tests/Workflow_Rules.cs) | Architecture | the pipelines change only with the repository: every action pinned by its commit with its version, every image named, every job with a timeout, every test run with a hang timeout and a full dump, every job that tests uploads its results, the release calls the gates of every pull request and pushes after them, in the environment of the owner, without a stored key, the SDK only from `global.json` — exact, in its feature band, read by the setup action (a roll-forward across bands and a `10.0.x` pin nothing) — over `*.yml` and `*.yaml` | ADR-0047, issue #74, review of pull request 83 |
 | [`Test_Landscape`](../tests/Nordmann.LUI.Architecture.Tests/Test_Landscape.cs) | Architecture | this map is the truth: every test file is listed here, every row points at a file that exists; the unit layer opens no database | this file, ADR-0019 |
 
 ---
@@ -198,7 +200,7 @@ no project, no code, just the files the tests read.
 
 The full list (685,829 words) is **not** checked in — 5.5 MB that nobody
 reviews. [`tools/fetch-wordlist.sh`](../tools/fetch-wordlist.sh) puts it in
-`artifacts/wordlist/`, and the release gate fetches it and demands it.
+`artifacts/wordlist/`, and the lane of the parity fetches it and demands it — on every pull request and in the release.
 
 ## How to run what
 

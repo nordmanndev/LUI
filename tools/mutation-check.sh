@@ -468,6 +468,12 @@ expect_caught "the-sdk-version-is-a-channel" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_sdk_is_the_one_of_global_json" \
   "sed -i 's/\"version\": \"10.0.114\"/\"version\": \"10.0.x\"/' global.json"
 
+# 26g. The release pushes before the gates are green (issue #75, ADR-0048): the push no longer needs the call of
+#      ci.yml. The guard of the release has to name it.
+expect_caught "the-release-skips-the-gate" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_release_runs_the_gates_of_every_pull_request_and_stores_no_key" \
+  "sed -i 's/    needs: \\[tag, gate\\]/    needs: [tag]/' .github/workflows/publish.yml"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
