@@ -155,9 +155,8 @@ Two things repeat in every application that searches with LUI, and both are
 the application's business:
 
 - **The warm-up of the typo dictionary.** `WarmUpTypoDictionary()` at the
-  start builds it, so that the first typo does not pay for it. No query waits
-  for a warm-up: a query that would need a correction meanwhile answers
-  without it and says `CorrectionSkipped`.
+  start builds it — a query never does. Until it is built, a query that would
+  need a correction answers without it and says `CorrectionSkipped`.
 - **The outbox of a linked index.** `ApplyPending()` brings the rows the
   triggers noted into the index — after your writes, or on a timer.
 
@@ -174,7 +173,7 @@ var builder = Host.CreateApplicationBuilder(args);
 builder.Services.AddLui("Data Source=app.db");
 
 // The dictionaries are built while the host starts; the outbox is applied every 30 seconds.
-builder.Services.AddLuiWarmup();
+builder.Services.AddLuiWarmup(options => options.TypoDictionaryIndexes.Add("tags"));
 
 using var host = builder.Build();
 host.Run();
@@ -184,7 +183,17 @@ host.Run();
 and disposes it. The typo dictionaries of your indexes are built at the start —
 after the outbox, so that the dictionary knows the words of the rows that came
 in — and the outbox of every linked index is applied on an interval (30 s by
-default, `AddLuiWarmup(TimeSpan.FromSeconds(5))` says otherwise).
+default, `options.OutboxInterval = TimeSpan.FromSeconds(5)` says otherwise).
+
+- **Name the indexes that correct typos.** A dictionary costs memory — 138 MB
+  for 685,829 words. `TypoDictionaryIndexes` names the indexes that get one;
+  left empty, every index does. `WarmUpTypoDictionaries = false` leaves only
+  the outbox to the service.
+- **The host waits for the dictionaries.** It is ready when they are built —
+  seconds for a large index — so that the first query already corrects.
+- **The logger of the host hears what happened**: the dictionaries it built,
+  and a round of the outbox that failed (a `Warning`, with the exception). The
+  rows of a failed round stay in the outbox; the next round tries again.
 
 **The rebuild stays yours.** A dictionary only grows: what was removed lingers
 in it until `RebuildTypoDictionary()` (ADR-0025). Only your application knows

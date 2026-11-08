@@ -27,14 +27,40 @@ public sealed record LuiResult
     public string? CorrectedQuery { get; init; }
 
     /// <summary>
-    /// Whether a correction was wanted and not searched (ADR-0021): the typo dictionary was being built — after the start
-    /// of an application, or while another query builds it —, or its build failed. The query did not wait for the build
-    /// and did not fail: it answered with what the input found. Ask again once
-    /// <see cref="ILuiIndex.TypoDictionaryState"/> is not <see cref="LuiTypoDictionaryState.Building"/>;
-    /// after a failed build, the next query that needs a correction tries again.
+    /// Whether a correction was wanted and not searched (ADR-0021, ADR-0042): the typo dictionary is not built — a query
+    /// never builds it, the application asks for it with <c>WarmUpTypoDictionary()</c> —, it is being built, or its
+    /// build failed. The query did not wait and did not fail: it answered with what the input found. Ask again once
+    /// <see cref="ILuiIndex.TypoDictionaryState"/> is <see cref="LuiTypoDictionaryState.Current"/>.
     /// </summary>
     public bool CorrectionSkipped { get; init; }
 
     /// <summary>Where the time went; only set with <see cref="LuiQueryOptions.TrackTimings"/>.</summary>
     public LuiTimings? Timings { get; init; }
+
+    /// <summary>
+    /// The same answer, with the payload in the type of the application (ADR-0044) — the end of the fluent path:
+    /// <c>index.Query("veg").Take(5).Execute().As&lt;TagChip&gt;()</c>. The answer stays untyped; the type is named
+    /// where it is used, and nothing is read until a hit is asked for its payload.
+    /// </summary>
+    /// <typeparam name="TPayload">The type of the payload — the application's to know.</typeparam>
+    /// <returns>The typed answer.</returns>
+    public LuiTypedResult<TPayload> As<TPayload>()
+    {
+        var hits = new LuiTypedHit<TPayload>[Hits.Count];
+        for (var i = 0; i < hits.Length; i++)
+        {
+            hits[i] = new LuiTypedHit<TPayload> { Hit = Hits[i] };
+        }
+
+        return new LuiTypedResult<TPayload>
+        {
+            Query = Query,
+            Hits = hits,
+            CandidatesConsidered = CandidatesConsidered,
+            Truncated = Truncated,
+            CorrectedQuery = CorrectedQuery,
+            CorrectionSkipped = CorrectionSkipped,
+            Timings = Timings,
+        };
+    }
 }

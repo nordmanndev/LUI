@@ -206,11 +206,13 @@ public sealed class Repository_Layout
     }
 
     [Fact]
-    public void The_hosting_ships_the_core_the_dependency_injection_and_the_hosting_abstraction()
+    public void The_hosting_ships_the_core_the_dependency_injection_and_the_abstractions_of_the_host()
     {
         // ADR-0034: the dependency set of a package is its contract — a package carries what it uses. The warm-up is a
         // hosted service (ADR-0043), and a hosted service is a type of the host: the abstraction of the host is in the
-        // list again, because the package uses it now. The rule did not change — the list did.
+        // list again, because the package uses it now. The warm-up tells the logger of the host what failed (ADR-0045):
+        // the abstraction of the logging was in the closure already, and is named now because the package uses it.
+        // The rule did not change — the list did.
         var runtime = Repository
             .Elements(Repository.LoadXml(HostingProject()), "PackageReference")
             .Where(reference => reference.Attribute("PrivateAssets") is null)
@@ -222,7 +224,8 @@ public sealed class Repository_Layout
         runtime.ShouldBe(
         [
             "Microsoft.Extensions.DependencyInjection.Abstractions",
-            "Microsoft.Extensions.Hosting.Abstractions"
+            "Microsoft.Extensions.Hosting.Abstractions",
+            "Microsoft.Extensions.Logging.Abstractions"
         ]);
     }
 

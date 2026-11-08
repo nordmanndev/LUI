@@ -1,6 +1,7 @@
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Shouldly;
 
 namespace Nordmann.LUI.Integration.Tests;
@@ -65,7 +66,7 @@ public sealed class LuiWarmupTests
         tags.CreateTriggers();
         Insert(database, (1, "vegan", 0));
 
-        using var host = Host(database, warmup: true, interval: TimeSpan.FromMilliseconds(50));
+        using var host = Host(database, warmup: true, configure: options => options.OutboxInterval = TimeSpan.FromMilliseconds(50));
         await host.StartAsync();
 
         // a row that comes after the start waits for the next round — the interval is the promise of the service
@@ -96,13 +97,115 @@ public sealed class LuiWarmupTests
         catalogOfTheHost.LinkedIndex("linked").Pending().ShouldBe(1, "the outbox waits for the application");
     }
 
-    private static IHost Host(TestDatabase database, bool warmup, TimeSpan? interval = null)
+    [Fact]
+    public async Task The_host_builds_only_the_dictionaries_it_is_told_to()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+        catalog.Create("names", index => index.SingleWord()).Upsert(1, "Vera");
+
+        // a dictionary costs memory — the index whose queries correct no typos does not get one (ADR-0043)
+        using var host = Host(database, warmup: true, configure: options => options.TypoDictionaryIndexes.Add("tags"));
+        await host.StartAsync();
+
+        var catalogOfTheHost = host.Services.GetRequiredService<LuiCatalog>();
+        catalogOfTheHost.Index("tags").TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        catalogOfTheHost.Index("names").TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
+    }
+
+    [Fact]
+    public async Task Without_the_dictionaries_the_host_still_applies_the_outbox()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        tags.CreateTriggers();
+        Insert(database, (1, "vegan", 0));
+
+        using var host = Host(database, warmup: true, configure: options => options.WarmUpTypoDictionaries = false);
+        await host.StartAsync();
+
+        var tagsOfTheHost = host.Services.GetRequiredService<LuiCatalog>().LinkedIndex("tags");
+        tagsOfTheHost.Pending().ShouldBe(0, "the outbox is the service's either way");
+        tagsOfTheHost.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
+    }
+
+    [Fact]
+    public async Task A_name_the_catalog_does_not_know_fails_the_start_of_the_host()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+
+        using var host = Host(database, warmup: true, configure: options => options.TypoDictionaryIndexes.Add("tgas"));
+
+        var failure = await Should.ThrowAsync<LuiIndexNotFoundException>(() => host.StartAsync());
+        failure.Message.ShouldContain("tgas");
+    }
+
+    [Fact]
+    public async Task A_round_that_fails_is_told_to_the_logger_of_the_host()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        tags.CreateTriggers();
+
+        var logger = new RecordingLoggerProvider();
+        using var host = Host(
+            database,
+            warmup: true,
+            configure: options =>
+            {
+                options.WarmUpTypoDictionaries = false;
+                options.OutboxInterval = TimeSpan.FromMilliseconds(50);
+            },
+            logger: logger);
+        await host.StartAsync();
+
+        // a row in the outbox whose table is gone: the round cannot read it and fails — every time (ADR-0045)
+        Insert(database, (1, "vegan", 0));
+        Run(database, "ALTER TABLE tag RENAME TO tag_gone;");
+
+        await WaitUntil(() => logger.Entries.Any(entry => entry.Level == LogLevel.Warning));
+        var warning = logger.Entries.First(entry => entry.Level == LogLevel.Warning);
+        warning.Event.Id.ShouldBe(3);
+        warning.Exception.ShouldNotBeNull("the logger gets the failure itself, not only a sentence about it");
+        warning.Message.ShouldContain("the rows stay in the outbox");
+
+        tags.Pending().ShouldBe(1, "the row waits in the outbox for a round that can read it");
+    }
+
+    [Fact]
+    public void The_warm_up_is_registered_once_and_with_a_positive_interval()
+    {
+        var services = new ServiceCollection();
+        services.AddLuiWarmup();
+
+        Should.Throw<InvalidOperationException>(() => services.AddLuiWarmup());
+        Should.Throw<ArgumentOutOfRangeException>(() =>
+            new ServiceCollection().AddLuiWarmup(options => options.OutboxInterval = TimeSpan.Zero));
+    }
+
+    private static IHost Host(
+        TestDatabase database,
+        bool warmup,
+        Action<LuiWarmupOptions>? configure = null,
+        RecordingLoggerProvider? logger = null)
     {
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
         builder.Services.AddLui(database.ConnectionString);
         if (warmup)
         {
-            builder.Services.AddLuiWarmup(interval);
+            builder.Services.AddLuiWarmup(configure);
+        }
+
+        if (logger is not null)
+        {
+            builder.Logging.AddProvider(logger);
         }
 
         return builder.Build();

@@ -40,18 +40,23 @@ var chip = catalog.Index("tags").Search("veg").Hits[0].GetPayload<TagChip>();
   types, the untyped world has three (`ILuiIndex`, `LuiResult`, `LuiHit`), and the view mirrors them one to one.
 - The **key stays `LuiKey`**. A second typed key view would be a second concept for the same thing (ADR-0013), and the
   key of an entry is read rarely compared with its payload.
-- The **payload is not cached**. `LuiHit.GetPayload<T>()` deserialises on every call, and the typed hit keeps that
-  promise: `Payload` reads the payload when it is asked, exactly like `GetPayload<T>()` does. A cache per hit is memory
-  and an invalidation — and the caller who needs the payload twice keeps it, as the page of the API says.
+- The **payload is not cached**, and it is read by a **method**. `LuiHit.GetPayload<T>()` deserialises on every call,
+  and the typed hit keeps that promise: `GetPayload()` and `TryGetPayload(out …)` read the payload when they are
+  asked, exactly like `GetPayload<T>()` does. A method and not a property, because the read does work and can fail with
+  a `LuiPayloadException` — a property is a promise of a field (ADR-0035 holds the same line for `LuiHit`, and the
+  guard `The_index_knows_no_types` holds it for both). A cache per hit is memory and an invalidation — and the caller
+  who needs the payload twice keeps it, as the page of the API says.
 - **The index still knows no type.** The type parameter belongs to the *view*, which is the application’s; the index,
   the catalog and the file stay free of it (ADR-0035). The file keeps no type name.
-- The **view offers `Search`** — the query in one call. The fluent query stays untyped: it configures the query, and
-  the answer is read with `Search`.
+- The **view offers `Search`** — the query in one call. **The fluent query ends in the typed answer too**:
+  `index.Query("veg").Take(5).Execute().As<TagChip>()` — `LuiResult.As<TPayload>()` makes the typed answer out of the
+  untyped one. The builder of the query stays untyped and stays one: the type is named at its end, where the answer is
+  used, and no second builder mirrors the first.
 
 ## Consequences
 
 - The application that wants the payload type checked by the compiler writes `index.As<TagChip>()` once and reads
-  `hit.Payload` — with no type parameter at the call, and with the type checked.
+  `hit.GetPayload()` — with no type parameter at the call, and with the type checked.
 - **The view is additive** (ADR-0026): `GetPayload<T>()` stays and stays the one way for the application that does not
   want a view. Nothing changes for the application that does not ask for it.
 - The typed hit is a **struct that wraps the hit of the index**: it copies the six fields of the hit and reads the
@@ -71,4 +76,18 @@ var chip = catalog.Index("tags").Search("veg").Hits[0].GetPayload<TagChip>();
 | A typed key view (`As<long, TagChip>()`) | A second concept for the same key (ADR-0013). The payload is read at every hit, the key rarely. |
 | The view caches the payload per hit | Memory and an invalidation, for a value the caller may read once. `GetPayload<T>()` deserialises on every call — and the typed hit keeps that promise. |
 | The index itself grows `As<T>()` | Then the index knows a type (ADR-0035). The view is the application’s, and the extension method keeps it out of the index. |
-| The typed view offers a typed fluent query | The fluent query configures the query; the answer is read with `Search`. A second query builder would be a second implementation of the same thing. |
+| The typed view offers a typed fluent query | A second query builder would be a second implementation of the same thing, and a second list for the guard of the options to keep. `Execute().As<T>()` types the answer at the end of the one builder. |
+| The typed hit reads the payload with a property `Payload` | That was the first version of this pull request. A property that deserialises on every access and can throw breaks the promise of a property — cheap, and without a failure (the .NET design guidelines) — and ADR-0035 refused the same property on `LuiHit`. Review of pull request 69. |
+
+## Review of pull request 69
+
+The review found two things in the first version, and both were changed before the freeze of 0.1.0 (ADR-0026) — after
+it, each would be a break:
+
+- `LuiTypedHit<TPayload>.Payload` (a property) became `GetPayload()` and `TryGetPayload(out TPayload payload)`.
+- The fluent query had no typed end: `LuiResult.As<TPayload>()` is that end, and `LuiTypedIndex<TPayload>.Search`
+  uses it.
+
+The tests: `TypedIndexTests.The_fluent_path_ends_in_the_typed_answer_too`, and the guard `The_index_knows_no_types`
+asks the typed hit for a property `Payload` as it asks the hit.
+

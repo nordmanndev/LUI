@@ -247,6 +247,8 @@ public sealed class Public_API_Shape
         // the payload is read with the type the caller asks for, on the hit
         typeof(LuiHit).GetMethod(nameof(LuiHit.GetPayload))!.IsGenericMethodDefinition.ShouldBeTrue();
         typeof(LuiHit).GetProperty("Payload").ShouldBeNull("the payload is a method that deserialises, not a property");
+        typeof(LuiTypedHit<object>).GetProperty("Payload")
+            .ShouldBeNull("the typed hit reads the payload as the hit does: a method that deserialises, not a property (ADR-0044)");
 
         // one serialiser per catalog
         typeof(LuiCatalogOptions).GetProperty(nameof(LuiCatalogOptions.PayloadSerializer))!.PropertyType

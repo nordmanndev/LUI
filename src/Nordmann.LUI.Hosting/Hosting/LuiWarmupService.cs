@@ -1,4 +1,6 @@
+using System.Diagnostics;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
 namespace Nordmann.LUI.Hosting;
 
@@ -7,26 +9,30 @@ namespace Nordmann.LUI.Hosting;
 /// built at the start of the host, and the outbox of the linked indexes is applied on an interval.
 /// <para>
 /// The service belongs to the host: the host starts it, stops it and disposes it. The library starts no thread of its
-/// own.
+/// own. What it did, and what failed, it tells the logger of the host (ADR-0045).
 /// </para>
 /// </summary>
-internal sealed class LuiWarmupService : IHostedService, IDisposable
+internal sealed partial class LuiWarmupService : IHostedService, IDisposable
 {
-    /// <summary>How long the service waits between two rounds of the outbox, if the application says nothing else.</summary>
-    internal static readonly TimeSpan DefaultOutboxInterval = TimeSpan.FromSeconds(30);
-
     private readonly LuiCatalog _catalog;
+    private readonly bool _warmUpTypoDictionaries;
+    private readonly string[] _typoDictionaryIndexes;
     private readonly TimeSpan _interval;
+    private readonly ILogger _logger;
     private Timer? _timer;
     private int _running;
 
     /// <summary>The service.</summary>
     /// <param name="catalog">The catalog of the host.</param>
-    /// <param name="interval">How long the service waits between two rounds of the outbox.</param>
-    internal LuiWarmupService(LuiCatalog catalog, TimeSpan interval)
+    /// <param name="options">The settings of the warm-up, as they stood at the registration.</param>
+    /// <param name="logger">The logger of the host.</param>
+    internal LuiWarmupService(LuiCatalog catalog, LuiWarmupOptions options, ILogger<LuiWarmupService> logger)
     {
         _catalog = catalog;
-        _interval = interval;
+        _warmUpTypoDictionaries = options.WarmUpTypoDictionaries;
+        _typoDictionaryIndexes = [.. options.TypoDictionaryIndexes];
+        _interval = options.OutboxInterval;
+        _logger = logger;
     }
 
     /// <summary>Applies the outbox, builds the dictionaries of the indexes and starts the rounds of the outbox.</summary>
@@ -34,14 +40,23 @@ internal sealed class LuiWarmupService : IHostedService, IDisposable
     public async Task StartAsync(CancellationToken cancellationToken)
     {
         // the rows that the triggers noted come first: the dictionary that is built afterwards knows their words
-        _catalog.ApplyPending(cancellationToken);
+        var applied = _catalog.ApplyPending(cancellationToken);
+        LogOutboxApplied(applied);
 
-        // the build of a dictionary is CPU-bound and takes seconds — a thread of its own, not the pool of the application
-        await Task.Factory.StartNew(
-            () => _catalog.WarmUpTypoDictionaries(cancellationToken),
-            CancellationToken.None,
-            TaskCreationOptions.LongRunning,
-            TaskScheduler.Default).ConfigureAwait(false);
+        if (_warmUpTypoDictionaries)
+        {
+            var watch = Stopwatch.StartNew();
+
+            // the build of a dictionary is CPU-bound and takes seconds — a thread of its own, not the pool of the application
+            await Task.Factory.StartNew(
+                WarmUp,
+                cancellationToken,
+                CancellationToken.None,
+                TaskCreationOptions.LongRunning,
+                TaskScheduler.Default).ConfigureAwait(false);
+
+            LogTypoDictionariesBuilt(_typoDictionaryIndexes.Length == 0 ? "every index" : string.Join(", ", _typoDictionaryIndexes), watch.Elapsed.TotalMilliseconds);
+        }
 
         _timer = new Timer(OnRound, null, _interval, _interval);
     }
@@ -59,6 +74,21 @@ internal sealed class LuiWarmupService : IHostedService, IDisposable
     public void Dispose()
     {
         _timer?.Dispose();
+    }
+
+    /// <summary>Builds the dictionaries the settings name — every index, if they name none.</summary>
+    /// <param name="state">The token of the start.</param>
+    private void WarmUp(object? state)
+    {
+        var cancellationToken = (CancellationToken)state!;
+        if (_typoDictionaryIndexes.Length == 0)
+        {
+            _catalog.WarmUpTypoDictionaries(cancellationToken);
+        }
+        else
+        {
+            _catalog.WarmUpTypoDictionaries(_typoDictionaryIndexes, cancellationToken);
+        }
     }
 
     /// <summary>A round of the outbox — one at a time.</summary>
@@ -83,17 +113,33 @@ internal sealed class LuiWarmupService : IHostedService, IDisposable
 
     /// <summary>
     /// One round of the outbox. A round that fails does not take the host with it: the outbox keeps the rows, the next
-    /// round tries again, and the application sees the backlog with <c>Pending()</c>.
+    /// round tries again — and the logger of the host hears of the failure (ADR-0045), so that it is not left to the
+    /// backlog alone.
     /// </summary>
     private void Round()
     {
         try
         {
-            _catalog.ApplyPending();
+            var applied = _catalog.ApplyPending();
+            if (applied > 0)
+            {
+                LogOutboxApplied(applied);
+            }
         }
-        catch (Exception)
+#pragma warning disable CA1031 // a failed round is logged and tried again — a timer callback that throws ends the process
+        catch (Exception exception)
+#pragma warning restore CA1031
         {
-            // the rows stay in the outbox — the next round tries again
+            LogRoundFailed(exception, _interval.TotalSeconds);
         }
     }
+
+    [LoggerMessage(EventId = 1, Level = LogLevel.Debug, Message = "LUI applied {Rows} rows of the outbox of the linked indexes.")]
+    private partial void LogOutboxApplied(int rows);
+
+    [LoggerMessage(EventId = 2, Level = LogLevel.Information, Message = "LUI built the typo dictionaries of {Indexes} in {ElapsedMilliseconds:F0} ms.")]
+    private partial void LogTypoDictionariesBuilt(string indexes, double elapsedMilliseconds);
+
+    [LoggerMessage(EventId = 3, Level = LogLevel.Warning, Message = "LUI could not apply the outbox of the linked indexes; the rows stay in the outbox, the next round in {IntervalSeconds} s tries again.")]
+    private partial void LogRoundFailed(Exception exception, double intervalSeconds);
 }

@@ -70,24 +70,28 @@ entry — text, weight, priority **and payload** — so an entry without a paylo
 clears the payload that was stored. To change only the weight or the
 priority, use `UpdateWeight` and `UpdatePriority`.
 
-## Die typisierte Sicht — der Payload in deinem Typ
+## The typed view — the payload in your type
 
-`GetPayload<TagChip>()` schreibt den Typ an jede Stelle, an der du ihn
-brauchst — und ein Tippfehler darin ist ein Fehler zur Laufzeit. Wer den Typ
-vom Compiler geprüft haben will, fragt nach einer **Sicht** auf den Index:
+`GetPayload<TagChip>()` writes the type at every place that reads the
+payload — and a typo in it is an error at run time. If you want the compiler
+to check the type, ask for a **view** of the index:
 
 ```csharp
-var chip = tags.As<TagChip>().Search("veg").Hits[0].Payload;
+var chip = tags.As<TagChip>().Search("veg").Hits[0].GetPayload();
+
+// the fluent query ends in the same typed answer
+var first = tags.Query("veg").Take(5).Execute().As<TagChip>().Hits[0];
 ```
 
-Die Sicht ist eine Sicht: sie öffnet nichts, schreibt nichts und hält keinen
-Index. Sie spiegelt die drei untypisierten Typen — `LuiTypedIndex<TagChip>`,
-`LuiTypedResult<TagChip>` und `LuiTypedHit<TagChip>` — und der Schlüssel
-bleibt `LuiKey`. Der Payload wird bei jedem Zugriff gelesen, genau wie bei
-`GetPayload<T>()`; wer ihn zweimal braucht, hält ihn.
+The view is a view: it opens nothing, writes nothing and holds no index of its
+own. It mirrors the three untyped types — `LuiTypedIndex<TagChip>`,
+`LuiTypedResult<TagChip>` and `LuiTypedHit<TagChip>` — and the key stays a
+`LuiKey`. `GetPayload()` reads the payload on every call, exactly like
+`GetPayload<T>()` — a method, because it does work and can fail; keep the
+result if you need it twice.
 
-Der untypisierte Weg bleibt: `GetPayload<TagChip>()` ist noch da und bleibt
-der eine Weg für die Anwendung, die keine Sicht will.
+The untyped way stays: `GetPayload<TagChip>()` is still there, and it stays
+the one way for an application that wants no view.
 
 ## The payload of a linked index
 

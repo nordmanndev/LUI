@@ -23,7 +23,7 @@ public sealed class TypedIndexTests
         view.Count().ShouldBe(1);
 
         var hit = view.Search("vegan").Hits.ShouldHaveSingleItem();
-        hit.Payload.ShouldBe(new Chip("vegan", "#0a0"));
+        hit.GetPayload().ShouldBe(new Chip("vegan", "#0a0"));
         hit.HasPayload.ShouldBeTrue();
         hit.Key.ShouldBe(1);
     }
@@ -52,5 +52,24 @@ public sealed class TypedIndexTests
         typed.Hits.Select(hit => hit.Priority).ShouldBe(untyped.Hits.Select(hit => hit.Priority));
         typed.Hits.Select(hit => hit.Similarity).ShouldBe(untyped.Hits.Select(hit => hit.Similarity));
         typed.Hits.Select(hit => hit.AtWordStart).ShouldBe(untyped.Hits.Select(hit => hit.AtWordStart));
+    }
+
+    [Fact]
+    public void The_fluent_path_ends_in_the_typed_answer_too()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var tags = catalog.Create("tags", index => index.SingleWord());
+        tags.Upsert(new LuiEntry(1, "vegan") { Weight = 10, Payload = new Chip("vegan", "#0a0") });
+        tags.Upsert(new LuiEntry(2, "vegetarian") { Weight = 5 });
+
+        // the fluent query ends in an untyped answer — and the answer names the type where it is used (ADR-0044)
+        var typed = tags.Query("veg").Take(2).Execute().As<Chip>();
+
+        typed.Hits.Select(hit => hit.Text).ShouldBe(["vegan", "vegetarian"]);
+        typed.Hits[0].TryGetPayload(out var chip).ShouldBeTrue();
+        chip.ShouldBe(new Chip("vegan", "#0a0"));
+        typed.Hits[1].TryGetPayload(out _).ShouldBeFalse("the entry has no payload");
+        typed.Hits[1].GetPayload().ShouldBeNull();
     }
 }

@@ -74,13 +74,13 @@ run a service of LUI.
   no index** — and the list of the registrations grows by one.
 - The guard of the dependency set changes with it:
   `Repository_Layout.The_hosting_ships_the_core_and_the_dependency_injection` becomes
-  `The_hosting_ships_the_core_the_dependency_injection_and_the_hosting_abstraction`. The rule does not change (the
+  `The_hosting_ships_the_core_the_dependency_injection_and_the_abstractions_of_the_host` (with ADR-0045). The rule does not change (the
   dependency set of a package is its contract), the list does.
 - **The warm-up at the start blocks the start of the host**: the host is ready when the dictionaries are built. The
   build is CPU-bound and runs on a thread of its own — the pool of the application belongs to the application.
 - **A round of the outbox that fails does not take the host with it**: the rows stay in the outbox, the next round tries
-  again, and the application sees the backlog with `Pending()`. The package carries no logging (ADR-0034) — a failure
-  is not swallowed silently but left to the backlog that the application can watch.
+  again, and the application sees the backlog with `Pending()`. *Superseded in this point by
+  [ADR-0045](./0045-the-warm-up-tells-the-logger-of-the-host.md): the failure is told to the logger of the host.*
 - A file that may not be written is warmed like any other: the dictionary lives in the memory, the build reads.
 
 ## Alternatives
@@ -93,3 +93,19 @@ run a service of LUI.
 | The warm-up lives in the core | The core knows no `Microsoft.Extensions` (the guard `The_core_assembly_knows_no_microsoft_extensions`) — a hosted service is a type of a host. |
 | A third package for the warm-up | ADR-0018: two packages, one version. A package for one registration is a package for nothing. |
 | The service registers the indexes in the container | ADR-0033: the container describes no indexes. The warm-up needs the names of the indexes, not their services — it asks the catalog. |
+
+## Review of pull request 69
+
+The review found three things in the first version, and they were changed before the freeze of 0.1.0 (ADR-0026):
+
+- **The settings are an options type**, not an optional parameter: `AddLuiWarmup(Action<LuiWarmupOptions>? configure)`
+  instead of `AddLuiWarmup(TimeSpan? outboxInterval)`. After the freeze a new setting would have been a new overload;
+  now it is a new property of `LuiWarmupOptions`.
+- **The application names the dictionaries.** A dictionary costs 138 MB for 685,829 words, and the definition of an
+  index does not say whether its queries correct typos — the service cannot know. `TypoDictionaryIndexes` names the
+  indexes (empty: every index, as before), and `WarmUpTypoDictionaries = false` leaves only the outbox to the service.
+  The catalog gained the overload `WarmUpTypoDictionaries(IEnumerable<string> names, …)`, which checks every name
+  before the first build.
+- **A failed round is told to the logger of the host** — ADR-0045.
+- `AddLuiWarmup` is once per container, like `AddLui`: a second call would have started two services on one catalog.
+

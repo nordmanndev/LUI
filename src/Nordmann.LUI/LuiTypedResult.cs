@@ -2,7 +2,7 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// The answer of a typed view (issue #59, ADR-0044): the answer of the query, with the payload in the type of the
-/// application. It says what <see cref="LuiResult"/> says.
+/// application. It says what <see cref="LuiResult"/> says; <see cref="LuiResult.As{TPayload}"/> makes one.
 /// </summary>
 public sealed record LuiTypedResult<TPayload>
 {
@@ -25,8 +25,8 @@ public sealed record LuiTypedResult<TPayload>
     public string? CorrectedQuery { get; init; }
 
     /// <summary>
-    /// Whether a correction was wanted and not searched (ADR-0021): the typo dictionary was being built, or its build
-    /// failed. The query did not wait for the build and did not fail.
+    /// Whether a correction was wanted and not searched (ADR-0021, ADR-0042): the typo dictionary is not built, it is
+    /// being built, or its build failed. The query did not wait and did not fail.
     /// </summary>
     public bool CorrectionSkipped { get; init; }
 

@@ -18,20 +18,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     no type. The view opens nothing, writes nothing, and holds no index of its own.
   - `LuiTypedIndex<TPayload>` (the view), `LuiTypedResult<TPayload>` (the answer) and `LuiTypedHit<TPayload>` (the
     hit) mirror the three untyped types — `ILuiIndex`, `LuiResult` and `LuiHit`. The key stays `LuiKey`; the payload
-    is not cached, it is read on every access, exactly like `GetPayload<T>()`.
+    is not cached, it is read on every call of `LuiTypedHit<TPayload>.GetPayload()` / `TryGetPayload(out …)`, exactly
+    like `GetPayload<T>()` — a method, not a property, because it does work and can fail.
+  - `LuiResult.As<TPayload>()` is the typed end of the fluent query: `index.Query("veg").Take(5).Execute().As<TagChip>()`.
   - The untyped way stays: `hit.GetPayload<T>()` is still there, and still the one way for the application that does
     not want a view. The view is additive ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)).
 
 - **The warm-up is a service of the host** ([ADR-0043](.agents/adr/0043-the-warm-up-is-a-service-of-the-host.md), #68).
   After [ADR-0042](#unreleased) the application builds the typo dictionary — and an application forgets. The warm-up is
   the opt-in answer: the host asks for it, the library starts nothing on its own.
-  - `AddLuiWarmup()` in `Nordmann.LUI.Hosting` registers a hosted service that applies the outbox of every linked
-    index at the start of the host, builds the typo dictionary of every index, and applies the outbox on an interval
-    (30 s by default). **Off by default** — without the call the host starts nothing of LUI.
-  - `LuiCatalog.WarmUpTypoDictionaries()` and `LuiCatalog.ApplyPending()` do the same work in one call, for an
-    application that warms the catalog itself. Both are additive ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)).
+  - `AddLuiWarmup(Action<LuiWarmupOptions>? configure = null)` in `Nordmann.LUI.Hosting` registers a hosted service
+    that applies the outbox of every linked index at the start of the host, builds the typo dictionaries, and applies
+    the outbox on an interval. **Off by default** — without the call the host starts nothing of LUI. Once per
+    container. The start of the host waits for the dictionaries.
+  - `LuiWarmupOptions`: `WarmUpTypoDictionaries` (default `true`), `TypoDictionaryIndexes` (the indexes that get a
+    dictionary; empty: every index — a dictionary costs 138 MB for 685,829 words) and `OutboxInterval` (default 30 s).
+  - `LuiCatalog.WarmUpTypoDictionaries()`, `LuiCatalog.WarmUpTypoDictionaries(IEnumerable<string> names)` and
+    `LuiCatalog.ApplyPending()` do the same work in one call, for an application that warms the catalog itself. All
+    are additive ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)).
+  - **The warm-up tells the logger of the host** what it did and what failed
+    ([ADR-0045](.agents/adr/0045-the-warm-up-tells-the-logger-of-the-host.md)): the dictionaries it built
+    (`Information`), the rows it applied (`Debug`), and a round of the outbox that failed (`Warning`, with the
+    exception) — instead of swallowing it.
   - The hosting package carries `Microsoft.Extensions.Hosting.Abstractions` again — a hosted service is a type of a
-    host, and the dependency set of a package is its contract ([ADR-0034](.agents/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md)).
+    host, and the dependency set of a package is its contract ([ADR-0034](.agents/adr/0034-the-hosting-package-carries-only-the-dependency-injection.md)) —
+    and names `Microsoft.Extensions.Logging.Abstractions`, which was in its closure already.
 
 - **The read path opens an index without writing** ([ADR-0033](.agents/adr/0033-the-read-path-opens-an-index-without-writing.md),
   #56). A second way into an index: the definition is read out of `lui_meta`, the index is rebuilt from it, and the

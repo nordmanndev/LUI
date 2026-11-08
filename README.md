@@ -277,9 +277,9 @@ var chips = withChips.Create("chips", index => index.SingleWord());
 chips.Upsert(new LuiEntry(1, "vegan") { Weight = 120, Payload = new TagChip("#3a3", "System") });
 
 var chip = chips.Search("veg").Hits[0].GetPayload<TagChip>();   // the type stands where the payload is used
-var typed = chips.As<TagChip>().Search("veg").Hits[0].Payload;  // the same, through a view — the compiler checks the type
-Console.WriteLine(chip!.Colour);                                 // #3a3
-Console.WriteLine(typed!.Colour);                                // #3a3
+var typed = chips.As<TagChip>().Search("veg").Hits[0].GetPayload();  // the same, through a view — the compiler checks the type
+Console.WriteLine(chip!.Colour);                                     // #3a3
+Console.WriteLine(typed!.Colour);                                    // #3a3
 ```
 
 ```csharp
@@ -294,8 +294,8 @@ public sealed partial class TagJson : JsonSerializerContext;
 
 The index knows no types: the file stores the payload as bytes, and the type stands where the payload is used — a
 payload that cannot be read is a `LuiPayloadException`. An application that wants the type checked by the compiler asks
-for a **view** of the index: `chips.As<TagChip>()`. The view is a view — it opens nothing, writes nothing, and holds no
-index of its own.
+for a **view** of the index: `chips.As<TagChip>()` — and a fluent query ends in the same typed answer with
+`.Execute().As<TagChip>()`. The view is a view — it opens nothing, writes nothing, and holds no index of its own.
 
 ## In an ASP.NET Core application
 
@@ -308,7 +308,7 @@ using Microsoft.Extensions.Hosting;
 
 var builder = Host.CreateApplicationBuilder();
 builder.Services.AddLui("Data Source=app.db");
-builder.Services.AddLuiWarmup();     // optional: the dictionaries at the start, the outbox every 30 s
+builder.Services.AddLuiWarmup();     // optional: the dictionaries at the start, the outbox every 30 s, told to the logger
 
 using var host = builder.Build();
 host.Start();
@@ -321,8 +321,10 @@ Console.WriteLine(suggest.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfe
 
 The hosting package carries the dependency injection — and, if you ask for it, the **warm-up**:
 `AddLuiWarmup()` registers a service of the host: the typo dictionaries of your indexes are built while the host starts
-(so the first query already corrects a typo), and the outbox of a linked index — the rows the triggers noted — is
-applied every 30 seconds. **Off by default**: without the call, the host starts nothing of LUI.
+(so the first query already corrects a typo — the host is ready when they are), and the outbox of a linked index — the
+rows the triggers noted — is applied every 30 seconds. A dictionary costs memory: name the indexes that correct typos
+with `AddLuiWarmup(options => options.TypoDictionaryIndexes.Add("recipes"))`. What the service did, and a round that
+failed, it tells the logger of the host. **Off by default**: without the call, the host starts nothing of LUI.
 
 The library starts no thread of its own — the host runs the service, stops it and disposes it. And the library still
 carries no timer of its own: the rebuild of a dictionary stays with your application, because only you know when a

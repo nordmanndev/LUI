@@ -33,6 +33,7 @@ using var catalog = LuiCatalog.Open("Data Source=app.db");
 | `ILuiLinkedIndex LinkedIndex(string name)` | opens a linked index without payload columns. |
 | `ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)` | opens a linked index with payload columns; the map builds the payload from the row of the table. |
 | `void WarmUpTypoDictionaries(CancellationToken cancellationToken = default)` | builds the typo dictionary of **every** index of the catalog — the warm-up of a host in one call (ADR-0043). The dictionary belongs to the index of the catalog: an index you open later sees it and reports it as built. |
+| `void WarmUpTypoDictionaries(IEnumerable<string> names, CancellationToken cancellationToken = default)` | the same for the **named** indexes — a dictionary costs memory (138 MB for 685,829 words), and an index whose queries correct no typos needs none. Every name is checked before the first build: an unknown one is a `LuiIndexNotFoundException`. |
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the outbox of **every** linked index: the rows the triggers noted come into the index. The table of the application is not touched. Returns the number of rows brought in. |
 | `bool DropIndex(string name, bool dropTriggers = false)` | drops the index. The triggers of a linked index are dropped with it only if you say so. |
 | `string ConnectionString { get; }` | the connection string the catalog was opened with. |
@@ -239,8 +240,9 @@ before the query runs.
 | `int CandidatesConsidered { get; init; }` | how many candidates the query looked at |
 | `bool Truncated { get; init; }` | whether more candidates were found than the query took |
 | `string? CorrectedQuery { get; init; }` | the query after the correction of a typo — `null` when there was none |
-| `bool CorrectionSkipped { get; init; }` | whether a correction was skipped because the dictionary was not ready |
+| `bool CorrectionSkipped { get; init; }` | whether a correction was skipped because the dictionary was not built — a query never builds it (ADR-0042) — or is being built |
 | `LuiTimings? Timings { get; init; }` | the phases of the query, when `TrackTimings` was on |
+| `LuiTypedResult<TPayload> As<TPayload>()` | the same answer, with the payload in the type of the application — the end of the fluent path: `index.Query("veg").Take(5).Execute().As<TagChip>()` (ADR-0044) |
 
 ### `LuiHit`
 
@@ -277,8 +279,11 @@ still there.
 var chips = catalog.Index("tags").As<TagChip>().Search("veg").Hits;
 foreach (var chip in chips)
 {
-    Console.WriteLine(chip.Payload.Name);   // TagChip — the compiler knows it
+    Console.WriteLine(chip.GetPayload()?.Colour);   // TagChip — the compiler knows it
 }
+
+// the fluent path ends in the same typed answer
+var first = catalog.Index("tags").Query("veg").Take(5).Execute().As<TagChip>().Hits[0];
 ```
 
 | Type | What it is |
@@ -286,12 +291,14 @@ foreach (var chip in chips)
 | `LuiIndexExtensions` | the class that holds `As<TPayload>()` — an extension method, so the type stays out of the index |
 | `LuiTypedIndex<TPayload>` | the view of an index: `Name`, `Kind`, `KeyKind`, `TypoTolerance`, `TypoDictionaryState`, `Count()` and `Search(...)` |
 | `LuiTypedResult<TPayload>` | the answer: `Query`, `Hits`, `CandidatesConsidered`, `Truncated`, `CorrectedQuery`, `CorrectionSkipped`, `Timings` |
-| `LuiTypedHit<TPayload>` | the hit: `Key`, `Text`, `Weight`, `Priority`, `Similarity`, `AtWordStart`, `HasPayload` and `Payload` |
+| `LuiTypedHit<TPayload>` | the hit: `Key`, `Text`, `Weight`, `Priority`, `Similarity`, `AtWordStart`, `HasPayload`, `GetPayload()` and `TryGetPayload(out TPayload payload)` |
 
 `LuiTypedIndex<TPayload>.Search(string text, LuiQueryOptions? options = null, CancellationToken cancellationToken =
 default)` answers like the index does — the same query, the same hits, the same corrections — and the payload of a hit
-is read in `TPayload`. The payload is **not** cached: it is deserialised on every access, exactly like
-`GetPayload<T>()`. Keep the result when it is used twice.
+is read in `TPayload`. The payload is **not** cached: `GetPayload()` deserialises on every call, exactly like
+`GetPayload<T>()` — which is why it is a method and not a property: it does work, and it can fail with a
+`LuiPayloadException`. Keep the result when it is used twice. `LuiResult.As<TPayload>()` makes the same typed answer
+out of the answer of a fluent query.
 
 ---
 
@@ -417,7 +424,8 @@ library.
 
 ## The hosting package
 
-`Nordmann.LUI.Hosting` carries the dependency injection and nothing else — no background service, no timer.
+`Nordmann.LUI.Hosting` carries the dependency injection — and, only if the application asks for it, the **warm-up**:
+one service of the host (ADR-0043). It tells the logger of the host what it did and what failed (ADR-0045).
 
 ### `LuiServiceCollectionExtensions`
 
@@ -425,7 +433,30 @@ library.
 |---|---|
 | `IServiceCollection AddLui(this IServiceCollection services, string connectionString, LuiCatalogOptions? options = null)` | puts the **catalog** into the container |
 | `IServiceCollection AddLui(this IServiceCollection services, Func<IServiceProvider, string> connectionString, Func<IServiceProvider, LuiCatalogOptions>? options = null)` | the same, with the connection string and the settings resolved from the container |
-| `IServiceCollection AddLuiWarmup(this IServiceCollection services, TimeSpan? outboxInterval = null)` | registers the **warm-up** as a service of the host: the typo dictionaries of every index are built at the start of the host, and the outbox of every linked index is applied on an interval (30 s by default). **Off by default** — without this call the host starts nothing of LUI (ADR-0043). |
+| `IServiceCollection AddLuiWarmup(this IServiceCollection services, Action<LuiWarmupOptions>? configure = null)` | registers the **warm-up** as a service of the host: the outbox of every linked index is applied and the typo dictionaries are built at the start of the host, and the outbox is applied again on an interval. **Off by default** — without this call the host starts nothing of LUI (ADR-0043). Once per container: a second call throws. |
+
+### `LuiWarmupOptions`
+
+| Member | Default | What it says |
+|---|---|---|
+| `bool WarmUpTypoDictionaries { get; set; }` | `true` | whether the start of the host builds typo dictionaries at all — `false` leaves only the outbox to the service |
+| `ICollection<string> TypoDictionaryIndexes { get; }` | empty | the indexes whose dictionary is built; **empty builds every index's**. A name the catalog does not know fails the start of the host |
+| `TimeSpan OutboxInterval { get; set; }` | 30 s | the time between two rounds of the outbox; positive |
+
+```csharp
+builder.Services.AddLuiWarmup(options =>
+{
+    options.TypoDictionaryIndexes.Add("recipes");   // the tag index corrects no typos — it gets no dictionary
+    options.OutboxInterval = TimeSpan.FromSeconds(10);
+});
+```
+
+**The start of the host waits for the dictionaries** — so that the first query already corrects a typo. In an ASP.NET
+Core application the server listens once they are built: seconds for a large index.
+
+**The logger of the host** hears what the service did: the dictionaries it built and how long that took
+(`Information`), the rows of the outbox it applied (`Debug`), and **a round that failed** (`Warning`, with the
+exception). A failed round does not take the host with it: the rows stay in the outbox, and the next round tries again.
 
 The container holds the catalog and — if the application asks for it — the warm-up: **an index is not registered and
 not injected**. The application asks the catalog for the index it needs. A second `AddLui` throws — the catalog is the
@@ -438,7 +469,7 @@ The warm-up is a service of the host, not a thread of the library: the host star
 
 ## The whole surface
 
-Forty-two public types in `Nordmann.LUI`, one in `Nordmann.LUI.Hosting`. Nothing else is public.
+Forty-two public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|
@@ -485,6 +516,7 @@ Forty-two public types in `Nordmann.LUI`, one in `Nordmann.LUI.Hosting`. Nothing
 | `LuiPayloadException` | class | [the exceptions](#the-exceptions) |
 | `LuiReadOnlyException` | class | [the exceptions](#the-exceptions) |
 | `LuiServiceCollectionExtensions` | class | [the hosting package](#the-hosting-package) |
+| `LuiWarmupOptions` | class | [the hosting package](#the-hosting-package) |
 
 ---
 

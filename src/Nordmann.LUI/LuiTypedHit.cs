@@ -1,3 +1,4 @@
+using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 
 namespace Nordmann.LUI;
@@ -34,8 +35,17 @@ public readonly record struct LuiTypedHit<TPayload>
     public bool HasPayload => Hit.HasPayload;
 
     /// <summary>
-    /// The payload, read as <typeparamref name="TPayload"/>; the default when the entry has none. It is deserialised on
-    /// every call — keep the result when it is used twice.
+    /// Reads the payload as <typeparamref name="TPayload"/>; the default when the entry has none. A method, not a
+    /// property: it deserialises on every call and can fail — keep the result when it is used twice (ADR-0035,
+    /// ADR-0044).
     /// </summary>
-    public TPayload? Payload => Hit.GetPayload<TPayload>();
+    /// <returns>The payload, or the default when the entry has none.</returns>
+    /// <exception cref="LuiPayloadException">The stored payload cannot be read as <typeparamref name="TPayload"/>.</exception>
+    public TPayload? GetPayload() => Hit.GetPayload<TPayload>();
+
+    /// <summary>Reads the payload as <typeparamref name="TPayload"/>, if the entry has one.</summary>
+    /// <param name="payload">The payload; the default when the entry has none.</param>
+    /// <returns>Whether the entry has a payload.</returns>
+    /// <exception cref="LuiPayloadException">The stored payload cannot be read as <typeparamref name="TPayload"/>.</exception>
+    public bool TryGetPayload([MaybeNullWhen(false)] out TPayload payload) => Hit.TryGetPayload(out payload);
 }

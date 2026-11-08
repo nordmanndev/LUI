@@ -352,6 +352,18 @@ expect_caught "a-dispose-that-never-wakes-the-waiter" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~A_dispose_during_a_warm_up_ends_and_does_not_hang" \
   "sed -i '/Monitor.PulseAll(_lifetime);/d' src/Nordmann.LUI/Storage/Database.cs"
 
+# 26a. A round of the outbox that fails is swallowed again (ADR-0045, review of pull request 69): the warm-up catches
+#      the failure and tells nobody. The test that renames the table under a running host has to miss the warning.
+expect_caught "a-failed-round-of-the-outbox-is-silent" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_round_that_fails_is_told_to_the_logger_of_the_host" \
+  "sed -i '/LogRoundFailed(exception, _interval.TotalSeconds);/d' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
+
+# 26b. The typed hit gets a property that deserialises (ADR-0044, review of pull request 69): a property is a promise
+#      of a field, and the read of a payload does work and can fail. The guard of the untyped index has to name it.
+expect_caught "the-typed-hit-gets-a-payload-property" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_index_knows_no_types" \
+  "sed -i 's|    public TPayload? GetPayload() => Hit.GetPayload<TPayload>();|    public TPayload? GetPayload() => Hit.GetPayload<TPayload>();\n\n    /// <summary>x</summary>\n    public TPayload? Payload => GetPayload();|' src/Nordmann.LUI/LuiTypedHit.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

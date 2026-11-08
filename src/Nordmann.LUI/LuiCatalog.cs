@@ -191,9 +191,40 @@ public sealed class LuiCatalog : IDisposable
     /// <exception cref="LuiDefinitionMismatchException">
     /// An index of the file was written by another version of the library (another schema version, another folding).
     /// </exception>
-    public void WarmUpTypoDictionaries(CancellationToken cancellationToken = default)
+    public void WarmUpTypoDictionaries(CancellationToken cancellationToken = default) =>
+        WarmUp(IndexStore.ReadIndexNames(Database), cancellationToken);
+
+    /// <summary>
+    /// Builds the typo dictionary of the named indexes (ADR-0043) — for a catalog whose indexes do not all correct typos:
+    /// a dictionary costs memory, 138 MB for 685,829 words (ADR-0021), and an index whose queries correct nothing needs
+    /// none.
+    /// </summary>
+    /// <param name="names">The names of the indexes, embedded or linked.</param>
+    /// <param name="cancellationToken">Checked between the indexes.</param>
+    /// <exception cref="LuiIndexNotFoundException">The catalog holds no index of one of the names.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">
+    /// One of the indexes was written by another version of the library (another schema version, another folding).
+    /// </exception>
+    public void WarmUpTypoDictionaries(IEnumerable<string> names, CancellationToken cancellationToken = default)
     {
-        foreach (var name in IndexStore.ReadIndexNames(Database))
+        ArgumentNullException.ThrowIfNull(names);
+
+        // every name is checked before the first build: a typo in the list fails at once, not after minutes of building
+        var checkedNames = names.ToArray();
+        foreach (var name in checkedNames)
+        {
+            ReadEntry(name);
+        }
+
+        WarmUp(checkedNames, cancellationToken);
+    }
+
+    /// <summary>Builds the dictionary of each index of the list, one after the other.</summary>
+    /// <param name="names">The names of the indexes.</param>
+    /// <param name="cancellationToken">Checked between the indexes.</param>
+    private void WarmUp(IEnumerable<string> names, CancellationToken cancellationToken)
+    {
+        foreach (var name in names)
         {
             cancellationToken.ThrowIfCancellationRequested();
 
