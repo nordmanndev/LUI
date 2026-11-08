@@ -60,6 +60,7 @@ with a full dump that is uploaded with the results (ADR-0047, guarded by `Workfl
 
 | Lane | What it runs | What it is there for |
 |---|---|---|
+| Workflows · actionlint | `actionlint` over every workflow (the release, the budgets, this one) | `publish.yml` runs only on a tag — a mistake in it is found on the pull request, not at the release (ADR-0048) |
 | Format | `dotnet format --verify-no-changes` | on its own and first: a format error is reported in a minute, not after every test |
 | Build · Test | the three layers, the client of the sample | the whole tree, on every pull request |
 | The normalisation parity over the whole word list | the one test of `NormalizationParity` that needs the full list (685,829 words) | the rule of §6.2 exists twice — as SQL and as C#; the rest of the layer runs in *Build · Test*, nothing twice |

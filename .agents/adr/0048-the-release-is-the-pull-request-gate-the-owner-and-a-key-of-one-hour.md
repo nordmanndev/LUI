@@ -50,6 +50,10 @@ release does not call `ci.yml`, when the push does not need that call, runs outs
 OIDC token, uses no `NuGet/login`, or reads `secrets.NUGET_API_KEY`. All of it seen red; the mutation
 `the-release-skips-the-gate` keeps it biting.
 
+**The release workflow is checked before the release**: it runs only on a tag, so a mistake in it would be found when
+the version is due. The job *Workflows · actionlint* of `ci.yml` reads every workflow on every pull request — the release
+of actionlint, checked against the checksum of that release.
+
 ## Consequences
 
 - **A release runs every gate again** — about five minutes before the owner is asked. That is the price of one list of
