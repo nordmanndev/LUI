@@ -214,6 +214,75 @@ public sealed class LinkedQueryTests
         tags.Search("himbere").Hits.ShouldHaveSingleItem().Key.ShouldBe(2);
     }
 
+    // ---- the settings of the linked builder (issue #105, the coverage of #80, G2) -----------------------------------
+
+    [Fact]
+    public void The_settings_made_after_LinkTo_reach_the_query_and_the_definition()
+    {
+        // Similarity and GermanTransliteration of LuiLinkedIndexBuilder — the settings made after LinkTo, not before it
+        // — were set in no test.
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "Müller", 5));
+        using var catalog = database.Open();
+        var plain = catalog.Create("plain", index => index.SingleWord().LinkTo("tag", "id", "name")
+            .GermanTransliteration(false).Similarity(new Constant(0.25)));
+        var german = catalog.Create("german", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        plain.Sync();
+        german.Sync();
+
+        german.Search("mueller").Hits.ShouldHaveSingleItem().Key.ShouldBe(1, "with the transliteration, ü is ue");
+        plain.Search("mueller").Hits.ShouldBeEmpty("without it, ü is not ue");
+        plain.Search("mül").Hits.ShouldHaveSingleItem().Similarity.ShouldBe(0.25, "the measure of the builder");
+        german.Search("mül").Hits.ShouldHaveSingleItem().Similarity.ShouldNotBe(0.25, "the default measure");
+
+        // the transliteration is part of the definition; the measure is a property of the instance (ADR-0013)
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create("plain", index => index.SingleWord().LinkTo("tag", "id", "name")));
+        catalog.Create("plain", index => index.SingleWord().LinkTo("tag", "id", "name").GermanTransliteration(false))
+            .Search("mül").Hits.ShouldHaveSingleItem().Similarity.ShouldNotBe(0.25, "the measure is not stored");
+    }
+
+    [Fact]
+    public void A_linked_index_rebuilds_its_typo_dictionary_from_the_table_as_it_is_now()
+    {
+        // RebuildTypoDictionary of a linked index ran in no test. The dictionary only grows (ADR-0025): a refresh adds
+        // the beginnings of new words, it does not move the frequencies. Between two corrections at the same distance
+        // the frequency decides, and it follows the weights of the table only when the dictionary is built anew.
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "Torte", 10), (2, "Tarte", 50));
+        using var catalog = database.Open();
+        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count"));
+        tags.Sync();
+        tags.WarmUpTypoDictionary();
+        tags.Search("tirte").CorrectedQuery.ShouldBe("tarte", "the heavier word wins");
+
+        Run(database, "UPDATE tag SET usage_count = 500 WHERE id = 1;");
+        tags.Refresh(1).ShouldBeTrue();
+        tags.Search("tirte").CorrectedQuery.ShouldBe("tarte", "a refresh does not move the frequencies");
+
+        tags.RebuildTypoDictionary();
+
+        tags.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        tags.Search("tirte").CorrectedQuery.ShouldBe("torte", "the frequencies of the table as it is now");
+    }
+
+    [Fact]
+    public void The_fluent_query_of_a_linked_index_answers_as_its_search()
+    {
+        // Query(text) of a linked index ran in no test
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "vegan", 5), (2, "veganer", 9), (3, "vegetarisch", 1));
+        using var catalog = database.Open();
+        var tags = Tags(catalog);
+        tags.Sync();
+
+        tags.Query("veg").Take(2).Execute().Hits.Select(hit => hit.Key)
+            .ShouldBe(tags.Search("veg", new LuiQueryOptions { MaxResults = 2 }).Hits.Select(hit => hit.Key));
+        tags.Query("veg").Take(2).Execute().Hits.Count.ShouldBe(2);
+    }
+
     // ---- review of pull request 16 ------------------------------------------------------------------------------------
 
     [Fact]
@@ -353,4 +422,9 @@ public sealed class LinkedQueryTests
 
     /// <summary>The payload of <see cref="The_payload_row_reads_a_column_in_the_type_the_mapping_asks_for"/>.</summary>
     private sealed record Product(long Sold, double Price, DateTime Released, long? Discount);
+
+    private sealed class Constant(double value) : ILuiSimilarity
+    {
+        public double Similarity(string query, string text) => value;
+    }
 }
