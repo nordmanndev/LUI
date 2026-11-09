@@ -1,6 +1,6 @@
 /**
  * The only place that builds DOM for the panels — and it never parses HTML: text goes in as a text node, so a hostile
- * entry cannot become markup. (The guard `Sample_Client` fails the build on innerHTML, outerHTML, insertAdjacentHTML and
+ * entry cannot become markup. (The guard `SampleClientTests` fails the build on innerHTML, outerHTML, insertAdjacentHTML and
  * document.write anywhere in the page's own modules.)
  */
 

@@ -50,7 +50,7 @@ The standards' five non-negotiable rules, and how they read here:
 - ✅ Always update `CHANGELOG.md` when the public API changes.
 - ✅ Always update [`docs/api.md`](./docs/api.md) when the public API changes: a
   public type that is not on the page fails the build
-  (`Public_API_Documentation`).
+  (`PublicApiDocumentationTests`).
 - ✅ Always measure: a performance claim without a measurement is a rumour.
   The budgets live in [`docs/benchmarks.md`](./docs/benchmarks.md).
 - ✅ Always run `dotnet test` **and** `dotnet pack` before opening a pull request.

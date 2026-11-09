@@ -196,7 +196,7 @@ echo "=== mutation check (shard ${SHARD_INDEX}/${SHARD_COUNT}) ==="
 #    the same reason — an environment that cannot run dotnet test — and the report would be ten false alarms.
 preflight="$(prepare_copy "preflight")"
 if ! ( cd "${preflight}" && dotnet test "${ARCHITECTURE_PROJECT}" \
-    --filter "FullyQualifiedName~Repository_Layout" --nologo 2>&1 ) | grep -q "Passed!"; then
+    --filter "FullyQualifiedName~RepositoryLayoutTests" --nologo 2>&1 ) | grep -q "Passed!"; then
   echo "ABORT the architecture tests do not pass on the clean tree — fix the environment first"
   echo "      (dotnet on the PATH, a writable DOTNET_CLI_HOME: ${DOTNET_CLI_HOME}, packages restorable)"
   exit 2
@@ -289,6 +289,22 @@ expect_caught "sample-test-file-missing-from-the-map" "${ARCHITECTURE_PROJECT}" 
   "Every_test_file_is_listed_in_the_map" \
   "printf 'namespace Nordmann.LUI.Sample.Tests;\n\npublic sealed class UnlistedSampleTests\n{\n    [Fact]\n    public void A_test()\n    {\n    }\n}\n' > samples/Lui.Sample.Tests/UnlistedSampleTests.cs"
 
+# 13e. A row of the map names a layer its file does not sit in (issue #89): the link points at the sample, the row says
+#      "Integration" — the guard compared the project of the link and never the layer of the row.
+expect_caught "map-row-names-another-layer" "${ARCHITECTURE_PROJECT}" \
+  "Every_file_the_map_lists_sits_in_the_layer_the_map_names" \
+  "sed -i 's#^\(| \[\`SampleBulkTests\`\]([^)]*) | \)Sample |#\1Integration |#' docs/testing.md"
+
+# 13f. A test project the map has no layer for (issue #89): a fixed list of projects did not see a new one at all.
+expect_caught "test-project-without-a-layer" "${ARCHITECTURE_PROJECT}" \
+  "Every_test_project_of_the_tree_has_a_layer_of_the_map" \
+  "mkdir -p samples/Lui.Sample.Tests2 && printf '<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><IsTestProject>true</IsTestProject></PropertyGroup></Project>\n' > samples/Lui.Sample.Tests2/Lui.Sample.Tests2.csproj"
+
+# 13g. A test whose namespace is not its folder (issue #77): the folders of the tests are their subjects, as in the library.
+expect_caught "test-file-in-another-namespace" "${ARCHITECTURE_PROJECT}" \
+  "Every_test_source_file_declares_the_namespace_of_its_folder" \
+  "printf 'namespace Nordmann.LUI.Integration.Tests;\n\ninternal static class Probe\n{\n}\n' > tests/Nordmann.LUI.Integration.Tests/Linked/Probe.cs"
+
 # 14. The lazy similarity of ADR-0008 — the ranking measures every candidate
 #     again, and the promise that a group that cannot reach the hits costs
 #     nothing is gone.
@@ -319,14 +335,14 @@ expect_caught "a-build-never-commits-its-staging-area" "${UNIT_PROJECT}" \
 #     the tables of the README are rendered from benchmarks/results/, and the
 #     guard notices.
 expect_caught "a-benchmark-number-in-the-entrance-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~Readme_Benchmarks" \
+  "FullyQualifiedName~ReadmeBenchmarksTests" \
   "sed -i '0,/ μs |/s// ms |/' README.md"
 
 # 18. A number in a committed BenchmarkDotNet report is edited by hand, and the
 #     tables are not rendered anew (review of pull request 37, M2): the two no
 #     longer agree, and the guard notices from the other side.
 expect_caught "a-benchmark-report-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~Readme_Benchmarks" \
+  "FullyQualifiedName~ReadmeBenchmarksTests" \
   "sed -i '0,/ μs\*\* |/s// ms** |/' benchmarks/results/Nordmann.LUI.Benchmarks.QueryBenchmarks-report-github.md"
 
 # 19. The retired word returns to the public surface (ADR-0023, issue #41): a
@@ -360,32 +376,32 @@ expect_caught "a-write-interface-loses-a-maintenance-member" "${ARCHITECTURE_PRO
   "perl -0pi -e 's|    /// <summary>\\n    /// Checks the index against itself and against.*?LuiIntegrityReport Check\\(\\);\\n\\n||s' src/Nordmann.LUI/ILuiLinkedIndex.cs"
 
 # 24. The client of the sample (PR-011, ADR-0027). Each mutation is a thing that would go wrong on a tired day, and the
-#     guard `Sample_Client` has to notice — the client has no build, so nothing else does.
+#     guard `SampleClientTests` has to notice — the client has no build, so nothing else does.
 SAMPLE_JS="samples/Lui.Sample/wwwroot/js"
 
 #     a module outside net/ calls fetch: the page has one fetch boundary
 expect_caught "a-module-calls-fetch-outside-the-boundary" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~Sample_Client" \
+  "FullyQualifiedName~SampleClientTests" \
   "echo \"export const leak = () => fetch('/api/health');\" >> ${SAMPLE_JS}/core/format.js"
 
 #     a module writes HTML from a string
 expect_caught "a-module-writes-html-from-a-string" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~Sample_Client" \
+  "FullyQualifiedName~SampleClientTests" \
   "echo \"export const leak = (node, text) => { node.innerHTML = text; };\" >> ${SAMPLE_JS}/core/format.js"
 
 #     the vendored library is edited without its provenance
 expect_caught "the-vendored-library-is-edited" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~Sample_Client" \
+  "FullyQualifiedName~SampleClientTests" \
   "echo '// edited' >> ${SAMPLE_JS}/vendor/flexdatalist.es.js"
 
 #     a low-level module reaches up into a panel
 expect_caught "core-imports-a-panel" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~Sample_Client" \
+  "FullyQualifiedName~SampleClientTests" \
   "sed -i \"1i import '../panels/hits-panel.js';\" ${SAMPLE_JS}/core/format.js"
 
 #     the page gets an inline script (its policy would refuse it, but only in a browser)
 expect_caught "the-page-gets-an-inline-script" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~Sample_Client" \
+  "FullyQualifiedName~SampleClientTests" \
   "sed -i 's|</head>|<script>window.x = 1</script></head>|' samples/Lui.Sample/wwwroot/index.html"
 
 # 24b. The index knows no types (ADR-0035): the hit gets back a payload property — a type parameter's
@@ -410,20 +426,20 @@ expect_caught "the-json-payload-is-read-tolerantly" "${UNIT_PROJECT}" \
 #      §16, and a promise that drifts from the contract is a promise nobody checked. The guard reads the
 #      specification and compares.
 expect_caught "a-budget-limit-in-the-readme-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~Readme_Budgets" \
+  "FullyQualifiedName~ReadmeBudgetsTests" \
   "sed -i '0,/≤ 5 ms/s//≤ 6 ms/' README.md"
 
 # 24f. A limit of the status table of the record is edited by hand (issue #38): the summary of the run promises
 #      what the contract does not. The guard reads the specification and compares.
 expect_caught "a-budget-limit-in-the-record-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~Readme_Budgets" \
+  "FullyQualifiedName~ReadmeBudgetsTests" \
   "sed -i '0,/≤ 20 ms/s//≤ 21 ms/' docs/benchmarks.md"
 
 # 24g. A link of the documentation points at nothing (issue #66): the promise of the link check is that every
 #      relative link of every markdown file names a file that exists. A link that points at nothing is a broken
-#      promise, and the guard `Link_Check` has to name it.
+#      promise, and the guard `LinkCheckTests` has to name it.
 expect_caught "a-link-in-the-documentation-points-at-nothing" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~Link_Check" \
+  "FullyQualifiedName~LinkCheckTests" \
   "echo '[a link that points at nothing](./this-file-does-not-exist.md)' >> docs/benchmarks.md"
 
 # 25. The concurrency of the round of issue #67: the write-ahead log is switched off. Without it a reader beside a
@@ -481,7 +497,7 @@ expect_caught "the-release-skips-the-gate" "${ARCHITECTURE_PROJECT}" \
   "sed -i 's/    needs: \\[tag, gate\\]/    needs: [tag]/' .github/workflows/publish.yml"
 
 # 27. The clean trees stay green.
-expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~Repository_Layout"
+expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 
 if [ "${mutations_run}" -eq 0 ]; then
