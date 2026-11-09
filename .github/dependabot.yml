@@ -5,7 +5,11 @@
 version: 2
 updates:
   - package-ecosystem: github-actions
-    directory: /
+    # the workflows, and the composite action every job sets itself up with: "/" alone reads .github/workflows only, and
+    # the pins of setup-dotnet and cache stood still (the updates of 2026-11-09)
+    directories:
+      - /
+      - /.github/actions/*
     schedule:
       interval: weekly
       day: monday
