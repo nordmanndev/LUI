@@ -11,6 +11,22 @@ namespace Nordmann.LUI.Integration.Tests.Performance;
 public sealed class BudgetMachineTests(ITestOutputHelper output)
 {
     [Fact]
+    public void A_run_never_builds_more_than_the_scenario_of_its_target()
+    {
+        // issue #99: the lane sets LUI_PERF_ENTRIES=3000000 for the single-word index, and the target of one million
+        // titles built three million — its file missed the 500 MB of one million
+        PerformanceBudget.ScenarioEntries(1_000_000, "3000000").ShouldBe(1_000_000);
+        PerformanceBudget.ScenarioEntries(3_000_000, "3000000").ShouldBe(3_000_000);
+    }
+
+    [Fact]
+    public void A_quick_run_builds_fewer_and_no_setting_builds_the_scenario()
+    {
+        PerformanceBudget.ScenarioEntries(3_000_000, "200000").ShouldBe(200_000);
+        PerformanceBudget.ScenarioEntries(1_000_000, null).ShouldBe(1_000_000);
+    }
+
+    [Fact]
     public void A_time_belongs_to_the_machine_it_was_measured_on()
     {
         PerformanceBudget.BelongsToTheMachine("ms").ShouldBeTrue();

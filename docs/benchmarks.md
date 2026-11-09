@@ -88,6 +88,16 @@ the lane; a time that is missed in the lane stands in the log with the machine n
 The numbers of the lane are **not** the numbers of this file: a runner is smaller and louder than the machine of the
 record. What the lane decides is whether the sizes still hold.
 
+**The first run** (2026-11-09, `7ea9e77`, a hosted `ubuntu-24.04` with 4 cores, 15 GB and 85 GB of free disk; issue #99):
+every target that applies was met, the times as reported numbers. The query p50 was 0.87 ms, the p95 for 5–8
+characters 9.04 ms, the corrected p95 20.64 ms. The allocation p50 was 45.6 KB and p95 51.0 KB. The build of 3 M
+entries took 148.5 s, and the typo dictionary of the whole list took 1.95 s and 138 MB. The tests took 8.3 minutes;
+the lane is sized by that: a timeout of 30 minutes, a hang timeout of 20.
+
+The one red was the lane's, not the library's. The target of one million titles built three million, because
+`LUI_PERF_ENTRIES=3000000` of the single-word index also enlarged the titles scenario. Its file of 1,309 MB is
+≈ 436 MB per million, under the 500 MB of the target. A run now never builds more than the scenario of its target.
+
 ---
 
 ## Results: the single-word index (PR-003)

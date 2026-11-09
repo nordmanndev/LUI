@@ -34,7 +34,9 @@ jobs:
   budgets:
     name: The budgets of §16
     runs-on: ubuntu-24.04
-    timeout-minutes: 120
+    # sized by the first run (issue #99): the tests took 8.3 minutes on a hosted runner (4 cores, 15 GB, 85 GB of disk),
+    # the whole job about 9 — thirty minutes are three times that
+    timeout-minutes: 30
     env:
       LUI_PERF: '1'
       LUI_PERF_ENTRIES: ${{ inputs.entries || '3000000' }}
@@ -69,14 +71,15 @@ jobs:
       - name: The budgets of §16
         run: |
           set -euo pipefail
-          mkdir -p artifacts
+          mkdir -p artifacts/test-results
           dotnet test tests/Nordmann.LUI.Integration.Tests \
             --configuration Release --no-build \
             --filter 'BudgetPerformance|NormalizationParityTests' \
-            --logger "console;verbosity=detailed" --blame-hang-timeout 60m --blame-hang-dump-type full \
-            --results-directory artifacts/test-results 2>&1 | tee artifacts/budgets.log
+            --logger "console;verbosity=detailed" --blame-hang-timeout 20m --blame-hang-dump-type full \
+            --results-directory artifacts/test-results 2>&1 | tee artifacts/test-results/budgets.log
 
-      # Only a failure leaves something worth reading: the dump of a hang, the output of a test.
+      # Only a failure leaves something worth reading: the dump of a hang, and the log of the run, which is written beside
+      # it — the first failed run uploaded nothing, because without a dump the folder stayed empty (issue #99).
       - name: Upload the evidence of a failure
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -93,6 +96,6 @@ jobs:
             echo '### The budgets of §16'
             echo ''
             echo '```text'
-            grep -F '[perf]' artifacts/budgets.log || true
+            grep -F '[perf]' artifacts/test-results/budgets.log || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
