@@ -48,6 +48,7 @@ public sealed class SampleBulkTests(SampleHost host) : IClassFixture<SampleHost>
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task A_fill_loads_exactly_the_number_of_entries_that_were_asked_for()
     {
         var status = await Fill("people", 120);
@@ -59,6 +60,7 @@ public sealed class SampleBulkTests(SampleHost host) : IClassFixture<SampleHost>
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task A_fill_with_fewer_entries_removes_the_rest()
     {
         await Fill("people", 120);
@@ -69,6 +71,7 @@ public sealed class SampleBulkTests(SampleHost host) : IClassFixture<SampleHost>
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task A_filled_index_answers_the_query_with_its_entries()
     {
         await Fill("hashtags", 50);
@@ -79,6 +82,7 @@ public sealed class SampleBulkTests(SampleHost host) : IClassFixture<SampleHost>
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task The_names_of_the_locale_are_the_entries_of_the_people_index()
     {
         await Fill("people", 50);
@@ -89,6 +93,7 @@ public sealed class SampleBulkTests(SampleHost host) : IClassFixture<SampleHost>
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task The_word_list_fills_the_words_index()
     {
         await Fill("words", 100);
@@ -142,7 +147,11 @@ public sealed class SampleBulkTests(SampleHost host) : IClassFixture<SampleHost>
         (await response.Content.ReadFromJsonAsync<JsonNode>())!["cancelled"]!.GetValue<bool>().ShouldBeOneOf(true, false);
     }
 
-    /// <summary>Starts a fill and waits for it: the fill runs in the background of the sample (ADR-0029).</summary>
+    /// <summary>
+    /// Starts a fill and waits for it: the fill runs in the background of the sample (ADR-0029). It asks every 100 ms; the
+    /// minute of 600 asks only stops a hang — a fill of a few hundred entries ends in well under a second, and a loaded
+    /// runner gets its time (issue #78).
+    /// </summary>
     private async Task<JsonNode> Fill(string index, int count)
     {
         var response = await Client.PostAsJsonAsync($"/api/indexes/{index}/fill", new { count }).ConfigureAwait(false);
