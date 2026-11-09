@@ -1,3 +1,5 @@
+using System.Runtime.CompilerServices;
+
 namespace Nordmann.LUI.Integration.Tests.Support;
 
 /// <summary>
@@ -9,25 +11,18 @@ namespace Nordmann.LUI.Integration.Tests.Support;
 /// gate sets <c>LUI_REQUIRE_FULL_WORDLIST=1</c>: then the test runs and fails
 /// with a clear message when the list is missing, instead of skipping.
 /// </para>
+/// <para>
+/// The gate is a dynamic skip (xUnit.net v3, ADR-0051): the runner asks
+/// <see cref="TestGates.FullWordListRuns"/> when the test is about to run.
+/// </para>
 /// </summary>
 internal sealed class FullWordListFactAttribute : FactAttribute
 {
-    public FullWordListFactAttribute()
+    public FullWordListFactAttribute([CallerFilePath] string? sourceFilePath = null, [CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
     {
-        if (File.Exists(TestFiles.FullWordListPath))
-        {
-            return;
-        }
-
-        if (string.Equals(
-            Environment.GetEnvironmentVariable("LUI_REQUIRE_FULL_WORDLIST"),
-            "1",
-            StringComparison.Ordinal))
-        {
-            // The gate demands the list: the test itself fails with the reason.
-            return;
-        }
-
         Skip = $"The full word list is not present ({TestFiles.FullWordListPath}) — run tools/fetch-wordlist.sh.";
+        SkipType = typeof(TestGates);
+        SkipUnless = nameof(TestGates.FullWordListRuns);
     }
 }

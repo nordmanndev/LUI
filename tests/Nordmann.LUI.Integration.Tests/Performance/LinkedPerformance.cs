@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Globalization;
 using Microsoft.Data.Sqlite;
-using Xunit.Abstractions;
 
 namespace Nordmann.LUI.Integration.Tests.Performance;
 

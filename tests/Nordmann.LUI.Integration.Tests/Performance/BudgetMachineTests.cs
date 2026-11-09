@@ -1,5 +1,4 @@
 using Shouldly;
-using Xunit.Abstractions;
 
 namespace Nordmann.LUI.Integration.Tests.Performance;
 

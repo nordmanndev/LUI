@@ -84,7 +84,7 @@ public sealed class TypoDictionaryStateTests
         dictionary.IsBuilt.ShouldBeFalse("the build runs: there is no dictionary yet");
 
         release.Set();
-        await first.WaitAsync(TimeSpan.FromSeconds(10));
+        await first.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         dictionary.State.ShouldBe(LuiTypoDictionaryState.Current);
         dictionary.IsBuilt.ShouldBeTrue();
         dictionary.Corrections("kartofel").ShouldContain(word => word == "kartoffel");
@@ -134,9 +134,9 @@ public sealed class TypoDictionaryStateTests
         var waiting = Task.Run(() => dictionary.Rebuild(stopping.Token));
         await stopping.CancelAsync();
 
-        await Should.ThrowAsync<OperationCanceledException>(waiting.WaitAsync(TimeSpan.FromSeconds(5)));
+        await Should.ThrowAsync<OperationCanceledException>(waiting.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken));
         release.Set();
-        await first.WaitAsync(TimeSpan.FromSeconds(10));
+        await first.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         dictionary.State.ShouldBe(LuiTypoDictionaryState.Current);
     }
 

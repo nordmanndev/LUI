@@ -50,7 +50,7 @@ public sealed class TypoDictionaryLifecycleTests
 
         result.CorrectionSkipped.ShouldBeTrue();
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
-        await writer.WaitAsync(TimeSpan.FromSeconds(10));
+        await writer.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
     }
 
     [Fact]
@@ -78,7 +78,7 @@ public sealed class TypoDictionaryLifecycleTests
         words.Search("kartof").CorrectionSkipped.ShouldBeFalse("a query with hits needs no correction, so nothing was skipped");
 
         release.Set();
-        await warmUp.WaitAsync(TimeSpan.FromSeconds(10));
+        await warmUp.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
 
         var after = words.Search("kartofel");
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
@@ -222,7 +222,7 @@ public sealed class TypoDictionaryLifecycleTests
 
             // the build is held until the test lets it go: a write that waited for it would wait for ever. The ten
             // seconds are room for a loaded runner, not a measurement (issue #78).
-            (await Task.WhenAny(add, Task.Delay(TimeSpan.FromSeconds(10)))).ShouldBe(add, "a write must not wait for the build");
+            (await Task.WhenAny(add, Task.Delay(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken))).ShouldBe(add, "a write must not wait for the build");
         }
         finally
         {

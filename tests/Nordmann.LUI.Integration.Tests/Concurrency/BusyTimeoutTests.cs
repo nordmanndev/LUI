@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using Microsoft.Data.Sqlite;
 using Shouldly;
-using Xunit.Abstractions;
 
 namespace Nordmann.LUI.Integration.Tests.Concurrency;
 
