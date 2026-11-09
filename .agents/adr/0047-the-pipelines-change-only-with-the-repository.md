@@ -117,3 +117,19 @@ may stand in `$(…)`, after a pipe or in quotes (review of pull request 92):
 They hold `curl` and no other way of downloading: today `curl` is the only one in the pipelines. The mutations
 `a-download-without-a-retry`, `a-download-in-a-substitution-without-a-retry` and `a-download-that-does-not-say-who-answered`
 show that they bite.
+
+## Note (2026-11-09, the open updates of Dependabot)
+
+The pins moved for the first time, through the pull requests of Dependabot (#84, #85, #97), taken in one pull request:
+- **The SDK band moves for everyone:** `global.json` names `10.0.403`, the newest SDK (owner's decision, 2026-11-09). A
+  developer now needs an SDK of the band `10.0.4xx`, at least `10.0.403`; the consequence above that names `10.0.1xx`
+  is the history of the first pin. The runner image carries `10.0.403` already.
+- **The actions on their current majors:** `checkout` 7.0.1, `setup-node` 7.1.0, `upload-artifact` 7.0.2. All three run
+  on Node 24 and need a runner of at least 2.327.1, which the hosted images are. The warning of the runs ("Node.js 20
+  is deprecated … forced to run on Node.js 24") is gone with them.
+- **Dependabot reads the composite action too.** `directory: /` reads `.github/workflows` only, so the pins of
+  `setup-dotnet` and `cache` in `.github/actions/setup` stood still. The configuration names
+  `/.github/actions/*` beside `/`.
+- **The mutations name no pin.** Two mutations named the commit of `checkout` and the version of the SDK. After the
+  first update they would have changed nothing, and the check would have failed for a reason that is not a rule. Their
+  patterns now match any commit and any version.

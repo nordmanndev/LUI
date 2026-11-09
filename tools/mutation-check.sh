@@ -480,10 +480,11 @@ expect_caught "the-provider-retries-for-thirty-seconds" "${INTEGRATION_PROJECT}"
   "sed -i '/connection.DefaultTimeout = ProviderRetrySeconds;/d' src/Nordmann.LUI/Storage/Database.cs"
 
 # 26d. An action is used by its tag again (issue #74, ADR-0047): a tag can be moved by whoever owns the action, a
-#      commit cannot. The guard of the workflows has to name it.
+#      commit cannot. The guard of the workflows has to name it. The pattern names no commit and no version: the pins
+#      move with every update of Dependabot, and a mutation that named one ran into nothing after the first.
 expect_caught "an-action-pinned-by-its-tag" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~Every_action_is_pinned_by_its_commit_and_names_its_version" \
-  "sed -i '0,/actions\/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0/s//actions\/checkout@v4/' .github/workflows/ci.yml"
+  "sed -i -E '0,/actions\/checkout@[0-9a-f]{40} # v[0-9.]+/s//actions\/checkout@v4/' .github/workflows/ci.yml"
 
 # 26e. A job loses its timeout (issue #74, ADR-0047): the default of GitHub is six hours of a hanging test.
 expect_caught "a-job-without-a-timeout" "${ARCHITECTURE_PROJECT}" \
@@ -491,10 +492,11 @@ expect_caught "a-job-without-a-timeout" "${ARCHITECTURE_PROJECT}" \
   "sed -i '0,/    timeout-minutes: 10/{/    timeout-minutes: 10/d}' .github/workflows/ci.yml"
 
 # 26f. The SDK of global.json becomes a channel (review of pull request 83): setup-dotnet turns "10.0.x" into the channel
-#      10.0 and installs the latest 10.0 of the image — the pin is gone. The guard of the SDK has to name it.
+#      10.0 and installs the latest 10.0 of the image — the pin is gone. The guard of the SDK has to name it. The pattern
+#      names no version, for the same reason as 26d.
 expect_caught "the-sdk-version-is-a-channel" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_sdk_is_the_one_of_global_json" \
-  "sed -i 's/\"version\": \"10.0.114\"/\"version\": \"10.0.x\"/' global.json"
+  "sed -i -E 's/\"version\": \"[0-9]+\\.[0-9]+\\.[0-9]+\"/\"version\": \"10.0.x\"/' global.json"
 
 # 26g. The release pushes before the gates are green (issue #75, ADR-0048): the push no longer needs the call of
 #      ci.yml. The guard of the release has to name it.
