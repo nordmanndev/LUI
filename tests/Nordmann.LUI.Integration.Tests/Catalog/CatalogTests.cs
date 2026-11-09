@@ -126,6 +126,7 @@ public sealed class CatalogTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task Dispose_waits_for_a_query_that_is_running()
     {
         using var database = new TestDatabase();
@@ -138,6 +139,8 @@ public sealed class CatalogTests
         blocking.Entered.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the query reached the ranking");
 
         var dispose = Task.Run(catalog.Dispose);
+        // a lower bound (issue #78): the query is held until the test lets it go, so a dispose that waits is still
+        // running after 300 ms on any machine — load makes it wait longer, never shorter.
         (await Task.WhenAny(dispose, Task.Delay(300))).ShouldNotBe(dispose, "Dispose has to wait for the query");
 
         blocking.Release.Set();

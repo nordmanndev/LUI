@@ -173,7 +173,7 @@ The four files share one table of the application ([`LinkedTable`](../tests/Nord
 |---|---|---|
 | [`SyncCheckRebuildTests`](../tests/Nordmann.LUI.Integration.Tests/Maintenance/SyncCheckRebuildTests.cs) | Integration | sync, check, rebuild and optimize — against a source and against itself | spec §12.4, §12.6, §14, ADR-0016 |
 | [`ConcurrencyTests`](../tests/Nordmann.LUI.Integration.Tests/Concurrency/ConcurrencyTests.cs) | Integration | reads in parallel, writes serial — neither disturbs the other; the soak of eight readers and one writer keeps the count; a second catalog on the same file sees a consistent picture while the first one writes; a dispose during a warm-up ends and does not hang | spec §15, issue #67 |
-| [`BusyTimeoutTests`](../tests/Nordmann.LUI.Integration.Tests/Concurrency/BusyTimeoutTests.cs) | Integration | the busy timeout of the catalog is the wait for a lock — 1 s and 2 s wait what they say, a value below a second waits about one second, not the 30 s of the provider — and a statement that runs longer than a second is not interrupted | issue #70, ADR-0046 |
+| [`BusyTimeoutTests`](../tests/Nordmann.LUI.Integration.Tests/Concurrency/BusyTimeoutTests.cs) | Integration | the busy timeout of the catalog is the wait for a lock — 1 s and 2 s wait at least what they say, and seconds, not the 30 s of the provider — and a statement that runs longer than a second is not interrupted | issue #70, ADR-0046, ADR-0050 |
 | [`DependencyInjectionTests`](../tests/Nordmann.LUI.Integration.Tests/Hosting/DependencyInjectionTests.cs) | Integration | LUI in a host: the catalog is the one service of the container, no index is registered, the settings of the container are its own, the catalog goes with the host | spec §12.7, ADR-0017, ADR-0018, ADR-0033 |
 | [`LuiWarmupTests`](../tests/Nordmann.LUI.Integration.Tests/Hosting/LuiWarmupTests.cs) | Integration | the warm-up as a service of the host: the dictionaries are warmed at the start, the outbox of a linked index is applied, the rounds run on the interval, and without the registration nothing happens; only the named dictionaries are built, the outbox runs without them, an unknown name fails the start, a failed round reaches the logger of the host (with `RecordingLoggerProvider`, the logger that keeps what it heard), and the registration is once and with a positive interval | issue #68, ADR-0043, ADR-0045 |
 | [`NormalizationParityTests`](../tests/Nordmann.LUI.Integration.Tests/Normalization/NormalizationParityTests.cs) | Integration | the rule exists twice — as SQL and as C# — and both give the same answer, for every code point and for every word of the list | spec §6.2, §19, ADR-0005 |
@@ -206,7 +206,7 @@ a real Kestrel (`SampleHost`) over a database file of their own.
 
 | Test file | Layer | Proves | The rule |
 |---|---|---|
-| [`SampleApiTests`](../samples/Lui.Sample.Tests/SampleApiTests.cs) | Sample | the sample's API on a real Kestrel: every setting of a query is a parameter that reaches `LuiQueryOptions`; the three indexes (embedded + JSON payload, linked + column payload + priority, embedded without payload); a dictionary of its own per index; the write side and the maintenance; an abandoned request stops the server's work; the policy of the page | ADR-0027, PR-011 |
+| [`SampleApiTests`](../samples/Lui.Sample.Tests/SampleApiTests.cs) | Sample | the sample's API on a real Kestrel: every setting of a query is a parameter that reaches `LuiQueryOptions`; the three indexes (embedded + JSON payload, linked + column payload + priority, embedded without payload); a dictionary of its own per index; the write side and the maintenance; an abandoned request stops the server's work (abandoned once the server has it, issue #94); the policy of the page | ADR-0027, PR-011 |
 | [`SampleBulkTests`](../samples/Lui.Sample.Tests/SampleBulkTests.cs) | Sample | the bulk indexes of the sample: the button that creates an index and loads it, the progress of the load, and exactly the number of entries that were asked for — and nothing else; the bulk indexes are not registered at startup, and the tests point the sample at the curated word list — a test never downloads 5.5 MB | ADR-0029 |
 | [`SampleIndexPanelTests`](../samples/Lui.Sample.Tests/SampleIndexPanelTests.cs) | Sample | the panel of the indexes: one index that cannot be read does not take the others down with it — an empty panel looks like data that was lost | ADR-0029 |
 
@@ -228,6 +228,7 @@ One folder: the rules read the tree, not a subject of the library. The names car
 | [`SampleClientTests`](../tests/Nordmann.LUI.Architecture.Tests/SampleClientTests.cs) | Architecture | the sample's client: modules by concern with the direction of the imports as a table, one fetch boundary, no HTML from a string, no inline script or style, no dependency, and the vendored flexdatalist is the file its provenance names | ADR-0027 |
 | [`WorkflowRulesTests`](../tests/Nordmann.LUI.Architecture.Tests/WorkflowRulesTests.cs) | Architecture | the pipelines change only with the repository: every action pinned by its commit with its version, every image named, every job with a timeout, every test run with a hang timeout and a full dump, every job that tests uploads its results, the release calls the gates of every pull request and pushes after them, in the environment of the owner, without a stored key, the SDK only from `global.json` — exact, in its feature band, read by the setup action (a roll-forward across bands and a `10.0.x` pin nothing), every `curl` retries a transient error and says who answered (read as commands, not lines) — over `*.yml` and `*.yaml` | ADR-0047, issues #74, #91, review of pull request 83 |
 | [`TestLandscapeTests`](../tests/Nordmann.LUI.Architecture.Tests/TestLandscapeTests.cs) | Architecture | this map is the truth: every test file is listed here, every row points at a file that exists and names the layer of its project, every test project of the tree has a layer; the unit layer opens no database | this file, ADR-0019, issue #89 |
+| [`TimingTraitTests`](../tests/Nordmann.LUI.Architecture.Tests/TimingTraitTests.cs) | Architecture | a test whose verdict depends on the clock — it waits for a time or reads one (`Stopwatch`, `DateTime.UtcNow`, `Environment.TickCount`, `Task.Delay`, `Thread.Sleep`, a `CancellationTokenSource` after a time, `WaitUntil`), in its body or in a helper of its file it calls — carries the trait `Category=Timing`, on the test or on its class, in any spelling xUnit takes | issue #78, ADR-0050, review of pull request 95 |
 
 ---
 
@@ -280,6 +281,9 @@ dotnet test tests/Nordmann.LUI.Architecture.Tests
 # everything, as CI runs it
 dotnet test Lui.sln
 
+# the fast local loop: everything but the tests that read the clock (ADR-0050) — CI runs those too
+dotnet test Lui.sln --filter "Category!=Timing"
+
 # the modules of the sample's client — plain Node, no install, no build (ADR-0027)
 (cd samples/Lui.Sample && npm test)
 
@@ -301,6 +305,8 @@ LUI_PERF=1 LUI_PERF_ENTRIES=3000000 dotnet test tests/Nordmann.LUI.Integration.T
 | A measurement is never a test of behaviour | ADR-0010 |
 | The specification is the contract; a test names the paragraph it holds | `AGENTS.md` |
 | A change to a rule comes with a change to the test that holds it | `AGENTS.md` |
+| A test asserts the order of magnitude of a time, never its milliseconds: a lower bound is strict (load only makes a wait longer), an upper bound has room and says why in the code. A test whose verdict depends on the clock carries `[Trait("Category", "Timing")]` | ADR-0050, guarded by `TimingTraitTests` |
+| A test waits for the event it needs, not for a fixed window: a deadline only stops a hang | ADR-0050, issue #94 |
 
 ---
 

@@ -1,6 +1,8 @@
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json.Nodes;
+using Microsoft.Extensions.DependencyInjection;
+using Nordmann.LUI.Sample.Api;
 using Shouldly;
 
 namespace Nordmann.LUI.Sample.Tests;
@@ -341,26 +343,25 @@ public sealed class SampleApiTests(SampleHost host) : IClassFixture<SampleHost>
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task A_request_the_page_abandons_stops_the_work_of_the_server()
     {
-        var before = (await Get("/api/health"))["suggest"]!["aborted"]!.GetValue<long>();
+        // issue #94: the test cancelled after a fixed 150 ms. On a loaded machine the request had not reached the route
+        // by then, the server never saw an abort, and the window ran out — a red test with no fault. Now the page
+        // abandons the request once the server has it; the deadlines only stop a hang.
+        var stats = host.Services.GetRequiredService<RequestStats>();
+        var started = stats.Started;
+        var aborted = stats.Aborted;
 
-        using (var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(150)))
-        {
-            await Should.ThrowAsync<OperationCanceledException>(() => Client.GetAsync("/api/suggest/recipes?q=apfel&delayMs=1500", cancellation.Token));
-        }
+        using var cancellation = new CancellationTokenSource();
+        var request = Client.GetAsync("/api/suggest/recipes?q=apfel&delayMs=1500", cancellation.Token);
 
-        // the server notices the closed connection and ends the request; its counter says so.
-        // The window is ten seconds: the server has to notice it, and a loaded machine needs
-        // its time — the claim is that the request ends, not that it ends at once.
-        var after = before;
-        for (var i = 0; i < 100 && after <= before; i++)
-        {
-            await Task.Delay(100);
-            after = (await Get("/api/health"))["suggest"]!["aborted"]!.GetValue<long>();
-        }
+        await WaitUntil(() => stats.Started > started, "the server has the request");
+        await cancellation.CancelAsync();
+        await Should.ThrowAsync<OperationCanceledException>(() => request);
 
-        after.ShouldBeGreaterThan(before);
+        // the server notices the closed connection and ends the request; its counter says so
+        await WaitUntil(() => stats.Aborted > aborted, "the server ended the request it no longer has to answer");
     }
 
     [Fact]
@@ -388,5 +389,19 @@ public sealed class SampleApiTests(SampleHost host) : IClassFixture<SampleHost>
 
         response.StatusCode.ShouldBe(HttpStatusCode.OK);
         response.Content.Headers.ContentType!.MediaType.ShouldBe(mediaType);
+    }
+
+    /// <summary>
+    /// Waits until a claim of the server holds. The deadline of thirty seconds only stops a hang: a claim that holds
+    /// returns at once, and a loaded runner gets its time (issue #78).
+    /// </summary>
+    private static async Task WaitUntil(Func<bool> claim, string what)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(30);
+        while (!claim())
+        {
+            DateTime.UtcNow.ShouldBeLessThan(deadline, $"{what} — within thirty seconds");
+            await Task.Delay(20).ConfigureAwait(false);
+        }
     }
 }

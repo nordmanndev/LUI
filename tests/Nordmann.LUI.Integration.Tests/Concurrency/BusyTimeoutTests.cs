@@ -11,12 +11,16 @@ namespace Nordmann.LUI.Integration.Tests.Concurrency;
 /// retries a busy command on its own until the timeout of the command; the catalog sets that timeout to its floor of one
 /// second, so the wait is the busy timeout of the catalog, and at least about one second.
 /// </summary>
+[Trait("Category", "Timing")]
 public sealed class BusyTimeoutTests(ITestOutputHelper output)
 {
+    // The bounds (issue #78). The lower bound is the claim — the write waited the busy timeout — and a loaded machine
+    // only waits longer. The upper bound proves the order of magnitude: seconds, not the 30 s of the provider (#70). It
+    // leaves five seconds above the timeout for a loaded runner; it is not a measurement of milliseconds.
     [Theory]
-    [InlineData(1_000, 1_000, 2_500)]
-    [InlineData(2_000, 2_000, 3_500)]
-    [InlineData(200, 200, 2_000)]
+    [InlineData(1_000, 1_000, 6_000)]
+    [InlineData(2_000, 2_000, 7_000)]
+    [InlineData(200, 200, 6_000)]
     public void A_write_that_waits_for_a_lock_waits_the_busy_timeout_of_the_catalog(int busyMilliseconds, int atLeast, int below)
     {
         using var database = new TestDatabase();

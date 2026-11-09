@@ -519,6 +519,29 @@ expect_caught "a-download-that-does-not-say-who-answered" "${ARCHITECTURE_PROJEC
   "FullyQualifiedName~Every_download_of_a_pipeline_says_who_answered" \
   "sed -i 's/%{url_effective}/%{size_download}/' .github/workflows/ci.yml"
 
+# 26k. A test that reads the clock without the trait (issue #78): it would run in the fast loop of "Category!=Timing",
+#      and a loaded machine would turn it red with no fault.
+expect_caught "a-clock-test-without-the-trait" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_test_that_reads_the_clock_carries_the_timing_trait" \
+  "printf 'namespace Nordmann.LUI.Unit.Tests;\n\npublic sealed class ClockTests\n{\n    [Fact]\n    public void A_test()\n    {\n        _ = System.Diagnostics.Stopwatch.StartNew();\n    }\n}\n' > tests/Nordmann.LUI.Unit.Tests/ClockTests.cs"
+
+# 26l. The trait of a class is lost (issue #78): every test of BusyTimeoutTests reads the clock.
+expect_caught "a-clock-class-without-the-trait" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_test_that_reads_the_clock_carries_the_timing_trait" \
+  "sed -i '/^\[Trait(\"Category\", \"Timing\")\]\$/d' tests/Nordmann.LUI.Integration.Tests/Concurrency/BusyTimeoutTests.cs"
+
+# 26m. A polling loop without the trait (review of pull request 95, M1): the form of the test of #94 — a loop around
+#      Task.Delay — was not a reading of the clock to the first version of the guard.
+expect_caught "a-polling-loop-without-the-trait" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_test_that_reads_the_clock_carries_the_timing_trait" \
+  "printf 'namespace Nordmann.LUI.Unit.Tests;\n\npublic sealed class PollTests\n{\n    [Fact]\n    public async Task A_test()\n    {\n        for (var i = 0; i < 3; i++)\n        {\n            await Task.Delay(10);\n        }\n    }\n}\n' > tests/Nordmann.LUI.Unit.Tests/PollTests.cs"
+
+# 26n. A test that reads the clock through a helper of its file (review of pull request 95, M1): the body of the test
+#      names no clock, the helper it calls does.
+expect_caught "a-clock-helper-without-the-trait" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_test_that_reads_the_clock_carries_the_timing_trait" \
+  "printf 'namespace Nordmann.LUI.Unit.Tests;\n\npublic sealed class HelperTests\n{\n    [Fact]\n    public void A_test()\n    {\n        _ = Measure();\n    }\n\n    private static long Measure() => System.Diagnostics.Stopwatch.GetTimestamp();\n}\n' > tests/Nordmann.LUI.Unit.Tests/HelperTests.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

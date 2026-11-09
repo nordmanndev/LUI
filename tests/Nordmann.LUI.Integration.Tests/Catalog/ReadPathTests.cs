@@ -93,10 +93,14 @@ public sealed class ReadPathTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public void Opening_an_index_takes_no_write_lock()
     {
+        // the bounds are the busy timeout, not milliseconds (issue #78): a read path that waited for the lock would wait
+        // the whole two seconds and fail; the write path waits them and fails. A loaded machine is slower, never faster —
+        // the lower bound holds under any load, and the upper one leaves two seconds to open an index.
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { BusyTimeout = TimeSpan.FromMilliseconds(500) });
+        using var catalog = database.Open(new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(2) });
         catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
 
         // a writer holds the lock of the file
@@ -106,14 +110,14 @@ public sealed class ReadPathTests
         // the read path answers at once
         var opened = Stopwatch.StartNew();
         var index = catalog.Index("tags");
-        opened.Elapsed.ShouldBeLessThan(TimeSpan.FromMilliseconds(500), "the read path waits for no lock");
+        opened.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(2), "the read path waits for no lock");
 
         index.Search("vegan").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
 
         // the write path waits for the lock and gives up
         var blocked = Stopwatch.StartNew();
         Should.Throw<SqliteException>(() => catalog.Create("tags", index => index.SingleWord()));
-        blocked.Elapsed.ShouldBeGreaterThan(TimeSpan.FromMilliseconds(400), "the write path waits for the lock");
+        blocked.Elapsed.ShouldBeGreaterThan(TimeSpan.FromSeconds(1.5), "the write path waits for the lock");
     }
 
     [Fact]
