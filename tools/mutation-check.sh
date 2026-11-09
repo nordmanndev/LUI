@@ -542,6 +542,12 @@ expect_caught "a-clock-helper-without-the-trait" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~Every_test_that_reads_the_clock_carries_the_timing_trait" \
   "printf 'namespace Nordmann.LUI.Unit.Tests;\n\npublic sealed class HelperTests\n{\n    [Fact]\n    public void A_test()\n    {\n        _ = Measure();\n    }\n\n    private static long Measure() => System.Diagnostics.Stopwatch.GetTimestamp();\n}\n' > tests/Nordmann.LUI.Unit.Tests/HelperTests.cs"
 
+# 26o. An action under the other spelling (issue #93): GitHub reads action.yaml as well as action.yml, and an action
+#      pinned by its tag there was invisible to every rule of the pipelines.
+expect_caught "an-action-yaml-pinned-by-its-tag" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_action_is_pinned_by_its_commit_and_names_its_version" \
+  "mkdir -p .github/actions/probe && printf 'name: Probe\ndescription: x\nruns:\n  using: composite\n  steps:\n    - uses: actions/checkout@v4\n' > .github/actions/probe/action.yaml"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
