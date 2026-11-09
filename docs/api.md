@@ -368,6 +368,9 @@ and only those.
 | `string GetString(string column)` / `long GetInt64(string column)` / `double GetDouble(string column)` / `T Get<T>(string column)` | reads a column |
 | `bool IsNull(string column)` | whether the column is null |
 
+The conversion is Microsoft.Data.Sqlite's. A `NULL` is refused by every getter with an `InvalidOperationException` —
+`Get<long?>` included, it does not turn a `NULL` into `null`. Ask `IsNull` first.
+
 ---
 
 ## The similarity

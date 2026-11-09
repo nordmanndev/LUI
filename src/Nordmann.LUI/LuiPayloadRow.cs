@@ -40,7 +40,10 @@ public sealed class LuiPayloadRow
     /// <returns>The value.</returns>
     public double GetDouble(string column) => Reader.GetDouble(Ordinal(column));
 
-    /// <summary>The column as <typeparamref name="T"/>, converted by <c>Microsoft.Data.Sqlite</c>.</summary>
+    /// <summary>
+    /// The column as <typeparamref name="T"/>, converted by <c>Microsoft.Data.Sqlite</c>. A <c>NULL</c> is refused for
+    /// every <typeparamref name="T"/>, a nullable one included: ask <see cref="IsNull"/> first.
+    /// </summary>
     /// <typeparam name="T">The type of the value.</typeparam>
     /// <param name="column">A column named in <c>WithPayload</c>.</param>
     /// <returns>The value.</returns>

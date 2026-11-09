@@ -550,6 +550,12 @@ expect_caught "an-action-yaml-pinned-by-its-tag" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~Every_action_is_pinned_by_its_commit_and_names_its_version" \
   "mkdir -p .github/actions/probe && printf 'name: Probe\ndescription: x\nruns:\n  using: composite\n  steps:\n    - uses: actions/checkout@v4\n' > .github/actions/probe/action.yaml"
 
+# 26p. The payload row reads an integer as an Int32 (issue #104): it compiles — an int widens to a long — and a count
+#      beyond Int32 would be lost in the payload of a linked index.
+expect_caught "a-payload-integer-read-as-int32" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~The_payload_row_reads_a_column_in_the_type_the_mapping_asks_for" \
+  "sed -i 's|Reader.GetInt64(Ordinal(column))|Reader.GetInt32(Ordinal(column))|' src/Nordmann.LUI/LuiPayloadRow.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
