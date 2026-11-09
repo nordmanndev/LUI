@@ -22,6 +22,19 @@ internal sealed class PerformanceBudget(ITestOutputHelper output, bool scenario,
     /// <summary>Whether a target in this unit belongs to the machine it was measured on: a time does, a size does not.</summary>
     internal static bool BelongsToTheMachine(string unit) => unit is "ms" or "s";
 
+    /// <summary>
+    /// The entries a run builds: the scenario of the target, or fewer when <c>LUI_PERF_ENTRIES</c> asks for a quick run —
+    /// never more. A size set for one scenario must not grow another: the first run of the lane built three million titles
+    /// for the target of one million, and the file of three million missed the 500 MB of one (issue #99).
+    /// </summary>
+    /// <param name="scenario">The size of the scenario of the target.</param>
+    /// <param name="configured">The value of <c>LUI_PERF_ENTRIES</c>, or null.</param>
+    /// <returns>The number of entries to build.</returns>
+    internal static int ScenarioEntries(int scenario, string? configured) =>
+        configured is null
+            ? scenario
+            : Math.Min(int.Parse(configured, System.Globalization.CultureInfo.InvariantCulture), scenario);
+
     /// <summary>The machine of this run: the one of the record, unless the run says that it is another one.</summary>
     internal static BudgetMachine CurrentMachine() =>
         string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_MACHINE"), "other", StringComparison.Ordinal)
