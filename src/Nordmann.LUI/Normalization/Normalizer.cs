@@ -110,32 +110,13 @@ internal static class Normalizer
     {
         var german = (options ?? NormalizationOptions.Default).GermanTransliteration;
 
-        return TryWrite(source, destination, german, compact: false, out written);
-    }
-
-    /// <summary>
-    /// Writes the compact form into a buffer without allocating.
-    /// </summary>
-    /// <returns>
-    /// <see langword="false"/> when the buffer is too small; the required
-    /// length is in <paramref name="written"/>.
-    /// </returns>
-    public static bool TryWriteCompactForm(
-        ReadOnlySpan<char> source,
-        Span<char> destination,
-        out int written,
-        NormalizationOptions? options = null)
-    {
-        var german = (options ?? NormalizationOptions.Default).GermanTransliteration;
-
-        return TryWrite(source, destination, german, compact: true, out written);
+        return TryWrite(source, destination, german, out written);
     }
 
     private static bool TryWrite(
         ReadOnlySpan<char> source,
         Span<char> destination,
         bool german,
-        bool compact,
         out int written)
     {
         written = 0;
@@ -146,7 +127,7 @@ internal static class Normalizer
             {
                 foreach (var ch in umlaut)
                 {
-                    if (!TryWriteChar(ch, destination, compact, ref written))
+                    if (!TryWriteChar(ch, destination, ref written))
                     {
                         return false;
                     }
@@ -160,7 +141,7 @@ internal static class Normalizer
 
             if (replacement is null)
             {
-                if (!TryWriteChar(source[i], destination, compact, ref written))
+                if (!TryWriteChar(source[i], destination, ref written))
                 {
                     return false;
                 }
@@ -170,7 +151,7 @@ internal static class Normalizer
 
             foreach (var ch in replacement)
             {
-                if (!TryWriteChar(ch, destination, compact, ref written))
+                if (!TryWriteChar(ch, destination, ref written))
                 {
                     return false;
                 }
@@ -180,15 +161,10 @@ internal static class Normalizer
         return true;
     }
 
-    private static bool TryWriteChar(char source, Span<char> destination, bool compact, ref int written)
+    private static bool TryWriteChar(char source, Span<char> destination, ref int written)
     {
         var folded = TokenizerFold.Fold(source);
         if (folded == TokenizerFold.Removed)
-        {
-            return true;
-        }
-
-        if (compact && IsSeparator(folded))
         {
             return true;
         }

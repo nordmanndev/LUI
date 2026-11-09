@@ -238,7 +238,7 @@ separator, and a separator must never fold into a letter.
 | | |
 |---|---|
 | Memory | one `char[65536]` — 128 KB per process, built once |
-| Time | one array lookup per character; the allocation-free path is `TryWriteSearchForm` / `TryWriteCompactForm` |
+| Time | one array lookup per character; the allocation-free path is `TryWriteSearchForm` |
 | Startup | the table is parsed once, lazily, when the first text is normalised |
 | Dependencies | none — the table is measured data, not a Unicode library |
 

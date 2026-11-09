@@ -215,8 +215,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The measured fold table that keeps the C# side and SQLite's tokenizer in
   step — see [`docs/normalization.md`](./docs/normalization.md) and
   [ADR-0005](.agents/adr/0005-measured-normalisation.md).
-- `Normalizer.TryWriteSearchForm` / `TryWriteCompactForm` — the same two
-  forms without an allocation, for the path that normalises every candidate.
+- `Normalizer.TryWriteSearchForm` — the search form without an allocation,
+  for the path that normalises every candidate.
 
 ### Removed
 
