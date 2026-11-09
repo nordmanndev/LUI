@@ -57,6 +57,7 @@ public sealed class LuiWarmupTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task The_rounds_of_the_outbox_run_on_the_interval()
     {
         using var database = new TestDatabase();
@@ -146,6 +147,7 @@ public sealed class LuiWarmupTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task A_round_that_fails_is_told_to_the_logger_of_the_host()
     {
         using var database = new TestDatabase();
@@ -211,16 +213,19 @@ public sealed class LuiWarmupTests
         return builder.Build();
     }
 
-    /// <summary>Waits until the claim of the service holds — ten seconds are enough, the interval is 50 ms.</summary>
+    /// <summary>
+    /// Waits until the claim of the service holds. The interval of the service is 50 ms; the deadline of thirty seconds
+    /// only stops a hang — a claim that holds returns at once, and a loaded runner gets its time (issue #78).
+    /// </summary>
     /// <param name="claim">What must come true.</param>
     private static async Task WaitUntil(Func<bool> claim)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(10);
+        var deadline = DateTime.UtcNow.AddSeconds(30);
         while (!claim())
         {
             if (DateTime.UtcNow > deadline)
             {
-                throw new TimeoutException("The claim of the service did not come true in ten seconds.");
+                throw new TimeoutException("The claim of the service did not come true in thirty seconds.");
             }
 
             await Task.Delay(20).ConfigureAwait(false);

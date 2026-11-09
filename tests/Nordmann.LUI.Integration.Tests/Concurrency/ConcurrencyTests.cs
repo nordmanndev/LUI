@@ -246,6 +246,7 @@ public sealed class ConcurrencyTests
     /// build comes back. Neither of them hangs.
     /// </summary>
     [Fact]
+    [Trait("Category", "Timing")]
     public void A_dispose_during_a_warm_up_ends_and_does_not_hang()
     {
         using var database = new TestDatabase();

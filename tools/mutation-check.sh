@@ -519,6 +519,17 @@ expect_caught "a-download-that-does-not-say-who-answered" "${ARCHITECTURE_PROJEC
   "FullyQualifiedName~Every_download_of_a_pipeline_says_who_answered" \
   "sed -i 's/%{url_effective}/%{size_download}/' .github/workflows/ci.yml"
 
+# 26k. A test that reads the clock without the trait (issue #78): it would run in the fast loop of "Category!=Timing",
+#      and a loaded machine would turn it red with no fault.
+expect_caught "a-clock-test-without-the-trait" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_test_that_reads_the_clock_carries_the_timing_trait" \
+  "printf 'namespace Nordmann.LUI.Unit.Tests;\n\npublic sealed class ClockTests\n{\n    [Fact]\n    public void A_test()\n    {\n        _ = System.Diagnostics.Stopwatch.StartNew();\n    }\n}\n' > tests/Nordmann.LUI.Unit.Tests/ClockTests.cs"
+
+# 26l. The trait of a class is lost (issue #78): every test of BusyTimeoutTests reads the clock.
+expect_caught "a-clock-class-without-the-trait" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_test_that_reads_the_clock_carries_the_timing_trait" \
+  "sed -i '/^\[Trait(\"Category\", \"Timing\")\]\$/d' tests/Nordmann.LUI.Integration.Tests/Concurrency/BusyTimeoutTests.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

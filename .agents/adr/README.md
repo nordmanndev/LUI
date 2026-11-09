@@ -103,3 +103,4 @@ decided about the query path" without opening 36 files.
 | [0047](./0047-the-pipelines-change-only-with-the-repository.md) | The pipelines change only with the repository: the SDK of `global.json`, named images, actions pinned by commit, timeouts, Dependabot | Build | Accepted |
 | [0048](./0048-the-release-is-the-pull-request-gate-the-owner-and-a-key-of-one-hour.md) | The release: the gates of every pull request, the owner's approval, a key of one hour (Trusted Publishing) | Build | Accepted |
 | [0049](./0049-the-tests-are-sorted-by-subject-and-carry-one-suffix.md) | The tests are sorted by subject, a folder is a namespace, and every test class carries one suffix | Testing | Accepted |
+| [0050](./0050-the-tests-that-read-the-clock-carry-a-trait-and-argue-their-bounds.md) | The tests that read the clock carry a trait, and argue their bounds | Testing | Accepted |

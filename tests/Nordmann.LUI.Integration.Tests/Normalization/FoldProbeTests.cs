@@ -44,11 +44,14 @@ public sealed class FoldProbeTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
     public void The_probe_costs_a_fraction_of_a_second()
     {
+        // the probe runs at the first Open of every process. Measured: about 17 ms. The bound is the order of magnitude
+        // of the claim — less than a second, sixty times the measurement — not its milliseconds (issue #78).
         var started = System.Diagnostics.Stopwatch.GetTimestamp();
         FoldProbe.Verify(TokenizerFold.Listed);
-        System.Diagnostics.Stopwatch.GetElapsedTime(started).TotalMilliseconds.ShouldBeLessThan(500);
+        System.Diagnostics.Stopwatch.GetElapsedTime(started).ShouldBeLessThan(TimeSpan.FromSeconds(1));
     }
 
     [Fact]

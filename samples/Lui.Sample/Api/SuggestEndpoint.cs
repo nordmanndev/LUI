@@ -27,6 +27,7 @@ internal static class SuggestEndpoint
                 return Problems.BadRequest(e.Message);
             }
 
+            stats.CountStarted();
             try
             {
                 // demo only: a slow server, so that an abort of the page can be seen (and tested)

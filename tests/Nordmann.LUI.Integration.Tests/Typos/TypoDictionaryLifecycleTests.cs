@@ -206,6 +206,7 @@ public sealed class TypoDictionaryLifecycleTests
 
     // review of pull request 10, M1: the build does not hold up the writers, and a rebuild loses nothing
     [Fact]
+    [Trait("Category", "Timing")]
     public async Task A_write_is_not_held_up_while_the_dictionary_is_being_built()
     {
         using var building = new ManualResetEventSlim();
@@ -219,7 +220,9 @@ public sealed class TypoDictionaryLifecycleTests
         {
             var add = Task.Run(() => dictionary.Add("Zwetschge", 5));
 
-            (await Task.WhenAny(add, Task.Delay(TimeSpan.FromSeconds(2)))).ShouldBe(add, "a write must not wait for the build");
+            // the build is held until the test lets it go: a write that waited for it would wait for ever. The ten
+            // seconds are room for a loaded runner, not a measurement (issue #78).
+            (await Task.WhenAny(add, Task.Delay(TimeSpan.FromSeconds(10)))).ShouldBe(add, "a write must not wait for the build");
         }
         finally
         {
