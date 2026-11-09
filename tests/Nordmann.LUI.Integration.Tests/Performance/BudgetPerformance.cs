@@ -204,7 +204,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         [.. latencies.Where((_, i) => inputs[i].Length >= shortest && inputs[i].Length <= longest)];
 
     private static int Entries(int scenario) =>
-        int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? scenario.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+        PerformanceBudget.ScenarioEntries(scenario, Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES"));
 
     private IReadOnlyList<string> Words()
     {
