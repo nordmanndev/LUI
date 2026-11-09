@@ -133,3 +133,9 @@ The pins moved for the first time, through the pull requests of Dependabot (#84,
 - **The mutations name no pin.** Two mutations named the commit of `checkout` and the version of the SDK. After the
   first update they would have changed nothing, and the check would have failed for a reason that is not a rule. Their
   patterns now match any commit and any version.
+- **`setup-dotnet` 6.1.0 and `cache` 6.1.0** (#103, the first update Dependabot found in the composite action). Both
+  run on Node 24, so the last two actions of the warning are gone too. `setup-dotnet` now reads `rollForward` and
+  installs the band as a channel: `--channel 10.0.4xx`, where 4.3.1 installed `--version 10.0.403`. That is the band
+  and its latest patch, as the decision above says — a new patch of the band reaches the CI without a change of
+  `global.json`, the way `dotnet` with `latestPatch` already rolled to the newest patch an image carried. A new band
+  still needs `global.json`.
