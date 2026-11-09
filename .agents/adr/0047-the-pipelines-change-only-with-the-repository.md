@@ -97,3 +97,23 @@ tag of the action (`git ls-remote`) when it is written.
 | `rollForward: latestFeature` (the first version of this decision) | Measured in the first run: the runner image carries a later band (`10.0.403`), and `dotnet` rolls forward to it — the pin pins nothing. A developer with a later band is the price of a pin that holds. |
 | A YAML package for the guard | A dependency of the tests for five rules that read lines. |
 | Renovate instead of Dependabot | Dependabot is built in and knows the three ecosystems here (actions, NuGet with central versions, the SDK). |
+
+## Note (2026-11-09, issue #91)
+
+The repository is public since 2026-11-09, and branch protection is now available to it (the note above on
+branch protection was written for the private repository).
+
+Every `curl` of a pipeline retries a transient error: `curl --retry 5 --retry-delay 10`. curl counts 408, 429, 500,
+502, 503 and 504 as transient. On failure it writes the status and the address that answered
+(`-w '%{http_code} %{url_effective}'`). The download of actionlint met a 504 three times in a row on pull request 90
+(07:25, 07:32, 08:06), and the job died before actionlint ran. The log did not say which host sent it: after `-L` it
+can be github.com or the host of the release assets. That is what the `-w` is for.
+
+Two guards hold the rule, and they read **commands**, not lines. A command goes on over a trailing backslash, and `curl`
+may stand in `$(…)`, after a pipe or in quotes (review of pull request 92):
+- `Every_download_of_a_pipeline_retries_a_transient_error` asks for `--retry`.
+- `Every_download_of_a_pipeline_says_who_answered` asks for `%{http_code}` and `%{url_effective}`.
+
+They hold `curl` and no other way of downloading: today `curl` is the only one in the pipelines. The mutations
+`a-download-without-a-retry`, `a-download-in-a-substitution-without-a-retry` and `a-download-that-does-not-say-who-answered`
+show that they bite.

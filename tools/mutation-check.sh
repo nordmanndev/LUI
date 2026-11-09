@@ -502,6 +502,23 @@ expect_caught "the-release-skips-the-gate" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_release_runs_the_gates_of_every_pull_request_and_stores_no_key" \
   "sed -i 's/    needs: \\[tag, gate\\]/    needs: [tag]/' .github/workflows/publish.yml"
 
+# 26h. A download of a pipeline that gives up on the first gateway error (issue #91): one 504 of github.com is a red check.
+expect_caught "a-download-without-a-retry" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_download_of_a_pipeline_retries_a_transient_error" \
+  "sed -i 's/curl -sSfL --retry 5 --retry-delay 10 /curl -sSfL /' .github/workflows/ci.yml"
+
+# 26i. The same download without a retry, written as a command substitution (review of pull request 92, I1): a guard that
+#      read lines looked for "curl " at the start and did not see "$(curl".
+expect_caught "a-download-in-a-substitution-without-a-retry" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_download_of_a_pipeline_retries_a_transient_error" \
+  "sed -i 's/          curl -sSfL --retry 5 --retry-delay 10 /          archive_body=\$(curl -sSfL /' .github/workflows/ci.yml"
+
+# 26j. The download no longer says who answered (issue #91, review of pull request 92, M2): after -L the failing host can
+#      be either one, and only the log can tell.
+expect_caught "a-download-that-does-not-say-who-answered" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~Every_download_of_a_pipeline_says_who_answered" \
+  "sed -i 's/%{url_effective}/%{size_download}/' .github/workflows/ci.yml"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

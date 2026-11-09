@@ -147,6 +147,69 @@ public sealed partial class WorkflowRulesTests
         offenders.ShouldBeEmpty("No pipeline names a dotnet-version of its own — the setup action reads global.json.");
     }
 
+    [Fact]
+    public void Every_download_of_a_pipeline_retries_a_transient_error()
+    {
+        // issue #91: the download of actionlint met a 504 three times in a row and the job died before actionlint ran. A
+        // download that gives up on the first gateway error turns a server's bad minute into a red check. The rule reads
+        // commands, not lines: a command goes on over a trailing backslash, and curl may stand in $(…), after a pipe or in
+        // quotes (review of pull request 92, I1).
+        var offenders = CurlCommands()
+            .Where(entry => !RetryFlag().IsMatch(entry.Command))
+            .Select(entry => $"{entry.File}: {entry.Command}")
+            .ToArray();
+
+        offenders.ShouldBeEmpty("Every curl of a pipeline retries (--retry): a 5xx of a server is weather, not a finding.");
+    }
+
+    [Fact]
+    public void Every_download_of_a_pipeline_says_who_answered()
+    {
+        // issue #91, the second half: after -L the failing address can be the first host or the one it redirects to. The
+        // log has to name the status and the address that answered (review of pull request 92, M2).
+        var offenders = CurlCommands()
+            .Where(entry => !entry.Command.Contains("%{http_code}", StringComparison.Ordinal)
+                            || !entry.Command.Contains("%{url_effective}", StringComparison.Ordinal))
+            .Select(entry => $"{entry.File}: {entry.Command}")
+            .ToArray();
+
+        offenders.ShouldBeEmpty("Every curl of a pipeline writes the status and the address that answered (-w '%{http_code} %{url_effective}').");
+    }
+
+    /// <summary>
+    /// The curl commands of the pipelines: the lines of each file joined over a trailing backslash, comments left out,
+    /// and every command that names curl as a word — at the start, in <c>$(…)</c>, after a pipe, in quotes.
+    /// </summary>
+    private static IEnumerable<(string File, string Command)> CurlCommands()
+    {
+        foreach (var file in PipelineFiles())
+        {
+            var command = new System.Text.StringBuilder();
+            foreach (var raw in File.ReadAllLines(file))
+            {
+                var line = raw.Trim();
+                if (command.Length == 0 && line.StartsWith('#'))
+                {
+                    continue;
+                }
+
+                var continues = line.EndsWith('\\');
+                command.Append(continues ? line[..^1] : line).Append(' ');
+                if (continues)
+                {
+                    continue;
+                }
+
+                var text = command.ToString().Trim();
+                command.Clear();
+                if (CurlWord().IsMatch(text))
+                {
+                    yield return (Relative(file), text);
+                }
+            }
+        }
+    }
+
     /// <summary>Whether a job calls a reusable workflow instead of running steps.</summary>
     private static bool CallsAWorkflow(string jobBody) =>
         jobBody.Contains("\n    uses: ./.github/workflows/", StringComparison.Ordinal);
@@ -244,6 +307,12 @@ public sealed partial class WorkflowRulesTests
 
     [GeneratedRegex(@"\n    needs:\s*\[?(?<needs>[^\]\n]*)\]?", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
     private static partial Regex NeedsList();
+
+    [GeneratedRegex(@"(?<![A-Za-z0-9_.-])curl(?=\s)", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
+    private static partial Regex CurlWord();
+
+    [GeneratedRegex(@"\s--retry(=|\s+)\d", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
+    private static partial Regex RetryFlag();
 
     [GeneratedRegex(@"^\d+\.\d+\.\d+$", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
     private static partial Regex ExactVersion();
