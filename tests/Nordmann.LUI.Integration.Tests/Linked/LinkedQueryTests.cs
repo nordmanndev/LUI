@@ -28,6 +28,50 @@ public sealed class LinkedQueryTests
     }
 
     [Fact]
+    public void The_payload_row_reads_a_column_in_the_type_the_mapping_asks_for()
+    {
+        // issue #104 (the coverage of #80, G1): GetInt64, GetDouble and Get<T> were public and called by no test. The
+        // values are chosen so that a narrower read would show: a count beyond Int32, a price that a float rounds, a
+        // date read as a DateTime. A NULL is asked for with IsNull: Get<long?> does not turn it into null — the
+        // conversion is Microsoft.Data.Sqlite's, and it refuses a NULL for any T (docs/api.md).
+        using var database = new TestDatabase();
+        Run(database, """
+            CREATE TABLE product (
+                id       INTEGER PRIMARY KEY,
+                name     TEXT,
+                sold     INTEGER,
+                price    REAL,
+                released TEXT,
+                discount INTEGER);
+            INSERT INTO product(id, name, sold, price, released, discount)
+                VALUES (1, 'apfelkuchen', 5000000000, 3.1, '2026-11-09 08:15:00', NULL),
+                       (2, 'apfelstrudel', 7, 2.25, '2025-01-31 00:00:00', 15);
+            """);
+        using var catalog = database.Open();
+        var products = catalog.Create("products", index => index.SingleWord().LinkTo("product", "id", "name")
+            .WithPayload(["sold", "price", "released", "discount"], row => new Product(
+                row.GetInt64("sold"), row.GetDouble("price"), row.Get<DateTime>("released"),
+                row.IsNull("discount") ? null : row.GetInt64("discount"))));
+        products.Sync();
+
+        var payloads = products.Search("apfel").Hits
+            .Select(hit => hit.GetPayload<Product>()!)
+            .OrderBy(product => product.Sold)
+            .ToArray();
+
+        payloads.ShouldBe(
+        [
+            new Product(7, 2.25, new DateTime(2025, 1, 31, 0, 0, 0, DateTimeKind.Unspecified), 15),
+            new Product(5_000_000_000, 3.1, new DateTime(2026, 11, 9, 8, 15, 0, DateTimeKind.Unspecified), null),
+        ]);
+
+        var nullable = catalog.Create("discounts", index => index.SingleWord().LinkTo("product", "id", "name")
+            .WithPayload(["discount"], row => row.Get<long?>("discount")));
+        nullable.Sync();
+        Should.Throw<InvalidOperationException>(() => nullable.Search("apfelkuchen")).Message.ShouldContain("NULL");
+    }
+
+    [Fact]
     public void A_payload_row_that_is_kept_throws_instead_of_reading_another_hit()
     {
         // Review of 2026-11-04, A.7: the row wraps the reader, which moves on to the next hit. Kept and read later, it used
@@ -306,4 +350,7 @@ public sealed class LinkedQueryTests
         result.CandidatesConsidered.ShouldBe(10);
         result.Truncated.ShouldBeTrue();
     }
+
+    /// <summary>The payload of <see cref="The_payload_row_reads_a_column_in_the_type_the_mapping_asks_for"/>.</summary>
+    private sealed record Product(long Sold, double Price, DateTime Released, long? Discount);
 }
