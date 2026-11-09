@@ -48,9 +48,15 @@ indent_size = 2
 # Test projects follow the standards' naming convention for test methods
 # (`Domain_does_not_depend_on_Infrastructure`) — underscore separated reads as
 # a sentence and is the convention in nordmanndev/standards.
+#
+# xUnit1051 asks for the token of the test at every call that takes a token. Here the optional token of the library
+# would go into some 475 calls of tests whose subject is not cancellation. The token of the test is passed where a test
+# waits — its delays and its polls — the place where a cancelled run would otherwise hang (ADR-0051).
 [tests/**/*.cs]
 dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.xUnit1051.severity = none
 
 # The tests of the sample sit beside it (issue #76) and follow the same convention.
 [samples/Lui.Sample.Tests/**.cs]
 dotnet_diagnostic.CA1707.severity = none
+dotnet_diagnostic.xUnit1051.severity = none

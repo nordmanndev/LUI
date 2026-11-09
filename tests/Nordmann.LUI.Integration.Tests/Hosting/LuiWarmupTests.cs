@@ -228,7 +228,7 @@ public sealed class LuiWarmupTests
                 throw new TimeoutException("The claim of the service did not come true in thirty seconds.");
             }
 
-            await Task.Delay(20).ConfigureAwait(false);
+            await Task.Delay(20, TestContext.Current.CancellationToken).ConfigureAwait(false);
         }
     }
 

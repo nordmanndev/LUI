@@ -2,6 +2,10 @@
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
+    <!-- an xUnit.net v3 test project is an executable; dotnet test runs it through VSTest, not through
+         Microsoft.Testing.Platform, which on the .NET 10 SDK refuses the VSTest target (ADR-0051) -->
+    <OutputType>Exe</OutputType>
+    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
     <RootNamespace>Nordmann.LUI.Architecture.Tests</RootNamespace>
     <AssemblyName>Nordmann.LUI.Architecture.Tests</AssemblyName>
     <IsPackable>false</IsPackable>
@@ -10,7 +14,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
-    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.v3" />
     <PackageReference Include="xunit.runner.visualstudio" />
     <PackageReference Include="Shouldly" />
     <PackageReference Include="NetArchTest.Rules" />

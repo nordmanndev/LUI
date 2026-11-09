@@ -161,7 +161,7 @@ public sealed class EmbeddedBatchTests
             batch.UpsertMany(Enumerable.Range((round * 100) + 1, 100).Select(i => new LuiEntry(i, $"kuchen{i}")));
         }
 
-        await writer.WaitAsync(TimeSpan.FromSeconds(30));
+        await writer.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
         batch.Count().ShouldBe(1_000);
         single.Count().ShouldBe(200);
     }

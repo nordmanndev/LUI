@@ -10,8 +10,12 @@ namespace Nordmann.LUI.Sample.Tests;
 /// <summary>
 /// The sample application on a port of its own, over a database file of its own, with its real static client — a real
 /// Kestrel on the loopback, because the abort of a request can only be seen on a real connection.
+/// <para>
+/// xUnit.net v3 disposes a fixture once: through <see cref="IAsyncDisposable"/> when it has it, which
+/// <see cref="IAsyncLifetime"/> now brings. The file of the database goes in the same disposal (ADR-0051).
+/// </para>
 /// </summary>
-public sealed class SampleHost : IAsyncLifetime, IDisposable
+public sealed class SampleHost : IAsyncLifetime
 {
     private readonly TestDatabase _database = new();
     private WebApplication? _app;
@@ -21,7 +25,7 @@ public sealed class SampleHost : IAsyncLifetime, IDisposable
     /// <summary>The services of the running sample — the test looks at what is registered (ADR-0029).</summary>
     public IServiceProvider Services => _app!.Services;
 
-    public async Task InitializeAsync()
+    public async ValueTask InitializeAsync()
     {
         _app = SampleApp.Build(
         [
@@ -41,7 +45,7 @@ public sealed class SampleHost : IAsyncLifetime, IDisposable
     /// <summary>The word list the sample of the tests uses — every 97th word of the German word list.</summary>
     private static string WordList => TestFiles.SampleWordListPath;
 
-    public async Task DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         Client.Dispose();
         if (_app is not null)
@@ -49,7 +53,7 @@ public sealed class SampleHost : IAsyncLifetime, IDisposable
             await _app.StopAsync().ConfigureAwait(false);
             await _app.DisposeAsync().ConfigureAwait(false);
         }
-    }
 
-    public void Dispose() => _database.Dispose();
+        _database.Dispose();
+    }
 }

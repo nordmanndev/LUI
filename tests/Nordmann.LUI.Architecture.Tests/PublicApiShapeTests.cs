@@ -1,6 +1,7 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using NetArchTest.Rules;
+using TestResult = NetArchTest.Rules.TestResult;
 using Shouldly;
 
 using Nordmann.LUI.Testing;

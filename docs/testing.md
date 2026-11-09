@@ -46,6 +46,10 @@ the reason is in the report.
 | `LUI_WORDLIST` | where the full word list is | a person, on purpose |
 | `LUI_PERF_MACHINE=other` | the machine of the run: `measurement` asserts every target, `other` reports the times and asserts the sizes | the lane (`.github/workflows/performance.yml`) |
 
+**The gates are dynamic skips** (xUnit.net v3, ADR-0051): `[PerformanceFact]` and `[FullWordListFact]` ask
+[`TestGates`](../tests/Nordmann.LUI.Integration.Tests/Support/TestGates.cs) when the test is about to run, not when
+the tests are found, and a skipped test says why in the report.
+
 **A skipped test that reports itself as passed proves nothing.** The full-word-list
 parity is skipped — and says so — when the list is missing, rather than
 returning green. The lane of the parity sets `LUI_REQUIRE_FULL_WORDLIST=1` — on every pull request, and in the release, which calls it — and then

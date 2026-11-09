@@ -175,7 +175,7 @@ public sealed class SampleBulkTests(SampleHost host) : IClassFixture<SampleHost>
                 throw new InvalidOperationException($"The fill of '{index}' ended: {status}");
             }
 
-            await Task.Delay(100).ConfigureAwait(false);
+            await Task.Delay(100, TestContext.Current.CancellationToken).ConfigureAwait(false);
         }
 
         throw new InvalidOperationException($"The fill of '{index}' did not finish within a minute.");

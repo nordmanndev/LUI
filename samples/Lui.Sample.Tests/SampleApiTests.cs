@@ -401,7 +401,7 @@ public sealed class SampleApiTests(SampleHost host) : IClassFixture<SampleHost>
         while (!claim())
         {
             DateTime.UtcNow.ShouldBeLessThan(deadline, $"{what} — within thirty seconds");
-            await Task.Delay(20).ConfigureAwait(false);
+            await Task.Delay(20, TestContext.Current.CancellationToken).ConfigureAwait(false);
         }
     }
 }
