@@ -16,9 +16,9 @@ the limits against §16.
 
 - **#61 is merged** (PR #62, merge commit `121f2bd`; the CI of the head commit is green in all four jobs). The README
   of the release shows the measurement of a fresh BenchmarkDotNet run, has an example of the bulk path, links the API
-  page (`docs/api.md`, guarded by `Public_API_Documentation`), shows the matrix of the kinds and the decision guide of
+  page (`docs/api.md`, guarded by `PublicApiDocumentationTests`), shows the matrix of the kinds and the decision guide of
   the sources, and the papers of the work live under `.agents/`.
-- **#38**: the new guard `Readme_Budgets` reads the target table of §16 out of the specification and compares it with
+- **#38**: the new guard `ReadmeBudgetsTests` reads the target table of §16 out of the specification and compares it with
   the budget table of the README and with the target table of the record. **It found a real drift**: the allocation
   still promised ≤ 250 / ≤ 350 KB, while the specification and the budget test have held ≤ 60 / ≤ 100 KB since
   ADR-0032. Both tables carry the limits of the contract now, and the measured values of the run of 2026-11-06

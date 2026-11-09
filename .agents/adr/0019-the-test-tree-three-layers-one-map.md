@@ -151,3 +151,10 @@ history above stays as written, and these are the differences:
   Where the text above says `TestCorpus`, read `TestFiles`.
 - **The four experiments are gone** (ADR-0010, 0011, 0015, 0016 say where their code is in the history). The
   numbers of the table above were measured with them in the tree.
+
+## Note (2026-11-09, issues #77, #89)
+
+[ADR-0049](./0049-the-tests-are-sorted-by-subject-and-carry-one-suffix.md) sorts the files of the layers into folders by
+subject (a folder is a namespace) and gives every test class one suffix. Its table maps the old names in this ADR to the
+new ones (`Test_Landscape` is `TestLandscapeTests`, `Repository_Layout` is `RepositoryLayoutTests`). The map guard now also
+compares the **layer** of a row with its project, and reads the test projects from the tree rather than from a list.

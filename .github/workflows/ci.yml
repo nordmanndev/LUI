@@ -158,7 +158,7 @@ jobs:
         run: |
           dotnet build tests/Nordmann.LUI.Integration.Tests --configuration Release --no-restore
           dotnet test tests/Nordmann.LUI.Integration.Tests --configuration Release --no-build \
-            --filter "FullyQualifiedName~NormalizationParity.The_normalizer_and_the_tokenizer_agree_on_the_full_word_list" \
+            --filter "FullyQualifiedName~NormalizationParityTests.The_normalizer_and_the_tokenizer_agree_on_the_full_word_list" \
             --blame-hang-timeout 10m --blame-hang-dump-type full \
             --results-directory artifacts/test-results
 

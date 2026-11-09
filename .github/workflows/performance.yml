@@ -72,7 +72,7 @@ jobs:
           mkdir -p artifacts
           dotnet test tests/Nordmann.LUI.Integration.Tests \
             --configuration Release --no-build \
-            --filter 'PerformanceBudgets|NormalizationParity' \
+            --filter 'BudgetPerformance|NormalizationParityTests' \
             --logger "console;verbosity=detailed" --blame-hang-timeout 60m --blame-hang-dump-type full \
             --results-directory artifacts/test-results 2>&1 | tee artifacts/budgets.log
 

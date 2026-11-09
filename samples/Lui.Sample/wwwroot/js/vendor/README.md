@@ -9,7 +9,7 @@
 | Licence | MIT, © 2016–2026 Sérgio Dinis Lopes (the header of the file) |
 | CSS | **not vendored.** The sample writes its own (`css/flexdatalist.css`) for the class names the library uses. |
 
-The file is checked by the architecture test `Sample_Client`: its hash must be the one above. To update, download the new version
+The file is checked by the architecture test `SampleClientTests`: its hash must be the one above. To update, download the new version
 from npm, replace the file **and** the hash and version here, read the changes in `src/flexdatalist.js` (the sample depends on
 how it highlights, caches and requests — ADR-0027), and run the browser check.
 

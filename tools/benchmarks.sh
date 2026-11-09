@@ -6,7 +6,7 @@
 #   tools/benchmarks.sh --job short  a quick look — do not commit what it gives
 #
 # The reports land in benchmarks/results/ (BenchmarkDotNet's *-report-github.md, nothing else); the tables of
-# docs/benchmarks.md are rendered from them by the architecture test Readme_Benchmarks, which also fails when the two
+# docs/benchmarks.md are rendered from them by the architecture test ReadmeBenchmarksTests, which also fails when the two
 # differ. Run it on a quiet machine: nothing else compiling, nothing else measuring. It takes about forty minutes.
 #
 set -euo pipefail
@@ -31,7 +31,7 @@ mkdir -p "${RESULTS}"
 rm -f "${RESULTS}"/*-report-github.md
 cp "${ARTIFACTS}"/results/*-report-github.md "${RESULTS}/"
 
-LUI_UPDATE_README=1 dotnet test "${ROOT}/tests/Nordmann.LUI.Architecture.Tests" --filter Readme_Benchmarks --nologo
-dotnet test "${ROOT}/tests/Nordmann.LUI.Architecture.Tests" --filter Readme_Benchmarks --nologo
+LUI_UPDATE_README=1 dotnet test "${ROOT}/tests/Nordmann.LUI.Architecture.Tests" --filter ReadmeBenchmarksTests --nologo
+dotnet test "${ROOT}/tests/Nordmann.LUI.Architecture.Tests" --filter ReadmeBenchmarksTests --nologo
 
 echo "benchmarks: the reports are in benchmarks/results/, docs/benchmarks.md is in step — review the diff and commit both"

@@ -9,7 +9,7 @@
 **Every target of §16 is measured in its scenario and met** (PR-009,
 ADR-0020) — three of them as draft 2 set them, five as the owner
 stated them anew after the measurement (2026-11-04, ADR-0010, ADR-0020). The table is the output of
-`PerformanceBudgets`, which asserts every row. The allocation was lowered to its target (ADR-0032) and measured again
+`BudgetPerformance`, which asserts every row. The allocation was lowered to its target (ADR-0032) and measured again
 on 2026-11-06: 46 / 51 KB. The benchmark project (`benchmarks/Nordmann.LUI.Benchmarks/`) measures the code on the same
 corpus.
 
@@ -362,7 +362,7 @@ million, weights with a long tail; 2,000 inputs of 1–8 characters, 1,000 begin
 other load; two runs, a third for the batch size of the build.
 
 ```text
-LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests --filter PerformanceBudgets --logger "console;verbosity=detailed"
+LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests --filter BudgetPerformance --logger "console;verbosity=detailed"
 ```
 
 | Target | Run 1 | Run 2 | Run 3 (batches of 1,000,000) | Run 4 (as committed) | Limit |
@@ -416,7 +416,7 @@ dotnet run -c Release --project benchmarks/Nordmann.LUI.Benchmarks -- --filter '
 Run on **2026-11-04**, on `main` after #19 (`20bbbde`), with `tools/benchmarks.sh`'s command: BenchmarkDotNet 0.15.8,
 the **default job** (not `ShortRun`), every benchmark, 34 min 40 s. Intel Xeon 2.10 GHz, 4 cores, 15 GB, Ubuntu
 24.04.5, .NET 10.0.14 (SDK 10.0.114), the full German word list, nothing else running. The reports are committed in
-[`benchmarks/results/`](../benchmarks/results/) and the tables below are rendered from them by `Readme_Benchmarks`
+[`benchmarks/results/`](../benchmarks/results/) and the tables below are rendered from them by `ReadmeBenchmarksTests`
 (ADR-0022).
 
 Against the `ShortRun` above (mean, µs; the error of the default job is 2–8 % of the mean, that of `ShortRun` was up to
@@ -448,7 +448,7 @@ this one.
 
 The tables of the BenchmarkDotNet run are **generated** from BenchmarkDotNet's own reports in
 [`benchmarks/results/`](../benchmarks/results/) — and they stand in the [README](../README.md), between the markers
-`<!-- benchmarks:begin -->` and `<!-- benchmarks:end -->`, where a test (`Readme_Benchmarks`) fails when they differ. A
+`<!-- benchmarks:begin -->` and `<!-- benchmarks:end -->`, where a test (`ReadmeBenchmarksTests`) fails when they differ. A
 number there always has a run behind it. Run them again with `tools/benchmarks.sh`.
 
 <!-- benchmarks:begin -->

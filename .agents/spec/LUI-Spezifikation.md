@@ -1134,7 +1134,7 @@ veröffentlicht.
 | Dateigröße | 1 Mio. Titel von im Mittel 36 Zeichen, `MultiWord` | ≤ 500 MB inkl. Inhaltstabelle |
 
 **Geändert gegenüber Entwurf 2 (Entscheidung des Eigentümers, 2026-11-04, ADR-0010, ADR-0020):** Gemessen im Szenario
-(Schritt 9, `PerformanceBudgets`) waren fünf Ziele verfehlt. Sie sind neu formuliert — für lange Eingaben, die
+(Schritt 9, `PerformanceBudgets` — seit ADR-0049 `BudgetPerformance`) waren fünf Ziele verfehlt. Sie sind neu formuliert — für lange Eingaben, die
 Korrektur und die Datei ist das eine **Lockerung**, keine Erfüllung:
 
 - **p95 der Abfrage pro Eingabelänge.** Gemessen bei 3 Mio. Einträgen: bis vier Zeichen ≤ 3,1 ms, bei acht Zeichen

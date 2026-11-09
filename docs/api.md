@@ -521,5 +521,5 @@ Forty-two public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing
 ---
 
 > The surface is checked against the code: the architecture test
-> [`Public_API_Documentation`](../tests/Nordmann.LUI.Architecture.Tests/Public_API_Documentation.cs) reads the
+> [`PublicApiDocumentationTests`](../tests/Nordmann.LUI.Architecture.Tests/PublicApiDocumentationTests.cs) reads the
 > assemblies and fails when a public type is missing here — or when a name stands here that the code does not have.
