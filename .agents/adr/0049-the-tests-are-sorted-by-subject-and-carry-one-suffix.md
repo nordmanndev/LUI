@@ -49,7 +49,9 @@ usings declares none and is exempt.
 
 **The map guard checks the layer and finds the projects itself** (#89).
 - A row whose layer is not the layer of its project fails.
-- The test projects are read from the tree: every project that says `<IsTestProject>true</IsTestProject>`.
+- The test projects are read from the tree: every project that says `<IsTestProject>true</IsTestProject>`, and every
+  project that references `Microsoft.NET.Test.Sdk`. The SDK sets the property itself, so a project that does not write it
+  down is still a test project (review of pull request 90, M1).
 - A test project with no layer fails. So does a layer whose project is gone.
 
 ### The renames
@@ -79,14 +81,24 @@ after:
 | Architecture | 89 | 91 | identical, plus the two new tests of #89 and #77 |
 | Sample | 46 | 46 | untouched |
 
-**The bodies were compared as well**, test by test against `main`. Two differ, each by the qualifier of one name that
-the new namespaces made ambiguous:
-- `LinkedTable.Schema(…)` instead of `Schema(…)`: the namespace `Nordmann.LUI.Schema` wins over a `using static`.
-- `Nordmann.LUI.Querying.PreparedQuery` instead of `Querying.PreparedQuery`: the tests now have a `Querying` namespace of their own.
+**The bodies were compared as well.**
+- Method: every test method of the four test projects, before and after, from its attribute to its closing brace,
+  compared byte for byte.
+- Result: **543** methods before, **545** after. **538** are identical.
+- The two new methods are the guards of #89 and #77.
+- Five methods differ, and none of them changes what it asserts:
+  - `LinkedTable.Schema(…)` instead of `Schema(…)`: the namespace `Nordmann.LUI.Schema` wins over a `using static`.
+  - `Nordmann.LUI.Querying.PreparedQuery` instead of `Querying.PreparedQuery`: the tests now have a `Querying` namespace of
+    their own.
+  - `TypeNames.Of` instead of `Type_Names.Of`, and `--filter ReadmeBenchmarksTests` in a failure message: two consequences
+    of the renames.
+  - `Every_file_the_map_lists_sits_in_the_layer_the_map_names`: the repair of #89, on purpose.
 
 **The gaps of #89 were red first.** On `main`, a row of the sample rewritten to "Integration" and a fifth test project with
 a test file left all six guards of the map green. Here they are the mutations `map-row-names-another-layer` and
 `test-project-without-a-layer`, both caught. The new namespace rule has its own mutation, `test-file-in-another-namespace`.
+A project that references the test SDK without writing `IsTestProject` down was green too (review of pull request 90, M1);
+it is the mutation `test-sdk-project-without-a-layer`, caught.
 
 ## Consequences
 

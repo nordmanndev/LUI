@@ -40,6 +40,21 @@ public static class Repository
             .OrderBy(path => path, StringComparer.Ordinal)
             .ToArray();
 
+    /// <summary>
+    /// Whether a project file is a test project: it says <c>&lt;IsTestProject&gt;true&lt;/IsTestProject&gt;</c>, or it
+    /// references <c>Microsoft.NET.Test.Sdk</c> — the SDK sets the property itself, so a project that does not write it
+    /// down is a test project all the same (review of pull request 90, M1).
+    /// </summary>
+    public static bool IsTestProject(string projectFile)
+    {
+        var project = LoadXml(projectFile);
+
+        return Elements(project, "IsTestProject")
+                   .Any(element => string.Equals(element.Value.Trim(), "true", StringComparison.OrdinalIgnoreCase))
+               || Elements(project, "PackageReference")
+                   .Any(reference => string.Equals(reference.Attribute("Include")?.Value, "Microsoft.NET.Test.Sdk", StringComparison.Ordinal));
+    }
+
     /// <summary>All C# sources below a directory, excluding build output.</summary>
     public static IReadOnlyList<string> SourceFiles(string rootDirectory) =>
         Directory

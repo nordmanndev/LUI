@@ -195,13 +195,13 @@ public sealed class TestLandscapeTests
 
     /// <summary>
     /// The test projects of the tree, by their directory relative to the root: every project that says
-    /// <c>&lt;IsTestProject&gt;true&lt;/IsTestProject&gt;</c>. Read from the tree — the shared infrastructure says false and is
-    /// none.
+    /// <c>&lt;IsTestProject&gt;true&lt;/IsTestProject&gt;</c>, and every project that references the test SDK — the SDK sets
+    /// the property itself, so a project that does not write it down is a test project all the same (review of pull request
+    /// 90, M1). Read from the tree; the shared infrastructure says false and references no test SDK.
     /// </summary>
     private static string[] TestProjects() =>
         Repository.ProjectFiles()
-            .Where(file => Repository.Elements(Repository.LoadXml(file), "IsTestProject")
-                .Any(element => string.Equals(element.Value.Trim(), "true", StringComparison.OrdinalIgnoreCase)))
+            .Where(Repository.IsTestProject)
             .Select(file => Path.GetRelativePath(Repository.RootPath, Path.GetDirectoryName(file)!).Replace('\\', '/'))
             .OrderBy(project => project, StringComparer.Ordinal)
             .ToArray();

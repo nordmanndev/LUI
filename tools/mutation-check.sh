@@ -300,7 +300,13 @@ expect_caught "test-project-without-a-layer" "${ARCHITECTURE_PROJECT}" \
   "Every_test_project_of_the_tree_has_a_layer_of_the_map" \
   "mkdir -p samples/Lui.Sample.Tests2 && printf '<Project Sdk=\"Microsoft.NET.Sdk\"><PropertyGroup><IsTestProject>true</IsTestProject></PropertyGroup></Project>\n' > samples/Lui.Sample.Tests2/Lui.Sample.Tests2.csproj"
 
-# 13g. A test whose namespace is not its folder (issue #77): the folders of the tests are their subjects, as in the library.
+# 13g. A test project that does not write IsTestProject down (review of pull request 90, M1): the test SDK sets the
+#      property itself, so the project is a test project all the same — and the map has to have a layer for it.
+expect_caught "test-sdk-project-without-a-layer" "${ARCHITECTURE_PROJECT}" \
+  "Every_test_project_of_the_tree_has_a_layer_of_the_map" \
+  "mkdir -p samples/Lui.Sample.Tests3 && printf '<Project Sdk=\"Microsoft.NET.Sdk\"><ItemGroup><PackageReference Include=\"Microsoft.NET.Test.Sdk\" /></ItemGroup></Project>\n' > samples/Lui.Sample.Tests3/Lui.Sample.Tests3.csproj"
+
+# 13h. A test whose namespace is not its folder (issue #77): the folders of the tests are their subjects, as in the library.
 expect_caught "test-file-in-another-namespace" "${ARCHITECTURE_PROJECT}" \
   "Every_test_source_file_declares_the_namespace_of_its_folder" \
   "printf 'namespace Nordmann.LUI.Integration.Tests;\n\ninternal static class Probe\n{\n}\n' > tests/Nordmann.LUI.Integration.Tests/Linked/Probe.cs"

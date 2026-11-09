@@ -48,7 +48,13 @@ public sealed class NamespaceConventionTests
         foreach (var project in TestTreeProjects())
         {
             var directory = Path.GetDirectoryName(project)!;
-            var root = Repository.Elements(Repository.LoadXml(project), "RootNamespace").Single().Value.Trim();
+            var root = Repository.Elements(Repository.LoadXml(project), "RootNamespace").SingleOrDefault()?.Value.Trim();
+            if (string.IsNullOrEmpty(root))
+            {
+                // review of pull request 90, M2: the rule names the project that gives it no root, rather than stopping
+                offenders.Add($"{Path.GetRelativePath(Repository.RootPath, project).Replace('\\', '/')}: names no RootNamespace");
+                continue;
+            }
 
             foreach (var file in Repository.SourceFiles(directory))
             {
@@ -96,9 +102,7 @@ public sealed class NamespaceConventionTests
         var tests = Path.Combine(Repository.RootPath, "tests") + Path.DirectorySeparatorChar;
 
         return Repository.ProjectFiles()
-            .Where(file => file.StartsWith(tests, StringComparison.Ordinal)
-                           || Repository.Elements(Repository.LoadXml(file), "IsTestProject")
-                               .Any(element => string.Equals(element.Value.Trim(), "true", StringComparison.OrdinalIgnoreCase)))
+            .Where(file => file.StartsWith(tests, StringComparison.Ordinal) || Repository.IsTestProject(file))
             .ToArray();
     }
 
