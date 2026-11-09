@@ -215,9 +215,18 @@ public sealed partial class WorkflowRulesTests
         jobBody.Contains("\n    uses: ./.github/workflows/", StringComparison.Ordinal);
 
     /// <summary>The workflows and the actions of the repository.</summary>
+    /// <remarks>
+    /// The actions in both spellings GitHub reads, <c>action.yml</c> and <c>action.yaml</c>: an action under the other
+    /// spelling was invisible to every rule of this file, the pins among them (issue #93).
+    /// </remarks>
     private static IEnumerable<string> PipelineFiles() =>
-        Workflows().Concat(Directory.EnumerateFiles(Path.Combine(Repository.RootPath, ".github", "actions"), "action.yml", SearchOption.AllDirectories))
+        Workflows()
+            .Concat(ActionPatterns.SelectMany(pattern =>
+                Directory.EnumerateFiles(Path.Combine(Repository.RootPath, ".github", "actions"), pattern, SearchOption.AllDirectories)))
             .OrderBy(path => path, StringComparer.Ordinal);
+
+    /// <summary>The two file names of an action.</summary>
+    private static readonly string[] ActionPatterns = ["action.yml", "action.yaml"];
 
     /// <summary>
     /// The workflows — both spellings GitHub reads: a workflow renamed to <c>.yaml</c> must not leave the sight of the
