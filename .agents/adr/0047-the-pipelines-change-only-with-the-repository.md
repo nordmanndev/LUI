@@ -97,3 +97,14 @@ tag of the action (`git ls-remote`) when it is written.
 | `rollForward: latestFeature` (the first version of this decision) | Measured in the first run: the runner image carries a later band (`10.0.403`), and `dotnet` rolls forward to it — the pin pins nothing. A developer with a later band is the price of a pin that holds. |
 | A YAML package for the guard | A dependency of the tests for five rules that read lines. |
 | Renovate instead of Dependabot | Dependabot is built in and knows the three ecosystems here (actions, NuGet with central versions, the SDK). |
+
+## Note (2026-11-09, issue #91)
+
+The repository is public since 2026-11-09, and branch protection is now available to it (the note above on
+branch protection was written for the private repository).
+
+A download of a pipeline retries a transient error: `curl --retry 5 --retry-delay 10`, since curl counts 502, 503 and 504
+as transient. On failure it writes the status and the address that answered (`-w '%{http_code} %{url_effective}'`). The
+download of actionlint met a 504 of github.com three times in a row on pull request 90, and the job died before actionlint
+ran. A guard, `Every_download_of_a_pipeline_retries_a_transient_error`, holds the rule; the mutation
+`a-download-without-a-retry` shows it bites.

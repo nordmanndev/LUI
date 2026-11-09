@@ -147,6 +147,21 @@ public sealed partial class WorkflowRulesTests
         offenders.ShouldBeEmpty("No pipeline names a dotnet-version of its own — the setup action reads global.json.");
     }
 
+    [Fact]
+    public void Every_download_of_a_pipeline_retries_a_transient_error()
+    {
+        // issue #91: the download of actionlint met a 504 of github.com three times in a row and the job died before
+        // actionlint ran. A download that gives up on the first gateway error makes the weather of a server a red check.
+        var offenders = PipelineFiles()
+            .SelectMany(file => File.ReadAllLines(file).Select(line => (File: file, Line: line.Trim())))
+            .Where(entry => entry.Line.StartsWith("curl ", StringComparison.Ordinal) || entry.Line.Contains(" curl ", StringComparison.Ordinal))
+            .Where(entry => !entry.Line.Contains("--retry ", StringComparison.Ordinal))
+            .Select(entry => $"{Relative(entry.File)}: {entry.Line}")
+            .ToArray();
+
+        offenders.ShouldBeEmpty("Every curl of a pipeline retries (--retry): a 502, 503 or 504 of a server is weather, not a finding.");
+    }
+
     /// <summary>Whether a job calls a reusable workflow instead of running steps.</summary>
     private static bool CallsAWorkflow(string jobBody) =>
         jobBody.Contains("\n    uses: ./.github/workflows/", StringComparison.Ordinal);

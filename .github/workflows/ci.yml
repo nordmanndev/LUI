@@ -40,7 +40,8 @@ jobs:
 
   # The workflows themselves (issue #75, ADR-0048): publish.yml runs only on a tag — a mistake in it would be found at
   # the release, not before. actionlint reads every workflow on every pull request. The binary is the release of
-  # actionlint, checked against the checksum of that release.
+  # actionlint, checked against the checksum of that release. The download retries a transient error and says, when it
+  # fails, which address answered what (issue #91: three 504s of github.com in a row).
   workflows:
     name: Workflows · actionlint
     runs-on: ubuntu-24.04
@@ -55,7 +56,8 @@ jobs:
         run: |
           set -euo pipefail
           archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
-          curl -sSfL -o "${RUNNER_TEMP}/${archive}" \
+          curl -sSfL --retry 5 --retry-delay 10 -w 'curl: %{http_code} %{url_effective}\n' \
+            -o "${RUNNER_TEMP}/${archive}" \
             "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
           echo "${ACTIONLINT_SHA256}  ${RUNNER_TEMP}/${archive}" | sha256sum --check --strict
           tar -xzf "${RUNNER_TEMP}/${archive}" -C "${RUNNER_TEMP}" actionlint
