@@ -191,5 +191,9 @@ public sealed class LinkedIndexTests
         Should.Throw<InvalidOperationException>(
             () => catalog.Create("tags", index => index.SingleWord().WithKey(LuiKeyKind.Text).LinkTo("tag", "id", "name")))
             .Message.ShouldContain("INTEGER PRIMARY KEY");
+
+        // issue #105: KeyKind of a linked index was read in no test
+        Run(database, Table);
+        Tags(catalog).KeyKind.ShouldBe(LuiKeyKind.Number);
     }
 }

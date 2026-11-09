@@ -556,6 +556,18 @@ expect_caught "a-payload-integer-read-as-int32" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~The_payload_row_reads_a_column_in_the_type_the_mapping_asks_for" \
   "sed -i 's|Reader.GetInt64(Ordinal(column))|Reader.GetInt32(Ordinal(column))|' src/Nordmann.LUI/LuiPayloadRow.cs"
 
+# 26q. The linked builder drops the transliteration it was given (issue #105): a setting made after LinkTo would be
+#      lost without a word, and the index would be another than the one described.
+expect_caught "a-linked-setting-dropped" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~The_settings_made_after_LinkTo_reach_the_query_and_the_definition" \
+  "sed -i 's|        _options = _options with { GermanTransliteration = enabled };||' src/Nordmann.LUI/LuiLinkedIndexBuilder.cs"
+
+# 26r. The rebuild of a linked index only ensures a dictionary (issue #105): the frequencies would stay those of the
+#      first build, whatever the weights of the table say now.
+expect_caught "a-linked-rebuild-that-builds-nothing" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_linked_index_rebuilds_its_typo_dictionary_from_the_table_as_it_is_now" \
+  "sed -i 's|        _typos.Rebuild(cancellationToken);|        _typos.EnsureBuilt(cancellationToken);|' src/Nordmann.LUI/Indexes/LinkedIndex.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
