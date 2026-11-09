@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Nordmann.LUI;
 using Shouldly;
 
-namespace Nordmann.LUI.Integration.Tests;
+namespace Nordmann.LUI.Sample.Tests;
 
 /// <summary>
 /// The bulk indexes of the sample (ADR-0029): the button that creates an index and loads it, the progress of the load, and

@@ -18,7 +18,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     public void Sync_queries_and_refreshes_against_embedded()
     {
         var entries = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? "200000", CultureInfo.InvariantCulture);
-        var words = TestCorpus.MeasurementWords(out var corpus);
+        var words = TestFiles.MeasurementWords(out var corpus);
         Report($"corpus: {corpus} ({words.Count:N0} words), {entries:N0} entries");
 
         var random = new Random(42);

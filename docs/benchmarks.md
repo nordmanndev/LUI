@@ -204,8 +204,10 @@ after 3,000 changes at 200,000 rows, 0.82 ms after `Optimize()`.
 
 ```text
 LUI_PERF=1 dotnet test -c Release --filter LinkedPerformance --logger "console;verbosity=detailed"
-LUI_PERF=1 dotnet test -c Release --filter LinkedLayoutExperiment --logger "console;verbosity=detailed"
 ```
+
+The spike of the layout (`LinkedLayoutExperiment`) is gone from the tree (issue #76); its numbers are in ADR-0015, its
+code in the history — `git show 0cbc02f:tests/Nordmann.LUI.Integration.Tests/LinkedLayoutExperiment.cs`.
 
 ### The batch
 
@@ -241,7 +243,8 @@ path — rowid-ordered loading, one merge at the end — belongs to `Sync` and
 ### The sync, the check and the rebuild (PR-007)
 
 ADR-0016. Single-word, the whole word list, 1,000,000 entries in random order,
-cache 512 MB. First the experiment that decided the bulk path (`EmbeddedBulkExperiment`, batches of 10,000 unless said):
+cache 512 MB. First the experiment that decided the bulk path (`EmbeddedBulkExperiment`, batches of 10,000 unless said —
+a spike, gone from the tree since issue #76: `git show 0cbc02f:tests/Nordmann.LUI.Integration.Tests/EmbeddedBulkExperiment.cs`):
 
 | Load | Time | query p95 before / after the merge |
 |---|---:|---:|
@@ -274,7 +277,6 @@ that it marks it stale; the rebuild on its own is 2.0 / 2.3 s.
 ```text
 LUI_PERF=1 LUI_PERF_ENTRIES=1000000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"
 LUI_PERF=1 LUI_PERF_ENTRIES=1000000 LUI_PERF_BATCH=100000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"
-LUI_PERF=1 LUI_PERF_ENTRIES=1000000 dotnet test --filter EmbeddedBulkExperiment --logger "console;verbosity=detailed"
 LUI_PERF=1 LUI_PERF_ENTRIES=300000 dotnet test --filter A_delta_sync_with_a_built_typo_dictionary --logger "console;verbosity=detailed"
 ```
 
@@ -315,7 +317,7 @@ LUI_PERF=1 LUI_PERF_KIND=multi LUI_PERF_ENTRIES=1000000 \
   (extrapolated: about eight minutes). Held: the query at 200 k (p50 1.3 ms, p95 3.4 ms), the allocation, the write p95
   at 200 k (1.3 ms against 1 ms: just over).
 - **One indexed column instead of two** is built (ADR-0011): −36 % file, −40 % build, −30 % query latency in the
-  500 k experiment (`MultiWordLayoutExperiment`), −28 % file, −13 % build, −24 % to −33 % latency in the table above (two indexed columns → one, `s_norm` virtual).
+  500 k experiment (`MultiWordLayoutExperiment`, gone from the tree since issue #76 — `git show 0cbc02f:tests/Nordmann.LUI.Integration.Tests/MultiWordLayoutExperiment.cs`), −28 % file, −13 % build, −24 % to −33 % latency in the table above (two indexed columns → one, `s_norm` virtual).
 
 ---
 

@@ -20,7 +20,7 @@ public sealed class SchemaGoldenTests
             catalog.Create("many", index => index.MultiWord().WithKey(LuiKeyKind.Text).GermanTransliteration(false));
         }
 
-        var golden = File.ReadAllText(TestCorpus.GoldenSchemaPath);
+        var golden = File.ReadAllText(TestFiles.GoldenSchemaPath);
 
         Dump(database).ShouldBe(golden.ReplaceLineEndings("\n"));
     }

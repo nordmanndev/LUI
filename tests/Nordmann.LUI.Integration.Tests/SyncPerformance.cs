@@ -22,7 +22,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
     {
         var entries = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? "200000", CultureInfo.InvariantCulture);
         var batch = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_BATCH") ?? "10000", CultureInfo.InvariantCulture);
-        var words = TestCorpus.MeasurementWords(out var corpus);
+        var words = TestFiles.MeasurementWords(out var corpus);
         Report($"corpus: {corpus} ({words.Count:N0} words), {entries:N0} entries, batch {batch:N0}");
 
         var random = new Random(42);
@@ -81,7 +81,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
     public void A_delta_sync_with_a_built_typo_dictionary()
     {
         var entries = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? "300000", CultureInfo.InvariantCulture);
-        var words = TestCorpus.MeasurementWords(out var corpus);
+        var words = TestFiles.MeasurementWords(out var corpus);
         Report($"corpus: {corpus} ({words.Count:N0} words), {entries:N0} entries, typo tolerance");
         var source = Corpus.Generate(words, entries, CorpusKind.SingleWord).Entries().ToList();
 

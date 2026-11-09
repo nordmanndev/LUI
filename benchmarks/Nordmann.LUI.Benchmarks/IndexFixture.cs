@@ -12,7 +12,7 @@ internal sealed class IndexFixture : IDisposable
 
     internal IndexFixture(CorpusKind kind, int entries, bool typoTolerance = false)
     {
-        var words = TestCorpus.MeasurementWords(out var corpusName);
+        var words = TestFiles.MeasurementWords(out var corpusName);
         CorpusName = corpusName;
         Corpus = Corpus.Generate(words, entries, kind);
         Catalog = _database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });

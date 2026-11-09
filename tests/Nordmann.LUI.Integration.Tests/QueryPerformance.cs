@@ -145,7 +145,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
     /// </summary>
     private IReadOnlyList<string> Words()
     {
-        var words = TestCorpus.MeasurementWords(out var corpus);
+        var words = TestFiles.MeasurementWords(out var corpus);
         Report($"corpus: {corpus} ({words.Count:N0} words)");
         return words;
     }

@@ -50,3 +50,7 @@ indent_size = 2
 # a sentence and is the convention in nordmanndev/standards.
 [tests/**/*.cs]
 dotnet_diagnostic.CA1707.severity = none
+
+# The tests of the sample sit beside it (issue #76) and follow the same convention.
+[samples/Lui.Sample.Tests/**.cs]
+dotnet_diagnostic.CA1707.severity = none

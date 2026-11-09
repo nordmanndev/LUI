@@ -36,7 +36,7 @@ The standards' five non-negotiable rules, and how they read here:
 | Standards rule | In LUI |
 |---|---|
 | DDD + CQS + multi-tenant + SQLite | **SQLite yes.** DDD, CQS and multi-tenancy do not apply — a library has no aggregates and no tenants. LUI opens *one* database per catalog; the application owns its tenancy. |
-| Test pyramid: unit + architecture + integration | **Applies in full.** xUnit + Shouldly + NetArchTest, three test projects (`Nordmann.LUI.Unit.Tests`, `Nordmann.LUI.Architecture.Tests`, `Nordmann.LUI.Integration.Tests`) plus the shared `Nordmann.LUI.Testing`. The map of the tests is [`docs/testing.md`](./docs/testing.md) — and it is a guard, not a document (ADR-0019). |
+| Test pyramid: unit + architecture + integration | **Applies in full.** xUnit + Shouldly + NetArchTest, three test projects (`Nordmann.LUI.Unit.Tests`, `Nordmann.LUI.Architecture.Tests`, `Nordmann.LUI.Integration.Tests`) plus the shared `Nordmann.LUI.Testing`; the sample has its own `samples/Lui.Sample.Tests`, beside it. The map of the tests is [`docs/testing.md`](./docs/testing.md) — and it is a guard, not a document (ADR-0019). |
 | Optimistic concurrency on every aggregate | **Does not apply.** LUI has no aggregates. The concurrency that matters here is SQLite's: one writer per file, WAL for parallel readers. |
 | Outbox dispatch atomicity | **Does not apply.** LUI has no events. Its one atomicity rule is the opposite direction: content and search index change in **one SQLite transaction** (external content + triggers). |
 | Static types for tag/header names | **Does not apply.** LUI speaks no protocol tags; it speaks SQLite column names, and those are validated against a pattern before they reach SQL. |

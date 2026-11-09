@@ -2,7 +2,7 @@ using Nordmann.LUI.Sample.Api;
 using Nordmann.LUI.Sample.Indexes;
 using Shouldly;
 
-namespace Nordmann.LUI.Integration.Tests;
+namespace Nordmann.LUI.Sample.Tests;
 
 /// <summary>
 /// The panel of the indexes is one tab per index, and one index that cannot be read does not take the others down with it

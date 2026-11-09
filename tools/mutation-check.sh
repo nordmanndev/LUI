@@ -283,6 +283,12 @@ expect_caught "skipped-test-file-missing-from-the-map" "${ARCHITECTURE_PROJECT}"
   "Every_test_file_is_listed_in_the_map" \
   "printf 'namespace Nordmann.LUI.Unit.Tests;\n\npublic sealed class SkippedTests\n{\n    [Fact(Skip = \"later\")]\n    public void A_test()\n    {\n    }\n}\n' > tests/Nordmann.LUI.Unit.Tests/SkippedTests.cs"
 
+# 13d. A test file of the sample is not listed (issue #76): the tests of the sample sit beside it, outside tests/ — the
+#      guard of the map has to see them there too.
+expect_caught "sample-test-file-missing-from-the-map" "${ARCHITECTURE_PROJECT}" \
+  "Every_test_file_is_listed_in_the_map" \
+  "printf 'namespace Nordmann.LUI.Sample.Tests;\n\npublic sealed class UnlistedSampleTests\n{\n    [Fact]\n    public void A_test()\n    {\n    }\n}\n' > samples/Lui.Sample.Tests/UnlistedSampleTests.cs"
+
 # 14. The lazy similarity of ADR-0008 — the ranking measures every candidate
 #     again, and the promise that a group that cannot reach the hits costs
 #     nothing is gone.

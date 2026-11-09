@@ -11,7 +11,7 @@ namespace Nordmann.LUI.Indexes;
 /// index when the sync began; each one the source has is crossed off, and what is left at the end is removed. Then the
 /// search index is merged. A key the application adds while the sync runs is never removed.
 /// <para>
-/// The bulk path (ADR-0010, option 5, measured in <c>EmbeddedBulkExperiment</c>): FTS5 starts a new segment whenever a
+/// The bulk path (ADR-0010, option 5, measured in the experiment <c>EmbeddedBulkExperiment</c>, which is in the history since issue #76): FTS5 starts a new segment whenever a
 /// rowid is smaller than the last one it was given, so each batch is written in the order of the search index —
 /// priority, then weight descending; a new entry's document id grows with the order of the inserts —, with FTS5's
 /// incremental merge off while it loads, and one merge at the end.

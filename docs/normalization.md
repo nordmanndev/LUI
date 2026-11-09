@@ -198,7 +198,7 @@ is simply the unfolded one for those characters.
 | `No_folded_character_is_a_separator` | the folding never produces a separator |
 | `No_separator_is_folded_into_a_letter` | a separator never becomes a letter |
 
-The corpus lives in `tests/Nordmann.LUI.TestData/wordlist/` — a deterministic
+The corpus lives in `tests/TestData/wordlist/` — a deterministic
 stride over the German word list (CC0), plus the edge cases whose behaviour
 was measured rather than assumed.
 

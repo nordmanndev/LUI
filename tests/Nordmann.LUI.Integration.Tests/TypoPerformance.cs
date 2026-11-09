@@ -15,7 +15,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
     [PerformanceFact]
     public void The_dictionary_of_the_whole_word_list_and_the_corrected_queries()
     {
-        var words = File.ReadLines(TestCorpus.FullWordListPath)
+        var words = File.ReadLines(TestFiles.FullWordListPath)
             .Where(w => w.Length >= 3 && w.All(char.IsLetter)).Distinct(StringComparer.Ordinal).ToList();
         var limit = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? words.Count.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
         words = [.. words.Take(limit)];

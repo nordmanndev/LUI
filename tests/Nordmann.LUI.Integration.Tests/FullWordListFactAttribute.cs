@@ -14,7 +14,7 @@ internal sealed class FullWordListFactAttribute : FactAttribute
 {
     public FullWordListFactAttribute()
     {
-        if (File.Exists(TestCorpus.FullWordListPath))
+        if (File.Exists(TestFiles.FullWordListPath))
         {
             return;
         }
@@ -28,6 +28,6 @@ internal sealed class FullWordListFactAttribute : FactAttribute
             return;
         }
 
-        Skip = $"The full word list is not present ({TestCorpus.FullWordListPath}) — run tools/fetch-wordlist.sh.";
+        Skip = $"The full word list is not present ({TestFiles.FullWordListPath}) — run tools/fetch-wordlist.sh.";
     }
 }

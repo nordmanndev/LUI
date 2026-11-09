@@ -137,3 +137,17 @@ measurements gated behind `LUI_PERF=1`), `tests/Nordmann.LUI.Architecture.Tests/
 the tree agree — a file is a test file by any form of its test attribute, `[Fact(Skip = …)]` included; two test
 files of the same name in two projects are told apart; the unit layer opens no database), `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs` (every pinned version is used);
 `dotnet format --verify-no-changes`; `tools/mutation-check.sh`.
+
+## Note (2026-11-08, issue #76)
+
+The tree this decision describes changed with the restructure of the tests (epic #72). The decision stands; the
+history above stays as written, and these are the differences:
+
+- **The library still has three layers; the tree has a fourth test project.** The tests of the sample moved out of
+  the integration layer into `samples/Lui.Sample.Tests`, beside the sample they test. The library's integration
+  project no longer references the sample or ASP.NET Core. The map (`docs/testing.md`) lists them under their own
+  section, *Sample*, and `Test_Landscape` knows the project by its directory and calls its layer `Sample`.
+- **`TestCorpus` is `TestFiles`,** and the test data moved from `tests/Nordmann.LUI.TestData/` to `tests/TestData/`.
+  Where the text above says `TestCorpus`, read `TestFiles`.
+- **The four experiments are gone** (ADR-0010, 0011, 0015, 0016 say where their code is in the history). The
+  numbers of the table above were measured with them in the tree.

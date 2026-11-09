@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The tests of the sample application (issue #76): its API on a real Kestrel, its bulk indexes and its panel of the
+    indexes. They lived in the integration tests of the library — the library's tests referenced the sample, and a change
+    of the sample rebuilt them. The sample is not shipped; its tests sit beside it.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <RootNamespace>Nordmann.LUI.Sample.Tests</RootNamespace>
+    <AssemblyName>Lui.Sample.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- the sample is hosted on a port of its own (PR-011, ADR-0027): the framework, no package -->
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../Lui.Sample/Lui.Sample.csproj" />
+    <ProjectReference Include="../../src/Nordmann.LUI/Nordmann.LUI.csproj" />
+    <ProjectReference Include="../../tests/Nordmann.LUI.Testing/Nordmann.LUI.Testing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

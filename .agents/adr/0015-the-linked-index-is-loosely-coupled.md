@@ -155,3 +155,13 @@ typo dictionary; the trigger script, created and dropped triggers; drop; definit
 not know; quoted ORM names) — two of them checked with a deliberate fault (a refresh that does not remove, a sync that
 does not clear: two failures each) —, `SchemaGoldenTests` (the schema of `Owned`, byte for byte), and the package smoke
 test, which runs the linked block of the README against the packed package.
+
+## Note (2026-11-08, issue #76)
+
+The experiment of this decision — `LinkedLayoutExperiment` — was a spike, and it is gone from the tree with the restructure of the
+tests (epic #72). Its numbers stay above; its code is in the history:
+
+```bash
+git show 0cbc02fb9ab700ee5d7585e590f9bfad60af3627:tests/Nordmann.LUI.Integration.Tests/LinkedLayoutExperiment.cs
+```
+

@@ -112,3 +112,13 @@ single-word index.
 - The content table keeps `s_norm` although the search index does not use it: the prefix columns and the ranking read
   it. If the file size ever matters more than the generated column, `s_norm` can become a virtual column.
 - `ITextSimilarity` implementations may be called from many threads; `NgramDice` keeps no state.
+
+## Note (2026-11-08, issue #76)
+
+The experiment of this decision — `MultiWordLayoutExperiment` — was a spike, and it is gone from the tree with the restructure of the
+tests (epic #72). Its numbers stay above; its code is in the history:
+
+```bash
+git show 0cbc02fb9ab700ee5d7585e590f9bfad60af3627:tests/Nordmann.LUI.Integration.Tests/MultiWordLayoutExperiment.cs
+```
+
