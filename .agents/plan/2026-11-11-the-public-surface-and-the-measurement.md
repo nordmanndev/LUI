@@ -3,6 +3,7 @@
 - **Date:** 2026-11-11
 - **Base branch:** `dev` (the pull requests branch from it; `dev` → `main` is a release pull request)
 - **Decided by:** the owner, in six rounds on 2026-11-11
+- **Issues:** #117 (the epic of this plan), #118–#125 (the eight tasks, one per pull request)
 - **Status:** agreed — not started. The first pull request is half-written in the working tree.
 - **Amended:** 2026-11-11, after the sixth round: the restructuring of the test projects was missing from the first
   draft and is now D17–D19 and PR 5. The plan is still written before the work; the amendment is recorded here rather
@@ -68,7 +69,7 @@ from that.
 | # | Decision | Why |
 |---|---|---|
 | D6 | **The budgets live in one file**: `tests/Nordmann.LUI.Testing/Budgets/budgets.json` as an embedded resource, read by a `LuiBudgets` API. `PerformanceBudget` and `ReadmeBudgetsTests` read it instead of hardcoded numbers. **JSON, not YAML** — .NET has no YAML reader in the box, and a new dependency for a file format is an ADR and a package. | One source, no path logic, the file travels with the assembly. |
-| D7 | **The corpora are three fixed files** (words, names, titles), delivered by the owner, checked in. No manifest — the file name is the identity. | A corpus that changes with the scaling parameter is a different corpus (see §2). |
+| D7 | **The corpora are three fixed files** — `tests/TestData/corpora/words.txt`, `names.txt`, `movies.txt` — delivered by the owner, checked in. No manifest: the file name is the identity. The word list also **supplies the sample**: `tests/TestData/wordlist/german-words.sample.txt` becomes the stride (97) over `words.txt`, and the download of the list (`tools/fetch-wordlist.sh`) and the path override `LUI_WORDLIST` go. | A corpus that changes with the scaling parameter is a different corpus (see §2). A list that is fetched from the network and a list that is measured are two truths; checked in, it is one. |
 | D8 | **The loader reads `text` or `text<TAB>weight`.** Without a weight column the weight is derived deterministically (the existing long-tail rule, with a seed). | The owner can hand over a plain list today and real weights later without a format break. |
 | D9 | **A corpus is a *prefix* of the file.** Every measurement names the file and the prefix length; two measurements are only comparable if both name the same. | The texts stay the same while the number falls — unlike the old generator, which changed the kind of text. |
 | D10 | **BenchmarkDotNet gets a linked fixture, a hit count per row and a settings axis** (candidates, order, similarity, correction on/off). | A line without its hit count can measure nothing and look healthy. |
@@ -231,7 +232,22 @@ rules that follow from it:
 
 ## 8. The record of the decisions
 
-The decisions of this plan become ADRs in the same pull request as the change they describe: 0054 (the typo distance),
-0055 (the removal of `DistinctText`), 0056 (the budgets in a file), 0057 (the measurement layer), and the ones the
-deletion and the documentation sweep produce. The plan is written before the work and is not rewritten afterwards —
-the one amendment of 2026-11-11 is recorded in the header.
+The decisions of this plan become ADRs in the same pull request as the change they describe — **one per pull request**:
+
+| Pull request | ADR | Topic |
+|---|---|---|
+| 1 — the typo distance | 0054 | Typo tolerance |
+| 2 — `DistinctText` goes | 0055 | Query path |
+| 3 — the budgets in a file | 0056 | Measurement |
+| 4 — English and free of the standards | 0057 | Documentation |
+| 5 — the measurement layer | 0058 | Measurement |
+| 6 — the corpora | 0059 | Measurement |
+| 7 — the benchmarks and the lane | 0060 | Measurement |
+| 8 — the specification goes | 0061 | Documentation |
+
+The number of an ADR is the next free one at the time the pull request opens; the table says what the plan expects.
+
+The issues exist: **#117** is the epic of this plan, **#118–#125** are the eight tasks, one per pull request.
+
+The plan is written before the work and is not rewritten afterwards — the amendments of 2026-11-11 are recorded in the
+header.
