@@ -213,9 +213,13 @@ public sealed class LuiWarmupTests
     [Trait("Category", "Timing")]
     public async Task A_round_that_waits_for_the_write_lock_is_not_joined_by_the_next_one()
     {
-        // issue #106 (G3): the guard against overlapping rounds was not tested. A round waits for the write lock as long
-        // as the busy timeout (1 s) and fails; the timer ticks every 20 ms. With the guard, one round at a time waits, so
-        // at most one fails per second. Without it, every tick starts a round of its own — about fifty per second.
+        // issue #106 (G3): the guard against overlapping rounds was not tested. The rounds are started by hand, without
+        // the timer: one waits for the write lock of the file, held by the test, and a second one begins beside it. With
+        // the guard the second returns at once and does nothing. Without it, the second runs a round of its own: while the
+        // test holds the lock that round can only fail, and a round tells every failure to the logger (ADR-0045). So the
+        // verdict is the logger, not a clock: no warning when the second call returns.
+        // (The first version counted the failed rounds of a running timer. The catalog writes through one writer, so the
+        // rounds queue and fail a busy timeout apart with the guard and without it: the count did not tell them apart.)
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
@@ -226,27 +230,28 @@ public sealed class LuiWarmupTests
         using var host = Host(
             database,
             warmup: true,
-            configure: options =>
-            {
-                options.WarmUpTypoDictionaries = false;
-                options.OutboxInterval = TimeSpan.FromMilliseconds(20);
-            },
+            configure: options => options.WarmUpTypoDictionaries = false,
             logger: logger,
-            catalogOptions: new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(1) });
-        await host.StartAsync(TestContext.Current.CancellationToken);
+            catalogOptions: new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(5) });
+        var service = host.Services.GetServices<IHostedService>().OfType<global::Nordmann.LUI.Hosting.LuiWarmupService>().Single();
 
+        // the host is not started: no timer runs, and the row waits in the outbox under the lock of the test
+        Insert(database, (1, "vegan", 0));
         using var blocker = database.Connect();
-        HoldTheWriteLockWithARowInTheOutbox(blocker, tags);
+        Run(blocker, "BEGIN IMMEDIATE;");
 
-        // three busy timeouts. A lower bound and an upper bound, both safe under load: a round fails no sooner than its
-        // busy timeout, so three seconds hold at most three failures in a row — and at least one, because the first
-        // round begins within a tick and fails a second later
-        await Task.Delay(TimeSpan.FromSeconds(3), TestContext.Current.CancellationToken);
-        var failed = logger.Entries.Count(entry => entry.Level == LogLevel.Warning);
+        var first = Task.Factory.StartNew(() => service.OnRound(null), TestContext.Current.CancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        await WaitUntil(() => service.RoundRunning);
+
+        // the first round waits for the lock for the busy timeout of five seconds: the second call is made within it
+        service.OnRound(null);
+        logger.Entries.Where(entry => entry.Level == LogLevel.Warning).ShouldBeEmpty("the second call ran no round of its own");
+        first.IsCompleted.ShouldBeFalse("the first round still waits for the lock");
+
+        // the lock is let go within the busy timeout: the first round gets it and applies the row
         Run(blocker, "COMMIT;");
-
-        failed.ShouldBeInRange(1, 4, "one round at a time waits for the lock");
-        await WaitUntil(() => tags.Pending() == 0);
+        await first;
+        tags.Pending().ShouldBe(0, "the first round applied the row once the lock was let go");
     }
 
     [Fact]
@@ -299,27 +304,6 @@ public sealed class LuiWarmupTests
 
             await Task.Delay(20, TestContext.Current.CancellationToken).ConfigureAwait(false);
         }
-    }
-
-    /// <summary>
-    /// Commits a row the trigger notes in the outbox and takes the write lock at once, in one statement. A round that
-    /// slips in between and applies the row leaves the outbox empty: then the lock is let go and the next row tried, so
-    /// that the test always holds the lock over a row that waits.
-    /// </summary>
-    private static void HoldTheWriteLockWithARowInTheOutbox(SqliteConnection blocker, ILuiLinkedIndex tags)
-    {
-        for (var id = 1; id <= 10; id++)
-        {
-            Run(blocker, $"INSERT INTO tag(id, name, usage_count) VALUES ({id}, 'vegan{id}', 0); BEGIN IMMEDIATE;");
-            if (tags.Pending() > 0)
-            {
-                return;
-            }
-
-            Run(blocker, "COMMIT;");
-        }
-
-        throw new InvalidOperationException("Every row was applied before the lock was taken.");
     }
 
     private static void Run(SqliteConnection connection, string sql)
