@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0-alpha] — 2026-11-11
+
+The first release, and a **prerelease** of 0.1.0
+([ADR-0053](.agents/adr/0053-the-first-release-is-a-prerelease.md), #115). It is a release to try out: the public API
+may still change until `0.1.0`, each change with an ADR and an entry here; the freeze of
+[ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) begins with `0.1.0`. Install it with
+`dotnet add package Nordmann.LUI --prerelease`.
+
+It ships the packages `Nordmann.LUI` and `Nordmann.LUI.Hosting` with the API of the
+specification ([`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md)):
+
+- `SingleWord` and `MultiWord` indices, `Embedded` and `Linked` content sources
+- FTS5 trigram search with priority-first candidates, word-start ranking and
+  similarity scoring
+- typo tolerance over a prefix dictionary
+- `Sync`, `Check`, `Rebuild`, `Optimize`
+- dependency injection (`AddLui`, the catalog in the container) in the second package `Nordmann.LUI.Hosting`,
+  released with the same version
+- a sample application with a search field in the browser
+
+The sections below are the changes made on the way to it.
+
 ### Added
 
 - **The typed view over the untyped index** ([ADR-0044](.agents/adr/0044-the-typed-view-over-the-untyped-index.md),
@@ -528,19 +550,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The package no longer depends on `Microsoft.Extensions.DependencyInjection.Abstractions`,
     `Microsoft.Extensions.Hosting.Abstractions` and `Microsoft.Extensions.Logging.Abstractions`: no code used them.
 
-## [0.1.0] — not published
-
-The first release. It ships the packages `Nordmann.LUI` and `Nordmann.LUI.Hosting` with the API of the
-specification ([`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md)):
-
-- `SingleWord` and `MultiWord` indices, `Embedded` and `Linked` content sources
-- FTS5 trigram search with priority-first candidates, word-start ranking and
-  similarity scoring
-- typo tolerance over a prefix dictionary
-- `Sync`, `Check`, `Rebuild`, `Optimize`
-- dependency injection (`AddLui`, the catalog in the container) in the second package `Nordmann.LUI.Hosting`,
-  released with the same version
-- a sample application with a search field in the browser
-
-[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/nordmanndev/LUI/releases/tag/v0.1.0
+[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.1.0-alpha...HEAD
+[0.1.0-alpha]: https://github.com/nordmanndev/LUI/releases/tag/v0.1.0-alpha

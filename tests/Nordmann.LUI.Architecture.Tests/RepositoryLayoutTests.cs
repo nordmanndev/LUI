@@ -109,6 +109,7 @@ public sealed class RepositoryLayoutTests
         {
             Repository.Elements(Repository.LoadXml(project), "Version").ShouldBeEmpty(project);
             Repository.Elements(Repository.LoadXml(project), "VersionPrefix").ShouldBeEmpty(project);
+            Repository.Elements(Repository.LoadXml(project), "VersionSuffix").ShouldBeEmpty(project);
             Repository.Elements(Repository.LoadXml(project), "PackageVersion").ShouldBeEmpty(project);
         }
 

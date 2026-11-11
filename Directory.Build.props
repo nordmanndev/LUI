@@ -39,6 +39,8 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/nordmanndev/LUI</PackageProjectUrl>
     <VersionPrefix>0.1.0</VersionPrefix>
+    <!-- a prerelease while it stands: 0.1.0-alpha (ADR-0053); the freeze of ADR-0026 begins with the version without it -->
+    <VersionSuffix>alpha</VersionSuffix>
   </PropertyGroup>
 
 </Project>

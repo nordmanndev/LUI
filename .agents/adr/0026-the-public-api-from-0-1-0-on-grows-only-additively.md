@@ -101,3 +101,8 @@ and a migration note (decision 2). The reasons are those of the owner, recorded 
   carries its migration note.
 - **Not covered:** the schema of the `lui_*` tables and the `lui_meta` definition are the library's own (an application never
   touches them, AGENTS.md); a change that needs an old database to be recreated gets an ADR of its own, as ever.
+
+## Note (2026-11-11, the prerelease)
+
+The first release is `0.1.0-alpha`, a prerelease ([ADR-0053](./0053-the-first-release-is-a-prerelease.md)). It does
+not start the freeze: decisions 1 and 2 apply from the tag `v0.1.0` without a suffix, as decision 7 says.

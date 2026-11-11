@@ -27,7 +27,14 @@
 set -euo pipefail
 
 readonly ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-readonly VERSION="${1:-0.1.0}"
+# without an argument, the version of the repository: VersionPrefix, and -VersionSuffix when there is one (ADR-0053)
+props_version() {
+  local prefix suffix
+  prefix="$(grep -oP '(?<=<VersionPrefix>)[^<]+' "${ROOT}/Directory.Build.props")"
+  suffix="$(grep -oP '(?<=<VersionSuffix>)[^<]+' "${ROOT}/Directory.Build.props" || true)"
+  echo "${prefix}${suffix:+-${suffix}}"
+}
+readonly VERSION="${1:-$(props_version)}"
 readonly FEED="${ROOT}/artifacts/nuget"
 readonly WORK="$(mktemp -d)"
 readonly SMOKE="${WORK}/SmokeTest"

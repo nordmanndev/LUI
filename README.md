@@ -2,7 +2,7 @@
 
 > **Autocomplete suggestions for .NET, straight out of your own SQLite database.** The suggestions of a search field: the best 5–20 entries out of a stock of up to a few million short texts.
 
-[![Build](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml/badge.svg)](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/Nordmann.LUI.svg)](https://www.nuget.org/packages/Nordmann.LUI) ![Version](https://img.shields.io/badge/version-0.1.0%20unpublished-8A2BE2) [![Licence](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE) [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
+[![Build](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml/badge.svg)](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/vpre/Nordmann.LUI.svg)](https://www.nuget.org/packages/Nordmann.LUI) ![Version](https://img.shields.io/badge/version-0.1.0--alpha-8A2BE2) [![Licence](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE) [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 
 ## What LUI is
 
@@ -34,11 +34,12 @@ use Lucene, SeekStorm or FTS5 directly. Not a key–value store. Not a server wi
 ## Install
 
 ```text
-dotnet add package Nordmann.LUI            # the library — all a console application needs
-dotnet add package Nordmann.LUI.Hosting    # AddLui and the catalog, for ASP.NET Core or a worker
+dotnet add package Nordmann.LUI --prerelease            # the library — all a console application needs
+dotnet add package Nordmann.LUI.Hosting --prerelease    # AddLui and the catalog, for ASP.NET Core or a worker
 ```
 
-The two packages are released together, with one version; the core starts no thread of its own. They are not on nuget.org yet — the publish pipeline waits for its tag.
+The two packages are released together, with one version; the core starts no thread of its own. The version is
+`0.1.0-alpha`, a prerelease: the API may still change until `0.1.0` (see [Status](#status)).
 
 ## Quick start
 
@@ -396,12 +397,14 @@ are **created on demand** — the page fills them when you ask for it, and shows
 
 ## Status
 
-LUI is **feature-complete for 0.1.0 and not yet published**. The design is specified, and the implementation follows
-it; every decision of the repository is written down and dated.
+LUI is **feature-complete for 0.1.0**, and its first release is the prerelease **`0.1.0-alpha`**
+([ADR-0053](.agents/adr/0053-the-first-release-is-a-prerelease.md)). The design is specified, and the implementation
+follows it; every decision of the repository is written down and dated.
 
 Two packages, one version: `Nordmann.LUI` (the library) and `Nordmann.LUI.Hosting` (the dependency injection). The core
 takes `Microsoft.Data.Sqlite` and `symspell` and nothing else; the target framework is `net10.0`, the licence is MIT,
-and the public API grows only additively from `0.1.0` on.
+and the public API grows only additively from `0.1.0` on. The alpha is to try out: until `0.1.0` an API may still
+change, each change with an ADR and an entry in the [CHANGELOG](./CHANGELOG.md).
 
 ## Working on LUI
 
