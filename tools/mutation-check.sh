@@ -598,6 +598,12 @@ expect_caught "a-batch-lost-with-the-swap" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~A_batch_written_during_a_rebuild_is_not_lost_with_the_swap" \
   "sed -i 's|                    pending.Enqueue(text);|                    _ = text;|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
 
+# 26w. Get<T> asks no type whether it can hold null (issue #111, ADR-0052): a NULL read as a long? would throw again, as
+#      it did before 0.1.0.
+expect_caught "a-null-read-as-null-for-every-type-refused" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_null_column_is_null_for_a_type_that_can_hold_null_and_refused_for_one_that_cannot" \
+  "sed -i 's|        return default(T) is null \&\& reader.IsDBNull(ordinal)|        return false \&\& reader.IsDBNull(ordinal)|' src/Nordmann.LUI/LuiPayloadRow.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

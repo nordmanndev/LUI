@@ -368,8 +368,11 @@ and only those.
 | `string GetString(string column)` / `long GetInt64(string column)` / `double GetDouble(string column)` / `T Get<T>(string column)` | reads a column |
 | `bool IsNull(string column)` | whether the column is null |
 
-The conversion is Microsoft.Data.Sqlite's. A `NULL` is refused by every getter with an `InvalidOperationException` —
-`Get<long?>` included, it does not turn a `NULL` into `null`. Ask `IsNull` first.
+The conversion is Microsoft.Data.Sqlite's. A `NULL`:
+- `Get<T>` gives `null` when `T` can hold it — a nullable value type (`Get<long?>`) or a reference type (`Get<string>`);
+- `Get<T>` throws an `InvalidOperationException` when `T` cannot (`Get<long>`): a missing value read as `0` would be a
+  wrong value without a word ([ADR-0052](../.agents/adr/0052-a-null-column-is-null-for-a-type-that-can-hold-it.md));
+- `GetString`, `GetInt64` and `GetDouble` throw: ask `IsNull` first.
 
 ---
 

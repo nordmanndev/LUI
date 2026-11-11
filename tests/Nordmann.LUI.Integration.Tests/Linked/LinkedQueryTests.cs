@@ -32,8 +32,7 @@ public sealed class LinkedQueryTests
     {
         // issue #104 (the coverage of #80, G1): GetInt64, GetDouble and Get<T> were public and called by no test. The
         // values are chosen so that a narrower read would show: a count beyond Int32, a price that a float rounds, a
-        // date read as a DateTime. A NULL is asked for with IsNull: Get<long?> does not turn it into null — the
-        // conversion is Microsoft.Data.Sqlite's, and it refuses a NULL for any T (docs/api.md).
+        // date read as a DateTime, a NULL read as a nullable (#111).
         using var database = new TestDatabase();
         Run(database, """
             CREATE TABLE product (
@@ -50,8 +49,7 @@ public sealed class LinkedQueryTests
         using var catalog = database.Open();
         var products = catalog.Create("products", index => index.SingleWord().LinkTo("product", "id", "name")
             .WithPayload(["sold", "price", "released", "discount"], row => new Product(
-                row.GetInt64("sold"), row.GetDouble("price"), row.Get<DateTime>("released"),
-                row.IsNull("discount") ? null : row.GetInt64("discount"))));
+                row.GetInt64("sold"), row.GetDouble("price"), row.Get<DateTime>("released"), row.Get<long?>("discount"))));
         products.Sync();
 
         var payloads = products.Search("apfel").Hits
@@ -64,11 +62,38 @@ public sealed class LinkedQueryTests
             new Product(7, 2.25, new DateTime(2025, 1, 31, 0, 0, 0, DateTimeKind.Unspecified), 15),
             new Product(5_000_000_000, 3.1, new DateTime(2026, 11, 9, 8, 15, 0, DateTimeKind.Unspecified), null),
         ]);
+    }
 
-        var nullable = catalog.Create("discounts", index => index.SingleWord().LinkTo("product", "id", "name")
-            .WithPayload(["discount"], row => row.Get<long?>("discount")));
-        nullable.Sync();
-        Should.Throw<InvalidOperationException>(() => nullable.Search("apfelkuchen")).Message.ShouldContain("NULL");
+    [Fact]
+    public void A_null_column_is_null_for_a_type_that_can_hold_null_and_refused_for_one_that_cannot()
+    {
+        // issue #111: Get<T> handed every NULL to Microsoft.Data.Sqlite, which refuses it for any T — Get<long?> threw
+        // on the first row without a value. A type that can hold null now gets null; a type that cannot still throws,
+        // because a missing value read as 0 would be a wrong value without a word (review of 2026-11-04, A.7).
+        using var database = new TestDatabase();
+        Run(database, """
+            CREATE TABLE product (
+                id        INTEGER PRIMARY KEY,
+                name      TEXT,
+                discount  INTEGER,
+                note      TEXT,
+                withdrawn TEXT);
+            INSERT INTO product(id, name, discount, note, withdrawn) VALUES (1, 'apfelkuchen', NULL, NULL, NULL);
+            """);
+        using var catalog = database.Open();
+        var optional = catalog.Create("optional", index => index.SingleWord().LinkTo("product", "id", "name")
+            .WithPayload(["discount", "note", "withdrawn"], row => new Optional(
+                row.Get<long?>("discount"), row.Get<string>("note"), row.Get<DateTime?>("withdrawn"))));
+        optional.Sync();
+
+        optional.Search("apfelkuchen").Hits.ShouldHaveSingleItem().GetPayload<Optional>()
+            .ShouldBe(new Optional(null, null, null), "a nullable value type and a reference type read a NULL as null");
+
+        var strict = catalog.Create("strict", index => index.SingleWord().LinkTo("product", "id", "name")
+            .WithPayload(["discount"], row => row.Get<long>("discount")));
+        strict.Sync();
+        Should.Throw<InvalidOperationException>(() => strict.Search("apfelkuchen"), "a long cannot hold a NULL")
+            .Message.ShouldContain("NULL");
     }
 
     [Fact]
@@ -422,6 +447,9 @@ public sealed class LinkedQueryTests
 
     /// <summary>The payload of <see cref="The_payload_row_reads_a_column_in_the_type_the_mapping_asks_for"/>.</summary>
     private sealed record Product(long Sold, double Price, DateTime Released, long? Discount);
+
+    /// <summary>The payload of <see cref="A_null_column_is_null_for_a_type_that_can_hold_null_and_refused_for_one_that_cannot"/>.</summary>
+    private sealed record Optional(long? Discount, string? Note, DateTime? Withdrawn);
 
     private sealed class Constant(double value) : ILuiSimilarity
     {

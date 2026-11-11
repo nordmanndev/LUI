@@ -775,6 +775,7 @@ der Typ der Payload ist das Wissen des Aufrufers und steht dort, wo die Payload 
 - **`Linked`**: Die Payload wird aus Spalten der Tabelle gelesen; die API nimmt
   die Liste der benötigten Spalten und eine Abbildung `Func<LuiPayloadRow, TPayload>`. Die Spalten werden mit den
   Treffern gelesen, in dieser Reihenfolge; `LuiPayloadRow` kennt nur sie und gilt nur, solange die Abbildung läuft.
+  Ein `NULL` liest `Get<T>` als `null`, wenn `T` null halten kann (`long?`, `string`); sonst wirft es (ADR-0052).
   Die Abbildung ist Code der Anwendung und steht darum nicht in der Datei: Sie wird beim Anlegen und beim Öffnen
   übergeben (§ 12.9); der Typ folgt aus ihr.
 - In beiden Fällen: Payload **nur für die Treffer**, eine Abfrage
@@ -983,6 +984,7 @@ public sealed class SuggestEndpoint(LuiCatalog catalog)
 | Gewicht, Priorität oder Option außerhalb des Bereichs | `ArgumentOutOfRangeException`, wenn der Wert gesetzt wird |
 | SQLite meldet `SQLITE_BUSY` nach `busy_timeout` (`BusyTimeout`, mindestens etwa 1 s; § 7.5) | `SqliteException` wird unverändert weitergereicht |
 | ein `LuiPayloadRow`, der nach der Abbildung von `WithPayload` gelesen wird | `InvalidOperationException` (die Zeile gilt nur, solange die Abbildung läuft) |
+| ein `NULL`, gelesen mit `Get<T>` für ein `T`, das null nicht halten kann (`long`), oder mit `GetString`/`GetInt64`/`GetDouble` | `InvalidOperationException` von Microsoft.Data.Sqlite (ADR-0052) |
 | die Datei darf nicht geschrieben werden (`Mode=ReadOnly`) | `LuiReadOnlyException` (nennt den verweigerten Vorgang; § 7.1) |
 
 Die sechs Ausnahmen der Bibliothek — `LuiEnvironmentException`, `LuiDefinitionMismatchException`,
