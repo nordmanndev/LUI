@@ -14,7 +14,7 @@ public sealed class TypoDictionaryStateTests
     [Fact]
     public void A_dictionary_goes_from_not_built_to_current_and_stays_current_when_it_is_built_anew()
     {
-        var dictionary = new TypoDictionary(new NormalizationOptions(), () => [("kartoffel", 1), ("tomate", 1)]);
+        var dictionary = new TypoDictionary(new NormalizationOptions(), () => [("kartoffel", 1), ("tomate", 1)], LuiTypoDistance.OneError);
 
         dictionary.State.ShouldBe(LuiTypoDictionaryState.NotBuilt);
 
@@ -26,12 +26,34 @@ public sealed class TypoDictionaryStateTests
     }
 
     [Fact]
+    public void A_dictionary_that_forgives_nothing_is_never_built()
+    {
+        // the distance of the index is the distance of its dictionary: an index that forgives nothing has no dictionary,
+        // and the memory of one would buy no correction. The proof is the source: it is never read.
+        var reads = 0;
+        var dictionary = new TypoDictionary(
+            new NormalizationOptions(),
+            () =>
+            {
+                reads++;
+                return [("kartoffel", 1)];
+            },
+            LuiTypoDistance.None);
+
+        dictionary.EnsureBuilt(CancellationToken.None);
+
+        reads.ShouldBe(0, "no word is read, so no dictionary is built");
+        dictionary.State.ShouldBe(LuiTypoDictionaryState.NotBuilt);
+        dictionary.IsBuilt.ShouldBeFalse();
+    }
+
+    [Fact]
     public void A_built_dictionary_learns_a_new_word_at_once_and_a_removed_word_stays_until_it_is_built_anew()
     {
         // ADR-0025: the dictionary only grows. The index is the filter — a correction towards a word that is gone finds no
         // candidate and falls away — so nothing marks the dictionary as behind and nothing rebuilds it on its own.
         var texts = new List<(string Text, int Weight)> { ("kartoffel", 1), ("tomate", 1) };
-        var dictionary = new TypoDictionary(new NormalizationOptions(), () => texts.ToArray());
+        var dictionary = new TypoDictionary(new NormalizationOptions(), () => texts.ToArray(), LuiTypoDistance.OneError);
         dictionary.EnsureBuilt(CancellationToken.None);
 
         dictionary.Add("gurkensalat", 1);
@@ -55,8 +77,8 @@ public sealed class TypoDictionaryStateTests
         // a catalog is keyed by the name of the index.
         var registry = new TypoDictionaries();
         var normalization = new NormalizationOptions();
-        var tags = registry.For("tags", normalization, () => [("vegan", 1), ("glutenfrei", 1)]);
-        var names = registry.For("names", normalization, () => [("megan", 1), ("mueller", 1)]);
+        var tags = registry.For("tags", normalization, () => [("vegan", 1), ("glutenfrei", 1)], LuiTypoDistance.OneError);
+        var names = registry.For("names", normalization, () => [("megan", 1), ("mueller", 1)], LuiTypoDistance.OneError);
         tags.EnsureBuilt(CancellationToken.None);
         names.EnsureBuilt(CancellationToken.None);
 
@@ -65,9 +87,9 @@ public sealed class TypoDictionaryStateTests
         names.Corrections("megn").ShouldContain(word => word == "megan");
         tags.Corrections("megn").ShouldNotContain(word => word == "megan", "the tags do not know the word of the names");
 
-        registry.For("tags", normalization, () => [("anything", 1)]).ShouldBeSameAs(tags, "two instances of an index share its dictionary");
+        registry.For("tags", normalization, () => [("anything", 1)], LuiTypoDistance.OneError).ShouldBeSameAs(tags, "two instances of an index share its dictionary");
         registry.Forget("tags");
-        registry.For("tags", normalization, () => []).ShouldNotBeSameAs(tags, "a dropped index starts with a dictionary of its own");
+        registry.For("tags", normalization, () => [], LuiTypoDistance.OneError).ShouldNotBeSameAs(tags, "a dropped index starts with a dictionary of its own");
     }
 
     [Fact]
@@ -75,7 +97,7 @@ public sealed class TypoDictionaryStateTests
     {
         using var release = new ManualResetEventSlim();
         using var reading = new ManualResetEventSlim();
-        var dictionary = new TypoDictionary(new NormalizationOptions(), () => Blocking(reading, release));
+        var dictionary = new TypoDictionary(new NormalizationOptions(), () => Blocking(reading, release), LuiTypoDistance.OneError);
 
         var first = Task.Run(() => dictionary.EnsureBuilt(CancellationToken.None));
         reading.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the first build reads its source");
@@ -94,7 +116,7 @@ public sealed class TypoDictionaryStateTests
     public void A_build_that_fails_leaves_the_old_dictionary_as_it_was()
     {
         var fail = false;
-        var dictionary = new TypoDictionary(new NormalizationOptions(), () => fail ? Failing() : [("kartoffel", 1)]);
+        var dictionary = new TypoDictionary(new NormalizationOptions(), () => fail ? Failing() : [("kartoffel", 1)], LuiTypoDistance.OneError);
         dictionary.EnsureBuilt(CancellationToken.None);
 
         fail = true;
@@ -110,7 +132,7 @@ public sealed class TypoDictionaryStateTests
         // review of pull request 34, I3: a failed build is a correction not searched, not a failed query. Since the query
         // does not build any more (ADR-0042), the build is asked for — and the failure is where it was asked for.
         var fail = true;
-        var dictionary = new TypoDictionary(new NormalizationOptions(), () => fail ? Failing() : [("kartoffel", 1)]);
+        var dictionary = new TypoDictionary(new NormalizationOptions(), () => fail ? Failing() : [("kartoffel", 1)], LuiTypoDistance.OneError);
 
         Should.Throw<InvalidOperationException>(() => dictionary.EnsureBuilt(CancellationToken.None));
         dictionary.State.ShouldBe(LuiTypoDictionaryState.NotBuilt);
@@ -127,7 +149,7 @@ public sealed class TypoDictionaryStateTests
         using var release = new ManualResetEventSlim();
         using var reading = new ManualResetEventSlim();
         using var stopping = new CancellationTokenSource();
-        var dictionary = new TypoDictionary(new NormalizationOptions(), () => Blocking(reading, release));
+        var dictionary = new TypoDictionary(new NormalizationOptions(), () => Blocking(reading, release), LuiTypoDistance.OneError);
         var first = Task.Run(() => dictionary.EnsureBuilt(CancellationToken.None));
         reading.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue();
 

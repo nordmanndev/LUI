@@ -283,15 +283,15 @@ public sealed class LuiCatalog : IDisposable
     {
         var source = new EmbeddedSource(name, entry.Definition);
 
-        // an opened index takes the default of its kind and no typo tolerance: a query asks for a correction
-        // (LuiQueryOptions.TypoTolerance)
+        // An opened index takes the default of its kind and no distance: the next commit gives it the distance
+        // of its stored definition.
         return new EmbeddedIndex(
             Database,
             TypoDictionaries,
             source,
             PayloadSerializer,
             source.Rules.DefaultSimilarity,
-            typoTolerance: false);
+            typoDistance: LuiTypoDistance.None);
     }
 
     /// <summary>
@@ -412,7 +412,7 @@ public sealed class LuiCatalog : IDisposable
             source,
             payload,
             source.Rules.DefaultSimilarity,
-            typoTolerance: false);
+            typoDistance: LuiTypoDistance.None);
     }
 
     private static void EnsureEmbedded(string name, IndexDefinition definition)

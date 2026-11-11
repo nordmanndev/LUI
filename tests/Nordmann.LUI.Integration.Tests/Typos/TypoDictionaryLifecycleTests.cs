@@ -63,7 +63,7 @@ public sealed class TypoDictionaryLifecycleTests
 
         // the dictionary of "words" is the catalog's, one per index: made here first, with a source that blocks, the index
         // takes this one
-        catalog.TypoDictionaries.For("words", new NormalizationOptions(), () => Blocking(reading, release));
+        catalog.TypoDictionaries.For("words", new NormalizationOptions(), () => Blocking(reading, release), LuiTypoDistance.OneError);
         var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         words.Upsert(1, "kartoffel");
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
@@ -94,7 +94,7 @@ public sealed class TypoDictionaryLifecycleTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var fail = true;
-        catalog.TypoDictionaries.For("words", new NormalizationOptions(), () => fail ? Failing() : [("kartoffel", 1)]);
+        catalog.TypoDictionaries.For("words", new NormalizationOptions(), () => fail ? Failing() : [("kartoffel", 1)], LuiTypoDistance.OneError);
         var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         words.Upsert(1, "kartoffel");
 
@@ -211,7 +211,7 @@ public sealed class TypoDictionaryLifecycleTests
     {
         using var building = new ManualResetEventSlim();
         using var release = new ManualResetEventSlim();
-        var dictionary = new TypoDictionary(Normalization, () => Slow(building, release, [("Apfelkuchen", 10)]));
+        var dictionary = new TypoDictionary(Normalization, () => Slow(building, release, [("Apfelkuchen", 10)]), LuiTypoDistance.OneError);
 
         var build = Task.Run(() => dictionary.EnsureBuilt(CancellationToken.None));
         building.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the build started");
@@ -244,7 +244,8 @@ public sealed class TypoDictionaryLifecycleTests
         var slow = false;
         var dictionary = new TypoDictionary(
             Normalization,
-            () => slow ? Slow(building, release, [("Apfelkuchen", 10)]) : [("Apfelkuchen", 10)]);
+            () => slow ? Slow(building, release, [("Apfelkuchen", 10)]) : [("Apfelkuchen", 10)],
+            LuiTypoDistance.OneError);
         dictionary.EnsureBuilt(CancellationToken.None);
 
         slow = true;
@@ -275,7 +276,8 @@ public sealed class TypoDictionaryLifecycleTests
         var slow = false;
         var dictionary = new TypoDictionary(
             Normalization,
-            () => slow ? Slow(building, release, [("Apfelkuchen", 10)]) : [("Apfelkuchen", 10)]);
+            () => slow ? Slow(building, release, [("Apfelkuchen", 10)]) : [("Apfelkuchen", 10)],
+            LuiTypoDistance.OneError);
         dictionary.EnsureBuilt(CancellationToken.None);
 
         slow = true;
@@ -301,7 +303,7 @@ public sealed class TypoDictionaryLifecycleTests
     [Fact]
     public void A_write_to_a_dictionary_that_is_not_built_is_free_and_forgotten()
     {
-        var dictionary = new TypoDictionary(Normalization, () => [("Apfelkuchen", 10)]);
+        var dictionary = new TypoDictionary(Normalization, () => [("Apfelkuchen", 10)], LuiTypoDistance.OneError);
 
         dictionary.Add("Zwetschge", 5);
 
@@ -328,7 +330,8 @@ public sealed class TypoDictionaryLifecycleTests
                 }
 
                 return [("Apfelkuchen", 10)];
-            });
+            },
+            LuiTypoDistance.OneError);
 
         var attempt = Task.Run(() => dictionary.EnsureBuilt(cancellation.Token));
         building.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue();
@@ -353,7 +356,8 @@ public sealed class TypoDictionaryLifecycleTests
         reader.Upsert(1, "Apfelkuchen", 10);
         reader.WarmUpTypoDictionary();   // the application builds the dictionary (ADR-0042)
 
-        var importer = catalog.Create("words", index => index.SingleWord());
+        // the distance is part of the definition: the second instance describes the index the same way
+        var importer = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         importer.Upsert(2, "Zwetschge", 5);
 
         var result = reader.Query("zwetchge").Execute();

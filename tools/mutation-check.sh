@@ -604,6 +604,18 @@ expect_caught "a-null-read-as-null-for-every-type-refused" "${INTEGRATION_PROJEC
   "FullyQualifiedName~A_null_column_is_null_for_a_type_that_can_hold_null_and_refused_for_one_that_cannot" \
   "sed -i 's|        return default(T) is null \&\& reader.IsDBNull(ordinal)|        return false \&\& reader.IsDBNull(ordinal)|' src/Nordmann.LUI/LuiPayloadRow.cs"
 
+# 26y. The distance of the index never reaches its dictionary (ADR-0054): every index forgives one error, whatever
+#       its definition says. The index that forgives nothing would build a dictionary — and pay for it.
+expect_caught "the-distance-of-the-index-never-reaches-its-dictionary" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~An_index_that_forgives_nothing_builds_no_dictionary" \
+  "sed -i 's|Distance: distance));|Distance: LuiTypoDistance.OneError));|' src/Nordmann.LUI/Typos/TypoDictionaries.cs"
+
+# 26z. The correction always forgives one error (ADR-0054): the enumeration is a number again, and the index that
+#       forgives two errors forgives one. The typo of two errors has to stay uncorrected.
+expect_caught "the-correction-always-forgives-one-error" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_typo_of_two_errors_is_corrected_by_the_index_that_forgives_two_and_by_no_other" \
+  "sed -i 's|suggestions.Add(Suggest(symSpell, search.AsSpan(word.Start, word.Length), (int)_distance));|suggestions.Add(Suggest(symSpell, search.AsSpan(word.Start, word.Length), 1));|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

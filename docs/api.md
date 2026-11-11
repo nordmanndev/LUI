@@ -83,7 +83,7 @@ itself. Every builder method returns the builder, so the chain reads as one sent
 | `LuiLinkedIndexBuilder LinkTo(string table, string key, string text, string? weight = null, string? priority = null)` | turns the description into a linked one: the table of the application, its `INTEGER PRIMARY KEY`, the column with the text, and — optional — the columns with the weight and the priority |
 | `LuiEmbeddedIndexBuilder Similarity(ILuiSimilarity similarity)` | the measure of the ranking. The default of the kind is used when it is left out. |
 | `LuiEmbeddedIndexBuilder GermanTransliteration(bool enabled)` | `ä` → `ae`, `ü` → `ue`, `ß` → `ss`. On by default. |
-| `LuiEmbeddedIndexBuilder TypoTolerance(bool enabled = true)` | one typo forgiven. Off by default — the dictionary costs 138 MB for 685,829 words. |
+| `LuiEmbeddedIndexBuilder TypoTolerance(LuiTypoDistance distance = LuiTypoDistance.OneError)` | how many errors are forgiven: `None`, `OneError` or `TwoErrors`. Off by default — the dictionary of the word beginnings costs 138 MB for 685,829 words with one error, and more with two ([`docs/typo-dictionary.md`](./typo-dictionary.md)). The distance is part of the stored definition: an index that is opened again forgives what it forgave before. |
 | `ILuiEmbeddedIndex Create()` | creates the index. The catalog calls this; an application does not. |
 
 ### `LuiLinkedIndexBuilder`
@@ -108,7 +108,7 @@ operation borrows a connection from the pool of the catalog for the time it take
 | `string Name { get; }` | the name of the index |
 | `LuiIndexKind Kind { get; }` | `SingleWord` or `MultiWord` |
 | `LuiKeyKind KeyKind { get; }` | `Number` or `Text` |
-| `bool TypoTolerance { get; }` | whether the index forgives a typo |
+| `LuiTypoDistance TypoDistance { get; }` | how many errors the index forgives: `None`, `OneError` or `TwoErrors`. It belongs to the index, not to the query — a query switches the correction on or off (`Query(text).TypoTolerance(…)`). |
 | `LuiTypoDictionaryState TypoDictionaryState { get; }` | `NotBuilt`, `Building` or `Current` |
 | `long Count()` | the number of the entries |
 | `LuiQuery Query(string text)` | a query that is configured step by step and then executed |
@@ -408,6 +408,7 @@ The four measures of the library — all of them its own, without a dictionary p
 | `LuiRankingOrder` | `WordStartThenSimilarity`, `WordStartThenWeight`, `SimilarityOnly`, `WeightOnly` | the order of the hits |
 | `LuiTriggerState` | `None`, `Current`, `Stale` | the state of the triggers of a linked index |
 | `LuiTypoDictionaryState` | `NotBuilt`, `Building`, `Current` | the state of the dictionary of the typos |
+| `LuiTypoDistance` | `None`, `OneError`, `TwoErrors` | how many errors an index forgives. An enumeration and not a number: the dictionary of the word beginnings grows with every additional error, so the distances are the ones that were measured ([`docs/typo-dictionary.md`](./typo-dictionary.md)) |
 
 ---
 
@@ -475,7 +476,7 @@ The warm-up is a service of the host, not a thread of the library: the host star
 
 ## The whole surface
 
-Forty-two public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing else is public.
+Forty-three public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|
@@ -514,6 +515,7 @@ Forty-two public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing
 | `LuiRankingOrder` | enum | [the enumerations](#the-enumerations) |
 | `LuiTriggerState` | enum | [the enumerations](#the-enumerations) |
 | `LuiTypoDictionaryState` | enum | [the enumerations](#the-enumerations) |
+| `LuiTypoDistance` | enum | [the enumerations](#the-enumerations) |
 | `LuiException` | class | [the exceptions](#the-exceptions) |
 | `LuiEnvironmentException` | class | [the exceptions](#the-exceptions) |
 | `LuiDefinitionMismatchException` | class | [the exceptions](#the-exceptions) |

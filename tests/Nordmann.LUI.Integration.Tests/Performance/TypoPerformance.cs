@@ -51,6 +51,56 @@ public sealed class TypoPerformance(ITestOutputHelper output)
         Latency(wordIndex, words, random);
     }
 
+    /// <summary>
+    /// What every distance costs (ADR-0054): the dictionary of the word beginnings keeps the <i>delete variants</i> of
+    /// SymSpell, and their number grows with the distance — so the distances are the ones that were measured, and the
+    /// numbers stand in <c>docs/typo-dictionary.md</c>.
+    /// <para>
+    /// One index per distance, one database per index: the dictionary of a distance is measured in a process that holds
+    /// no other dictionary, so the numbers are comparable.
+    /// </para>
+    /// </summary>
+    [PerformanceFact]
+    public void What_every_distance_costs()
+    {
+        var words = File.ReadLines(TestFiles.FullWordListPath)
+            .Where(w => w.Length >= 3 && w.All(char.IsLetter)).Distinct(StringComparer.Ordinal).ToList();
+        var limit = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? words.Count.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
+        words = [.. words.Take(limit)];
+
+        Report($"corpus: {words.Count:N0} words from {Path.GetRelativePath(Repository.RootPath, TestFiles.FullWordListPath)}");
+
+        foreach (var distance in new[] { LuiTypoDistance.None, LuiTypoDistance.OneError, LuiTypoDistance.TwoErrors })
+        {
+            using var database = new TestDatabase();
+            using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
+            var wordIndex = catalog.Create("words", index => index.SingleWord().TypoTolerance(distance));
+
+            var random = new Random(5);
+            using (var connection = catalog.Database.OpenConnection())
+            {
+                using var transaction = connection.BeginTransaction();
+                for (var i = 0; i < words.Count; i++)
+                {
+                    wordIndex.Upsert(i + 1, words[i], random.Next(0, 1_000_000), transaction: transaction);
+                }
+
+                transaction.Commit();
+            }
+
+            // the warm-up builds the dictionary (ADR-0042): a query never does
+            GC.Collect();
+            var before = GC.GetTotalMemory(forceFullCollection: true);
+            var build = Stopwatch.StartNew();
+            wordIndex.WarmUpTypoDictionary();
+            build.Stop();
+            GC.Collect();
+            var after = GC.GetTotalMemory(forceFullCollection: true);
+
+            Report($"distance {distance,-9}: dictionary {wordIndex.TypoDictionaryState,-9}, built in {build.Elapsed.TotalSeconds:F1} s, {(after - before) / 1_048_576.0:F0} MB");
+        }
+    }
+
     private void Quality(ILuiEmbeddedIndex index, List<string> words, Random random)
     {
         foreach (var length in new[] { 4, 5, 6, 7 })

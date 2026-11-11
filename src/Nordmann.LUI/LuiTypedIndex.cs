@@ -20,7 +20,7 @@ public sealed class LuiTypedIndex<TPayload>
     public LuiKeyKind KeyKind => _index.KeyKind;
 
     /// <summary>Whether a query of this instance corrects a typo unless it says otherwise.</summary>
-    public bool TypoTolerance => _index.TypoTolerance;
+    public LuiTypoDistance TypoDistance => _index.TypoDistance;
 
     /// <summary>Where the typo dictionary of the index stands (ADR-0025).</summary>
     public LuiTypoDictionaryState TypoDictionaryState => _index.TypoDictionaryState;

@@ -100,11 +100,11 @@ public sealed class LuiLinkedIndexBuilder
     /// a write to the table that LUI is not told of — without a refresh and without the triggers — reaches it with
     /// <c>RebuildTypoDictionary()</c>.
     /// </summary>
-    /// <param name="enabled">Whether an input without a word start is corrected.</param>
+    /// <param name="distance">How many errors are forgiven; <see cref="LuiTypoDistance.None"/> corrects nothing.</param>
     /// <returns>The builder.</returns>
-    public LuiLinkedIndexBuilder TypoTolerance(bool enabled = true)
+    public LuiLinkedIndexBuilder TypoTolerance(LuiTypoDistance distance = LuiTypoDistance.OneError)
     {
-        _options = _options with { TypoTolerance = enabled };
+        _options = _options with { TypoDistance = distance };
         return this;
     }
 
@@ -132,7 +132,8 @@ public sealed class LuiLinkedIndexBuilder
             KeyCodec.KeyType(LuiKeyKind.Number),
             _options.GermanTransliteration,
             TokenizerFold.Version,
-            Link: _link with { PayloadColumns = _payloadColumns.Count == 0 ? null : _payloadColumns });
+            Link: _link with { PayloadColumns = _payloadColumns.Count == 0 ? null : _payloadColumns },
+            TypoDistance: _options.TypoDistance);
 
         var source = new LinkedSource(_name, definition);
         IndexStore.Create(
@@ -151,6 +152,6 @@ public sealed class LuiLinkedIndexBuilder
             source,
             payload,
             _options.Similarity ?? source.Rules.DefaultSimilarity,
-            _options.TypoTolerance);
+            _options.TypoDistance);
     }
 }

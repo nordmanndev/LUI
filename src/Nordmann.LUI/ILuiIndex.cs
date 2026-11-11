@@ -23,10 +23,12 @@ public interface ILuiIndex
     LuiKeyKind KeyKind { get; }
 
     /// <summary>
-    /// Whether a query of this instance corrects a typo unless it says otherwise (<c>TypoTolerance()</c> of the builder,
-    /// overridden by <c>Query(text).TypoTolerance(…)</c>). A property of the instance, not of the stored index.
+    /// How many errors a query of this instance forgives (§10): <see cref="LuiTypoDistance.None"/> corrects nothing.
+    /// The distance belongs to the index — it is part of the stored definition, because the dictionary of the word
+    /// beginnings is built with it. A query may switch the correction on or off
+    /// (<c>Query(text).TypoTolerance(…)</c>), but it cannot change the distance.
     /// </summary>
-    bool TypoTolerance { get; }
+    LuiTypoDistance TypoDistance { get; }
 
     /// <summary>
     /// Where the typo dictionary of the index stands (ADR-0025): not built, being built, or built (and then it only grows).
