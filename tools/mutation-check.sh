@@ -604,6 +604,13 @@ expect_caught "a-null-read-as-null-for-every-type-refused" "${INTEGRATION_PROJEC
   "FullyQualifiedName~A_null_column_is_null_for_a_type_that_can_hold_null_and_refused_for_one_that_cannot" \
   "sed -i 's|        return default(T) is null \&\& reader.IsDBNull(ordinal)|        return false \&\& reader.IsDBNull(ordinal)|' src/Nordmann.LUI/LuiPayloadRow.cs"
 
+# 26x. The distance of the index is not the distance of its definition (ADR-0054): an opened index forgets how its
+#       dictionary was built, and a query has to ask for the correction again. The test that opens the catalog a
+#       second time has to notice.
+expect_caught "the-distance-does-not-survive-a-restart" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~An_opened_index_keeps_its_distance_and_corrects_without_the_query_asking_for_it" \
+  "sed -i 's|typoDistance: entry.Definition.TypoDistance);|typoDistance: LuiTypoDistance.None);|' src/Nordmann.LUI/LuiCatalog.cs"
+
 # 26y. The distance of the index never reaches its dictionary (ADR-0054): every index forgives one error, whatever
 #       its definition says. The index that forgives nothing would build a dictionary — and pay for it.
 expect_caught "the-distance-of-the-index-never-reaches-its-dictionary" "${INTEGRATION_PROJECT}" \
