@@ -26,11 +26,8 @@ internal static class DamerauMeasure
             return 1.0;
         }
 
+        // two empty texts are equal and returned above, so the longer text is never empty here
         var longest = Math.Max(first.Length, second.Length);
-        if (longest == 0)
-        {
-            return 1.0;
-        }
 
         // the order of the division and the subtraction is the library's: the number has to be the same
         // to the last bit, and the order decides where the rounding happens
@@ -43,11 +40,6 @@ internal static class DamerauMeasure
     /// </summary>
     internal static int Distance(ReadOnlySpan<char> first, ReadOnlySpan<char> second)
     {
-        if (first.SequenceEqual(second))
-        {
-            return 0;
-        }
-
         var rows = first.Length;
         var columns = second.Length;
         var width = columns + 2;
