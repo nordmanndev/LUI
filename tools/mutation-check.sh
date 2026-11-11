@@ -580,6 +580,24 @@ expect_caught "rounds-of-the-outbox-that-overlap" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~A_round_that_waits_for_the_write_lock_is_not_joined_by_the_next_one" \
   "sed -i 's|        if (Interlocked.CompareExchange(ref _running, 1, 0) != 0)|        if (Interlocked.CompareExchange(ref _running, 1, 0) != 0 \&\& false)|' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
 
+# 26u. Two empty texts reach the division of the measure (issue #107): 0 / 0 is not a number, and a ranking that sorts by
+#      it has no order.
+expect_caught "two-empty-texts-divided-by-zero" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~SimilarityTests" \
+  "sed -i '0,/        if (first.SequenceEqual(second))/s//        if (first.SequenceEqual(second) \&\& first.Length > 0)/' src/Nordmann.LUI/Similarity/DamerauMeasure.cs"
+
+# 26u'. The same for the other measure whose branch was removed (review of pull request 113, M1): the rule is one, the
+#       files are two.
+expect_caught "two-empty-texts-divided-by-zero-levenshtein" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~SimilarityTests" \
+  "sed -i '0,/        if (first.SequenceEqual(second))/s//        if (first.SequenceEqual(second) \&\& first.Length > 0)/' src/Nordmann.LUI/Similarity/LevenshteinMeasure.cs"
+
+# 26v. A batch written during a build of the typo dictionary is not queued (issue #107): the words of a Sync during a
+#      rebuild would be lost with the swap.
+expect_caught "a-batch-lost-with-the-swap" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_batch_written_during_a_rebuild_is_not_lost_with_the_swap" \
+  "sed -i 's|                    pending.Enqueue(text);|                    _ = text;|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

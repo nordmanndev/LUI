@@ -55,6 +55,27 @@ public sealed class TypedIndexTests
     }
 
     [Fact]
+    public void The_typed_view_describes_the_index_as_the_index_does()
+    {
+        // issue #107 (the coverage of #80, G5): the pass-throughs of the view were read by no test. The index differs from
+        // the defaults in every one of them, so that a view that answered a constant would show.
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var titles = catalog.Create("titles", index => index.MultiWord().WithKey(LuiKeyKind.Text).TypoTolerance());
+        titles.Upsert(new LuiEntry("a", "Apfelkuchen mit Sahne"));
+        titles.WarmUpTypoDictionary();
+
+        var typed = titles.As<Chip>();
+
+        typed.Name.ShouldBe("titles");
+        typed.Kind.ShouldBe(LuiIndexKind.MultiWord);
+        typed.KeyKind.ShouldBe(LuiKeyKind.Text);
+        typed.TypoTolerance.ShouldBeTrue();
+        typed.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        typed.Count().ShouldBe(1);
+    }
+
+    [Fact]
     public void The_fluent_path_ends_in_the_typed_answer_too()
     {
         using var database = new TestDatabase();

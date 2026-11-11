@@ -97,7 +97,7 @@ as in the library (`NamespaceConventionTests`). `Support/` holds the types the t
 
 | Test file | Layer | Proves | The rule |
 |---|---|---|
-| [`SimilarityTests`](../tests/Nordmann.LUI.Unit.Tests/Similarity/SimilarityTests.cs) | Unit | the four measures: identical texts, unrelated texts, the range, the thread safety | spec §11 |
+| [`SimilarityTests`](../tests/Nordmann.LUI.Unit.Tests/Similarity/SimilarityTests.cs) | Unit | the four measures: identical texts (two empty ones included), unrelated texts, the range, the thread safety | spec §11, issue #107 |
 | [`JaroWinklerEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/Similarity/JaroWinklerEquivalenceTests.cs) | Unit | LUI's own Jaro-Winkler against the library it replaces: the same number for known pairs, 10,000 random pairs, the lengths 0 … 12 — without a tolerance | issue #30, ADR-0032 |
 | [`DamerauEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/Similarity/DamerauEquivalenceTests.cs) | Unit | LUI's own Damerau-Levenshtein against the library it replaces: the same number, without a tolerance, and no allocation | issue #30, ADR-0030 |
 | [`LevenshteinEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/Similarity/LevenshteinEquivalenceTests.cs) | Unit | LUI's own Levenshtein against the library it replaces: the same number, without a tolerance, and no allocation | issue #30, ADR-0030 |
@@ -161,14 +161,14 @@ The four files share one table of the application ([`LinkedTable`](../tests/Nord
 | [`GoldenQueryTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/GoldenQueryTests.cs) | Integration | the golden queries as fixed expectations — the system tag first among 30,000 hits | spec §19, Anhang B |
 | [`QueryPlanTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/QueryPlanTests.cs) | Integration | the plan of the candidate query: the search index in the rowid order, no sorter | spec §8.2, §19 |
 | [`AllocationPoolTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/AllocationPoolTests.cs) | Integration | the allocation of a query **after the candidate budget has changed** — the pool of the buffers must not fill up with the lengths of the past | spec §16, ADR-0031 |
-| [`TypedIndexTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/TypedIndexTests.cs) | Integration | the typed view of an index: the payload is read in the type of the application (a method, `GetPayload()`, not a property), the view answers as the index answers, and the fluent path ends in the same typed answer (`LuiResult.As<T>()`) | issue #59, ADR-0044 |
+| [`TypedIndexTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/TypedIndexTests.cs) | Integration | the typed view of an index: the payload is read in the type of the application (a method, `GetPayload()`, not a property), the view answers as the index answers, the view describes the index as the index does (the kind, the key, the typo tolerance, the state of the dictionary), and the fluent path ends in the same typed answer (`LuiResult.As<T>()`) | issue #59, ADR-0044, issue #107 |
 
 ### Typos
 
 | Test file | Layer | Proves | The rule |
 |---|---|---|
 | [`TypoToleranceTests`](../tests/Nordmann.LUI.Integration.Tests/Typos/TypoToleranceTests.cs) | Integration | a typo does not lead nowhere: the four kinds of edit, the correction, the limits; the cap keeps the candidates of the correction, `DistinctText` keeps the correction, the builder takes a bool | spec §10, ADR-0012, review of PR #10 |
-| [`TypoDictionaryLifecycleTests`](../tests/Nordmann.LUI.Integration.Tests/Typos/TypoDictionaryLifecycleTests.cs) | Integration | a query does not wait for a build that runs and says so; the build does not hold up the writers, and a rebuild loses nothing; a sync teaches the dictionary its new words, a removed word lingers until a rebuild, and a rolled-back write too; one dictionary per index — two instances share it, two indexes never correct towards each other's words, a dropped index leaves none behind | spec §10.1, §10.3a, ADR-0021, ADR-0025, review of PR #10 |
+| [`TypoDictionaryLifecycleTests`](../tests/Nordmann.LUI.Integration.Tests/Typos/TypoDictionaryLifecycleTests.cs) | Integration | a query does not wait for a build that runs and says so; the build does not hold up the writers, and a rebuild loses nothing — neither a word nor a batch; a sync teaches the dictionary its new words, a removed word lingers until a rebuild, and a rolled-back write too; one dictionary per index — two instances share it, two indexes never correct towards each other's words, a dropped index leaves none behind | spec §10.1, §10.3a, ADR-0021, ADR-0025, review of PR #10, issue #107 |
 | [`TypoQualityTests`](../tests/Nordmann.LUI.Integration.Tests/Typos/TypoQualityTests.cs) | Integration | the quality of the correction against a measured floor, by the length of the beginning | spec §10.4, §19, Anhang A4 |
 
 ### Maintenance, concurrency, hosting, normalisation

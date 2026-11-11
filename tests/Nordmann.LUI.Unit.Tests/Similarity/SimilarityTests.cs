@@ -22,6 +22,9 @@ public sealed class SimilarityTests
 
         measure.Similarity("apfelkuchen", "apfelkuchen").ShouldBe(1.0, 1e-9);
         measure.Similarity("apfelkuchen", "xyzxyzxyz").ShouldBeLessThan(0.3);
+
+        // issue #107 (the coverage of #80, G4): two empty texts are identical too — no division by a length of zero
+        measure.Similarity(string.Empty, string.Empty).ShouldBe(1.0, 1e-9);
     }
 
     [Theory]
