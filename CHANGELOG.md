@@ -272,6 +272,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **`LuiPayloadRow.Get<T>` reads a `NULL` as `null` when `T` can hold it**
+  ([ADR-0052](.agents/adr/0052-a-null-column-is-null-for-a-type-that-can-hold-it.md), #111). `Get<long?>`,
+  `Get<DateTime?>` and `Get<string>` gave an `InvalidOperationException` for a `NULL`; they give `null`. `Get<object>`
+  gave `DBNull.Value`; it gives `null`. A `T` that cannot hold null (`Get<long>`) still throws, and `GetString`,
+  `GetInt64` and `GetDouble` are unchanged.
+
 - **The budget table of the README is the promise of §16, and a test holds it up**
   ([ADR-0040](.agents/adr/0040-the-budget-table-of-the-entrance-is-a-promise.md), #38). The limits of the table were
   copied by hand, and they had drifted: the allocation still promised the old target of ≤ 250 / ≤ 350 KB, while the

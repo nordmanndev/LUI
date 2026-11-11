@@ -41,13 +41,23 @@ public sealed class LuiPayloadRow
     public double GetDouble(string column) => Reader.GetDouble(Ordinal(column));
 
     /// <summary>
-    /// The column as <typeparamref name="T"/>, converted by <c>Microsoft.Data.Sqlite</c>. A <c>NULL</c> is refused for
-    /// every <typeparamref name="T"/>, a nullable one included: ask <see cref="IsNull"/> first.
+    /// The column as <typeparamref name="T"/>, converted by <c>Microsoft.Data.Sqlite</c>. A <c>NULL</c> gives
+    /// <see langword="null"/> when <typeparamref name="T"/> can hold it — a nullable value type (<c>long?</c>) or a
+    /// reference type (<c>string</c>) — and throws when it cannot (<c>long</c>): a missing value read as <c>0</c> would
+    /// be a wrong value without a word (ADR-0052).
     /// </summary>
     /// <typeparam name="T">The type of the value.</typeparam>
     /// <param name="column">A column named in <c>WithPayload</c>.</param>
-    /// <returns>The value.</returns>
-    public T Get<T>(string column) => Reader.GetFieldValue<T>(Ordinal(column));
+    /// <returns>The value, or <see langword="null"/> for a <c>NULL</c> when <typeparamref name="T"/> can hold it.</returns>
+    /// <exception cref="InvalidOperationException">The column is <c>NULL</c> and <typeparamref name="T"/> cannot hold null.</exception>
+    public T Get<T>(string column)
+    {
+        var reader = Reader;
+        var ordinal = Ordinal(column);
+
+        // default(T) is null exactly for the types that can hold null: a reference type or a Nullable<>
+        return default(T) is null && reader.IsDBNull(ordinal) ? default! : reader.GetFieldValue<T>(ordinal);
+    }
 
     /// <summary>Ends the validity of the row: the mapping is done, the reader goes on to the next hit.</summary>
     internal void Invalidate() => _reader = null;

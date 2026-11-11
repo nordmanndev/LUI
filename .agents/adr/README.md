@@ -105,3 +105,4 @@ decided about the query path" without opening 36 files.
 | [0049](./0049-the-tests-are-sorted-by-subject-and-carry-one-suffix.md) | The tests are sorted by subject, a folder is a namespace, and every test class carries one suffix | Testing | Accepted |
 | [0050](./0050-the-tests-that-read-the-clock-carry-a-trait-and-argue-their-bounds.md) | The tests that read the clock carry a trait, and argue their bounds | Testing | Accepted |
 | [0051](./0051-xunit-v3-run-by-vstest.md) | xUnit.net v3, run by VSTest | Testing | Accepted |
+| [0052](./0052-a-null-column-is-null-for-a-type-that-can-hold-it.md) | A NULL column is null for a type that can hold it | API | Accepted |
