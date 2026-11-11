@@ -10,7 +10,7 @@ work and stays as it was written — even where a later decision changed the nam
 | [Issue #56 — the read path and the catalog as the entry point](./2026-11-05-issue-56-the-catalog-is-the-entry-point.md) | 2026-11-05 | the shape of the API as it is now: the catalog is the entry point, `Create` writes and `Index` does not, one interface per capability, and the file decides what may be written. |
 | [Issue #61 — the README for developers](./2026-11-06-issue-61-the-readme-for-developers.md) | 2026-11-06 | the entrance: the README for developers, the tutorial in five steps, and the map of the documentation. The public API does not change. |
 | [Issue #64 — the production readiness](./2026-11-06-issue-64-production-readiness.md) | 2026-11-06 | the round of the review of 2026-11-06: the guards that run by themselves, the numbers that agree with the specification, the query that does not build the dictionary, the hardened concurrency and the typed view. |
-| [The public surface and the measurement](./2026-11-11-the-public-surface-and-the-measurement.md) | 2026-11-11 | the public API before the freeze of 0.1.0 and the measurement that goes with it: the typo distance as an enumeration, `DistinctText` removed, the budgets in a file, the corpora as three fixed files, the specification unlinked and then deleted — seven pull requests on the branch `dev`. |
+| [The public surface and the measurement](./2026-11-11-the-public-surface-and-the-measurement.md) | 2026-11-11 | the public API before the freeze of 0.1.0 and the measurement that goes with it: the typo distance as an enumeration, `DistinctText` removed, the budgets in a file, the corpora as three fixed files, the measurement as a layer of its own without environment variables, the specification unlinked and then deleted — eight pull requests on the branch `dev`. |
 
 ## The difference
 
@@ -34,6 +34,7 @@ A plan points at the ADRs it produced; an ADR rarely names the plan that led to 
 - **The fourth plan** is the history of the round of the review: what the review found, what was decided by the owner,
   and the seven tasks with their acceptance bar.
 - **The fifth plan** is the history of the public surface and the measurement: what the API looks like before the freeze
-  of 0.1.0, what the corpora and the budgets of the measurement are, and in which order the seven pull requests come.
+  of 0.1.0, what the corpora and the budgets of the measurement are, how the measurement becomes a layer of its own,
+  and in which order the eight pull requests come.
 
 Every decision the plans produced is an ADR in [`../adr/`](../adr/README.md) — indexed there by its topic.

@@ -2,8 +2,11 @@
 
 - **Date:** 2026-11-11
 - **Base branch:** `dev` (the pull requests branch from it; `dev` → `main` is a release pull request)
-- **Decided by:** the owner, in five rounds on 2026-11-11
+- **Decided by:** the owner, in six rounds on 2026-11-11
 - **Status:** agreed — not started. The first pull request is half-written in the working tree.
+- **Amended:** 2026-11-11, after the sixth round: the restructuring of the test projects was missing from the first
+  draft and is now D17–D19 and PR 5. The plan is still written before the work; the amendment is recorded here rather
+  than silently applied.
 - **Why now:** two reasons that share one deadline. The public API may still break **until the tag `v0.1.0` exists**
   (ADR-0026) — after that a break costs a minor version. And the performance numbers that are published today were
   measured on a corpus that was not the corpus they claim to be.
@@ -70,6 +73,9 @@ from that.
 | D9 | **A corpus is a *prefix* of the file.** Every measurement names the file and the prefix length; two measurements are only comparable if both name the same. | The texts stay the same while the number falls — unlike the old generator, which changed the kind of text. |
 | D10 | **BenchmarkDotNet gets a linked fixture, a hit count per row and a settings axis** (candidates, order, similarity, correction on/off). | A line without its hit count can measure nothing and look healthy. |
 | D11 | **The performance lane runs weekly** (`17 3 * * 1` UTC), the build lane does not run it. No environment variables configure it — the workflow input replaces them. | A weekly lane is enough for a comparison; a nightly lane burns the runner. |
+| D17 | **The measurement becomes its own layer.** Everything that reads the clock moves into `tests/Nordmann.LUI.Performance.Tests`: `BudgetPerformance`, `QueryPerformance`, `TypoPerformance`, `SyncPerformance`, `LinkedPerformance`, `BatchPerformance`. **`BudgetMachineTests` goes to the unit layer** — it tests the logic of the budget (`ScenarioEntries`, `BelongsToTheMachine`) without a database, so it is a rule and not a measurement. The tree has three layers plus the measurement layer; ADR-0019 is restated, with ADR-0041 and ADR-0050. | A measurement in the integration layer is a measurement that runs when somebody remembers the variable. A rule test that reads the clock's rules belongs with the rules. |
+| D18 | **The environment variables die:** `LUI_PERF`, `LUI_PERF_ENTRIES`, `LUI_PERF_KIND`, `LUI_PERF_MACHINE` and `LUI_REQUIRE_FULL_WORDLIST`. What replaces them is a **scenario file** that the lane writes (`performance.scenario.json`): the corpus, the prefix length, the settings. The file is checked in with the default scenario, so a run without the lane works too. | A variable in the environment is invisible in the code and in the report. A file is a thing one can read, check in and diff. |
+| D19 | **The guard that the full word list is there moves to the fetch.** `tools/fetch-wordlist.sh` already checks the 685 829 lines and fails loudly (`set -euo pipefail`); the CI step that runs the parity over the whole list keeps its explicit filter. | The variable was the second guard for the same fact. Two guards for one fact are one too many — and the fetch is the one that knows the number. |
 
 ### 3.3 The repository
 
@@ -83,12 +89,12 @@ from that.
 
 ---
 
-## 4. The order: seven pull requests
+## 4. The order: eight pull requests
 
 Every pull request: its own branch off `dev`, its own ADR in the same pull request, a note in the `CHANGELOG`, its tests,
 and a measurement where a number is claimed. The acceptance bar is written below.
 
-### PR 1 — The typo distance is an enumeration
+### PR 1 — The typo distance is an enumeration (D1, D2, D3, D4)
 
 - The change that is half-written in the working tree: `LuiTypoDistance`, the builder, the interfaces, the definition,
   the dictionary, the catalog.
@@ -101,7 +107,7 @@ and a measurement where a number is claimed. The acceptance bar is written below
 - **Acceptance bar:** the build is green, the four test projects are green, `docs/testing.md` has a line for the new
   test file, `tools/mutation-check.sh` has an entry for the changed rule.
 
-### PR 2 — `DistinctText` is removed
+### PR 2 — `DistinctText` is removed (D5)
 
 - The API, the sample, the tutorial, the README, `docs/api.md`, the five tests (restated, not deleted: the *case* —
   one text in two spellings — becomes a statement about the data, in the documentation).
@@ -109,7 +115,7 @@ and a measurement where a number is claimed. The acceptance bar is written below
 - **Acceptance bar:** no `DistinctText` remains in the public API, the sample still runs, the tutorial still compiles
   (its code blocks are run as one program).
 
-### PR 3 — The budgets in a file, the specification unlinked
+### PR 3 — The budgets in a file, the specification unlinked (D6, D12, D14)
 
 - `budgets.json` + the `LuiBudgets` API; `PerformanceBudget` and `ReadmeBudgetsTests` read it; the nine budgets of §16
   (the seven rows of its table, as the README lists them) are the first content.
@@ -117,26 +123,50 @@ and a measurement where a number is claimed. The acceptance bar is written below
 - The standards references out of `AGENTS.md`, `docs/architecture/alignment.md` (restated as "what applies to a
   library"), `docs/testing.md`, the README, `docs/README.md`, `Directory.Build.props`, the CI comment.
 - ADR 0056 (topic: *Measurement*).
+- **The two budget mutations change with it:** `a-budget-limit-in-the-readme-edited-by-hand` and
+  `a-budget-limit-in-the-record-edited-by-hand` edit the **README** today. After this pull request the limit lives in the
+  JSON file, so both mutations edit **the file** — the guard stays the same, the target moves.
 - **Acceptance bar:** the budget test fails when a number in the file is wrong (a mutation), and the README renderer
   reads the same file — one source, two readers.
 
-### PR 4 — The documentation is English and free of the standards
+### PR 4 — The documentation is English and free of the standards (D14, D15)
 
 - The two German working papers translated (about 520 lines), the five tutorials renamed
   (`01-first-index.md` …), the ADR texts restated without the standards (with a dated note), the ADR index updated.
 - **Acceptance bar:** a search for the German function words over the repository finds nothing outside the sample data;
   a search for the standards finds nothing.
 
-### PR 5 — The measurement infrastructure
+### PR 5 — The measurement becomes its own layer (D17, D18, D19)
 
-- The project `tests/Nordmann.LUI.Performance.Tests` (xUnit, no environment variables), the three corpora and their
-  loader, the measurement store (`benchmarks/measurements/<project>.json`), `docs/benchmarks.md` with the measured
-  numbers.
+- The project `tests/Nordmann.LUI.Performance.Tests` (xUnit) and the six files that read the clock move into it
+  (D17). `BudgetMachineTests` goes to the unit layer — it is a rule test, not a measurement.
+- The guards that watch the tree change with it, or they fail the build:
+  - `Architecture.Tests/TestLandscapeTests.cs` — `Every_test_project_of_the_tree_has_a_layer_of_the_map`; the new
+    project needs a row in `Layers` (the failure message says exactly that: *"a new one is a new row of the list of
+    the layers"*).
+  - `Architecture.Tests/TimingTraitTests.cs` — `Every_test_that_reads_the_clock_carries_the_timing_trait` scans every
+    test project; the new one is included.
+  - `docs/testing.md` — the map is a guard: every file needs a row, and the layer table of the "three layers" grows a
+    fourth.
+- `Support/FullWordListFactAttribute.cs` moves into the shared infrastructure (`Nordmann.LUI.Testing`), because
+  `NormalizationParityTests` uses it and stays in the integration layer. `Support/PerformanceFactAttribute.cs` and
+  `Support/TestGates.cs` go: with the measurement in its own layer, the gate is the layer (D18).
+- The environment variables go with them (D18): the **scenario file** (`performance.scenario.json`) takes their place,
+  checked in with the default scenario. The guard for the full word list moves to the fetch (D19).
+- ADR 0057 (topic: *Measurement*), the restatement of ADR-0019 ("three layers" → "three layers and the measurement
+  layer"), ADR-0041 and ADR-0050.
+- **Acceptance bar:** the four test projects and the new one are green; the landscape test, the timing trait test and
+  the map agree with the tree; `grep LUI_PERF` over the repository finds nothing.
+
+### PR 6 — The measurement infrastructure (D7, D8, D9)
+
+- The three corpora and their loader (D7, D8), the measurement store (`benchmarks/measurements/<project>.json`),
+  `docs/benchmarks.md` with the measured numbers.
 - The old generator (`Corpus.Generate`) and the fallback to the 7 071-word sample with `LUI_WORDLIST` go.
 - **Acceptance bar:** the build matrix runs over every setting combination on a prefix of the corpora; the index
   build is measured once (not fifteen times by the benchmark); every result names its corpus.
 
-### PR 6 — The benchmarks grow up, the lane runs weekly
+### PR 7 — The benchmarks grow up, the lane runs weekly (D10, D11)
 
 - The linked fixture, the hit count per row, the settings axis, the compact renderer in the README with the link to
   `benchmarks/results/`.
@@ -145,11 +175,11 @@ and a measurement where a number is claimed. The acceptance bar is written below
   hand.
 - **Acceptance bar:** a report line with zero hits is visible as zero hits.
 
-### PR 7 — The specification is deleted, the §-references are rehung
+### PR 8 — The specification is deleted, the §-references are rehung (D12, D13, D16)
 
-- The deletion of `.agents/spec/LUI-Spezification.md` and the mapping table: `§x` → the ADR or the page that carries
+- The deletion of `.agents/spec/LUI-Spezifikation.md` and the mapping table: `§x` → the ADR or the page that carries
   the rule; where none exists, the reference goes.
-- **Acceptance bar:** no `§` reference points to a document that does not exist; the build and the four test projects
+- **Acceptance bar:** no `§` reference points to a document that does not exist; the build and the five test projects
   are green.
 
 ---
@@ -180,6 +210,8 @@ rules that follow from it:
 | A typo distance as a free number | The dictionary grows with every error; the numbers of D1 exist to be measured (PR 1), not guessed. |
 | An English sweep that eats the English sample data | The umlauts and the ß are the point of the sample. They stay. |
 | A deletion that is mixed into the work | The deletion touches 175 files. It is its own pull request (D12). |
+| A new test project without the map and the guards | `TestLandscapeTests` and `TimingTraitTests` watch the tree — a project that is not in the map fails the build, and the failure says in one sentence what to do. Read it before guessing (D17, PR 5). |
+| A rule test that travels with the measurements | `BudgetMachineTests` checks the logic of the budget without a database; if it travels into the weekly lane, the build lane loses that guard (D17). |
 
 ---
 
@@ -190,7 +222,7 @@ rules that follow from it:
   words) are re-decided when the files exist.
 - **The measured numbers of PR 1** (the memory of the dictionary per distance). They are measured before
   `docs/typo-dictionary.md` is written.
-- **The mapping table of PR 7.** It is written with the deletion, section by section.
+- **The mapping table of PR 8.** It is written with the deletion, section by section.
 - **The optimisations of the audit** (the prefix path reads 501 rows and uses 20 of them; the statements are prepared
   per query; the correction is eager over three variants; the build writes twice). They are not part of this plan —
   they are a separate line of work with their own decisions.
@@ -200,5 +232,6 @@ rules that follow from it:
 ## 8. The record of the decisions
 
 The decisions of this plan become ADRs in the same pull request as the change they describe: 0054 (the typo distance),
-0055 (the removal of `DistinctText`), 0056 (the budgets in a file), and the ones the deletion and the documentation
-sweep produce. The plan is written before the work and is not rewritten afterwards.
+0055 (the removal of `DistinctText`), 0056 (the budgets in a file), 0057 (the measurement layer), and the ones the
+deletion and the documentation sweep produce. The plan is written before the work and is not rewritten afterwards —
+the one amendment of 2026-11-11 is recorded in the header.
