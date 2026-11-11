@@ -76,3 +76,8 @@ of actionlint, checked against the checksum of that release.
 | Keep the stored API key | A key that lives for months and can push every package of the account; Trusted Publishing issues one that lives an hour and can only be had by this workflow of this repository. |
 | Private repository, the tag as the only approval | Possible, and written down as the fallback: without the environment, the policy on nuget.org leaves the environment empty. The owner chose the public repository — the approval, and SourceLink that works for the users. |
 | `workflow_dispatch` with the version as an input | A second way to start a release, which would have to repeat every check of the tag. The tag is the one way. |
+
+## Note (2026-11-11, a prerelease)
+
+The tag check reads `VersionSuffix` as well, and so does the smoke test when it gets no version: the tag of a
+prerelease is `v<VersionPrefix>-<VersionSuffix>` ([ADR-0053](./0053-the-first-release-is-a-prerelease.md)).

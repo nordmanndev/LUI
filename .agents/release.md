@@ -23,15 +23,16 @@
 
 ## For every release
 
-1. **`main` is green**, and the CHANGELOG has the section of the version (`## [0.1.0] — …`) with its date.
-2. **The version** in `Directory.Build.props` (`VersionPrefix`) is the version of the release — the pipeline refuses a tag
-   that disagrees.
+1. **`main` is green**, and the CHANGELOG has the section of the version (`## [0.1.0-alpha] — …`) with its date.
+2. **The version** in `Directory.Build.props` is the version of the release: `VersionPrefix`, and `-VersionSuffix` while
+   it stands (`0.1.0` + `alpha` is `0.1.0-alpha`; ADR-0053). The pipeline refuses a tag that disagrees. For `0.1.0`
+   the line `VersionSuffix` goes — the freeze of ADR-0026 begins with that tag.
 3. **Tag the commit of `main`** and push the tag:
 
    ```bash
    git switch main && git pull
-   git tag -a v0.1.0 -m "LUI 0.1.0"
-   git push origin v0.1.0
+   git tag -a v0.1.0-alpha -m "LUI 0.1.0-alpha"
+   git push origin v0.1.0-alpha
    ```
 
 4. **Approve the push** — *Actions → Publish → the run → Review deployments → nuget → Approve*. It is asked for after

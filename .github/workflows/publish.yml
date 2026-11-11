@@ -2,7 +2,8 @@ name: Publish
 
 # The release (issue #75, ADR-0048). A tag v* on a commit of main starts it — and the tag is the owner's decision.
 #
-#   tag      the version of the tag is the version of Directory.Build.props, and the tagged commit is on main
+#   tag      the version of the tag is the version of Directory.Build.props (VersionPrefix, and -VersionSuffix when there
+#            is one: a prerelease, ADR-0053), and the tagged commit is on main
 #   gate     exactly the gates of every pull request: ci.yml, called — not a gate of its own
 #   publish  in the environment "nuget", which waits for the owner's approval; the packages are packed and smoke-tested
 #            at the version of the tag and pushed with a key that nuget.org issues for one hour (Trusted Publishing,
@@ -38,7 +39,9 @@ jobs:
         run: |
           set -euo pipefail
           tag="${GITHUB_REF_NAME#v}"
-          props="$(grep -oP '(?<=<VersionPrefix>)[^<]+' Directory.Build.props)"
+          prefix="$(grep -oP '(?<=<VersionPrefix>)[^<]+' Directory.Build.props)"
+          suffix="$(grep -oP '(?<=<VersionSuffix>)[^<]+' Directory.Build.props || true)"
+          props="${prefix}${suffix:+-${suffix}}"
           if [ "${tag}" != "${props}" ]; then
             echo "The tag (${tag}) and Directory.Build.props (${props}) disagree." >&2
             exit 1
