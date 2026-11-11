@@ -586,6 +586,12 @@ expect_caught "two-empty-texts-divided-by-zero" "${UNIT_PROJECT}" \
   "FullyQualifiedName~SimilarityTests" \
   "sed -i '0,/        if (first.SequenceEqual(second))/s//        if (first.SequenceEqual(second) \&\& first.Length > 0)/' src/Nordmann.LUI/Similarity/DamerauMeasure.cs"
 
+# 26u'. The same for the other measure whose branch was removed (review of pull request 113, M1): the rule is one, the
+#       files are two.
+expect_caught "two-empty-texts-divided-by-zero-levenshtein" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~SimilarityTests" \
+  "sed -i '0,/        if (first.SequenceEqual(second))/s//        if (first.SequenceEqual(second) \&\& first.Length > 0)/' src/Nordmann.LUI/Similarity/LevenshteinMeasure.cs"
+
 # 26v. A batch written during a build of the typo dictionary is not queued (issue #107): the words of a Sync during a
 #      rebuild would be lost with the swap.
 expect_caught "a-batch-lost-with-the-swap" "${INTEGRATION_PROJECT}" \
