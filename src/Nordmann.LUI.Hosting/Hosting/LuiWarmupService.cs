@@ -91,11 +91,19 @@ internal sealed partial class LuiWarmupService : IHostedService, IDisposable
         }
     }
 
-    /// <summary>A round of the outbox — one at a time.</summary>
+    /// <summary>Whether a round of the outbox runs — what the guard of <see cref="OnRound"/> reads (a test asks it, #106).</summary>
+    internal bool RoundRunning => Volatile.Read(ref _running) != 0;
+
+    /// <summary>
+    /// A round of the outbox — one at a time. The callback of the timer; internal so that a test can start a round
+    /// beside one that runs, without a timer and without a race (#106).
+    /// </summary>
     /// <param name="state">Not used.</param>
-    private void OnRound(object? state)
+    internal void OnRound(object? state)
     {
-        // a round that is still running is not started again — the rounds of a timer may overlap
+        // a round that is still running is not started again. The rounds of a timer may overlap, and the catalog writes
+        // through one writer: a second round would not write beside the first, it would hold a thread of the pool while
+        // it waits for the writer — one per tick, for as long as the first round waits for the lock of the file
         if (Interlocked.CompareExchange(ref _running, 1, 0) != 0)
         {
             return;

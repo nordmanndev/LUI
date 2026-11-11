@@ -568,6 +568,18 @@ expect_caught "a-linked-rebuild-that-builds-nothing" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~A_linked_index_rebuilds_its_typo_dictionary_from_the_table_as_it_is_now" \
   "sed -i 's|        _typos.Rebuild(cancellationToken);|        _typos.EnsureBuilt(cancellationToken);|' src/Nordmann.LUI/Indexes/LinkedIndex.cs"
 
+# 26s. The stop of the warm-up leaves the timer running (issue #106): the rounds would go on against a host that is
+#      shutting down.
+expect_caught "a-stop-that-keeps-the-rounds" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~After_the_host_stops_no_round_of_the_outbox_begins" \
+  "sed -i 's|        _timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);||' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
+
+# 26t. The guard against overlapping rounds lets every tick in (issue #106): while the write lock is held, a round per
+#      tick would wait beside the others.
+expect_caught "rounds-of-the-outbox-that-overlap" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_round_that_waits_for_the_write_lock_is_not_joined_by_the_next_one" \
+  "sed -i 's|        if (Interlocked.CompareExchange(ref _running, 1, 0) != 0)|        if (Interlocked.CompareExchange(ref _running, 1, 0) != 0 \&\& false)|' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
