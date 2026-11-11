@@ -265,6 +265,38 @@ public sealed class TypoDictionaryLifecycleTests
         dictionary.Corrections("zwetchge").Contains("zwetschge", StringComparer.Ordinal).ShouldBeTrue();
     }
 
+    // issue #107 (the coverage of #80, G6): a batch of texts — what Sync, UpsertMany and ApplyPending write — during a
+    // rebuild. The single word is above; the batch takes its own path (AddRange) and was run by no test.
+    [Fact]
+    public async Task A_batch_written_during_a_rebuild_is_not_lost_with_the_swap()
+    {
+        using var building = new ManualResetEventSlim();
+        using var release = new ManualResetEventSlim();
+        var slow = false;
+        var dictionary = new TypoDictionary(
+            Normalization,
+            () => slow ? Slow(building, release, [("Apfelkuchen", 10)]) : [("Apfelkuchen", 10)]);
+        dictionary.EnsureBuilt(CancellationToken.None);
+
+        slow = true;
+        var rebuild = Task.Run(() => dictionary.Rebuild(CancellationToken.None), TestContext.Current.CancellationToken);
+        building.Wait(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken).ShouldBeTrue("the rebuild started");
+
+        try
+        {
+            dictionary.AddRange([("Zwetschge", 5), ("Holunder", 3)]);
+        }
+        finally
+        {
+            release.Set();
+        }
+
+        await rebuild;
+
+        dictionary.Corrections("zwetchge").Contains("zwetschge", StringComparer.Ordinal).ShouldBeTrue("the first text of the batch");
+        dictionary.Corrections("holunedr").Contains("holunder", StringComparer.Ordinal).ShouldBeTrue("the last text of the batch");
+    }
+
     // review of pull request 10, M1: the build does not hold up the writers, and a rebuild loses nothing
     [Fact]
     public void A_write_to_a_dictionary_that_is_not_built_is_free_and_forgotten()
