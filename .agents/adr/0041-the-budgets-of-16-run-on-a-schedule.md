@@ -74,9 +74,13 @@ is not the scenario reports everything), the lane `performance.yml` and the summ
 
 ## Note (2026-11-12, issue #122)
 
-[ADR-0058](./0058-the-measurement-is-a-layer-of-its-own.md) takes the variables of the environment away: the scenario of a
-run lives in `performance.scenario.json`, and the lane writes that file before it measures. The decision stands; the sentences above that named a variable of the environment **or a file of the measurements** are rewritten, because that variable died with ADR-0058 and that file moved into the layer of the measurements.
-These are the differences:
+[ADR-0058](./0058-the-measurement-is-a-layer-of-its-own.md) takes the variables of the environment away: the scenario
+of a run lives in `performance.scenario.json`, and the lane writes that file before it measures.
+
+The decision stands; the sentences above that named a variable of the environment, the name of a gate that is gone
+(`PerformanceFact`, `TestGates`) or a path of the file of the measurements (`PerformanceBudgets.cs`,
+`BudgetPerformance.cs`) are rewritten — each of them because the variable died with ADR-0058 and took the gate of the
+measurements with it, or because that file moved into the layer of the measurements.
 
 - **The machine of a run is a member of the scenario file** (`"machine": "measurement"` or `"other"`), not a variable of
   the environment. The default does not weaken: without a machine the run is on the machine of the record.

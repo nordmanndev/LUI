@@ -93,5 +93,11 @@ Moving the CI to MTP would change a lot at once:
 
 ## Note (2026-11-12, issue #122)
 
-ADR-0058 takes the gate of the measurements away — the measurement has a layer of its own, and the layer is the gate. The
-gate of the whole word list stays a dynamic skip, and its guard is the fetch of the list. The decision stands; the sentences above that named a variable of the environment **or a file of the measurements** are rewritten, because that variable died with ADR-0058 and that file moved into the layer of the measurements.
+ADR-0058 takes the gate of the measurements away — the measurement has a layer of its own, and the layer is the gate.
+The gate of the whole word list stays a dynamic skip, and its guard is the fetch of the list. The class that held both
+gates is now `WordListGate`; it lost the property of the measurements, and `TestGates` is the name it had before.
+
+The decision stands; the sentences above that named a variable of the environment, the name of a gate that is gone
+(`PerformanceFact`, `TestGates`) or a path of the file of the measurements (`PerformanceBudgets.cs`,
+`BudgetPerformance.cs`) are rewritten — each of them because the variable died with ADR-0058 and took the gate of the
+measurements with it, or because that file moved into the layer of the measurements.

@@ -2,7 +2,8 @@
 
 > **Name note (ADR-0023, 2026-11-04):** since this record was written, `Owned` is called `Embedded`: `ILuiOwnedIndex` is
 > `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
-> `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
+> `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written —
+> except for the sentences that the note of 2026-11-12 below rewrites and names.
 
 - **Status:** Accepted. **Owner's decisions of 2026-11-04** on the four waivers: the targets are stated anew in §16 and
   asserted — see "The owner's decisions" at the end; the allocation with bug #30
@@ -12,7 +13,7 @@
   [0016](./0016-sync-check-rebuild.md) (the bulk path), [0019](./0019-the-test-tree-three-layers-one-map.md) (the test tree)
 - **Affects:**
   - `tests/Nordmann.LUI.Testing/Corpus.cs` (+ `CorpusKind`, `WeightDistribution`), `TestDatabase.FileMegabytes()`
-  - `tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs`
+  - `tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs`
   - `benchmarks/Nordmann.LUI.Benchmarks/`
   - `docs/benchmarks.md`, `docs/testing.md`, spec §16
 
@@ -150,4 +151,10 @@ after 0.1.0. `PerformanceBudgets` asserts it; no target of §16 is waived any mo
 ## Note (2026-11-12, issue #122)
 
 The budget test lives in the layer of the measurements since ADR-0058, and the scenario of a run lives in
-`performance.scenario.json`. The decision stands; the sentences above that named a variable of the environment **or a file of the measurements** are rewritten, because that variable died with ADR-0058 and that file moved into the layer of the measurements.
+`performance.scenario.json`.
+
+The decision stands; the sentences above that named a variable of the environment, the name of a gate that is gone
+(`PerformanceFact`, `TestGates`) or a path of the file of the measurements (`PerformanceBudgets.cs`,
+`BudgetPerformance.cs`) are rewritten — each of them because the variable died with ADR-0058 and took the gate of the
+measurements with it, or because that file moved into the layer of the measurements. The path in the list of affected
+files above now names the file where it lives; the name of the class stays, as ADR-0049 says.

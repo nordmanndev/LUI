@@ -142,8 +142,8 @@ files of the same name in two projects are told apart; the unit layer opens no d
 ## Note (2026-11-08, issue #76)
 
 The tree this decision describes changed with the restructure of the tests (epic #72). The decision stands; the
-history above stays as written — except for the sentences that named a variable of the environment: the note
-of 2026-11-12 below names them — and these are the differences:
+history above stays as written — except for the title and the sentences that the note
+of 2026-11-12 below rewrites and names — and these are the differences:
 
 - **The library still has three layers; the tree has a fourth test project.** The tests of the sample moved out of
   the integration layer into `samples/Lui.Sample.Tests`, beside the sample they test. The library's integration
@@ -164,8 +164,13 @@ compares the **layer** of a row with its project, and reads the test projects fr
 ## Note (2026-11-12, issue #122)
 
 [ADR-0058](./0058-the-measurement-is-a-layer-of-its-own.md) gives the measurement a layer of its own
-(`tests/Nordmann.LUI.Performance.Tests`) and takes the variables of the environment away. The decision stands; the sentences above that named a variable of the environment **or a file of the measurements** are rewritten, because that variable died with ADR-0058 and that file moved into the layer of the measurements.
-These are the differences:
+(`tests/Nordmann.LUI.Performance.Tests`) and takes the variables of the environment away.
+
+The decision stands; the title above and the sentences above that named a variable of the environment, the name of a
+gate that is gone (`PerformanceFact`, `TestGates`) or a path of the file of the measurements (`PerformanceBudgets.cs`,
+`BudgetPerformance.cs`) are rewritten: the title because the tree has a fourth layer, the sentences because the
+variable died with ADR-0058 and took the gate of the measurements with it, or because that file moved into the layer
+of the measurements.
 
 - **The tree has a fourth layer.** The six files that read the clock moved from the integration layer into
   `tests/Nordmann.LUI.Performance.Tests`. The gate of the measurements is the layer — there is no variable that switches

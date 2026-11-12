@@ -89,5 +89,10 @@ Two kinds of test are not timing tests:
 
 ## Note (2026-11-12, issue #122)
 
-[ADR-0058](./0058-the-measurement-is-a-layer-of-its-own.md) gives the measurement a layer of its own: the measurements of
-the tree are in `tests/Nordmann.LUI.Performance.Tests`, and the gate of the measurements is the layer. The decision stands; the sentences above that named a variable of the environment **or a file of the measurements** are rewritten, because that variable died with ADR-0058 and that file moved into the layer of the measurements.
+[ADR-0058](./0058-the-measurement-is-a-layer-of-its-own.md) gives the measurement a layer of its own: the measurements
+of the tree are in `tests/Nordmann.LUI.Performance.Tests`, and the gate of the measurements is the layer.
+
+The decision stands; the sentences above that named a variable of the environment, the name of a gate that is gone
+(`PerformanceFact`, `TestGates`) or a path of the file of the measurements (`PerformanceBudgets.cs`,
+`BudgetPerformance.cs`) are rewritten — each of them because the variable died with ADR-0058 and took the gate of the
+measurements with it, or because that file moved into the layer of the measurements.
