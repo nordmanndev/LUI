@@ -1,4 +1,5 @@
 using Shouldly;
+using static Nordmann.LUI.Integration.Tests.Linked.LinkedTable;
 
 namespace Nordmann.LUI.Integration.Tests.Typos;
 
@@ -10,6 +11,12 @@ namespace Nordmann.LUI.Integration.Tests.Typos;
 /// </summary>
 public sealed class TypoDistanceTests
 {
+    /// <summary>
+    /// The heap a rebuild of an index that forgives nothing may grow: nothing. The dictionary of SymSpell takes at
+    /// least its initial capacity of 65,536 entries — megabytes — so the bound is far below the smallest possible one.
+    /// </summary>
+    private const long HeapGrowthOfARebuildWithoutCorrection = 1_048_576;
+
     [Fact]
     public void The_distance_is_part_of_the_stored_definition()
     {
@@ -62,6 +69,83 @@ public sealed class TypoDistanceTests
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt, "the memory of a dictionary would buy no correction");
         words.Search("krttoffel").CorrectedQuery.ShouldBeNull();
         words.Search("krttoffel").Hits.ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void A_rebuild_of_an_index_that_forgives_nothing_builds_no_dictionary()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.None));
+        words.Upsert(1, "Kartoffel", 10);
+
+        GC.Collect();
+        var before = GC.GetTotalMemory(forceFullCollection: true);
+
+        // the rebuild is asked for explicitly — and an index that forgives nothing has no dictionary to build
+        words.RebuildTypoDictionary();
+
+        GC.Collect();
+        var after = GC.GetTotalMemory(forceFullCollection: true);
+
+        words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt, "the memory of a dictionary would buy no correction");
+        (after - before).ShouldBeLessThan(
+            HeapGrowthOfARebuildWithoutCorrection,
+            $"a rebuild that forgives nothing takes no memory, and the dictionary of the whole list is 138 MB ({(after - before) / 1_048_576.0:F1} MB)");
+    }
+
+    [Fact]
+    public void A_sync_of_an_index_that_forgives_nothing_builds_no_dictionary()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "Kartoffel", 10));
+        using var catalog = database.Open();
+        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").TypoTolerance(LuiTypoDistance.None));
+
+        // the rebuild is asked for explicitly — and an index that forgives nothing has no dictionary to build
+        tags.RebuildTypoDictionary();
+        tags.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
+
+        // the sync of a linked index builds the dictionary anew (ADR-0025) — and there is none to build
+        tags.Sync();
+        tags.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
+
+        // the sync did its work all the same
+        tags.Count().ShouldBe(1);
+    }
+
+    [Fact]
+    public void A_query_cannot_widen_the_distance_of_its_index()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+
+        var none = catalog.Create("none", index => index.SingleWord().TypoTolerance(LuiTypoDistance.None));
+        var one = catalog.Create("one", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError));
+        none.Upsert(1, "Kartoffel", 10);
+        one.Upsert(1, "Kartoffel", 10);
+
+        // the application asks for the build (ADR-0042): a query never does
+        none.WarmUpTypoDictionary();
+        one.WarmUpTypoDictionary();
+
+        // a query that asks for the correction of an index that forgives nothing is no error — and it is told that the
+        // correction was skipped: the distance of the index is the ceiling of the query
+        var asked = none.Query("kartofel").TypoTolerance(true).Execute();
+        asked.CorrectedQuery.ShouldBeNull("a distance of None forgives nothing, and a query cannot widen it");
+        asked.CorrectionSkipped.ShouldBeTrue();
+        asked.Hits.ShouldBeEmpty();
+
+        // a query may switch the correction off
+        var off = one.Query("kartofel").TypoTolerance(false).Execute();
+        off.CorrectedQuery.ShouldBeNull();
+        off.Hits.ShouldBeEmpty();
+
+        // and it may ask for nothing: the distance of the index answers
+        var on = one.Query("kartofel").Execute();
+        on.CorrectedQuery.ShouldBe("kartoffel");
+        on.Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
     }
 
     [Fact]
