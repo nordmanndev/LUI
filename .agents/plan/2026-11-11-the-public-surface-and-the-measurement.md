@@ -1,5 +1,9 @@
 # Plan — The public surface of LUI and the measurement of its performance
 
+> **Note (ADR-0057, 2026-11-12, issue #121):** this paper named the contract outside the repository by its name of the
+> time. The sentences that named it are restated in the terms of this repository — they speak of "the external
+> contract" now. The text below is the paper of its time.
+
 - **Date:** 2026-11-11
 - **Base branch:** `dev` (the pull requests branch from it; `dev` → `main` is a release pull request)
 - **Decided by:** the owner, in six rounds on 2026-11-11

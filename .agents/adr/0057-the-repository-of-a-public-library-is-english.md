@@ -8,10 +8,12 @@
   rules of this repository)
 - **Affects:**
   - `.agents/plan/` (five papers: three translated, two restated), `.agents/adr/` (thirteen records: six restated, seven
-    with a translated quotation — this one added), `.agents/adr/README.md` (the index)
-  - `docs/tutorial/` (five files renamed), `docs/architecture/alignment.md`, `docs/testing.md`, `docs/README.md`
-  - `README.md`, `AGENTS.md`, `CHANGELOG.md`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`,
-    `.github/workflows/ci.yml`
+    with a translated quotation — this one added), `.agents/adr/README.md` (the index),
+    `.agents/state/recently-completed.md`
+  - `docs/tutorial/` (five files renamed, and their README), `docs/architecture/alignment.md`, `CHANGELOG.md`
+  - **not** the live documents — `README.md`, `AGENTS.md`, `docs/README.md`, `docs/testing.md`, `Directory.Build.props`,
+    `Directory.Packages.props`, `.editorconfig`, `.github/workflows/ci.yml`: #131 took the references to the external
+    contract out of them, and this pull request does not undo that work.
 - **Issue:** #121 (part of #117, step 4)
 
 ## Context
@@ -86,4 +88,4 @@ row in `docs/api.md`.
 | **B — leave the working papers in German** | the papers stay exactly as they were written | a reader finds three documents in another language, and the search for German words does not come back empty |
 | **C — keep the ADRs as they are** | the records stay untouched | the decisions of a public library are written in the terms of a contract its reader cannot know |
 | **D — translate the sample data too** | one language in the data as well | the sample data shows what the normalisation is for — "Gedeckter Apfelkuchen" is the point of it, not an accident |
-| **E — the repository is English, and its decisions speak in its own terms** (this decision) | every document of the library is in the language of its reader, and the history of the work stays visible in the notes | the papers of the work carry a translation — a note per paper, and a restatement per ADR |
+| **E — the repository is English, and its decisions speak in its own terms** (this decision) | every d
