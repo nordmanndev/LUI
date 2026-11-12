@@ -1,23 +1,28 @@
 using System.Diagnostics;
-using System.Globalization;
 
-namespace Nordmann.LUI.Integration.Tests.Performance;
+namespace Nordmann.LUI.Performance.Tests;
 
 /// <summary>
 /// What the typo tolerance costs and how good it is on a large stock (LUI-Spezifikation §16: dictionary of
 /// 700,000 words ≤ 200 MB and ≤ 10 s, corrected query p95 ≤ 10 ms; Anhang A4).
-/// <code>LUI_PERF=1 dotnet test --filter TypoPerformance --logger "console;verbosity=detailed"</code>
+/// <code>dotnet test tests/Nordmann.LUI.Performance.Tests --filter TypoPerformance --logger "console;verbosity=detailed"</code>
 /// Needs <c>tools/fetch-wordlist.sh</c>.
 /// </summary>
+[Trait("Category", "Timing")]
 public sealed class TypoPerformance(ITestOutputHelper output)
 {
-    [PerformanceFact]
+    /// <summary>The scenario of this run (ADR-0058): the corpus, the prefix length and the settings.</summary>
+    private static PerformanceScenario Scenario => PerformanceScenario.Current;
+    [FullWordListFact]
     public void The_dictionary_of_the_whole_word_list_and_the_corrected_queries()
     {
-        var words = File.ReadLines(TestFiles.FullWordListPath)
-            .Where(w => w.Length >= 3 && w.All(char.IsLetter)).Distinct(StringComparer.Ordinal).ToList();
-        var limit = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? words.Count.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
-        words = [.. words.Take(limit)];
+        List<string> words = [.. Scenario.Words(out var corpus).Where(w => w.Length >= 3 && w.All(char.IsLetter)).Distinct(StringComparer.Ordinal)];
+        if (Scenario.Entries is { } limit)
+        {
+            words = [.. words.Take(limit)];
+        }
+
+        Report(Scenario.Describe(corpus, words.Count));
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
@@ -62,15 +67,16 @@ public sealed class TypoPerformance(ITestOutputHelper output)
     /// of the run (ADR-0041).
     /// </para>
     /// </summary>
-    [PerformanceFact]
+    [FullWordListFact]
     public void What_every_distance_costs()
     {
-        var words = File.ReadLines(TestFiles.FullWordListPath)
-            .Where(w => w.Length >= 3 && w.All(char.IsLetter)).Distinct(StringComparer.Ordinal).ToList();
-        var limit = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? words.Count.ToString(CultureInfo.InvariantCulture), CultureInfo.InvariantCulture);
-        words = [.. words.Take(limit)];
+        List<string> words = [.. Scenario.Words(out var corpus).Where(w => w.Length >= 3 && w.All(char.IsLetter)).Distinct(StringComparer.Ordinal)];
+        if (Scenario.Entries is { } limit)
+        {
+            words = [.. words.Take(limit)];
+        }
 
-        Report($"corpus: {words.Count:N0} words from {Path.GetRelativePath(Repository.RootPath, TestFiles.FullWordListPath)}");
+        Report(Scenario.Describe(corpus, words.Count));
 
         foreach (var distance in new[] { LuiTypoDistance.None, LuiTypoDistance.OneError, LuiTypoDistance.TwoErrors })
         {

@@ -1,24 +1,27 @@
 using System.Diagnostics;
-using System.Globalization;
 using Microsoft.Data.Sqlite;
 
-namespace Nordmann.LUI.Integration.Tests.Performance;
+namespace Nordmann.LUI.Performance.Tests;
 
 /// <summary>
 /// What a <c>Linked</c> index costs on a table of the application (ADR-0015): the sync of the whole table, the
 /// queries through the whole pipeline, the refresh of single rows — against an <c>Embedded</c> index of the same entries.
-/// <code>LUI_PERF=1 dotnet test --filter LinkedPerformance --logger "console;verbosity=detailed"</code>
+/// <code>dotnet test tests/Nordmann.LUI.Performance.Tests --filter LinkedPerformance --logger "console;verbosity=detailed"</code>
 /// </summary>
+[Trait("Category", "Timing")]
 public sealed class LinkedPerformance(ITestOutputHelper output)
 {
+    /// <summary>The scenario of this run (ADR-0058): the corpus, the prefix length and the settings.</summary>
+    private static PerformanceScenario Scenario => PerformanceScenario.Current;
     private const int Queries = 2_000;
 
-    [PerformanceFact]
+    [Fact]
     public void Sync_queries_and_refreshes_against_embedded()
     {
-        var entries = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? "200000", CultureInfo.InvariantCulture);
-        var words = TestFiles.MeasurementWords(out var corpus);
-        Report($"corpus: {corpus} ({words.Count:N0} words), {entries:N0} entries");
+        var entries = Scenario.Entries ?? 200_000;
+        var words = Scenario.Words(out var corpus);
+        Report(Scenario.Describe(corpus, words.Count));
+        Report($"  {entries:N0} entries");
 
         var random = new Random(42);
         var rows = Enumerable.Range(1, entries)

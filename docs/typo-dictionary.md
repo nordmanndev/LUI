@@ -86,7 +86,7 @@ number is a measurement that is comparable with the old one.
 | The corpus | `artifacts/wordlist/german-words.txt` — 685,829 words, the German word list of [enz/german-wordlist](https://github.com/enz/german-wordlist) (CC0) |
 | The machine | Intel Xeon Platinum, 2 cores, 3.0 GB RAM, Debian 12 (bookworm), .NET 10.0.403 — the load average of the machine was 1.1 during the run |
 | The method | the growth of the heap of the process while the dictionary is built (`GC.GetTotalMemory(forceFullCollection: true)` before and after `WarmUpTypoDictionary()`), one index and one database per distance in **one run of the process** — the heap is read with a forced collection, so the dictionary of the previous distance is reclaimed before the next one is measured |
-| The command | `LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests --configuration Release --filter "FullyQualifiedName~TypoPerformance.What_every_distance_costs" --logger "console;verbosity=detailed"` |
+| The command | `dotnet test tests/Nordmann.LUI.Performance.Tests --configuration Release --filter "FullyQualifiedName~TypoPerformance.What_every_distance_costs" --logger "console;verbosity=detailed"` |
 
 The memory is the size of the dictionary, not the size of the index: the index
 of 685,739 words is in the file, and the file is not in the heap.

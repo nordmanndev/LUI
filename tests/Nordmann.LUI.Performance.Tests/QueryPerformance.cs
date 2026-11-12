@@ -1,34 +1,35 @@
 using System.Diagnostics;
-using System.Globalization;
 using Shouldly;
 
-namespace Nordmann.LUI.Integration.Tests.Performance;
+namespace Nordmann.LUI.Performance.Tests;
 
 /// <summary>
 /// The budgets of LUI-Spezifikation §16 for a single-word index: latency and
 /// allocation of a query, the cost of a single write, the build.
-/// <code>LUI_PERF=1 LUI_PERF_ENTRIES=3000000 dotnet test --filter QueryPerformance</code>
+/// <code>dotnet test tests/Nordmann.LUI.Performance.Tests --filter QueryPerformance</code>
 /// </summary>
+[Trait("Category", "Timing")]
 public sealed class QueryPerformance(ITestOutputHelper output)
 {
+    /// <summary>The scenario of this run (ADR-0058): the corpus, the prefix length and the settings.</summary>
+    private static PerformanceScenario Scenario => PerformanceScenario.Current;
     private const int Queries = 2_000;
 
-    /// <summary><c>LUI_PERF_KIND=multi</c>: titles of two to four words and inputs of one or two words.</summary>
-    private static readonly bool Multi =
-        string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_KIND"), "multi", StringComparison.Ordinal);
+    /// <summary>The kind of the index the measurement builds: the multi-word one of the titles, or a single-word index.</summary>
+    private static bool Multi => Scenario.Kind == CorpusKind.MultiWord;
 
-    [PerformanceFact]
+    [Fact]
     public void A_query_over_the_corpus_stays_within_the_budget()
     {
-        var entries = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? "200000", CultureInfo.InvariantCulture);
-        // LUI_PERF_DB keeps the database between runs: the build of three million entries takes minutes
-        using var database = new TestDatabase(Environment.GetEnvironmentVariable("LUI_PERF_DB"));
+        var entries = Scenario.Entries ?? 200_000;
+        // the database of the scenario is kept between the runs: the build of three million entries takes minutes
+        using var database = new TestDatabase(string.IsNullOrEmpty(Scenario.Database) ? null : Scenario.Database);
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
         var tags = Multi
             ? catalog.Create("tags", index => index.MultiWord())
             : catalog.Create("tags", index => index.SingleWord());
 
-        if (string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_OPTIMIZE"), "1", StringComparison.Ordinal))
+        if (Scenario.Optimize)
         {
             using var optimize = catalog.Database.OpenConnection();
             using var command = optimize.CreateCommand();
@@ -144,8 +145,8 @@ public sealed class QueryPerformance(ITestOutputHelper output)
     /// </summary>
     private IReadOnlyList<string> Words()
     {
-        var words = TestFiles.MeasurementWords(out var corpus);
-        Report($"corpus: {corpus} ({words.Count:N0} words)");
+        var words = Scenario.Words(out var corpus);
+        Report(Scenario.Describe(corpus, words.Count));
         return words;
     }
 
@@ -176,13 +177,13 @@ public sealed class QueryPerformance(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// <c>LUI_PERF_WEIGHTS=sparse</c>: half of the entries have weight 0, as in the stock of Anhang A1 —
+    /// The scenario's <c>"weights": "sparse"</c>: half of the entries have weight 0, as in the stock of Anhang A1 —
     /// most tags are used never or once. Default: a long tail of distinct weights, which is the
     /// harder case for the rowid (ADR-0010).
     /// </summary>
     private static int Weight(Random random)
     {
-        var sparse = string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_WEIGHTS"), "sparse", StringComparison.Ordinal);
+        var sparse = Scenario.Weights == WeightDistribution.Sparse;
         if (sparse && random.NextDouble() < 0.5)
         {
             return 0;

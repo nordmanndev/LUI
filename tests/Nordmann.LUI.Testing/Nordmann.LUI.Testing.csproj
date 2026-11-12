@@ -24,6 +24,13 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Data.Sqlite" />
+    <!--
+      The attribute that gates a test on its input: the whole word list
+      (ADR-0058). It travels with the infrastructure, because the parity that
+      uses it stays in the integration layer — and the gate itself (the list is
+      there or not) is a fact about the machine, not about the test framework.
+    -->
+    <PackageReference Include="xunit.v3.extensibility.core" />
   </ItemGroup>
 
   <ItemGroup>

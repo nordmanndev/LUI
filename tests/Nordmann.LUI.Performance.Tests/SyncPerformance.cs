@@ -1,8 +1,7 @@
 using System.Diagnostics;
-using System.Globalization;
 using Shouldly;
 
-namespace Nordmann.LUI.Integration.Tests.Performance;
+namespace Nordmann.LUI.Performance.Tests;
 
 /// <summary>
 /// What a sync of an <c>Embedded</c> index costs (ADR-0016, spec §20 step 7: "Abgleich mit 1 Mio. Einträgen, Abbruch und
@@ -10,19 +9,23 @@ namespace Nordmann.LUI.Integration.Tests.Performance;
 /// and run again, a sync with a small change, the check against the source, the check of the index and the rebuild —
 /// and the queries after the first sync, against <c>UpsertMany</c> of the same entries; and a delta sync beside a built
 /// typo dictionary (ADR-0021).
-/// <code>LUI_PERF=1 LUI_PERF_ENTRIES=1000000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"</code>
+/// <code>dotnet test tests/Nordmann.LUI.Performance.Tests --filter SyncPerformance --logger "console;verbosity=detailed"</code>
 /// </summary>
+[Trait("Category", "Timing")]
 public sealed class SyncPerformance(ITestOutputHelper output)
 {
+    /// <summary>The scenario of this run (ADR-0058): the corpus, the prefix length and the settings.</summary>
+    private static PerformanceScenario Scenario => PerformanceScenario.Current;
     private const int Queries = 2_000;
 
-    [PerformanceFact]
+    [Fact]
     public void Sync_cancel_resume_check_and_rebuild()
     {
-        var entries = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? "200000", CultureInfo.InvariantCulture);
-        var batch = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_BATCH") ?? "10000", CultureInfo.InvariantCulture);
-        var words = TestFiles.MeasurementWords(out var corpus);
-        Report($"corpus: {corpus} ({words.Count:N0} words), {entries:N0} entries, batch {batch:N0}");
+        var entries = Scenario.Entries ?? 200_000;
+        var batch = Scenario.Batch;
+        var words = Scenario.Words(out var corpus);
+        Report(Scenario.Describe(corpus, words.Count));
+        Report($"  {entries:N0} entries, batch {batch:N0}");
 
         var random = new Random(42);
         var source = Enumerable.Range(1, entries)
@@ -76,12 +79,13 @@ public sealed class SyncPerformance(ITestOutputHelper output)
     /// new words and does not build it anew; the rebuild is measured on its own — the two together are what the sync cost
     /// in ADR-0016.
     /// </summary>
-    [PerformanceFact]
+    [Fact]
     public void A_delta_sync_with_a_built_typo_dictionary()
     {
-        var entries = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? "300000", CultureInfo.InvariantCulture);
-        var words = TestFiles.MeasurementWords(out var corpus);
-        Report($"corpus: {corpus} ({words.Count:N0} words), {entries:N0} entries, typo tolerance");
+        var entries = Scenario.Entries ?? 300_000;
+        var words = Scenario.Words(out var corpus);
+        Report(Scenario.Describe(corpus, words.Count));
+        Report($"  {entries:N0} entries, typo tolerance");
         var source = Corpus.Generate(words, entries, CorpusKind.SingleWord).Entries().ToList();
 
         using var database = new TestDatabase();

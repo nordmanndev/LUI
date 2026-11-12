@@ -160,10 +160,13 @@ and a measurement where a number is claimed. The acceptance bar is written below
   `Support/TestGates.cs` go: with the measurement in its own layer, the gate is the layer (D18).
 - The environment variables go with them (D18): the **scenario file** (`performance.scenario.json`) takes their place,
   checked in with the default scenario. The guard for the full word list moves to the fetch (D19).
-- ADR 0057 (topic: *Measurement*), the restatement of ADR-0019 ("three layers" → "three layers and the measurement
-  layer"), ADR-0041 and ADR-0050.
+- ADR 0058 (topic: *Measurement* — the paper names ADR 0057; the number was given to the decision of the English
+  repository before this one was built), the restatement of ADR-0019 ("three layers" → "three layers and the
+  measurement layer"), ADR-0041 and ADR-0050.
 - **Acceptance bar:** the four test projects and the new one are green; the landscape test, the timing trait test and
-  the map agree with the tree; `grep LUI_PERF` over the repository finds nothing.
+  the map agree with the tree; `grep LUI_PERF` over the repository finds nothing — except in the dated papers of
+  the work and the state file, which name the variables they replaced. That exception is lifted explicitly in
+  ADR-0058; no code, no workflow, no script and no document of the library names any of them.
 
 ### PR 6 — The measurement infrastructure (D7, D8, D9)
 

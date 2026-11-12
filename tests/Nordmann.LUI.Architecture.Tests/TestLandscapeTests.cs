@@ -41,16 +41,18 @@ public sealed class TestLandscapeTests
         ("tests/Nordmann.LUI.Unit.Tests", "Unit"),
         ("tests/Nordmann.LUI.Integration.Tests", "Integration"),
         ("tests/Nordmann.LUI.Architecture.Tests", "Architecture"),
+        ("tests/Nordmann.LUI.Performance.Tests", "Performance"),
         ("samples/Lui.Sample.Tests", "Sample")
     ];
 
     /// <summary>
     /// The attributes that make a file a test file — in any form: <c>[Fact]</c>, <c>[Fact(Skip = …)]</c>,
     /// <c>[Theory, InlineData(…)]</c>, <c>[InlineData(…), Theory]</c>. A plain string search for <c>[Fact]</c> let a file
-    /// whose only test is skipped out of the map (review of PR #25, finding 4).
+    /// whose only test is skipped out of the map (review of PR #25, finding 4). The measurement layer has its own
+    /// attributes — the measurements are facts of their own layer (ADR-0058).
     /// </summary>
     private static readonly Regex TestAttribute = new(
-        @"[\[,]\s*(Fact|Theory|PerformanceFact|FullWordListFact)\s*[\](,]",
+        @"[\[,]\s*(Fact|Theory|FullWordListFact)\s*[\](,]",
         RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture,
         TimeSpan.FromSeconds(1));
 
@@ -60,9 +62,13 @@ public sealed class TestLandscapeTests
         RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture,
         TimeSpan.FromSeconds(1));
 
-    /// <summary>What a unit test must not name: a database, or the infrastructure that opens one (ADR-0019).</summary>
+    /// <summary>
+    /// What a unit test must not name: a database — the catalog, the test database of the infrastructure, or SQLite
+    /// itself. The infrastructure may be named (the rules of the budget live there, ADR-0058), but a unit test opens no
+    /// database: it belongs in Nordmann.LUI.Integration.Tests (docs/testing.md).
+    /// </summary>
     private static readonly Regex Database = new(
-        @"\b(LuiCatalog|TestDatabase|Sqlite[A-Za-z]*|Microsoft\.Data\.Sqlite|Nordmann\.LUI\.Testing)\b",
+        @"\b(LuiCatalog|TestDatabase|Sqlite[A-Za-z]*|Microsoft\.Data\.Sqlite)\b",
         RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture,
         TimeSpan.FromSeconds(1));
 
@@ -169,6 +175,8 @@ public sealed class TestLandscapeTests
     {
         // ADR-0019: the unit layer is the rules on their own. Microsoft.Data.Sqlite reaches it through the core anyway,
         // so the project file alone does not keep a unit test from opening a catalog: its source is read too.
+        // The shared infrastructure may be named — the rules of the budget live there (ADR-0058) — but a unit test that
+        // opens a database is caught by the name of the database it opens.
         var directory = Path.Combine(Repository.RootPath, "tests", "Nordmann.LUI.Unit.Tests");
         var project = Repository.LoadXml(Path.Combine(directory, "Nordmann.LUI.Unit.Tests.csproj"));
 

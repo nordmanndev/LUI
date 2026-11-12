@@ -15,7 +15,7 @@ namespace Nordmann.LUI.Architecture.Tests;
 /// (review of pull request 95, M1): <c>Stopwatch</c>, <c>DateTime.UtcNow</c>, <c>Environment.TickCount</c>,
 /// <c>Task.Delay</c>, <c>Thread.Sleep</c>, a <c>CancellationTokenSource</c> that cancels after a time, <c>WaitUntil</c>. A
 /// wait on a signal with a timeout of seconds (<c>Entered.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue(…)</c>) is a stop for
-/// a hang, not a reading of the clock. The measurements (<c>[PerformanceFact]</c>) run only on purpose.
+/// a hang, not a reading of the clock. The measurements live in their own layer and run only on purpose (ADR-0058).
 /// </para>
 /// </summary>
 public sealed partial class TimingTraitTests

@@ -1,18 +1,22 @@
 using System.Diagnostics;
-using System.Globalization;
 
-namespace Nordmann.LUI.Integration.Tests.Performance;
+namespace Nordmann.LUI.Performance.Tests;
 
 /// <summary>
 /// What a batch saves over a loop of single upserts, each in a transaction of its own (ADR-0013).
-/// <code>LUI_PERF=1 LUI_PERF_ENTRIES=100000 dotnet test --filter BatchPerformance --logger "console;verbosity=detailed"</code>
+/// <code>dotnet test tests/Nordmann.LUI.Performance.Tests --filter BatchPerformance --logger "console;verbosity=detailed"</code>
 /// </summary>
+[Trait("Category", "Timing")]
 public sealed class BatchPerformance(ITestOutputHelper output)
 {
-    [PerformanceFact]
+    /// <summary>The scenario of this run (ADR-0058): the corpus, the prefix length and the settings.</summary>
+    private static PerformanceScenario Scenario => PerformanceScenario.Current;
+    [Fact]
     public void A_batch_against_a_loop_of_single_upserts()
     {
-        var entries = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES") ?? "100000", CultureInfo.InvariantCulture);
+        var entries = Scenario.Entries ?? 100_000;
+        // the texts of this measurement are synthetic: the corpus and the prefix of the scenario do not apply to it
+        Report($"scenario: {entries:N0} entries (the texts are synthetic — the corpus of the scenario is not used here)");
         var random = new Random(42);
         var texts = Enumerable.Range(1, entries)
             .Select(i => $"{(char)('a' + random.Next(26))}{(char)('a' + random.Next(26))}kuchen{i}")
