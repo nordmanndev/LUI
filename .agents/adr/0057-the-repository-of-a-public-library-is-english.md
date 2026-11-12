@@ -7,7 +7,8 @@
   the contract, the way), [0002](./0002-library-not-an-application.md) (a library, not an application — and it stands on the
   rules of this repository)
 - **Affects:**
-  - `.agents/plan/` (three papers translated, three restated), `.agents/adr/` (six records restated, this one added)
+  - `.agents/plan/` (five papers: three translated, two restated), `.agents/adr/` (thirteen records: six restated, seven
+    with a translated quotation — this one added), `.agents/adr/README.md` (the index)
   - `docs/tutorial/` (five files renamed), `docs/architecture/alignment.md`, `docs/testing.md`, `docs/README.md`
   - `README.md`, `AGENTS.md`, `CHANGELOG.md`, `Directory.Build.props`, `Directory.Packages.props`, `.editorconfig`,
     `.github/workflows/ci.yml`
@@ -16,8 +17,8 @@
 ## Context
 
 LUI is a **public NuGet library**. Its reader is anybody on nuget.org — and its reader does not know the house this
-repository was born in: the rules of that house are not published with the package, and nothing in the repository needs
-them. A decision that is written down in the terms of a contract nobody outside can read is a decision nobody outside can
+repository was born in: **the external contract** is not published with the package, and nothing in the repository needs
+it. A decision that is written down in the terms of a contract nobody outside can read is a decision nobody outside can
 use.
 
 The repository had grown a second voice:
@@ -49,9 +50,11 @@ Two things stay German on purpose:
    0004, 0027, 0030, 0036, 0053 — and are restated in place: no decision is lost, the reason of every rule stays, and a
    dated note says what was restated and why. ADR-0002 is the hard one: its subject *is* the delta, so its decision
    becomes "LUI is a library, not an application — and it stands on the rules of this repository", its title changes with
-   it, and the row of the index follows.
-5. **The external contract goes out of the documents.** No document of the repository points at it any more — not the
-   entrance, not the map of the documentation, not the build files, not the papers of the work.
+   it, and the row of the index follows. Seven further records — 0005, 0010, 0022, 0025, 0028, 0042, 0055 — carried a
+   German quotation; the quotation is translated, and the dated note of the record says so.
+5. **The external contract goes out of the documents.** No document of the library points at it any more — not the
+   entrance, not the map of the documentation, not the build files, not the decisions. The papers of the work describe
+   what was removed, in the words of this repository; they do not name it.
 6. **The history stays visible.** An ADR is not rewritten to look as if it had always been written this way: the dated
    note is what the reader finds first.
 
@@ -60,8 +63,9 @@ row in `docs/api.md`.
 
 ## Consequences
 
-- **Two searches come back empty.** The German function words over the markdown files of the repository find the
-  specification and the sample data only; the search for the rulebook of the time finds the sample data only.
+- **The searches come back where they should.** The German function words over the markdown files of the repository find
+  the specification and the sample data only; the search for the external contract finds the papers of the work and the
+  decisions that say what was replaced — and nothing else.
 - **The papers of the work keep their history.** Each of them carries a dated note; the text below the note is the paper
   of its time, in the language of the repository.
 - **The tutorials have new names.** The links of the entrance, of the map, of the papers and of the tutorials follow

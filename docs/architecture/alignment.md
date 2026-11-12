@@ -4,6 +4,10 @@
 > rules that describe the shape of an *application* and therefore do not apply
 > here, and what LUI adds on top. The short form is ADR-0002; this file is the
 > long form, with the pointers.
+>
+> One quotation of the specification was translated into English (ADR-0057,
+> 2026-11-12, issue #121); the specification is German and stays German until
+> it is deleted in pull request 8.
 
 LUI is a **library**: a NuGet package that an application builds against. The
 question this file answers is not "which rules does LUI follow?" but "which
@@ -44,7 +48,7 @@ which describe *application shape* — and therefore do not".
 | Rule | Why |
 |---|---|
 | The behaviour is written down in the repository | a reader who has only the repository knows everything a change needs to know: the decisions live in the ADRs, the budgets in one file (ADR-0056) |
-| Every decision of the specification's §3 (E1–E10) becomes an ADR here | the specification asks for it: *"Jede Entscheidung bekommt in der Umsetzung ein ADR."* |
+| Every decision of the specification's §3 (E1–E10) becomes an ADR here | the specification asks for it: *"Every decision becomes an ADR in the implementation."* |
 | The performance budgets are tests, not prose | Anhang A's numbers are measurements on a machine that is not the consumer's machine |
 | The dependency set is asserted | a library's dependency list is a public contract (ADR-0004) |
 | The SQL ↔ C# normalisation parity is a test over the whole word list | the rule exists twice (§6.2); a drift between the two sides is a silent search miss |

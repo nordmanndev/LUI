@@ -6,7 +6,7 @@
 
 > An independent architecture review of 2026-11-06 asked the question "is LUI production-ready for Nordmann-Dev?" —
 > performance, concurrency, test behaviour and the work of a developer who adopts it. Its verdict: the library is
-> **architekturally reif** and **not yet delivered**. It named three gaps that no single commit can close — no
+> **architecturally mature** and **not yet delivered**. It named three gaps that no single commit can close — no
 > release, no automatic gate for the budgets of §16, and a typo dictionary that is built inside the read transaction
 > of the query — plus one stale number that stands in two documents. This plan is what this round does about the parts
 > that belong together: one issue, one pull request, seven tasks, one commit each.

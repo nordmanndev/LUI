@@ -28,7 +28,7 @@
 
 ## Context
 
-ADR-0004 gave LUI two packages that the closed list of this repository does not name: `symspell` for the typo tolerance
+ADR-0004 gave LUI two packages that no ADR of this repository named yet: `symspell` for the typo tolerance
 and `F23.StringSimilarity` for the four similarity measures of §11. The owner's note on issue #30: *"own
 Jaro-Winkler/Damerau/Levenshtein ⇒ F23 falls away ⇒ runtime dependencies 3 → 2 ⇒ that needs an ADR."*
 

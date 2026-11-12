@@ -57,7 +57,7 @@ decided about the query path" without opening 36 files.
 | [0001](./0001-single-package.md) | One NuGet package instead of three | Packages | Accepted |
 | [0002](./0002-library-not-an-application.md) | LUI is a library, not an application — and it stands on the rules of this repository | Architecture | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0003](./0003-defer-the-open-questions.md) | The nine open questions of the specification are deferred | Scope | Accepted |
-| [0004](./0004-dependencies.md) | The dependency set of the library — and the deviation from the closed list | Packages | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
+| [0004](./0004-dependencies.md) | The dependency set of the library, and the deviation from the closed list | Packages | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0005](./0005-measured-normalisation.md) | The normalisation rule is measured, not derived | Normalisation | Accepted |
 | [0006](./0006-the-single-word-index.md) | The single-word index: one rowid, three indexes, one external-content FTS5 table | Storage | Accepted |
 | [0007](./0007-the-catalog-checks-the-sqlite-it-runs-on.md) | The catalog checks the SQLite it runs on | Probe | Accepted |
@@ -106,7 +106,6 @@ decided about the query path" without opening 36 files.
 | [0050](./0050-the-tests-that-read-the-clock-carry-a-trait-and-argue-their-bounds.md) | The tests that read the clock carry a trait, and argue their bounds | Testing | Accepted |
 | [0051](./0051-xunit-v3-run-by-vstest.md) | xUnit.net v3, run by VSTest | Testing | Accepted |
 | [0052](./0052-a-null-column-is-null-for-a-type-that-can-hold-it.md) | A NULL column is null for a type that can hold it | API | Accepted |
-| [0053](./0053-the-first-release-is-a-prerelease.md) | The first release is a prerelease: 0.1.0-alpha | Packages | Accepted |
 | [0053](./0053-the-first-release-is-a-prerelease.md) | The first release is a prerelease: 0.1.0-alpha | Packages | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0054](./0054-the-typo-distance-is-an-enumeration.md) | The typo distance is an enumeration, and it belongs to the index | Typo tolerance | Accepted |
 | [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md) | The uniqueness of a text belongs to the data: `DistinctText` is removed | Query path | Accepted |

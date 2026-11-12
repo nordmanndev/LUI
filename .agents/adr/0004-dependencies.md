@@ -24,10 +24,10 @@
 
 ## Context
 
-This repository runs a **closed library list**: a package that is not in the catalogue does not land in the
-project without an ADR that says why.
+This repository runs a **closed dependency set**: a package that no ADR of this repository names does not land in the
+project without an ADR that says why ([`AGENTS.md`](../../AGENTS.md)).
 
-LUI needs two packages that the catalogue does not name:
+LUI needs two packages that no ADR of this repository named yet:
 
 | Package | Licence | Why LUI needs it |
 |---|---|---|
@@ -81,7 +81,8 @@ dependency is smaller than the risk of owning the algorithm.
 
 ## Consequences
 
-- The catalogue of this repository does not list `symspell` or `F23.StringSimilarity`.
+- The dependency set of this repository is closed: `AGENTS.md` asks for an ADR for every package, and `symspell` and
+  `F23.StringSimilarity` get theirs here.
   This ADR is the exemption for this project; it does **not** amend the rules of the repository. If another
   project wants them, it gets its own ADR.
 - The dependency set is a public contract of the package. Changing it is a
