@@ -1,24 +1,26 @@
 namespace Nordmann.LUI.Testing;
 
 /// <summary>
-/// A generated corpus of the measurements (LUI-Spezifikation §16, Anhang A; ADR-0020): the same entries, the same inputs
-/// and the same typos for a given seed — the budget tests and the benchmarks measure one corpus, and a run can be
-/// repeated. The key of an entry is its position, 1 … n.
+/// A corpus of the measurements (LUI-Spezifikation §16, Anhang A; ADR-0020; ADR-0059): the entries, their weights
+/// and the kind of the index they live in. The entries come from a <b>fixed file</b> and not from a generator: a
+/// corpus that changes with the scaling parameter is a different corpus, and a measurement that runs on two corpora is
+/// no comparison. The key of an entry is its position, 1 … n.
 /// </summary>
 public sealed class Corpus
 {
-    /// <summary>The largest weight of an entry (2²⁹ − 1).</summary>
-    private const int MaxWeight = 536_870_911;
-
     private readonly string[] _texts;
     private readonly int[] _weights;
 
-    private Corpus(CorpusKind kind, string[] texts, int[] weights)
+    private Corpus(string name, CorpusKind kind, string[] texts, int[] weights)
     {
+        Name = name;
         Kind = kind;
         _texts = texts;
         _weights = weights;
     }
+
+    /// <summary>The name of the corpus: the file name is its identity.</summary>
+    public string Name { get; }
 
     /// <summary>What the entries are.</summary>
     public CorpusKind Kind { get; }
@@ -32,41 +34,18 @@ public sealed class Corpus
     /// <summary>The number of entries.</summary>
     public int Count => _texts.Length;
 
-    /// <summary>Generates a corpus out of the words of a word list.</summary>
-    /// <param name="words">The words — the German word list, or the sample of the repository.</param>
-    /// <param name="entries">How many entries.</param>
-    /// <param name="kind">Single words or titles.</param>
-    /// <param name="weights">How the weights are spread.</param>
-    /// <param name="seed">The seed: the same seed gives the same corpus.</param>
+    /// <summary>
+    /// The corpus of a corpus file (ADR-0059): the entries of the file with their weights. The file carries them —
+    /// the weights of a place are its population, the weights of a film are its votes, and the words and the titles
+    /// carry the derived weight of their text.
+    /// </summary>
+    /// <param name="file">The corpus file and the prefix of it that the run takes.</param>
     /// <returns>The corpus.</returns>
-    public static Corpus Generate(
-        IReadOnlyList<string> words,
-        int entries,
-        CorpusKind kind,
-        WeightDistribution weights = WeightDistribution.LongTail,
-        int seed = 42)
+    public static Corpus From(CorpusFile file)
     {
-        ArgumentNullException.ThrowIfNull(words);
-        ArgumentOutOfRangeException.ThrowIfLessThan(entries, 1);
-        if (words.Count == 0)
-        {
-            throw new ArgumentException("The word list is empty.", nameof(words));
-        }
+        ArgumentNullException.ThrowIfNull(file);
 
-        var random = new Random(seed);
-        var texts = new string[entries];
-        var weightsOf = new int[entries];
-        for (var i = 0; i < entries; i++)
-        {
-            texts[i] = kind == CorpusKind.MultiWord
-                ? Title(words, random)
-                : i < words.Count
-                    ? words[i]
-                    : Capitalize(words[random.Next(words.Count)]) + words[random.Next(words.Count)].ToLowerInvariant();
-            weightsOf[i] = Weight(weights, random);
-        }
-
-        return new Corpus(kind, texts, weightsOf);
+        return new Corpus(file.Name, file.Kind, [.. file.Texts], [.. file.Weights]);
     }
 
     /// <summary>The entries, in the order of their keys — as a source of a sync reads them.</summary>
@@ -140,20 +119,4 @@ public sealed class Corpus
 
         return typos;
     }
-
-    private static int Weight(WeightDistribution distribution, Random random)
-    {
-        if (distribution == WeightDistribution.Sparse && random.NextDouble() < 0.5)
-        {
-            return 0;
-        }
-
-        // a long tail: most entries are unpopular, a few are very popular
-        return (int)Math.Min(MaxWeight, 1 + (long)(random.NextDouble() * random.NextDouble() * random.NextDouble() * 1_000_000));
-    }
-
-    private static string Title(IReadOnlyList<string> words, Random random) =>
-        string.Join(' ', Enumerable.Range(0, random.Next(2, 5)).Select(_ => Capitalize(words[random.Next(words.Count)])));
-
-    private static string Capitalize(string word) => char.ToUpperInvariant(word[0]) + word[1..];
 }

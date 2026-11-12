@@ -13,16 +13,17 @@ public sealed class TypoPerformance(ITestOutputHelper output)
 {
     /// <summary>The scenario of this run (ADR-0058): the corpus, the prefix length and the settings.</summary>
     private static PerformanceScenario Scenario => PerformanceScenario.Current;
-    [FullWordListFact]
+    [Fact]
     public void The_dictionary_of_the_whole_word_list_and_the_corrected_queries()
     {
-        List<string> words = [.. Scenario.Words(out var corpus).Where(w => w.Length >= 3 && w.All(char.IsLetter)).Distinct(StringComparer.Ordinal)];
-        if (Scenario.Entries is { } limit)
+        var corpus = CorpusOf("query-corrected-p95");
+        List<string> words = [.. corpus.Texts.Where(w => w.Length >= 3 && w.All(char.IsLetter)).Distinct(StringComparer.Ordinal)];
+        if (Scenario.PrefixLength is { } limit)
         {
             words = [.. words.Take(limit)];
         }
 
-        Report(Scenario.Describe(corpus, words.Count));
+        Report($"  {words.Count:N0} words of the corpus");
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
@@ -70,13 +71,14 @@ public sealed class TypoPerformance(ITestOutputHelper output)
     [FullWordListFact]
     public void What_every_distance_costs()
     {
-        List<string> words = [.. Scenario.Words(out var corpus).Where(w => w.Length >= 3 && w.All(char.IsLetter)).Distinct(StringComparer.Ordinal)];
-        if (Scenario.Entries is { } limit)
+        var corpus = CorpusOf("query-corrected-p95");
+        List<string> words = [.. corpus.Texts.Where(w => w.Length >= 3 && w.All(char.IsLetter)).Distinct(StringComparer.Ordinal)];
+        if (Scenario.PrefixLength is { } limit)
         {
             words = [.. words.Take(limit)];
         }
 
-        Report(Scenario.Describe(corpus, words.Count));
+        Report($"  {words.Count:N0} words of the corpus");
 
         foreach (var distance in new[] { LuiTypoDistance.None, LuiTypoDistance.OneError, LuiTypoDistance.TwoErrors })
         {
@@ -162,6 +164,22 @@ public sealed class TypoPerformance(ITestOutputHelper output)
     private static bool Found(ILuiEmbeddedIndex index, string typed, string word, bool typoTolerance) =>
         index.Query(typed).Take(20).TypoTolerance(typoTolerance).Execute().Hits
             .Any(h => string.Equals(h.Text, word, StringComparison.Ordinal));
+
+    /// <summary>
+    /// Das Korpus der Messung: die Datei, die das Budget ihres Ziels nennt (ADR-0056). Der
+    /// Schnitt, den die Messung nimmt, ist der des Budgets, beschnitten um die Zahl der
+    /// Eintraege des Laufs. Welches Korpus es war, steht im Bericht — zwei Messungen auf
+    /// zwei Korpora sind kein Vergleich.
+    /// </summary>
+    /// <param name="budgetId">Die Kennung des Budgets, dessen Ziel gemessen wird.</param>
+    /// <returns>Das Korpus des Laufs.</returns>
+    private Corpus CorpusOf(string budgetId)
+    {
+        var corpus = Scenario.CorpusOf(budgetId, out var name);
+        Report(Scenario.Describe(name, corpus.Count, LuiBudgets.By(budgetId).Scenario.PrefixLength));
+        Report($"  {Environment.ProcessorCount} cores, .NET {Environment.Version}");
+        return corpus;
+    }
 
     private void Report(string line)
     {

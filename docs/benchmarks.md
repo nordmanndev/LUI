@@ -31,6 +31,13 @@ corpus.
 | typo dictionary of two errors, 685,739 words | 240 MB (2026-11-12) | ≤ 240 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
 
+**The numbers below were measured on the corpus that was generated.** Since ADR-0059 the corpus is a file in the
+repository, and the corpora have their own sizes: the words corpus has 1,908,798 entries, so the **scenario of three
+million entries does not exist** in it. A budget below its scenario is **reported, not asserted** — the numbers of the
+table are the ones of the runs of 2026-11-04 to 2026-11-12, and **the counts of the budgets of §16 are re-decided
+against the measured corpora in the next round**. Nothing here is quietly lowered: the file of the budgets still names
+3,000,000 entries, and the run says that it did not reach them.
+
 The dictionary of two errors is the one the **distance `TwoErrors`** builds (ADR-0054): the promise of 200 MB belongs to
 the dictionary of one error, and the two-error dictionary measured **240 MB** — 40 MB more than the target of §16 allows
 (≤ 200 MB). That is a **miss of the old promise** — it is written down as one, in the ADR of the typo distance and in
@@ -60,8 +67,10 @@ after they were measured (ADR-0010, ADR-0020): a **loosening**, written down as 
 ## The rules for a number in this file
 
 1. **The machine is named.** CPU, cores, RAM, OS, .NET version, SQLite version.
-2. **The corpus is named.** How it was generated, how many entries, what
-   distribution.
+2. **The corpus is named — and it names itself.** The corpus is a file in the
+   repository (ADR-0059); its header names the source, the licence, the snapshot
+   date, the number of entries, the format and the kind. A corpus that is
+   generated is not named: it is a different one on every run.
 3. **Old and new are measured alternately**, and the **median** is taken. One
    machine, one load budget — a single run tells you more about the weather
    than about the code.
@@ -70,6 +79,53 @@ after they were measured (ADR-0010, ADR-0020): a **loosening**, written down as 
    everything matches.
 5. **A target that is missed gets written down as missed**, with the reason.
    The target is not quietly lowered.
+
+## The corpora
+
+The corpus of a measurement is a **file in the repository** (ADR-0059), not something that is generated at the
+start of a run. The file name is the identity; there is no manifest. Four files, gzip-compressed, in
+[`tests/TestData/corpora/`](../tests/TestData/corpora):
+
+| File | Entries | Format | Kind | Source | Licence | Snapshot |
+|---|---:|---|---|---|---|---|
+| [`words.txt.gz`](../tests/TestData/corpora/words.txt.gz) | 1,908,798 | `text⇥weight` | single words | [`kkrypt0nn/wordlists`](https://github.com/kkrypt0nn/wordlists), `wordlists/languages/german.txt` | none stated by the repository for the lists it gathers itself — the owner accepted that | 2026-11-12 |
+| [`places.tsv.gz`](../tests/TestData/corpora/places.tsv.gz) | 5,779,011 | `text⇥weight⇥context` | titles | [`download.geonames.org/export/dump/`](https://download.geonames.org/export/dump/) — `allCountries.txt`, `countryInfo.txt`, `admin1CodesASCII.txt`, `admin2Codes.txt` | **CC BY 4.0** | 2026-11-12 |
+| [`movies.tsv.gz`](../tests/TestData/corpora/movies.tsv.gz) | 652,001 | `text⇥weight` | titles | [`datasets.imdbws.com`](https://datasets.imdbws.com/#help) — `title.basics.tsv`, `title.ratings.tsv` | the **non-commercial** IMDb datasets | 2026-11-12 |
+| [`wiki-titles.tsv.gz`](../tests/TestData/corpora/wiki-titles.tsv.gz) | 5,167,623 | `text⇥weight` | titles | [`dumps.wikimedia.org`](https://dumps.wikimedia.org/dewiki/latest/dewiki-latest-all-titles.gz) | **CC BY-SA 4.0** + GFDL | 2026-11-12 |
+
+Three rules hold for every corpus:
+
+- **The header is a block of comment lines at the top of the file, ended by an empty line.** It names the source, the
+  licence, the snapshot date, the number of entries, the format and the kind. **A `#` inside an entry is data**: a film
+  title that begins with `#` is a title.
+- **The order of the entries is the SHA-256 of their text.** A **prefix is therefore always a representative sample**,
+  never the alphabetically first *n* — that was the bug of the old generator, whose prefix of 200,000 entries held
+  nothing but the letters a to f.
+- **The weight belongs to the file.** The places carry their population, the films their votes; the words and the
+  Wikipedia titles carry the derived weight of their text, `1 + floor(9999 · (1 − u)³)` with `u` the first four bytes
+  of the SHA-256, computed in exact integer arithmetic.
+
+The **budgets** name the corpus of each target
+([`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](../tests/Nordmann.LUI.Testing/Budgets/budgets.json),
+ADR-0056), and a measurement takes the corpus of the budget whose target it measures. The scenario of the run
+(`tests/Nordmann.LUI.Performance.Tests/performance.scenario.json`) carries the prefix length, the batch, the minimum
+weight, the optimization, the machine and the database — and no corpus: the corpus is not named twice.
+
+**What is not in the repository, and why.** The books of the Amazon scrape (1,601 titles), the German names (27,273)
+and the Cologne first names (9,620): below the floor of 100,000 entries. The street addresses (5,858,056 measured): a
+street address is a *lookup*, not a string somebody types into an autocomplete — a corpus is made of search strings. The
+list of all `.de` domains: DENIC hands out no zone files to third parties. The raw rows of the names dataset
+(6,040,701 German rows, one per person): personal data of identifiable people (C-413/23). **The line is the name
+level:** *Müller is rank 1 in Germany* says nothing about a person and is published; *Sven Liebscher, M, DE* is a person
+and is not.
+
+**Rebuild them.** [`tools/make-corpora.py`](../tools/make-corpora.py) writes the four files: it fetches the sources
+if they are missing, sorts the entries by the hash of their text, and writes the header of each file. The count in the
+header is the count of the file — the builder counts the entries while it streams them.
+
+```bash
+python3 tools/make-corpora.py /tmp/corpora-src tests/TestData/corpora --snapshot 2026-11-12
+```
 
 ## The measurement machine
 
@@ -84,10 +140,11 @@ which is a smaller one. The difference is stated, not hidden.
 
 The targets of §16 run on a schedule of their own
 (`.github/workflows/performance.yml`, ADR-0041): every night, and by hand when
-somebody wants to see it. The lane fetches the whole word list — the fetch is the guard, and it fails loudly
-when the list is not the one of 685,829 lines — writes the scenario of the run into
+somebody wants to see it. The lane writes the scenario of the run into
 `tests/Nordmann.LUI.Performance.Tests/performance.scenario.json` and then runs the budgets of the
-measurement layer (ADR-0058).
+measurement layer (ADR-0058). It fetches nothing: the corpora are files in the repository (ADR-0059), so the lane
+measures the files that are checked in. The word list of the parity is a different thing — the lane of the CI fetches
+it, and the fetch is the guard that fails loudly when the list is not the one of 685,829 lines.
 
 The lane runs on a shared runner — not on the machine of the record. That changes what a target means there:
 
@@ -139,8 +196,8 @@ candidates, `WordStartThenSimilarity`, Jaro-Winkler. One query is
 **Reproduce.**
 
 ```bash
-tools/fetch-wordlist.sh
-# the scenario of the run is a file: set "entries" to 3000000 in it, then
+# the corpus is in the repository (ADR-0059): there is nothing to fetch
+# the scenario of the run is a file: set "prefixLength" to 3000000 in it, then
 dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter QueryPerformance \
   --logger "console;verbosity=detailed"
 # the member "database" keeps the database, so that the next run skips the build
@@ -323,10 +380,16 @@ beginning of a title or a piece of it, 1–8 characters; one third the first two
 each, in either order. Row-by-row build through the triggers.
 
 ```bash
-# "kind": "multi" and "entries": 1000000 in the scenario file, then
-dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter QueryPerformance \
+# the corpus of the budget is the titles (wiki-titles.tsv, ADR-0059);
+# the scenario file names the prefix length, then
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter BudgetPerformance \
   --logger "console;verbosity=detailed"
 ```
+
+**The query over the multi-word index is not measured any more.** The corpus of the titles exists
+([`wiki-titles.tsv.gz`](../tests/TestData/corpora/wiki-titles.tsv.gz)), but no budget names it, and a measurement that
+asserts nothing is a measurement that cannot fail. The file of the titles is still measured — by the file size of the
+budget `file-size-1m` — and the promise that measures the query over it is decided in the §16 round.
 
 | Entries | index | build | file | query p50 / p95 | alloc p50 / p95 | write p50 / p95 |
 |---:|---|---:|---:|---:|---:|---:|
@@ -354,7 +417,6 @@ random, built row by row. **Cases:** 400 words per length; the beginning of the 
 kinds (a letter left out, one too many, one wrong, two swapped) after the first letter. Hit@20 = the meant word is among the best 20.
 
 ```bash
-tools/fetch-wordlist.sh
 dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter TypoPerformance --logger "console;verbosity=detailed"
 ```
 

@@ -44,7 +44,7 @@ the reason is in the report.
 
 | Gate | What it switches | Who sets it |
 |---|---|---|
-| the **scenario file** [`performance.scenario.json`](../tests/Nordmann.LUI.Performance.Tests/performance.scenario.json) | the scenario of a measurement run: the corpus, the prefix length, the size, the kind, the batch, the weights, the machine of the run, the database to keep | a person, on purpose, or the lane, which writes the file before it measures (ADR-0058) |
+| the **scenario file** [`performance.scenario.json`](../tests/Nordmann.LUI.Performance.Tests/performance.scenario.json) | the scenario of a measurement run: the prefix length of the corpus, the batch, the minimum weight, the optimization, the machine of the run, the database to keep | a person, on purpose, or the lane, which writes the file before it measures (ADR-0058, ADR-0059) |
 | `LUI_WORDLIST` | where the full word list is | a person, on purpose |
 
 **The gates are dynamic skips** (xUnit.net v3, ADR-0051): `[FullWordListFact]` asks
@@ -124,6 +124,12 @@ as in the library (`NamespaceConventionTests`). `Support/` holds the types the t
 | Test file | Layer | Proves | The rule |
 |---|---|---|---|
 | [`BudgetMachineTests`](../tests/Nordmann.LUI.Unit.Tests/Budgets/BudgetMachineTests.cs) | Unit | the two kinds of target: a time belongs to the machine it was measured on and is reported elsewhere; a size is the same everywhere and is asserted; a run never builds more than the scenario of its target — the size of the scenario only makes it smaller | spec §16, ADR-0041, ADR-0056, ADR-0058, issue #99 |
+
+### Corpora
+
+| Test file | Layer | Proves | The rule |
+|---|---|---|---|
+| [`CorpusFileTests`](../tests/Nordmann.LUI.Unit.Tests/Corpora/CorpusFileTests.cs) | Unit | the corpora of the repository: four of them, each with more than 100,000 entries; the header names the source, the licence, the snapshot and the kind; a title that begins with `#` is an entry and not a comment; the weight of a place is its population; a prefix is sorted by the hash of its text and holds words beyond the letter f; the derived weight follows the rule of the specification | ADR-0059, issue #123 |
 
 ## Integration — the library against SQLite
 
@@ -258,7 +264,8 @@ share. It has no tests of its own — it is the setup, in one place.
 | Type | What it is for |
 |---|---|
 | [`TestDatabase`](../tests/Nordmann.LUI.Testing/TestDatabase.cs) | a database file of its own for one test, deleted afterwards. A file and not `:memory:` — every connection of the pool must see the same database. |
-| [`Corpus`](../tests/Nordmann.LUI.Testing/Corpus.cs) | the generated corpus of the measurements: single words (the word list, then compounds) or titles, weights with a long tail or sparse, the inputs users type and the typos — the same for a seed, for the budget tests and the benchmarks alike (ADR-0020) |
+| [`Corpus`](../tests/Nordmann.LUI.Testing/Corpus.cs) | the corpus of the measurements, read out of a corpus file: the entries, their weights and the kind of the index they live in — plus the inputs users type and the typos (ADR-0020, ADR-0059) |
+| [`CorpusFile`](../tests/Nordmann.LUI.Testing/CorpusFile.cs) | the reader of a corpus file: gzip, the header as a block of comment lines, the three formats, the derived weight of a text without a weight column. A `#` inside an entry is data — a title that begins with `#` is a title (ADR-0059) |
 | [`TestFiles`](../tests/Nordmann.LUI.Testing/TestFiles.cs) | where the corpora are: the sample word list, the edge cases, the full word list, the golden schema. One place, because eight tests each built their own path out of the repository root — and a path that is spelled eight times is wrong once. |
 | [`ApplicationTable`](../tests/Nordmann.LUI.Testing/ApplicationTable.cs) | the table of the application, as a linked index sees it |
 | [`RecipeStock`](../tests/Nordmann.LUI.Testing/RecipeStock.cs) | the stock of recipe titles the multi-word tests ask for |
@@ -281,6 +288,10 @@ no project, no code, just the files the tests read.
 | [`wordlist/german-words.sample.txt`](../tests/TestData/wordlist/german-words.sample.txt) | every 97th word of the German word list — 7,071 words, deterministic, checked in |
 | [`wordlist/edge-cases.txt`](../tests/TestData/wordlist/edge-cases.txt) | the characters a stride cannot reach for: umlauts, ß, accents, ligatures, decomposed forms |
 | [`golden/embedded-schema.txt`](../tests/TestData/golden/embedded-schema.txt) | the `sqlite_master` of an embedded index, as it was before the second content source |
+| [`corpora/words.txt.gz`](../tests/TestData/corpora/words.txt.gz) | 1,908,798 German words with their derived weight — the corpus of the single-word index (ADR-0059) |
+| [`corpora/places.tsv.gz`](../tests/TestData/corpora/places.tsv.gz) | 5,779,011 places of the world with their population and their country, region and district (ADR-0059) |
+| [`corpora/movies.tsv.gz`](../tests/TestData/corpora/movies.tsv.gz) | 652,001 film titles with their votes (ADR-0059) |
+| [`corpora/wiki-titles.tsv.gz`](../tests/TestData/corpora/wiki-titles.tsv.gz) | 5,167,623 titles of the German Wikipedia (ADR-0059) |
 
 The full list (685,829 words) is **not** checked in — 5.5 MB that nobody
 reviews. [`tools/fetch-wordlist.sh`](../tools/fetch-wordlist.sh) puts it in

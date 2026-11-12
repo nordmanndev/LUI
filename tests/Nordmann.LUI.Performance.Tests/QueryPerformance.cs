@@ -15,17 +15,17 @@ public sealed class QueryPerformance(ITestOutputHelper output)
     private static PerformanceScenario Scenario => PerformanceScenario.Current;
     private const int Queries = 2_000;
 
-    /// <summary>The kind of the index the measurement builds: the multi-word one of the titles, or a single-word index.</summary>
-    private static bool Multi => Scenario.Kind == CorpusKind.MultiWord;
 
     [Fact]
     public void A_query_over_the_corpus_stays_within_the_budget()
     {
-        var entries = Scenario.Entries ?? 200_000;
+        var corpus = CorpusOf("query-p50");
+        var entries = corpus.Count;
+        var multi = corpus.Kind == CorpusKind.MultiWord;
         // the database of the scenario is kept between the runs: the build of three million entries takes minutes
         using var database = new TestDatabase(string.IsNullOrEmpty(Scenario.Database) ? null : Scenario.Database);
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
-        var tags = Multi
+        var tags = multi
             ? catalog.Create("tags", index => index.MultiWord())
             : catalog.Create("tags", index => index.SingleWord());
 
@@ -40,11 +40,11 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         }
 
         var build = Stopwatch.StartNew();
-        var texts = Build(catalog, tags, Words(), entries);
+        var texts = Build(catalog, tags, corpus, entries);
         build.Stop();
         Report($"build: {entries:N0} entries in {build.Elapsed.TotalSeconds:F1} s ({entries / build.Elapsed.TotalSeconds:N0}/s), file {new FileInfo(database.FilePath).Length / 1_048_576:N0} MB");
 
-        var (latencies, allocations) = MeasureQueries(tags, Inputs(texts, new Random(7)));
+        var (latencies, allocations) = MeasureQueries(tags, Inputs(texts, new Random(7), multi));
         MeasureWrites(tags, texts, entries);
 
         // The allocation budget is a property of the query, not of the corpus:
@@ -139,21 +139,29 @@ public sealed class QueryPerformance(ITestOutputHelper output)
     }
 
     /// <summary>
-    /// The words of the corpus: the whole German word list when <c>tools/fetch-wordlist.sh</c> fetched it, otherwise
-    /// the sample in the repository. Which one it was is reported — a worktree has no <c>artifacts/</c>, and two
-    /// measurements on two corpora are not a comparison (review of pull request 14, N5).
+    /// Das Korpus der Messung: die Datei, die das Budget ihres Ziels nennt (ADR-0056). Der
+    /// Schnitt, den die Messung nimmt, ist der des Budgets, beschnitten um die Zahl der
+    /// Eintraege des Laufs. Welches Korpus es war, steht im Bericht — zwei Messungen auf
+    /// zwei Korpora sind kein Vergleich.
     /// </summary>
-    private IReadOnlyList<string> Words()
+    /// <param name="budgetId">Die Kennung des Budgets, dessen Ziel gemessen wird.</param>
+    /// <returns>Das Korpus des Laufs.</returns>
+    private Corpus CorpusOf(string budgetId)
     {
-        var words = Scenario.Words(out var corpus);
-        Report(Scenario.Describe(corpus, words.Count));
-        return words;
+        var corpus = Scenario.CorpusOf(budgetId, out var name);
+        Report(Scenario.Describe(name, corpus.Count, LuiBudgets.By(budgetId).Scenario.PrefixLength));
+        Report($"  {Environment.ProcessorCount} cores, .NET {Environment.Version}");
+        return corpus;
     }
 
-    /// <summary>The words first, then compounds of two words — German is full of them.</summary>
-    private static List<string> Build(LuiCatalog catalog, ILuiEmbeddedIndex index, IReadOnlyList<string> words, int entries)
+
+    /// <summary>
+    /// The entries of the corpus, as they are: the text and the weight out of the file (ADR-0059). The generator that
+    /// made words out of words is gone — a corpus that is built from another corpus is a different corpus, and a
+    /// measurement on two corpora is no comparison.
+    /// </summary>
+    private static List<string> Build(LuiCatalog catalog, ILuiEmbeddedIndex index, Corpus corpus, int entries)
     {
-        var random = new Random(42);
         var texts = new List<string>(entries);
         // the build runs on a connection with the catalog's cache, as an application would set it up
         using var connection = catalog.Database.OpenConnection();
@@ -161,36 +169,14 @@ public sealed class QueryPerformance(ITestOutputHelper output)
 
         for (var i = 1; i <= entries; i++)
         {
-            var text = Multi
-                ? Title(words, random)
-                : i <= words.Count
-                    ? words[i - 1]
-                    : Capitalize(words[random.Next(words.Count)]) + words[random.Next(words.Count)].ToLowerInvariant();
+            var text = corpus.Texts[i - 1];
             texts.Add(text);
 
-            var weight = Weight(random);
-            index.Upsert(i, text, weight, transaction: transaction);
+            index.Upsert(i, text, corpus.Weights[i - 1], transaction: transaction);
         }
 
         transaction.Commit();
         return texts;
-    }
-
-    /// <summary>
-    /// The scenario's <c>"weights": "sparse"</c>: half of the entries have weight 0, as in the stock of Anhang A1 —
-    /// most tags are used never or once. Default: a long tail of distinct weights, which is the
-    /// harder case for the rowid (ADR-0010).
-    /// </summary>
-    private static int Weight(Random random)
-    {
-        var sparse = Scenario.Weights == WeightDistribution.Sparse;
-        if (sparse && random.NextDouble() < 0.5)
-        {
-            return 0;
-        }
-
-        // a long tail: most entries are unpopular, a few are very popular
-        return (int)Math.Min(536_870_911, 1 + (long)(random.NextDouble() * random.NextDouble() * random.NextDouble() * 1_000_000));
     }
 
     /// <summary>A title of two to four words, each from the word list.</summary>
@@ -200,13 +186,13 @@ public sealed class QueryPerformance(ITestOutputHelper output)
     private static string Capitalize(string word) => char.ToUpperInvariant(word[0]) + word[1..];
 
     /// <summary>What users type: the beginning of an entry, or a piece out of its middle, 1 … 8 characters.</summary>
-    private static List<string> Inputs(List<string> texts, Random random)
+    private static List<string> Inputs(List<string> texts, Random random, bool multi)
     {
         var inputs = new List<string>(Queries);
         while (inputs.Count < Queries)
         {
             var text = texts[random.Next(texts.Count)];
-            if (Multi && random.Next(3) == 0)
+            if (multi && random.Next(3) == 0)
             {
                 // two words of the title, a few letters of each, in either order
                 var parts = text.Split(' ').Select(w => w[..Math.Min(w.Length, random.Next(3, 6))]).Take(2).ToArray();

@@ -18,7 +18,7 @@ public class WriteBenchmarks
     public int Entries { get; set; }
 
     [GlobalSetup]
-    public void Setup() => _fixture = new IndexFixture(CorpusKind.SingleWord, Entries);
+    public void Setup() => _fixture = new IndexFixture("words.txt", Entries);
 
     [GlobalCleanup]
     public void Cleanup() => _fixture?.Dispose();

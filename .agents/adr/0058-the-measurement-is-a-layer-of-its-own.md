@@ -49,12 +49,14 @@ run. Nine names for one scenario, and a scenario that could only be described in
 - **The layer is the gate.** There is no attribute and no variable any more: a run of the measurement layer measures, and a
   run of the other layers does not. The lanes of the CI name the four projects they run, so a pull request proves the rules
   and does not measure — and the local loop of the developer stays fast.
-- **The scenario is a file.** `tests/Nordmann.LUI.Performance.Tests/performance.scenario.json` carries the corpus, the prefix
-  length, the size, the kind, the batch, the weights, the machine of the run and the database to keep. The copy in the
+- **The scenario is a file.** `tests/Nordmann.LUI.Performance.Tests/performance.scenario.json` carries the prefix
+  length, the batch, the minimum weight, the optimization, the machine of the run and the database to keep. The copy in the
   repository is the default, so a run without the lane works; the lane writes the file before it measures. A member that
   nobody reads is an error and not a shrug: a file that grows a member beside the ones that are read would be a second truth
-  beside the scenario. Every member is read: the corpus member **selects** the corpus of the run (`wordlist` or `sample`;
-  a name nobody knows stops the run), and the rest of the members steer the measurements that use them.
+  beside the scenario. Every member is read: the rest of the members steer the measurements that use them. The corpus
+  itself is **not** in the file: the budget names the corpus of its target (ADR-0056), and the corpus file carries the
+  entries, their weights and their kind (ADR-0059) — a corpus that is named twice is a truth that can disagree with
+  itself.
 - **The rules of the budget live in the shared infrastructure, without a test framework.** `PerformanceBudget` and
   `BudgetMachine` sit in `Nordmann.LUI.Testing` and know nothing about xUnit: the budget reports a missed target as a
   `BudgetTargetMissedException`, and the layer turns it into a red test. The unit layer references the infrastructure and
@@ -71,9 +73,8 @@ run. Nine names for one scenario, and a scenario that could only be described in
   `BudgetMachineTests` opens nothing, and the unit project has no database to open.
 - A measurement that runs is a measurement of the scenario of the file. The scenario stands in the report of the run, and
   the report names the corpus: two measurements on two corpora are not a comparison. A measurement that does not use a member
-  of the scenario says so in its own line — the measurement of the whole word list runs without the prefix of the scenario,
-  the measurement of the titles builds a multi-word index, and the measurement of the batch writes synthetic texts. The
-  report never claims a member that the measurement did not take.
+  of the scenario says so in its own line — the measurement of the titles builds a multi-word index, and the measurement of
+  the batch writes synthetic texts. The report never claims a member that the measurement did not take.
 - `PerformanceFact` and `TestGates` are gone. `FullWordListFact` moves into the shared infrastructure, because the parity
   that uses it stays in the integration layer.
 - **The measurements carry the trait of the clock** (`Category=Timing`): their verdict depends on the clock, and the fast
@@ -98,6 +99,26 @@ tree outside the papers and the state file — and it finds nothing.
 
 The criterion is lifted for the three dated records and kept for everything else. It is lifted explicitly, not argued
 away: this paragraph is the lift.
+
+## Note (2026-11-12, issue #123, ADR-0059)
+
+The corpus of a run is a file in the repository (ADR-0059), and the budget of the target names it (ADR-0056).
+
+The decision stands; the sentences above that this note rewrites and names are rewritten — each of them because the
+corpus of the scenario moved out of the scenario file into the corpus file and into the budget that names it:
+
+- **the sentence "**The scenario is a file.** `tests/Nordmann.LUI.Performance.Tests/performance.scenario.json` carries the
+  corpus, the prefix length, the size, the kind, the batch, the weights, the machine of the run and the database to keep."**
+  and the sentences that follow it — "The copy in the repository is the default, so a run without the lane works; the lane
+  writes the file before it measures.", "A member that nobody reads is an error and not a shrug: a file that grows a member
+  beside the ones that are read would be a second truth beside the scenario.", "Every member is read: the corpus member
+  **selects** the corpus of the run (`wordlist` or `sample`; a name nobody knows stops the run), and the rest of the members
+  steer the measurements that use them." — are rewritten: the file carries the prefix length, the batch, the minimum weight,
+  the optimization, the machine and the database; the corpus is named by the budget.
+- **the sentence "A measurement that does not use a member of the scenario says so in its own line — the measurement of the
+  whole word list runs without the prefix of the scenario, the measurement of the titles builds a multi-word index, and the
+  measurement of the batch writes synthetic texts."** is rewritten without the measurement of the whole word list: it takes
+  the prefix of its budget like every other measurement.
 
 ## Alternatives
 

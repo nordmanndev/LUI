@@ -18,14 +18,14 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     [Fact]
     public void Sync_queries_and_refreshes_against_embedded()
     {
-        var entries = Scenario.Entries ?? 200_000;
-        var words = Scenario.Words(out var corpus);
-        Report(Scenario.Describe(corpus, words.Count));
+        var entries = Scenario.PrefixLength ?? 200_000;
+        var corpus = CorpusOf("query-p50");
+        var words = corpus.Texts;
         Report($"  {entries:N0} entries");
 
         var random = new Random(42);
         var rows = Enumerable.Range(1, entries)
-            .Select(i => (Id: (long)i, Text: i <= words.Count ? words[i - 1] : words[random.Next(words.Count)] + words[random.Next(words.Count)].ToLowerInvariant(), Weight: random.Next(0, 1_000_000)))
+            .Select(i => (Id: (long)i, Text: words[(i - 1) % words.Count], Weight: corpus.Weights[(i - 1) % corpus.Weights.Count]))
             .ToList();
 
         using var database = new TestDatabase();
@@ -127,6 +127,22 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     {
         var sorted = values.Order().ToArray();
         return sorted[Math.Min(sorted.Length - 1, (int)Math.Ceiling(sorted.Length * percentile / 100.0) - 1)];
+    }
+
+    /// <summary>
+    /// Das Korpus der Messung: die Datei, die das Budget ihres Ziels nennt (ADR-0056). Der
+    /// Schnitt, den die Messung nimmt, ist der des Budgets, beschnitten um die Zahl der
+    /// Eintraege des Laufs. Welches Korpus es war, steht im Bericht — zwei Messungen auf
+    /// zwei Korpora sind kein Vergleich.
+    /// </summary>
+    /// <param name="budgetId">Die Kennung des Budgets, dessen Ziel gemessen wird.</param>
+    /// <returns>Das Korpus des Laufs.</returns>
+    private Corpus CorpusOf(string budgetId)
+    {
+        var corpus = Scenario.CorpusOf(budgetId, out var name);
+        Report(Scenario.Describe(name, corpus.Count, LuiBudgets.By(budgetId).Scenario.PrefixLength));
+        Report($"  {Environment.ProcessorCount} cores, .NET {Environment.Version}");
+        return corpus;
     }
 
     private void Report(string line)

@@ -4,7 +4,8 @@ using System.Text.Json;
 namespace Nordmann.LUI.Performance.Tests;
 
 /// <summary>
-/// The scenario of a measurement run (ADR-0058): the corpus, the prefix length and the settings.
+/// The scenario of a measurement run (ADR-0058): the settings of the run. The corpus itself is not here — the budgets
+/// name their corpus (ADR-0056), and the corpus file carries the entries, their weights and their kind (ADR-0059).
 /// <para>
 /// It takes the place of the variables of the environment (ADR-0058 names them). A variable is invisible in the
 /// code and in the report; a file is a thing one can read, check in and diff. The file that is checked in is the default
@@ -15,23 +16,18 @@ namespace Nordmann.LUI.Performance.Tests;
 /// read would be a second truth beside the scenario.
 /// </para>
 /// </summary>
-/// <param name="Corpus">The corpus of the run: 'wordlist' (the word list of the repository — the sample when the fetch
-/// did not bring it) or 'sample' (the sample of the repository, always there). A name nobody knows is an error.</param>
-/// <param name="PrefixLength">How many entries of the corpus the scenario has.</param>
-/// <param name="Kind">The kind of the index the measurement builds: single words or titles.</param>
-/// <param name="Entries">How many entries a measurement builds, or null when it builds the scenario of its target.</param>
+/// <param name="PrefixLength">How many entries of the corpus a measurement takes, or null when it takes the
+/// scenario of its target.</param>
 /// <param name="Batch">How many entries a sync writes in one batch.</param>
-/// <param name="Weights">How the weights are spread over the entries.</param>
+/// <param name="MinimumWeight">The smallest weight an entry of the corpus may have; the entries below it are not
+/// measured.</param>
 /// <param name="Optimize">Whether the index is optimized after the build.</param>
 /// <param name="Machine">The machine of the run: the one of the record, or another one.</param>
 /// <param name="Database">The file of a database to keep between the runs, or empty for a new one.</param>
 public sealed record PerformanceScenario(
-    string Corpus,
-    int PrefixLength,
-    CorpusKind Kind,
-    int? Entries,
+    int? PrefixLength,
     int Batch,
-    WeightDistribution Weights,
+    int MinimumWeight,
     bool Optimize,
     BudgetMachine Machine,
     string Database)
@@ -47,69 +43,33 @@ public sealed record PerformanceScenario(
     public static PerformanceScenario Current { get; } = Read();
 
     /// <summary>
-    /// The words of the corpus of this scenario: the corpus the file names, cut to the prefix of the scenario. Which
-    /// corpus it was is reported: two measurements on two corpora are not a comparison.
+    /// The corpus of a measurement: the corpus file that the budget of the target names, cut to the prefix the run
+    /// builds. Which corpus it was is reported: two measurements on two corpora are not a comparison.
     /// </summary>
-    /// <param name="corpus">The name of the corpus the words come from.</param>
-    /// <returns>The words of the corpus.</returns>
-    public IReadOnlyList<string> Words(out string corpus)
+    /// <param name="budgetId">The id of the budget the measurement belongs to — it names the corpus and the
+    /// prefix length.</param>
+    /// <param name="name">The name of the corpus file.</param>
+    /// <returns>The corpus of the run.</returns>
+    public Corpus CorpusOf(string budgetId, out string name)
     {
-        var words = CorpusWords(out corpus);
-        return words.Count <= PrefixLength ? words : [.. words.Take(PrefixLength)];
+        var budget = LuiBudgets.By(budgetId);
+        name = budget.Scenario.Corpus;
+        var prefix = PerformanceBudget.ScenarioEntries(budget.Scenario.PrefixLength, PrefixLength);
+        return Corpus.From(CorpusFile.Open(name, prefix, MinimumWeight));
     }
 
-    /// <summary>
-    /// The whole corpus of this scenario, without the prefix: the measurement of the whole word list needs it — the
-    /// prefix of the scenario would shrink the corpus the measurement is about.
-    /// </summary>
-    /// <param name="corpus">The name of the corpus the words come from.</param>
-    /// <returns>The words of the corpus.</returns>
-    public IReadOnlyList<string> WholeWords(out string corpus) => CorpusWords(out corpus);
-
-    /// <summary>The words of the corpus the scenario names: the member decides, an unknown name is an error.</summary>
-    /// <param name="corpus">The name of the corpus the words come from.</param>
-    /// <returns>The words of the corpus.</returns>
-    private IReadOnlyList<string> CorpusWords(out string corpus)
-    {
-        switch (Corpus)
-        {
-            case "wordlist":
-                return TestFiles.MeasurementWords(out corpus);
-            case "sample":
-                corpus = Path.GetRelativePath(Repository.RootPath, TestFiles.SampleWordListPath);
-                return TestFiles.SampleWords();
-            default:
-                throw new InvalidOperationException(
-                    $"The corpus '{Corpus}' of the scenario is not known: a measurement runs on the word list of the "
-                    + "repository ('wordlist') or on its sample ('sample').");
-        }
-    }
-
-    /// <summary>The line that says what this run measures — the scenario, the corpus and the size.</summary>
-    /// <param name="corpus">The name of the corpus the words come from.</param>
-    /// <param name="words">The words of the corpus.</param>
+    /// <summary>The line that says what this run measures — the corpus, the size and the settings.</summary>
+    /// <param name="corpus">The name of the corpus the entries come from.</param>
+    /// <param name="entries">How many entries of the corpus the run takes.</param>
+    /// <param name="prefix">The prefix of the scenario of the budget, or null when the run builds the whole file.</param>
     /// <returns>The line.</returns>
-    public string Describe(string corpus, int words) => Describe(corpus, words, PrefixLength);
-
-    /// <summary>
-    /// The line of the scenario for a measurement that runs on the whole corpus: the prefix of the scenario does not
-    /// apply to it, and the line says so.
-    /// </summary>
-    /// <param name="corpus">The name of the corpus the words come from.</param>
-    /// <param name="words">The words of the corpus.</param>
-    /// <returns>The line.</returns>
-    public string DescribeWhole(string corpus, int words) => Describe(corpus, words, null);
-
-    /// <summary>The line that says what this run measures — the scenario, the corpus and the size.</summary>
-    /// <param name="corpus">The name of the corpus the words come from.</param>
-    /// <param name="words">The words of the corpus.</param>
-    /// <param name="prefix">The prefix of the scenario, or null when the measurement runs on the whole corpus.</param>
-    /// <returns>The line.</returns>
-    private string Describe(string corpus, int words, int? prefix) =>
+    public string Describe(string corpus, int entries, int? prefix) =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"scenario: {Corpus} ({corpus}, {words:N0} words, {(prefix is { } length ? $"prefix {length:N0}" : "the whole corpus")}), "
-            + $"{Entries?.ToString(CultureInfo.InvariantCulture) ?? "the scenario of the target"} entries, batch {Batch:N0}, {Kind}, {Weights}, machine {Machine}");
+            $"scenario: {corpus} ({entries:N0} entries, {(prefix is { } length ? $"prefix {length:N0}" : "the whole corpus")}), "
+            + $"{PrefixLength?.ToString(CultureInfo.InvariantCulture) ?? "the scenario of the target"} entries of the corpus, "
+            + $"batch {Batch:N0}, "
+            + $"minimum weight {MinimumWeight:N0}, machine {Machine}");
 
     /// <summary>Reads the file of the scenario out of the repository and turns it into a scenario.</summary>
     /// <returns>The scenario of the file.</returns>
@@ -130,43 +90,16 @@ public sealed record PerformanceScenario(
             throw new InvalidOperationException("The scenario file needs an object under 'scenario'.");
         }
 
-        Only(scenario, "corpus", "prefixLength", "kind", "entries", "batch", "weights", "optimize", "machine", "database");
+        Only(scenario, "prefixLength", "batch", "minimumWeight", "optimize", "machine", "database");
 
         return new PerformanceScenario(
-            Text(scenario, "corpus"),
-            Integer(scenario, "prefixLength"),
-            ReadKind(Text(scenario, "kind")),
             ReadEntries(scenario),
             Integer(scenario, "batch"),
-            ReadWeights(Text(scenario, "weights")),
+            Integer(scenario, "minimumWeight"),
             Flag(scenario, "optimize"),
             ReadMachine(Text(scenario, "machine")),
             Text(scenario, "database"));
     }
-
-    /// <summary>The kind of the index: single words or titles.</summary>
-    /// <param name="kind">The name of the kind.</param>
-    /// <returns>The kind.</returns>
-    private static CorpusKind ReadKind(string kind) =>
-        kind switch
-        {
-            "single" => CorpusKind.SingleWord,
-            "multi" => CorpusKind.MultiWord,
-            _ => throw new InvalidOperationException(
-                $"The kind '{kind}' of the scenario is not known: a measurement builds a single-word index or a multi-word one.")
-        };
-
-    /// <summary>The weights of the entries: a long tail, or the sparse stock of Anhang A1.</summary>
-    /// <param name="weights">The name of the distribution.</param>
-    /// <returns>The distribution.</returns>
-    private static WeightDistribution ReadWeights(string weights) =>
-        weights switch
-        {
-            "longtail" => WeightDistribution.LongTail,
-            "sparse" => WeightDistribution.Sparse,
-            _ => throw new InvalidOperationException(
-                $"The weights '{weights}' of the scenario are not known: the entries carry a long tail of weights or a sparse stock.")
-        };
 
     /// <summary>The machine of the run: the one of the record, or another one (ADR-0041).</summary>
     /// <param name="machine">The name of the machine.</param>
@@ -180,12 +113,12 @@ public sealed record PerformanceScenario(
                 $"The machine '{machine}' of the scenario is not known: a run is on the machine of the record or on another one.")
         };
 
-    /// <summary>The entries a measurement builds, or null when it builds the scenario of its target.</summary>
+    /// <summary>The prefix a measurement takes, or null when it takes the scenario of its target.</summary>
     /// <param name="scenario">The scenario of the file.</param>
     /// <returns>The number of entries, or null.</returns>
     private static int? ReadEntries(JsonElement scenario)
     {
-        if (!scenario.TryGetProperty("entries", out var entries))
+        if (!scenario.TryGetProperty("prefixLength", out var entries))
         {
             return null;
         }
@@ -197,7 +130,7 @@ public sealed record PerformanceScenario(
 
         return entries.ValueKind == JsonValueKind.Number && entries.TryGetInt32(out var number)
             ? number
-            : throw new InvalidOperationException("The scenario file needs the member 'entries' as a whole number, or as null.");
+            : throw new InvalidOperationException("The scenario file needs the member 'prefixLength' as a whole number, or as null.");
     }
 
     /// <summary>A member of the file is a text.</summary>

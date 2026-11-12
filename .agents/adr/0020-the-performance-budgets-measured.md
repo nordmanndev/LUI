@@ -12,7 +12,7 @@
   [0011](./0011-the-multi-word-index.md) (the file size), [0012](./0012-typo-tolerance.md) (the correction),
   [0016](./0016-sync-check-rebuild.md) (the bulk path), [0019](./0019-the-test-tree-three-layers-one-map.md) (the test tree)
 - **Affects:**
-  - `tests/Nordmann.LUI.Testing/Corpus.cs` (+ `CorpusKind`, `WeightDistribution`), `TestDatabase.FileMegabytes()`
+  - `tests/Nordmann.LUI.Testing/Corpus.cs` (+ `CorpusKind`), `CorpusFile.cs`, `TestDatabase.FileMegabytes()`
   - `tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs`
   - `benchmarks/Nordmann.LUI.Benchmarks/`
   - `docs/benchmarks.md`, `docs/testing.md`, spec §16
@@ -26,16 +26,17 @@ with the row-by-row build of PR-003, `TypoPerformance` the dictionary, ADR-0011 
 
 ## Decision
 
-**One corpus for every measurement.** `Corpus.Generate(words, entries, kind, weights, seed)` in `Nordmann.LUI.Testing`:
+**One corpus for every measurement.** The corpus of a measurement is a file in the repository (ADR-0059):
+`tests/TestData/corpora/words.txt`, `places.tsv`, `movies.tsv`, `wiki-titles.tsv`:
 
-- **single words** — the German word list first (685,829 words), then compounds of two of them;
-- **titles** — two to four words of the list;
-- **weights** — a long tail (nearly every weight distinct, the harder case for the rowid) or sparse (half of them 0, as
-  in Anhang A1);
+- **single words** — the German words of `words.txt` (1,908,798 entries);
+- **titles** — the titles of `wiki-titles.tsv`, `movies.tsv` and `places.tsv`;
+- **weights** — out of the corpus file: the population of a place, the votes of a film, the derived weight of a word
+  (a long tail, nearly every weight distinct, the harder case for the rowid);
 - **inputs** of 1 … 8 characters as users type them — a beginning, a piece out of the middle, two words of a title;
 - **typos** — a beginning of 5 … 9 letters with one edit after the first letter.
 
-The same seed gives the same corpus, so the budget test and the benchmarks measure the same thing, and a run can be
+The same file gives the same corpus, so the budget test and the benchmarks measure the same thing, and a run can be
 repeated.
 
 **A test per target, in the scenario of §16** (`PerformanceBudgets`, in the layer of the measurements):
@@ -147,6 +148,28 @@ speed of the disk; the 180 s of §16 are met on one machine and missed on the ne
 day:** the target is **≤ 4 min** for the first load of three million entries, and a faster first load is issue #32,
 after 0.1.0. `PerformanceBudgets` asserts it; no target of §16 is waived any more.
 
+
+## Note (2026-11-12, issue #123, ADR-0059)
+
+The corpus of a measurement is a file in the repository (ADR-0059); the generator and the distribution of the weights
+of the scenario are gone with it.
+
+The decision stands; the sentences above that this note rewrites and names are rewritten — each of them because the
+generator died with ADR-0059 and the corpus file took its place:
+
+- **the list of affected files above** — `tests/Nordmann.LUI.Testing/Corpus.cs` (+ `CorpusKind`, `WeightDistribution`) —
+  is rewritten to `tests/Nordmann.LUI.Testing/Corpus.cs` (+ `CorpusKind`), `CorpusFile.cs`: the file
+  `WeightDistribution.cs` is gone, and the reader of the corpus files is new.
+- **the sentence "**One corpus for every measurement.** `Corpus.Generate(words, entries, kind, weights, seed)` in
+  `Nordmann.LUI.Testing`:"** and **the three bullets under it** — "**single words** — the German word list first
+  (685,829 words), then compounds of two of them;", "**titles** — two to four words of the list;" and "**weights** — a
+  long tail (nearly every weight distinct, the harder case for the rowid) or sparse (half of them 0, as in Anhang
+  A1);" — are rewritten to the corpora of the repository and to the weights out of the corpus file.
+- **the sentence "The same seed gives the same corpus, so the budget test and the benchmarks measure the same thing,
+  and a run can be repeated."** is rewritten to "The same file gives the same corpus, so the budget test and the
+  benchmarks measure the same thing, and a run can be repeated."
+
+The bullets of the inputs and of the typos are untouched: the corpus still knows what users type and what they mistype.
 
 ## Note (2026-11-12, issue #122)
 

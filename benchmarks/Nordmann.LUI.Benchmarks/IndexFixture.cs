@@ -3,21 +3,22 @@ using Nordmann.LUI.Testing;
 namespace Nordmann.LUI.Benchmarks;
 
 /// <summary>
-/// An index of a generated corpus in a database file of its own, built once per benchmark class by the bulk path of
-/// <c>Sync</c> — the corpus of the budget tests (ADR-0020), so the benchmark and the budget measure the same thing.
+/// An index of a corpus of the repository in a database file of its own, built once per benchmark class by the bulk path
+/// of <c>Sync</c> — the corpus of the budget tests (ADR-0020, ADR-0059), so the benchmark and the budget measure the
+/// same thing. The corpus is a <b>file</b>: the benchmark does not build a corpus of its own, and a corpus that is
+/// generated is a different corpus on every run.
 /// </summary>
 internal sealed class IndexFixture : IDisposable
 {
     private readonly TestDatabase _database = new();
 
-    internal IndexFixture(CorpusKind kind, int entries, bool typoTolerance = false)
+    internal IndexFixture(string corpusName, int entries, bool typoTolerance = false)
     {
-        var words = TestFiles.MeasurementWords(out var corpusName);
         CorpusName = corpusName;
-        Corpus = Corpus.Generate(words, entries, kind);
+        Corpus = Corpus.From(CorpusFile.Open(corpusName, entries, 0));
         Catalog = _database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
 
-        Index = Create(kind, typoTolerance);
+        Index = Create(Corpus.Kind, typoTolerance);
         Index.Sync(Corpus.Entries(), new LuiSyncOptions { BatchSize = 100_000 });
     }
 

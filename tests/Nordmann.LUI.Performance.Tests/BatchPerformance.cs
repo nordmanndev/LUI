@@ -14,9 +14,9 @@ public sealed class BatchPerformance(ITestOutputHelper output)
     [Fact]
     public void A_batch_against_a_loop_of_single_upserts()
     {
-        var entries = Scenario.Entries ?? 100_000;
-        // the texts of this measurement are synthetic: the corpus and the prefix of the scenario do not apply to it
-        Report($"scenario: {entries:N0} entries (the texts are synthetic — the corpus of the scenario is not used here)");
+        var entries = Scenario.PrefixLength ?? 100_000;
+        // the texts of this measurement are synthetic: the corpora of the repository do not apply to it
+        Report($"scenario: {entries:N0} entries (the texts are synthetic — no corpus of the repository is used here)");
         var random = new Random(42);
         var texts = Enumerable.Range(1, entries)
             .Select(i => $"{(char)('a' + random.Next(26))}{(char)('a' + random.Next(26))}kuchen{i}")
