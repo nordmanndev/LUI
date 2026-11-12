@@ -4,9 +4,11 @@ name: CI
 # gate of its own (issue #75).
 on:
   push:
-    branches: [main]
+    # The pull requests of the series branch from `dev` and target `dev`; `dev` → `main` is the release pull request.
+    # Without `dev` here, not one pull request of the series is checked at all.
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
   workflow_call:
 
