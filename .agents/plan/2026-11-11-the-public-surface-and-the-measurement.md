@@ -139,9 +139,9 @@ and a measurement where a number is claimed. The acceptance bar is written below
 
 - The two German working papers translated (about 520 lines), the five tutorials renamed
   (`01-first-index.md` …), the ADR texts restated without the external contract (with a dated note), the ADR index updated.
-- **Acceptance bar:** a search for the German function words over the repository finds nothing outside the sample data;
-  a search for the external contract finds nothing outside the papers of the work and the decisions that say what was
-  replaced.
+- **Acceptance bar:** a search for the German function words over the repository finds nothing outside the sample data
+  and the specification — the specification stays German until pull request 8 deletes it (D12); a search for the
+  external contract finds nothing outside the papers of the work and the decisions that say what was replaced.
 
 ### PR 5 — The measurement becomes its own layer (D17, D18, D19)
 

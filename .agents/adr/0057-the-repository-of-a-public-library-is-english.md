@@ -7,8 +7,8 @@
   the contract, the way), [0002](./0002-library-not-an-application.md) (a library, not an application — and it stands on the
   rules of this repository)
 - **Affects:**
-  - `.agents/plan/` (five papers: three translated, two restated), `.agents/adr/` (thirteen records: six restated, seven
-    with a translated quotation — this one added), `.agents/adr/README.md` (the index),
+  - `.agents/plan/` (five papers: three translated, two restated), `.agents/adr/` (thirteen records: six restated, six
+    with a translated quotation, one with a renamed link — this one added), `.agents/adr/README.md` (the index),
     `.agents/state/recently-completed.md`
   - `docs/tutorial/` (five files renamed, and their README), `docs/architecture/alignment.md`, `CHANGELOG.md`
   - **not** the live documents — `README.md`, `AGENTS.md`, `docs/README.md`, `docs/testing.md`, `Directory.Build.props`,
@@ -34,7 +34,7 @@ Two things stay German on purpose:
 
 - the **sample data** ("Gedeckter Apfelkuchen") — it shows what the normalisation is for;
 - the **specification** `.agents/spec/LUI-Spezifikation.md` — it is the contract of the work, it is deleted in pull
-  request 8, and translating 1,430 lines of a document that is about to go would be work without a purpose.
+  request 8, and translating 1,407 lines of a document that is about to go would be work without a purpose.
 
 ## Decision
 
@@ -52,8 +52,10 @@ Two things stay German on purpose:
    0004, 0027, 0030, 0036, 0053 — and are restated in place: no decision is lost, the reason of every rule stays, and a
    dated note says what was restated and why. ADR-0002 is the hard one: its subject *is* the delta, so its decision
    becomes "LUI is a library, not an application — and it stands on the rules of this repository", its title changes with
-   it, and the row of the index follows. Seven further records — 0005, 0010, 0022, 0025, 0028, 0042, 0055 — carried a
-   German quotation; the quotation is translated, and the dated note of the record says so.
+   it, and the row of the index follows. Six further records — 0005, 0010, 0022, 0025, 0028, 0042 — carried a
+   German quotation; the quotation is translated, and the dated note of the record says so. The thirteenth, ADR-0055,
+   changed in one line: the link to the renamed tutorial follows the rename. It carried no quotation, so it needs no
+   note of its own.
 5. **The external contract goes out of the documents.** No document of the library points at it any more — not the
    entrance, not the map of the documentation, not the build files, not the decisions. The papers of the work describe
    what was removed, in the words of this repository; they do not name it.
@@ -84,8 +86,8 @@ row in `docs/api.md`.
 
 | | For | Against |
 |---|---|---|
-| **A — translate the specification too** | one language in the repository | 1,430 lines of a document that is deleted in pull request 8 — work without a purpose |
+| **A — translate the specification too** | one language in the repository | 1,407 lines of a document that is deleted in pull request 8 — work without a purpose |
 | **B — leave the working papers in German** | the papers stay exactly as they were written | a reader finds three documents in another language, and the search for German words does not come back empty |
 | **C — keep the ADRs as they are** | the records stay untouched | the decisions of a public library are written in the terms of a contract its reader cannot know |
 | **D — translate the sample data too** | one language in the data as well | the sample data shows what the normalisation is for — "Gedeckter Apfelkuchen" is the point of it, not an accident |
-| **E — the repository is English, and its decisions speak in its own terms** (this decision) | every d
+| **E — the repository is English, and its decisions speak in its own terms** (this decision) | every document of the library is in the language of its reader, and the history of the work stays visible in the notes | the papers of the work carry a translation — a note per paper, and a restatement per ADR |
