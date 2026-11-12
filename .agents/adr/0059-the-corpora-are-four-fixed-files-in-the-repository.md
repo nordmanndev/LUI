@@ -108,7 +108,10 @@ and is not.
   by `tools/fetch-wordlist.sh`.
 - **The lane needs no fetch.** The corpora are in the repository; the lane writes the scenario of the run and measures
   the files that are checked in.
-- **The four files are 116 MB in the repository** — 365 MB of raw corpora, gzip-compressed. A public repository has to
+- **The four files are 162 MB in the repository** — 432 MB of raw corpora, gzip-compressed. The two numbers are
+  measured, not estimated: `ls -l tests/TestData/corpora/` sums to **162,238,087 bytes**, and the four files unpacked
+  (`zcat … | wc -c`) to **432,303,880 bytes**. The places corpus is the largest of them (82 MB of the 162 MB) because it
+  carries the country, the region and the district of every one of its 5.8 million entries. A public repository has to
   be able to answer *may this be redistributed?* (the licences are in the headers and in `docs/benchmarks.md`) and
   *may this be published at all?* (the data-protection boundary is above).
 
