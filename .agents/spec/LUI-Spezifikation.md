@@ -960,7 +960,7 @@ public sealed class SuggestEndpoint(LuiCatalog catalog)
     korrigiert schon; in ASP.NET Core lauscht der Server erst danach.
   - **`LuiWarmupOptions`**: `WarmUpTypoDictionaries` (Standard `true`; `false` lässt dem Dienst nur die Outbox),
     `TypoDictionaryIndexes` (die Indizes, die ein Wörterbuch bekommen; **leer heißt jeder** — ein Wörterbuch kostet
-    138 MB für 685.829 Wörter, ein Index ohne Korrektur braucht keins; ein unbekannter Name lässt den Start mit
+    138 MB für 685.739 Wörter, ein Index ohne Korrektur braucht keins; ein unbekannter Name lässt den Start mit
     `LuiIndexNotFoundException` scheitern) und `OutboxInterval` (Standard 30 s, positiv).
   - **Im Takt** wendet er die Outbox wieder an, eine Runde nach der anderen. Eine Runde, die scheitert, nimmt den
     Host nicht mit: die Zeilen bleiben in der Outbox, die nächste Runde versucht es wieder.

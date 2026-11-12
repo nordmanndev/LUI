@@ -131,7 +131,10 @@ drifts from it (issue #38). The **measured values** are the numbers of the last 
 the build and the size of the file from the CI machine (2026-11-05, before the allocation was lowered — so they are an
 upper bound); the allocation in bytes, and therefore independent of the machine (2026-11-06, the current code); the typo
 dictionary in bytes and in seconds (2026-11-06, the machine of the record — a time belongs to the machine it was
-measured on, [ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)).
+measured on, [ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured
+again on 2026-11-12 — **4.3 s** for the same **138 MB** ([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)): a
+time belongs to the machine and the date it was measured on (ADR-0041), the memory is the claim that does not depend
+on the machine.
 
 **The tables** below are the output of [BenchmarkDotNet](https://benchmarkdotnet.org/) — the code on the corpus of the
 measurement, not the scenario of the budgets. They are rendered from the reports of the run in

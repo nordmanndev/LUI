@@ -104,14 +104,14 @@ measurement is comparable with the old one.
   `None` forgives nothing, and the query's `true` has no effect. That is no error — there is nothing to exceed — but it
   is stated in the API (`LuiQueryOptions.TypoTolerance`, `docs/api.md`) and pinned by a test, so it cannot change
   silently (review of pull request #126, I3).
-- **The mutation check has three new mutations** — the distance that does not survive a restart, the distance that never
-  reaches the dictionary, and the correction that always forgives one error. Every one of them has to turn the build
-  red.
+- **The mutation check has four new mutations** — the distance that does not survive a restart, the distance that never
+  reaches the dictionary, the correction that always forgives one error, and the rebuild of an index that forgives
+  nothing, which builds a dictionary all the same. Every one of them has to turn the build red.
 - **The sample shows the distance** instead of a bool: the panel of the indexes names the distance of the index and the
   state of its dictionary.
 - **The specification is corrected in this pull request** — `AGENTS.md` requires it: an ADR is the newer truth, and the
-  specification is corrected in the same pull request. §10.3a, §12.2, §12.3, §12.4 and §12.8 name the distance instead
-  of the bool. The debt is named, not deferred: the rule stands in English in this ADR and in
+  specification is corrected in the same pull request. §7.1, §10.1, §10.3, §10.3a, §12.2, §12.3, §12.4, §12.5 and §12.9
+  name the distance instead of the bool. The debt is named, not deferred: the rule stands in English in this ADR and in
   [`docs/typo-dictionary.md`](../../docs/typo-dictionary.md) from now on — the translation of the repository comes with
   pull request 4 of the series, the deletion of the specification with pull request 8 (review of pull request #126, I4).
 

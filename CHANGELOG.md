@@ -32,8 +32,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **A distance of `None` builds no dictionary at all.** The state of the dictionary stays `NotBuilt`, and the memory
     of one is not taken.
   - **Migration.**
-    - `TypoTolerance()` and `TypoTolerance(true)` → `TypoTolerance(LuiTypoDistance.OneError)` (or nothing at all —
-      the default is `OneError`).
+    - `TypoTolerance()` and `TypoTolerance(true)` → `TypoTolerance(LuiTypoDistance.OneError)` (or `TypoTolerance()`
+      without an argument — its parameter default is `OneError`; **not calling it at all means `None`**, an index that
+      forgives nothing).
     - `TypoTolerance(false)` → `TypoTolerance(LuiTypoDistance.None)`. **The difference is the query:** the old `false`
       meant "the index corrects nothing by itself, a query may still ask for it", and `None` means "nothing is
       corrected at all" — a query cannot widen the distance of its index. An application that used the builder's `false`
