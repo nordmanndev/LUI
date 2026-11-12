@@ -141,9 +141,8 @@ files of the same name in two projects are told apart; the unit layer opens no d
 
 ## Note (2026-11-08, issue #76)
 
-The tree this decision describes changed with the restructure of the tests (epic #72). The decision stands; the
-history above stays as written — except for the title and the sentences that the note
-of 2026-11-12 below rewrites and names — and these are the differences:
+The tree this decision describes changed with the restructure of the tests (epic #72). The decision stands; the history above stays as written — except for the title and the sentences that the note of
+2026-11-12 below rewrites and names — and these are the differences:
 
 - **The library still has three layers; the tree has a fourth test project.** The tests of the sample moved out of
   the integration layer into `samples/Lui.Sample.Tests`, beside the sample they test. The library's integration
@@ -166,7 +165,7 @@ compares the **layer** of a row with its project, and reads the test projects fr
 [ADR-0058](./0058-the-measurement-is-a-layer-of-its-own.md) gives the measurement a layer of its own
 (`tests/Nordmann.LUI.Performance.Tests`) and takes the variables of the environment away.
 
-The decision stands; the title above and the sentences above that named a variable of the environment, the name of a
+The decision stands; the title above and the sentences above that named a variable of the environment that died, the name of a
 gate that is gone (`PerformanceFact`, `TestGates`) or a path of the file of the measurements (`PerformanceBudgets.cs`,
 `BudgetPerformance.cs`) are rewritten: the title because the tree has a fourth layer, the sentences because the
 variable died with ADR-0058 and took the gate of the measurements with it, or because that file moved into the layer
