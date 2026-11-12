@@ -357,7 +357,7 @@ decides what may happen.
 | `LuiCatalog` | the entry point: `Open`, `Create`, `Index`, `LinkedIndex`, `DropIndex` |
 | `LuiEntry` | what is written: a key, a text, a weight, a priority, a payload |
 | `LuiKey` | the key of the application: a number or a text — `1` and `"1"` are different keys |
-| `LuiQuery` | a query that is configured step by step: `Take`, `Candidates`, `Rank`, `PriorityMode`, `DistinctText`, `Similarity`, `TypoTolerance`, `TrackTimings` |
+| `LuiQuery` | a query that is configured step by step: `Take`, `Candidates`, `Rank`, `PriorityMode`, `Similarity`, `TypoTolerance`, `TrackTimings` |
 | `LuiQueryOptions` | the same settings as a record, for the configuration of an application |
 | `LuiResult` | the answer of a query: the hits, the candidates it considered, the query it corrected |
 | `LuiHit` | one hit: the key, the text, the weight, the priority, the similarity — and `GetPayload<T>()` |

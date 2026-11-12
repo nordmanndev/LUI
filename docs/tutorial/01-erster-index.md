@@ -90,7 +90,6 @@ var result = tags
     .Query("veg")
     .Take(5)
     .Rank(LuiRankingOrder.WordStartThenWeight)
-    .DistinctText()
     .Execute();
 
 Console.WriteLine($"{result.Hits.Count} of {result.CandidatesConsidered} candidates");
@@ -111,6 +110,31 @@ list is in the [README](../../README.md); the meaning of the values is in the
 > good in a file, where the values arrive as text. Having one of them and not
 > the other would mean two ways to say the same thing — and one of them would
 > drift.
+
+## One text, one entry
+
+A query answers with one hit per entry. Two entries that carry the same text
+in two spellings — "vegan" and "Vegan" — are two hits: the library does not
+hide the second one, because it cannot know which of them your application
+means. The uniqueness of a text belongs to the data, and it is stated there:
+
+- **Embedded** — the entries live in the table of the library, and their
+  normalised text is the generated column `s_norm` of that table. A **unique
+  constraint on the normalised text** is what makes a text unique; the library
+  does not create one, because only your application knows whether two entries
+  may share a text.
+- **Linked** — the table is your own, and so is the constraint: a unique
+  constraint over the normalised text of your own column, in your own
+  migration. Step 2 shows the table of an application.
+
+> **Why so?**
+> The library cannot know which of two spellings the user should see: the
+> system tag "vegan" and the ordinary tag "Vegan" are two entries, and only
+> the application knows which one belongs in the list. Looking for the
+> duplicates in every query is the expensive way to solve it — it keeps the
+> folded text of every candidate in memory and it makes the search shallower,
+> because a duplicate uses up the candidate budget. In the data it costs one
+> constraint. See ADR-0055.
 
 ## A typo is forgiven
 

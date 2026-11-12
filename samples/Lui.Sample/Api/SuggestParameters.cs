@@ -34,7 +34,6 @@ internal sealed record SuggestParameters(
             Candidates = Int(query, "candidates") ?? new LuiQueryOptions().Candidates,
             Rank = Enum<LuiRankingOrder>(query, "rank") ?? new LuiQueryOptions().Rank,
             PriorityMode = Enum<LuiPriorityMode>(query, "priorityMode") ?? new LuiQueryOptions().PriorityMode,
-            DistinctText = Bool(query, "distinct") ?? false,
             Similarity = Similarity(query),
             TypoTolerance = Bool(query, "typo"),
             TrackTimings = Bool(query, "timings") ?? false,

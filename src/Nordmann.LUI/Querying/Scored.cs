@@ -13,9 +13,6 @@ internal struct Scored
     /// <summary>The text as it was stored.</summary>
     internal string Text;
 
-    /// <summary>The search form of the text, kept only for <c>DistinctText</c> (one entry per normalised text).</summary>
-    internal string? Key;
-
     /// <summary>Where the word that carries the match begins in the search form; -1: no word start.</summary>
     internal int WordStart;
 

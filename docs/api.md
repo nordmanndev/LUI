@@ -206,7 +206,6 @@ The query that is configured step by step. Every method returns the query, and `
 | `LuiQuery Candidates(int candidates)` | how many candidates the query looks at. 1 to 100,000, the default 500. |
 | `LuiQuery Rank(LuiRankingOrder order)` | the order of the hits |
 | `LuiQuery PriorityMode(LuiPriorityMode mode)` | `First` (the default) puts the priority before everything; `CandidatesOnly` uses it while the candidates are collected |
-| `LuiQuery DistinctText(bool distinct = true)` | the same text only once in the hits |
 | `LuiQuery Similarity(ILuiSimilarity similarity)` | the measure of the ranking, for this query |
 | `LuiQuery TypoTolerance(bool enabled = true)` | forgives a typo in this query — over the setting of the index |
 | `LuiQuery TrackTimings(bool track = true)` | measures the phases of the query |
@@ -223,13 +222,22 @@ The same settings as a record — for the configuration of an application, for a
 | `int Candidates` | 500 (1 to 100,000, `LuiQueryOptions.CandidatesLimit`) |
 | `LuiRankingOrder Rank` | `WordStartThenSimilarity` |
 | `LuiPriorityMode PriorityMode` | `First` |
-| `bool DistinctText` | `false` |
 | `ILuiSimilarity? Similarity` | the default of the kind of the index |
 | `bool? TypoTolerance` | `null` — the setting of the index |
 | `bool TrackTimings` | `false` |
 
 Every value checks itself: a `MaxResults` of 0 or a `Rank` that is not defined throws `ArgumentOutOfRangeException`
 before the query runs.
+
+**One hit per entry — the uniqueness of a text belongs to the data.** Two entries that hold the same text in two
+spellings — "vegan" and "Vegan" — are two hits: the library does not hide the second one, because it cannot know
+which of them the application means. Where the uniqueness is stated depends on the kind of the index (ADR-0055):
+
+- **`Embedded`** — the entries live in the table of the library, and their normalised text is the generated column
+  `s_norm` of that table. A **unique constraint on the normalised text** is what makes a text unique; the library does
+  not create one, because only the application knows whether two entries may share a text.
+- **`Linked`** — the table is the application's own, and so is the constraint: a unique constraint over the normalised
+  text of its own column, in its own migration.
 
 ### `LuiResult`
 

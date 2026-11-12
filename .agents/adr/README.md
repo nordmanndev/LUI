@@ -107,3 +107,4 @@ decided about the query path" without opening 36 files.
 | [0051](./0051-xunit-v3-run-by-vstest.md) | xUnit.net v3, run by VSTest | Testing | Accepted |
 | [0052](./0052-a-null-column-is-null-for-a-type-that-can-hold-it.md) | A NULL column is null for a type that can hold it | API | Accepted |
 | [0053](./0053-the-first-release-is-a-prerelease.md) | The first release is a prerelease: 0.1.0-alpha | Packages | Accepted |
+| [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md) | The uniqueness of a text belongs to the data: `DistinctText` is removed | Query path | Accepted |

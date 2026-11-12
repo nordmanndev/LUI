@@ -76,7 +76,7 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
             return (found, count, truncated, queries, null);
         }
 
-        var united = Union(parts, options.Candidates, options.DistinctText, out var total, out var capped);
+        var united = Union(parts, options.Candidates, out var total, out var capped);
 
         // the candidates of the variants are in the union now: their buffers go back to the thread
         // (the buffer of the input itself belongs to the caller)
@@ -108,12 +108,11 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
     /// (the input and up to three corrections). A length that changes from query to query would miss
     /// the pool every time and cost the union anew — 32 KB per corrected query.
     /// </para> A document found with more than
-    /// one input keeps the version that stands at a word start (§10.3: the best value per <c>doc_id</c>); with
-    /// <paramref name="distinct"/> one entry per normalised text remains, again the one at a word start first. At
+    /// one input keeps the version that stands at a word start (§10.3: the best value per <c>doc_id</c>). At
     /// most <paramref name="limit"/> remain, and the cap keeps the word starts first — they are what the
     /// correction was for (review M2): hits in the middle of words, in rowid order, fill what is left.
     /// </summary>
-    private static Scored[] Union(List<(Scored[] Items, int Count)> parts, int limit, bool distinct, out int count, out bool cut)
+    private static Scored[] Union(List<(Scored[] Items, int Count)> parts, int limit, out int count, out bool cut)
     {
         var total = 0;
         foreach (var (_, found) in parts)
@@ -153,11 +152,6 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
                 {
                     all[united++] = all[i];
                 }
-            }
-
-            if (distinct)
-            {
-                united = DistinctByKey(all, united);
             }
 
             cut = united > limit;
@@ -215,35 +209,5 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
     {
         var byStart = (b.WordStart >= 0).CompareTo(a.WordStart >= 0);
         return byStart != 0 ? byStart : a.Variant.CompareTo(b.Variant);
-    }
-
-    /// <summary>
-    /// One entry per normalised text: the one at a word start, then the better rowid (§9.2). The
-    /// candidates are in <paramref name="candidates"/>; the result is written back into it, and its
-    /// number is returned.
-    /// </summary>
-    private static int DistinctByKey(Scored[] candidates, int count)
-    {
-        var best = new Dictionary<string, Scored>(StringComparer.Ordinal);
-        for (var i = 0; i < count; i++)
-        {
-            var candidate = candidates[i];
-            var key = candidate.Key ?? candidate.Text;
-            if (!best.TryGetValue(key, out var kept)
-                || (candidate.WordStart >= 0 && kept.WordStart < 0)
-                || ((candidate.WordStart >= 0) == (kept.WordStart >= 0) && candidate.RowId < kept.RowId))
-            {
-                best[key] = candidate;
-            }
-        }
-
-        var result = 0;
-        foreach (var candidate in best.Values)
-        {
-            candidates[result++] = candidate;
-        }
-
-        Array.Sort(candidates, 0, result, ByRowId);
-        return result;
     }
 }
