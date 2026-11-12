@@ -604,6 +604,13 @@ expect_caught "a-null-read-as-null-for-every-type-refused" "${INTEGRATION_PROJEC
   "FullyQualifiedName~A_null_column_is_null_for_a_type_that_can_hold_null_and_refused_for_one_that_cannot" \
   "sed -i 's|        return default(T) is null \&\& reader.IsDBNull(ordinal)|        return false \&\& reader.IsDBNull(ordinal)|' src/Nordmann.LUI/LuiPayloadRow.cs"
 
+# 26x. The query path drops a duplicate again (ADR-0055): the uniqueness of a text belongs to the data, so the
+#      library answers with one hit per entry — a candidate whose search form was seen is dropped again, and the
+#      four restated tests notice.
+expect_caught "a-duplicate-of-a-text-is-dropped-again" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~Two_spellings_of_one_text_are_two_hits|FullyQualifiedName~The_priority_leads_the_hits|FullyQualifiedName~The_correction_is_not_swallowed|FullyQualifiedName~The_input_and_its_correction_keep" \
+  "sed -i 's|        var read = 0;|        var seen = new HashSet<string>(StringComparer.Ordinal);\\n        var read = 0;|' src/Nordmann.LUI/Querying/CandidateReader.cs && sed -i 's|            candidates\\[count++\\] = new Scored { RowId = reader.GetInt64(0), Text = text, WordStart = start, Variant = variant };|            if (seen.Add(Normalizer.ToSearchForm(text, _normalization))) { candidates[count++] = new Scored { RowId = reader.GetInt64(0), Text = text, WordStart = start, Variant = variant }; }|' src/Nordmann.LUI/Querying/CandidateReader.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

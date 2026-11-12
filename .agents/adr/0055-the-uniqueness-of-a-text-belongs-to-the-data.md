@@ -52,11 +52,18 @@ see.
 - **The option was off by default, so the behaviour of a query that did not ask for it does not change.** Only a
   caller who asked for the option sees a difference, and that caller has a migration note in the `CHANGELOG`.
 - **Where the uniqueness is stated depends on the kind of the index:**
-  - **`Embedded`** — the entries live in the table of the library, and their normalised text is the generated column
-    `s_norm` of that table. A **unique constraint on the normalised text** is what makes a text unique; the library
-    does not create one, because only the application knows whether two entries may share a text.
-  - **`Linked`** — the table is the application's own, and so is the constraint: a unique constraint over the normalised
-    text of its own column, in its own migration.
+  - **`Embedded`** — the entries live in the table of the library, and that table holds the **transliterated** text in
+    the generated column `s_norm` — case and diacritics untouched. The **folded** text, the one the tokenizer compares,
+    lives inside the search index, and the **search form** of the C# side is computed by an internal helper: the fold is
+    not part of the public API. A constraint over `s_norm` does not catch "vegan" and "Vegan", and `lower(s_norm)` is an
+    ASCII approximation of the fold, not the fold (see
+    [`docs/normalization.md`](../../docs/normalization.md)).
+  - **`Linked`** — the table is the application's own, and so is the constraint: over the application's own column, with
+    the application's own rule. The same caveat holds, because the library builds its search index over the raw column
+    of the table.
+- **In both cases the rule is the application's own: the application keeps its own text unique, in its own data, over
+  its own column, with its own rule** — a rule that is not the fold of the library. The rule that merges two spellings
+  is an ASCII case fold, so it merges "vegan" and "Vegan" but not "Café" and "Cafe".
 - **The sample, the tutorial, the README and `docs/api.md` follow.** The checkbox of the sample's panel and its
   `distinct` parameter are gone; the tutorial's first example does not ask for one any more; the page of the API says
   where the uniqueness belongs.
@@ -72,7 +79,10 @@ option on the query of the time: the folded text of every candidate costs **+28 
 only removes what it bought.
 
 The allocation of a query without the option is the base of ADR-0032 — 26.6 KB for a single-word query and 105.7 KB
-for a multi-word one — and it did not change here: the guard `AllocationPoolTests` holds it.
+for a multi-word one. Nothing was measured again here, and the guard says exactly what it pins:
+`AllocationPoolTests` measures a single-word query with the typo tolerance after the candidate budget has changed and
+holds it below **64 KB** (39.8 KB at the time of the measurement, ADR-0031). The multi-word number of ADR-0032 was not
+measured in this pull request, and no guard pins it.
 
 ## Consequences
 
@@ -96,9 +106,10 @@ for a multi-word one — and it did not change here: the guard `AllocationPoolTe
 - **The option becomes a default of the index, like the typo tolerance.** Rejected: it moves the same decision into
   another place and makes it invisible. An application that wants two spellings of a text in its list would have to
   know about a builder setting to get them.
-- **The library creates the unique constraint on the normalised text in the `Embedded` case.** Rejected: the library
-  cannot know whether two entries may share a text — the system tag "vegan" beside the ordinary tag "Vegan" is a case
-  that the application may well want. A constraint that the library creates would refuse a write the application meant
-  to make.
+- **The library creates the unique constraint on the transliterated text (`s_norm`) in the `Embedded` case.**
+  Rejected: the library cannot know whether two entries may share a text — the system tag "vegan" beside the ordinary
+  tag "Vegan" is a case that the application may well want. A constraint that the library creates would refuse a write
+  the application meant to make. And it would not do what it promises: `s_norm` is the transliterated text, so the
+  constraint would let "vegan" and "Vegan" through anyway.
 - **The option is deprecated instead of removed.** Rejected: there is no tag `v0.1.0` yet, so a deprecation would only
   carry the cost of the option further — and the option is the most expensive one in the library.

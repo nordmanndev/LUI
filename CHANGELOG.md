@@ -16,12 +16,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   so the option made the search shallower, not only the answer shorter.
   - **Gone**: `LuiQueryOptions.DistinctText` and `LuiQuery.DistinctText(bool)`. The option was **off by default**, so a
     query that did not ask for it behaves exactly as before — only an application that asked for it sees a difference.
-  - **Migration**: an application that used the option takes the uniqueness of a text into its data. In the `Embedded`
-    case the normalised text is the generated column `s_norm` of the table of the library — a **unique constraint on the
-    normalised text** is what makes a text unique; in the `Linked` case the table is the application's own, and the
-    constraint is the application's own, over the normalised text of its own column. Without the constraint a text in two
-    spellings is two hits: the library does not hide the second one, because it cannot know which of them the
-    application means.
+  - **Migration**: an application that used the option takes the uniqueness of a text into its own data — **the
+    application keeps its own text unique, in its own data, over its own column, with its own rule**, and that rule is
+    not the fold of the library. The table of the library holds the **transliterated** text in the generated column
+    `s_norm` (case and diacritics untouched); the **folded** text, the one the tokenizer compares, lives inside the
+    search index, and the **search form** of the C# side is computed by an internal helper — the fold is not part of the
+    public API. A constraint over `s_norm` therefore does not catch "vegan" and "Vegan", and `lower(s_norm)` is an ASCII
+    approximation of the fold, not the fold (see [the normalisation](docs/normalization.md)). In the `Linked` case the
+    table is the application's own, and the constraint is the application's own over its own column, with the same
+    caveat. Without a rule of its own, an application gets two hits for a text in two spellings — the library does not
+    hide the second one, because it cannot know which of them the application means.
   - The sample's checkbox and its `distinct` parameter are gone; the tutorial, the README and
     [`docs/api.md`](docs/api.md) follow.
 

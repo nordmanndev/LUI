@@ -1,5 +1,9 @@
 # 0027 — The sample: flexdatalist against the whole API, a modular client, one fetch boundary
 
+> **Note (ADR-0055, 2026-11-12):** the `distinct` parameter of the sample is gone with the option — the query string
+> maps one to one onto `LuiQueryOptions` without it. The text below is history. See
+> [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md).
+
 - **Status:** Accepted (owner's requirements of 2026-11-04: built with flexdatalist, a clean modular client, the whole of LUI, a payload, highlighting and the abort of a fast typeahead "professionally"; highlighting was then dropped on the owner's decision, decision 4 and ADR-0028)
 - **Date:** 2026-11-04
 - **Issue:** #51 (PR-011 of the plan)
