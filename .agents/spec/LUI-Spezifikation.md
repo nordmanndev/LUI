@@ -214,12 +214,14 @@ gewünschten passt. Eine Abweichung ist ein Fehler mit klarer Meldung — ein
 Index wird nie stillschweigend umgebaut (§ 12.2).
 
 Die Definition ist JSON und trägt alles, was ein **geöffneter** Index braucht:
-die Art, die Quelle, **die Art des Schlüssels** (Zahlen oder Texte), die
-Faltversion und — bei einem verknüpften Index mit Payload — **die Spalten des
-Payloads in ihrer Reihenfolge**. **Keinen Typ der Anwendung** (ADR-0035): Die
-Payload ist Bytes, die der Serialisierer des Katalogs schreibt und liest; was sie
-ist, verantwortet die Anwendung. Eine ältere Definition mit `payload` und
-`payloadType` wird gelesen, die beiden Felder werden übergangen. Damit kann ein
+die Art, die Quelle, **die Art des Schlüssels** (Zahlen oder Texte), **die
+Tippfehler-Distanz** (ADR-0054), die Faltversion und — bei einem verknüpften Index
+mit Payload — **die Spalten des Payloads in ihrer Reihenfolge**. **Keinen Typ der
+Anwendung** (ADR-0035): Die Payload ist Bytes, die der Serialisierer des Katalogs
+schreibt und liest; was sie ist, verantwortet die Anwendung. Eine ältere
+Definition mit `payload` und `payloadType` wird gelesen, die beiden Felder werden
+übergangen. Eine ältere Definition **ohne** das Feld der Distanz wird als `None`
+gelesen — ein Index, der nichts verzeiht. Damit kann ein
 Index gelesen werden, ohne dass die Anwendung etwas dazutun muss (ADR-0033):
 `Index` liest die Definition, prüft Schemaversion und Faltversion und baut den
 Index daraus auf — **ohne zu schreiben**: keine Tabelle, keine Definition, kein
@@ -570,7 +572,9 @@ Wer markieren will, tut es in der Anwendung, mit dem, was sie über ihre Schrift
 - **Quelle:** alle Wörter (≥ 3 Zeichen) der normalisierten Texte eines Index.
 - **Inhalt:** alle **Wortanfänge** der Länge 3 … 10 dieser Wörter, jeweils mit
   der Summe der Gewichte als Häufigkeit.
-- **Werkzeug:** SymSpell (`symspell` 6.7.3, MIT), maximal **1** Fehler.
+- **Werkzeug:** SymSpell (`symspell` 6.7.3, MIT), mit der **Distanz des Index** (ADR-0054): `OneError` verzeiht einen
+  Fehler, `TwoErrors` zwei. Eine Distanz `None` baut **gar kein Wörterbuch** — der Zustand bleibt `NotBuilt`, und der
+  Speicher eines Wörterbuchs wird nicht genommen.
 - **Ort:** im Arbeitsspeicher, **pro Index** (ADR-0025): Die Wörterbücher sind nach dem Namen des Index getrennt — eine
   Suche in Tags korrigiert nie zu Namen und umgekehrt. Aufbau **auf ausdrücklichen Wunsch** aus der Inhaltstabelle (im
   Stapel: `SuggestionStage` + `CommitStaged`): `WarmUpTypoDictionary()` baut das Wörterbuch, `RebuildTypoDictionary()`
@@ -580,10 +584,11 @@ Wer markieren will, tut es in der Anwendung, mit dem, was sie über ihre Schrift
 - **Es wächst nur.** `Remove`, eine Textänderung und das `Sync` eines `Embedded`-Index lassen entfernte Wörter stehen
   (SymSpell kennt kein Entfernen); nichts baut das Wörterbuch von selbst neu. **Ausnahme:** `Sync()` eines `Linked`-Index
   füllt den Index aus der Tabelle der Anwendung neu auf — ein ausdrückliches „von vorn" — und baut ein gebautes Wörterbuch
-  an seinem Ende neu, weil sich die Wörter der Tabelle ändern können, ohne dass LUI es sieht (ADR-0025, Punkt 8). Eine Korrektur zu einem entfernten Wort kostet fast nichts: der
-  Index ist der Filter, die Korrektur findet keinen Kandidaten und fällt weg. `RebuildTypoDictionary()` vergisst die
-  entfernten Wörter und setzt die Häufigkeiten neu; es liest alle Einträge, Schreibzugriffe währenddessen gehen nicht
-  verloren, Abfragen nutzen bis dahin das alte Wörterbuch.
+  an seinem Ende neu, weil sich die Wörter der Tabelle ändern können, ohne dass LUI es sieht (ADR-0025, Punkt 8). Ein Index
+  der Distanz `None` hat kein gebautes Wörterbuch, und der Sync baut keins. Eine Korrektur zu einem entfernten Wort kostet
+  fast nichts: der Index ist der Filter, die Korrektur findet keinen Kandidaten und fällt weg. `RebuildTypoDictionary()`
+  vergisst die entfernten Wörter und setzt die Häufigkeiten neu; es liest alle Einträge, Schreibzugriffe währenddessen
+  gehen nicht verloren, Abfragen nutzen bis dahin das alte Wörterbuch.
 - **Zustand** (`TypoDictionaryState`, ADR-0021, ADR-0025): `NotBuilt`, `Building`, `Current`. Es gibt keinen Zustand „veraltet"
   (ADR-0021 hatte `Stale`, einen Zähler und einen Hintergrunddienst; ADR-0025 nimmt sie zurück). Keine Abfrage wartet auf
   einen Aufbau und **keine startet einen**: Eine, die währenddessen korrigieren müsste, antwortet ohne Korrektur und
@@ -598,7 +603,7 @@ Wörtern.
 ### 10.3 Wie korrigiert wird
 
 1. Jedes Wort der Eingabe mit ≥ 3 Zeichen wird nachgeschlagen
-   (`Verbosity.Closest`, Distanz 1).
+   (`Verbosity.Closest`, mit der Distanz des Index).
 2. Die **3 besten Korrekturen** werden als Kandidatensuche ausgeführt, die
    Kandidaten vereinigt (je `doc_id` der beste Wert).
 3. Das Ranking läuft mit der korrigierten Eingabe; `CorrectedQuery` sagt, was
@@ -606,8 +611,13 @@ Wörtern.
 
 ### 10.3a Festlegungen der Umsetzung (ADR-0012)
 
-- **Standard: aus.** `.TypoTolerance()` am Builder schaltet ein, `.TypoTolerance(false)` aus — mehr als eine Änderung gibt es
-  nicht, deshalb keine Zahl (ADR-0013); die Abfrage überschreibt mit `.TypoTolerance(bool)`. Das Wörterbuch kostet Speicher, den die Anwendung nicht verlangt hat.
+- **Standard: aus.** Der Builder nimmt die **Distanz** (ADR-0054): `.TypoTolerance(LuiTypoDistance.OneError)` verzeiht
+  einen Fehler, `.TypoTolerance(LuiTypoDistance.None)` keinen — mehr als eine Änderung gibt es nicht, deshalb keine Zahl
+  (ADR-0013). Die Distanz gehört zum **Index**: sie steht in der gespeicherten Definition, überlebt einen Neustart und ist
+  der Deckel der Abfrage. Die Abfrage schaltet die Korrektur mit `.TypoTolerance(bool)` ein oder aus, aber sie kann die
+  Distanz des Index **nicht vergrößern** — für `None` gibt es nichts zu überschreiten, und die Abfrage antwortet dann
+  ohne Korrektur und setzt `CorrectionSkipped`. Das Wörterbuch kostet Speicher, den die Anwendung nicht verlangt hat, und
+  ein Index der Distanz `None` baut gar keins.
 - **Häufigkeit = Summe von `Gewicht + 1`** (SymSpell verwirft einen Eintrag mit Häufigkeit 0). Der Aufbau summiert über alle Texte;
   `Upsert` ergänzt nur Wortanfänge, die es noch nicht gibt, und ändert die Häufigkeit der vorhandenen nicht. Die Häufigkeiten (und damit
   die Reihenfolge der drei Vorschläge) spiegeln den Bestand daher erst nach `RebuildTypoDictionary()` genau wider.
@@ -712,7 +722,7 @@ jeden Schreibvorgang (§ 7.1, § 12.8). Dieselbe Anwendung läuft damit im schre
 ILuiEmbeddedIndex recipes = lui.Create("recipes", index =>   // der Name
     index.MultiWord()                                        // die Art; danach: Embedded mit Zahlen als Schlüssel
         .Similarity(LuiSimilarity.NgramDice)                  // Standard für MultiWord, hier explizit
-        .TypoTolerance());
+        .TypoTolerance(LuiTypoDistance.OneError)             // ein Fehler wird verziehen; `None` verzeiht keinen
 
 // mit Texten als Schlüssel
 ILuiEmbeddedIndex words = lui.Create("words", index => index.SingleWord().WithKey(LuiKeyKind.Text));
@@ -792,7 +802,7 @@ der Typ der Payload ist das Wissen des Aufrufers und steht dort, wo die Payload 
   das ihre Sache; die Bibliothek merkt es frühestens, wenn der Serialisierer die Bytes nicht lesen kann.
 - **Die typisierte Sicht** (ADR-0044): Wer den Typ vom Compiler geprüft haben will, fragt nach einer Sicht —
   `index.As<RecipeChip>()` (eine Erweiterungsmethode auf `ILuiIndex`) gibt ein `LuiTypedIndex<RecipeChip>` mit
-  `Name`, `Kind`, `KeyKind`, `TypoTolerance`, `TypoDictionaryState`, `Count()` und `Search(…)`; der fluent Weg endet in
+  `Name`, `Kind`, `KeyKind`, `TypoDistance`, `TypoDictionaryState`, `Count()` und `Search(…)`; der fluent Weg endet in
   derselben Antwort: `….Execute().As<RecipeChip>()` (`LuiResult.As<TPayload>()`). Die Antwort ist ein
   `LuiTypedResult<TPayload>`, der Treffer ein `LuiTypedHit<TPayload>`; der Schlüssel bleibt `LuiKey`. Die Payload des
   typisierten Treffers liest **eine Methode**, keine Eigenschaft — `GetPayload()` und `TryGetPayload(out …)` —, weil sie
@@ -802,7 +812,7 @@ der Typ der Payload ist das Wissen des Aufrufers und steht dort, wo die Payload 
 ### 12.4 Schreiben (`Embedded`)
 
 Lesen und Schreiben sind zwei Schnittstellen (ADR-0013): `ILuiIndex` hat jeder Index und liest nur —
-`Query`, `Search`, `Count`, `KeyKind`, `TypoTolerance`, `TypoDictionaryState` —; `ILuiEmbeddedIndex` ergänzt die
+`Query`, `Search`, `Count`, `KeyKind`, `TypoDistance`, `TypoDictionaryState` —; `ILuiEmbeddedIndex` ergänzt die
 Schreibmethoden und die Pflege des Index (`Check`, `WarmUpTypoDictionary`, `RebuildTypoDictionary`; ADR-0024). Dasselbe gilt für
 `ILuiLinkedIndex`. Keine der Schnittstellen hat einen Typparameter (ADR-0035). Ein Eintrag ist ein `LuiEntry`; ein
 Upsert speichert **ihn ganz** — Text, Gewicht, Priorität und Payload.
@@ -872,7 +882,7 @@ LuiResult result = recipes
     .PriorityMode(LuiPriorityMode.First)            // Standard
     .DistinctText(false)                             // Standard
     .Similarity(LuiSimilarity.JaroWinkler)           // überschreibt den Standard der Art
-    .TypoTolerance(true)                             // Standard: wie beim Index festgelegt
+    .TypoTolerance(true)                             // fragt die Korrektur an — die Distanz des Index ist der Deckel
     .TrackTimings(false)
     .Execute(cancellationToken);
 
@@ -950,7 +960,7 @@ public sealed class SuggestEndpoint(LuiCatalog catalog)
     korrigiert schon; in ASP.NET Core lauscht der Server erst danach.
   - **`LuiWarmupOptions`**: `WarmUpTypoDictionaries` (Standard `true`; `false` lässt dem Dienst nur die Outbox),
     `TypoDictionaryIndexes` (die Indizes, die ein Wörterbuch bekommen; **leer heißt jeder** — ein Wörterbuch kostet
-    138 MB für 685.829 Wörter, ein Index ohne Korrektur braucht keins; ein unbekannter Name lässt den Start mit
+    138 MB für 685.739 Wörter, ein Index ohne Korrektur braucht keins; ein unbekannter Name lässt den Start mit
     `LuiIndexNotFoundException` scheitern) und `OutboxInterval` (Standard 30 s, positiv).
   - **Im Takt** wendet er die Outbox wieder an, eine Runde nach der anderen. Eine Runde, die scheitert, nimmt den
     Host nicht mit: die Zeilen bleiben in der Outbox, die nächste Runde versucht es wieder.
@@ -1029,8 +1039,11 @@ Regeln:
 - **Die Quelle wird geprüft**: `Index` auf einem verknüpften Index, `LinkedIndex` auf einem eingebetteten,
   `LinkedIndex(name)` auf einem Index mit Payload-Spalten und `LinkedIndex(name, map)` auf einem ohne sind ein
   `LuiDefinitionMismatchException`, das beide nennt. Ein Typ wird nicht geprüft — die Datei kennt keinen (§ 12.3).
-- **Die Ähnlichkeit ist der Standard der Art** des Index, die **Tippfehler-Toleranz ist aus**: ein geöffneter Index
-  korrigiert nichts. Eine Abfrage fragt danach (`LuiQueryOptions.TypoTolerance`, `LuiQueryOptions.Similarity`).
+- **Die Ähnlichkeit ist der Standard der Art** des Index, die **Tippfehler-Distanz ist die der gespeicherten
+  Definition** (ADR-0054): ein geöffneter Index verzeiht, was seine Definition sagt — auch nach einem Neustart. Eine
+  Definition ohne das Feld der Distanz (ein Index aus der Zeit vor der Distanz) wird als `None` gelesen und verzeiht
+  nichts. Eine Abfrage fragt danach (`LuiQueryOptions.TypoTolerance`, `LuiQueryOptions.Similarity`), kann die Distanz des
+  Index aber nicht vergrößern.
 - **Ein geöffneter Index schreibt, wenn die Datei es erlaubt**: Der Index ist ein Blick auf die Datei, keine Kopie
   davon — wer schreiben darf, entscheidet die Datei, nicht der Index (der nächste Punkt).
 - **Die Datei entscheidet, was geschehen darf — nicht der Index**: Eine Datei, die nicht geschrieben werden darf, wird
@@ -1121,64 +1134,29 @@ Index ist ein Blick auf die Datei, keine Kopie davon. Auf einer Datei, die nicht
 
 ## 16. Leistungsziele
 
-Abgeleitet aus Anhang A (4-Kern-VM, Datenbank im Page Cache). Sie werden als
-Tests festgehalten (§ 19) und mit Kommando in `docs/benchmarks.md`
-veröffentlicht.
+Abgeleitet aus Anhang A (4-Kern-VM, Datenbank im Page Cache). Sie werden als Tests festgehalten (§ 19) und mit Kommando in `docs/benchmarks.md` veröffentlicht.
 
-| Messung | Szenario | Ziel |
-|---|---|---|
-| Abfrage ohne Korrektur | 3 Mio. Einträge, Eingaben 1–8 Zeichen | p50 ≤ 2 ms; p95 ≤ 5 ms bei 1–4 Zeichen, ≤ 20 ms bei 5–8 Zeichen |
-| Abfrage mit Tippfehler-Korrektur | 3 Mio. Einträge, ein Wortanfang mit einem Tippfehler | p95 ≤ 35 ms |
-| Allokation pro Abfrage | 3 Mio. Einträge, Eingaben 1–8 Zeichen, **Budget der Kandidaten 500** | p50 ≤ 60 KB, p95 ≤ 100 KB (ADR-0032) |
-| `Upsert` / `UpdateWeight` / `Remove` | einzeln, eigene Transaktion | p95 ≤ 1 ms |
-| Aufbau | 3 Mio. Einträge, `Embedded`, ein erster Ladevorgang mit `Sync` | ≤ 4 min |
-| Tippfehler-Wörterbuch | 700.000 verschiedene Wörter | ≤ 200 MB, Aufbau ≤ 10 s |
-| Dateigröße | 1 Mio. Titel von im Mittel 36 Zeichen, `MultiWord` | ≤ 500 MB inkl. Inhaltstabelle |
+**Die Ziele stehen in einer Datei:** [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](../../tests/Nordmann.LUI.Testing/Budgets/budgets.json) (ADR-0056). Jedes Ziel nennt sein Szenario (die Korpusdatei, die Präfixlänge, die Bedingung), sein Limit, seine Einheit und seine Art — eine Zeit oder eine Größe (ADR-0041: eine Zeit gehört der Maschine, auf der sie gemessen wurde; eine Größe gehört niemandem). Der gemessene Wert steht **nicht** in der Datei: er steht im Protokoll ([`docs/benchmarks.md`](../../docs/benchmarks.md)), neben der Maschine, auf der er gemessen wurde.
 
-**Geändert gegenüber Entwurf 2 (Entscheidung des Eigentümers, 2026-11-04, ADR-0010, ADR-0020):** Gemessen im Szenario
-(Schritt 9, `PerformanceBudgets` — seit ADR-0049 `BudgetPerformance`) waren fünf Ziele verfehlt. Sie sind neu formuliert — für lange Eingaben, die
-Korrektur und die Datei ist das eine **Lockerung**, keine Erfüllung:
+Die Datei ist die einzige Quelle. Die Tabelle des README und die beiden Tabellen des Protokolls werden gegen sie geprüft (ADR-0040): ein Limit, das in einer dieser Tabellen anders steht als in der Datei, lässt den Build scheitern.
 
-- **p95 der Abfrage pro Eingabelänge.** Gemessen bei 3 Mio. Einträgen: bis vier Zeichen ≤ 3,1 ms, bei acht Zeichen
-  17,5 ms; über alle Längen 9,6–10,3 ms. Was bleibt, sind die eigenen Kosten von FTS5 für einen langen Trigramm-Ausdruck
-  über drei Millionen Einträge eines synthetischen, trigrammdichten Korpus. Ein Suchfeld wartet 100–300 ms zwischen
-  zwei Tasten; 20 ms sind dort nicht spürbar. Mit einem echten Bestand wird nachgemessen, eine eigene Struktur für
-  Wortanfänge von 5–8 Zeichen erst, wenn er es verlangt.
-- **Korrektur p95 ≤ 35 ms.** Gemessen 28–29 ms: bis zu drei weitere FTS5-Abfragen derselben Kosten.
-- **Allokation p50 ≤ 250 KB, p95 ≤ 350 KB.** Gemessen p50 83 KB, p95 298 KB; sie folgt den gelesenen Kandidaten (wer
-  das Budget von 500 ausschöpft: p95 306 KB, sonst 173 KB). Das Budget bleibt — kleiner kostete Qualität. Der Eigentümer
-  hält 250–300 KB pro Abfrage für zu viel: **Bug #30** misst die Ursachen und senkt die Allokation.
+**Die Szenarien.** Die Korpusdateien kommen mit der Messinfrastruktur; die Präfixlängen sind die von heute — 3 000 000 Einträge, 1 000 000 Titel, 685 739 Wörter — und werden gegen die gemessenen Korpora neu entschieden, nie stillschweigend gesenkt.
 
-**Geändert gegenüber der vorigen Fassung (ADR-0032, 2026-11-05, Bug #30):** Die Ursachen sind gemessen, die Allokation
-ist gesenkt. Eine Abfrage mit dem Budget von 500 Kandidaten allokiert **26,6 KB statt 153,3 KB** (SingleWord, −83 %)
-und **105,7 KB statt 185,2 KB** (MultiWord, −43 %); je Kandidat sinkt der Preis von 302 B auf 40 B. Die drei Anteile waren
-die Ähnlichkeit (36 %, F23 baute vier Arrays je Vergleich), die zweite Normalisierung (29 %, die Suchform wurde ein
-String) und die Kandidentexte samt der `Scored[]` (29 %). Behoben: LUIs eigenes Jaro-Winkler (bit-exakt zu F23 7.0.1,
-ohne Allokation), die Messung der Ähnlichkeit auf Spans (die Suchform bleibt im Puffer) und die Wiederverwendung der
-Kandidaten-Puffer je Thread. Das Ziel ist damit **p50 ≤ 60 KB, p95 ≤ 100 KB** (gemessen bei 200.000 Einträgen: p50 42 KB, p95 60 KB; bei 3 Mio. Einträgen waren es vor der Änderung rund 20 % mehr). Was bleibt, ist der Boden: die Texte der
-Kandidaten (32–64 B je Kandidat, weil der SQLite-Provider nur Strings herausgibt und der Wortanfang die gefaltete Form
-braucht, die nicht in der Datenbank steht), die Treffer (≈ 370 B je Treffer), der Boden einer Abfrage (≈ 7 KB) und die
-Tippfehler-Korrektur (≈ 20 KB, sie liest bis zu dreimal so viele Kandidaten).
+**Was gemessen wurde** — und warum die Ziele so und nicht anders aussehen:
 
-  Das Ziel gilt für das **Budget der Kandidaten 500**; die Allokation folgt dem Budget, ein größeres Budget kostet
-  mehr Puffer (bei 1.000 Kandidaten und der Korrektur: 59,7 KB statt 19,6 KB, wenn der Pool zuvor mit den Längen
-  anderer Budgets gefüllt war). Der Weg, den die Abfrage nimmt, zählt ebenso: ohne Korrektur allokiert dieselbe
-  Abfrage 4,2 KB, mit Korrektur 19,6 KB.
+- **Die Abfrage pro Eingabelänge.** Gemessen bei 3 Mio. Einträgen: bis vier Zeichen ≤ 3,1 ms, bei acht Zeichen 17,5 ms; über alle Längen 9,6–10,3 ms. Was bleibt, sind die eigenen Kosten von FTS5 für einen langen Trigramm-Ausdruck über drei Millionen Einträge eines synthetischen, trigrammdichten Korpus. Ein Suchfeld wartet 100–300 ms zwischen zwei Tasten; 20 ms sind dort nicht spürbar. Mit einem echten Bestand wird nachgemessen, eine eigene Struktur für Wortanfänge von 5–8 Zeichen erst, wenn er es verlangt.
+- **Die Korrektur.** Gemessen 28–29 ms: bis zu drei weitere FTS5-Abfragen derselben Kosten.
+- **Die Allokation.** Der Median und das 95. Perzentil folgen den gelesenen Kandidaten (wer das Budget von 500 ausschöpft: p95 306 KB, sonst 173 KB). Das Budget bleibt — kleiner kostete Qualität. Der Eigentümer hält 250–300 KB pro Abfrage für zu viel: **Bug #30** misst die Ursachen und senkt die Allokation.
 
-- **Geändert gegenüber der vorigen Fassung (ADR-0031, 2026-11-05, das Review von PR #53):** Der Puffer je Thread
-  (ADR-0032) ist gemessen worden und hatte einen Fehler: die Länge der großen Puffer folgt dem Budget der
-  Kandidaten, und der Pufferplatz reichte nur für ein Budget. Nach einem Wechsel des Budgets war der Pool voll mit
-  den Längen der Vergangenheit, jede Abfrage allokierte alles neu — **294,9 KB** bei einem Budget von 1.000
-  (die Basis ohne Pool: 83,4 KB). Jetzt verdrängt der kleinste Puffer den neuen. Dieselbe Abfrage allokiert
-  **59,7 KB** — weniger als die Basis ohne Pool. Der Wächter `AllocationPoolTests` misst das nach einem Wechsel des
-  Budgets (39,8 KB, Grenze 64 KB).
-- **Dateigröße ≤ 500 MB** für Titel von im Mittel 36 Zeichen (gemessen 457 MB): Die Tabelle hält den Text und zwei
-  abgeleitete Formen. Wer große Bestände hat, nimmt `Linked` — dort liegt der Text nicht doppelt in der Datei.
+  Behoben (ADR-0032): Eine Abfrage mit dem Budget von 500 Kandidaten allokiert **26,6 KB statt 153,3 KB** (SingleWord, −83 %) und **105,7 KB statt 185,2 KB** (MultiWord, −43 %); je Kandidat sinkt der Preis von 302 B auf 40 B. LUIs eigenes Jaro-Winkler (bit-exakt zu F23 7.0.1, ohne Allokation), die Messung der Ähnlichkeit auf Spans (die Suchform bleibt im Puffer) und die Wiederverwendung der Kandidaten-Puffer je Thread. Der Boden bleibt: die Texte der Kandidaten (32–64 B je Kandidat, weil der SQLite-Provider nur Strings herausgibt und der Wortanfang die gefaltete Form braucht, die nicht in der Datenbank steht), die Treffer (≈ 370 B je Treffer), der Boden einer Abfrage (≈ 7 KB) und die Tippfehler-Korrektur (≈ 20 KB, sie liest bis zu dreimal so viele Kandidaten). Gemessen bei 200.000 Einträgen: p50 42 KB, p95 60 KB; bei 3 Mio. Einträgen waren es vor der Änderung rund 20 % mehr.
 
-Erfüllt wie in Entwurf 2: der Median der Abfrage (1,3–1,7 ms), der einzelne Schreibvorgang (p95 0,5–0,8 ms) und das
-Wörterbuch (138 MB, 4,1–4,9 s). Der **Aufbau** ist ebenfalls neu formuliert (≤ 4 min statt ≤ 3 min): Mit `Sync` und Stapeln zu 1.000.000 dauerte er
-172–174 s auf einer Maschine und 195–206 s auf der nächsten bei gleichem Code — er schreibt 925 MB und folgt der Platte.
-Ein schnellerer erster Ladevorgang ist Issue #32.
+  Das Ziel gilt für das **Budget der Kandidaten 500**; die Allokation folgt dem Budget, ein größeres Budget kostet mehr Puffer (bei 1.000 Kandidaten und der Korrektur: 59,7 KB statt 19,6 KB, wenn der Pool zuvor mit den Längen anderer Budgets gefüllt war). Der Weg, den die Abfrage nimmt, zählt ebenso: ohne Korrektur allokiert dieselbe Abfrage 4,2 KB, mit Korrektur 19,6 KB.
+
+- **Die Dateigröße** für Titel von im Mittel 36 Zeichen (gemessen 457 MB): Die Tabelle hält den Text und zwei abgeleitete Formen. Wer große Bestände hat, nimmt `Linked` — dort liegt der Text nicht doppelt in der Datei.
+
+Erfüllt wie in Entwurf 2: der Median der Abfrage (1,3–1,7 ms), der einzelne Schreibvorgang (p95 0,5–0,8 ms) und das Wörterbuch (138 MB, 4,1–4,9 s). Der **Aufbau** folgt der Platte: Mit `Sync` und Stapeln zu 1.000.000 dauerte er 172–174 s auf einer Maschine und 195–206 s auf der nächsten bei gleichem Code — er schreibt 925 MB. Ein schnellerer erster Ladevorgang ist Issue #32.
+
+**Das Wörterbuch mit zwei Fehlern.** Die 685 739 Wörter kosten 240 MB (gemessen 2026-11-12). Das Versprechen von 200 MB gehört dem Wörterbuch mit **einem** Fehler; das Wörterbuch mit zwei Fehlern hat eine eigene Zeile in der Datei — und **keine** Zeitgrenze: eine Aufbauzeit ist eine Eigenschaft der Maschine, auf der sie gemessen wurde, und steht im Protokoll, nicht im Versprechen. Die Verfehlung (240 MB gegen 200 MB) bleibt als Verfehlung geschrieben (ADR-0054, `docs/typo-dictionary.md`).
 
 ---
 

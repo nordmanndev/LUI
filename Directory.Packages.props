@@ -1,9 +1,9 @@
 <Project>
 
   <!--
-    Central package management — mandatory (standards: architecture/layering.md
-    §"Directory.Packages.props"). Versions are pinned in exactly one place;
-    no .csproj may carry a Version on a PackageReference (NetArchTest rule).
+    Central package management — mandatory. Versions are pinned in exactly one
+    place; no .csproj may carry a Version on a PackageReference (NetArchTest
+    rule).
   -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>

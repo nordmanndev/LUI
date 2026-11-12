@@ -43,8 +43,8 @@ public sealed class SampleBulkTests(SampleHost host) : IClassFixture<SampleHost>
 
         indexes["words"]!["capacity"]!.GetValue<long>().ShouldBeGreaterThan(0, "the word list holds words");
         indexes["people"]!["capacity"].ShouldBeNull("Bogus has no ceiling");
-        indexes["people"]!["typoTolerance"]!.GetValue<bool>().ShouldBeTrue("a name is what a user misspells");
-        indexes["hashtags"]!["typoTolerance"]!.GetValue<bool>().ShouldBeFalse("a dictionary of a million tags costs 140 MB");
+        indexes["people"]!["typoDistance"]!.GetValue<string>().ShouldBe("OneError", "a name is what a user misspells");
+        indexes["hashtags"]!["typoDistance"]!.GetValue<string>().ShouldBe("None", "a dictionary of a million tags costs 140 MB");
     }
 
     [Fact]

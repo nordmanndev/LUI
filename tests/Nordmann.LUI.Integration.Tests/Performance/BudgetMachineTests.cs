@@ -1,5 +1,7 @@
 using Shouldly;
 
+using Nordmann.LUI.Testing;
+
 namespace Nordmann.LUI.Integration.Tests.Performance;
 
 /// <summary>
@@ -7,6 +9,10 @@ namespace Nordmann.LUI.Integration.Tests.Performance;
 /// are **times**, and a time belongs to the machine it was measured on. A machine that is not the one of the record
 /// therefore reports the times and asserts the bytes (ADR-0041): a shared runner cannot decide a time target, but it
 /// can decide a size.
+/// <para>
+/// The limits are not written in the tests: they live in the file of the budgets (ADR-0056), and the tests measure
+/// against it — one above the limit of the file is a missed target, whatever the file says.
+/// </para>
 /// </summary>
 public sealed class BudgetMachineTests(ITestOutputHelper output)
 {
@@ -29,23 +35,22 @@ public sealed class BudgetMachineTests(ITestOutputHelper output)
     [Fact]
     public void A_time_belongs_to_the_machine_it_was_measured_on()
     {
-        PerformanceBudget.BelongsToTheMachine("ms").ShouldBeTrue();
-        PerformanceBudget.BelongsToTheMachine("s").ShouldBeTrue();
+        PerformanceBudget.BelongsToTheMachine(LuiBudgets.Kind.Time).ShouldBeTrue();
     }
 
     [Fact]
     public void A_size_belongs_to_no_machine()
     {
-        PerformanceBudget.BelongsToTheMachine("KB").ShouldBeFalse();
-        PerformanceBudget.BelongsToTheMachine("MB").ShouldBeFalse();
+        PerformanceBudget.BelongsToTheMachine(LuiBudgets.Kind.Size).ShouldBeFalse();
     }
 
     [Fact]
     public void Another_machine_reports_a_missed_time_and_does_not_fail()
     {
         var budget = new PerformanceBudget(output, scenario: true, BudgetMachine.Other);
+        var target = LuiBudgets.By("query-p50");
 
-        budget.AtMost("query p50", "the condition of the target", measured: 5.0, limit: 2.0, unit: "ms");
+        budget.AtMost("query-p50", target.Limit + 1, target.Unit);
 
         Should.NotThrow(() => budget.Verify());
     }
@@ -54,8 +59,9 @@ public sealed class BudgetMachineTests(ITestOutputHelper output)
     public void Another_machine_asserts_a_missed_size_and_fails()
     {
         var budget = new PerformanceBudget(output, scenario: true, BudgetMachine.Other);
+        var target = LuiBudgets.By("allocation-p95");
 
-        budget.AtMost("allocation p95", "the condition of the target", measured: 150.0, limit: 100.0, unit: "KB");
+        budget.AtMost("allocation-p95", target.Limit + 1, target.Unit);
 
         Should.Throw<ShouldAssertException>(() => budget.Verify());
     }
@@ -64,8 +70,9 @@ public sealed class BudgetMachineTests(ITestOutputHelper output)
     public void The_machine_of_the_record_asserts_a_missed_time_and_fails()
     {
         var budget = new PerformanceBudget(output, scenario: true, BudgetMachine.Measurement);
+        var target = LuiBudgets.By("query-p50");
 
-        budget.AtMost("query p50", "the condition of the target", measured: 5.0, limit: 2.0, unit: "ms");
+        budget.AtMost("query-p50", target.Limit + 1, target.Unit);
 
         Should.Throw<ShouldAssertException>(() => budget.Verify());
     }
@@ -74,8 +81,9 @@ public sealed class BudgetMachineTests(ITestOutputHelper output)
     public void A_run_that_is_not_the_scenario_reports_every_target_and_fails_nothing()
     {
         var budget = new PerformanceBudget(output, scenario: false, BudgetMachine.Measurement);
+        var target = LuiBudgets.By("query-p50");
 
-        budget.AtMost("query p50", "the condition of the target", measured: 5.0, limit: 2.0, unit: "ms");
+        budget.AtMost("query-p50", target.Limit + 1, target.Unit);
 
         Should.NotThrow(() => budget.Verify());
     }

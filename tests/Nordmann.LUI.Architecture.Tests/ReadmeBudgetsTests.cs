@@ -8,82 +8,72 @@ namespace Nordmann.LUI.Architecture.Tests;
 
 /// <summary>
 /// The budget table of the README is the promise a reader checks — and a promise that is copied by hand drifts
-/// (issue #38). This test holds it up: the limits of the table are read out of the **contract** (§16 of the
-/// specification) and compared with the two tables that show them — the one of the entrance and the one of the record.
+/// (issue #38). This test holds it up: the limits are read out of the **file** (ADR-0056) and compared with the
+/// tables that show them — the one of the entrance and the two of the record.
 /// <para>
-/// A limit that changes in the contract, or a limit that is changed by hand in one of the two tables, fails the
-/// build. The measured values are not checked here: they belong to a run, and a run is not a promise — they stand in
-/// the record with the machine they were measured on.
+/// A limit that changes in the file, or a limit that is changed by hand in one of the tables, fails the build. The
+/// measured values are not checked here: they belong to a run, and a run is not a promise — they stand in the record
+/// with the machine they were measured on.
 /// </para>
 /// </summary>
 public sealed class ReadmeBudgetsTests
 {
-    /// <summary>The contract: the targets of §16, in the language of the specification.</summary>
-    private static string SpecificationPath =>
-        Path.Combine(Repository.RootPath, ".agents", "spec", "LUI-Spezifikation.md");
-
     /// <summary>The entrance: the budget table beside the performance of the README.</summary>
     private static string ReadmePath => Path.Combine(Repository.RootPath, "README.md");
 
-    /// <summary>The record: the targets of §16 in English, beside the measured numbers.</summary>
+    /// <summary>The record: the limits of the file in English, beside the measured numbers.</summary>
     private static string RecordPath => Path.Combine(Repository.RootPath, "docs", "benchmarks.md");
 
     [Fact]
-    public void The_limits_of_the_readme_are_the_targets_of_the_specification()
+    public void The_limits_of_the_readme_are_the_limits_of_the_file()
     {
-        var expected = TargetsOfTheSpecification();
+        var expected = LimitsOfTheFile();
 
         var limits = LimitsOf(TableOf(ReadmePath, "Target", "Measured", "Limit").Select(row => row[2]));
 
         limits.ShouldBe(
             expected,
-            "the limit column of the budget table of the README is the target table of §16 (issue #38). "
-            + "The specification says: " + string.Join(", ", expected)
+            "the limit column of the budget table of the README is the file of the budgets (issue #38, ADR-0056). "
+            + "The file says: " + string.Join(", ", expected)
             + " — the README says: " + string.Join(", ", limits));
     }
 
     [Fact]
-    public void The_limits_of_the_record_are_the_targets_of_the_specification()
+    public void The_limits_of_the_record_are_the_limits_of_the_file()
     {
-        var expected = TargetsOfTheSpecification();
+        var expected = LimitsOfTheFile();
 
         var limits = LimitsOf(TableOf(RecordPath, "Measurement", "Scenario", "Target").Select(row => row[2]));
 
         limits.ShouldBe(
             expected,
-            "the target table of the record is the target table of §16 (issue #38). "
-            + "The specification says: " + string.Join(", ", expected)
+            "the target table of the record is the file of the budgets (issue #38, ADR-0056). "
+            + "The file says: " + string.Join(", ", expected)
             + " — the record says: " + string.Join(", ", limits));
     }
 
     [Fact]
-    public void The_limits_of_the_status_table_of_the_record_are_the_targets_of_the_specification()
+    public void The_limits_of_the_status_table_of_the_record_are_the_limits_of_the_file()
     {
-        var expected = TargetsOfTheSpecification();
+        var expected = LimitsOfTheFile();
 
         var limits = LimitsOf(TableOf(RecordPath, "Target", "Measured at the scenario", "Limit").Select(row => row[2]));
 
         limits.ShouldBe(
             expected,
-            "the limit column of the status table of the record is the target table of §16 (issue #38). "
-            + "The specification says: " + string.Join(", ", expected)
+            "the limit column of the status table of the record is the file of the budgets (issue #38, ADR-0056). "
+            + "The file says: " + string.Join(", ", expected)
             + " — the record says: " + string.Join(", ", limits));
     }
 
     /// <summary>
-    /// The limits of §16, in the order of the table: the specification states them as prose in its third column
-    /// ("p50 ≤ 2 ms; p95 ≤ 5 ms bei 1–4 Zeichen, …"), and every "≤ number unit" is one limit.
+    /// The limits of the file, in the order of the file: every budget carries its limit and its unit, and the
+    /// measured value it is compared with lives in the record, not here.
     /// </summary>
-    private static string[] TargetsOfTheSpecification()
-    {
-        File.Exists(SpecificationPath).ShouldBeTrue(
-            "the contract of the repository is missing — the limits of §16 have to live somewhere; "
-            + "the owner decides where (issue #38).");
-
-        var table = TableOf(SpecificationPath, "Messung", "Szenario", "Ziel");
-
-        return LimitsOf(table.Select(row => row[2]));
-    }
+    private static string[] LimitsOfTheFile() =>
+        LuiBudgets.All
+            .Select(budget => Canonical(budget.Limit.ToString("0.##", CultureInfo.InvariantCulture), budget.Unit))
+            .ToArray();
 
     /// <summary>
     /// The limits of a table: the third column of every row, read as "≤ number unit". A number without a unit takes

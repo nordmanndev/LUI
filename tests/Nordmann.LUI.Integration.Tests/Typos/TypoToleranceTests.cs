@@ -121,24 +121,24 @@ public sealed class TypoToleranceTests
     }
 
     [Fact]
-    public void Typo_tolerance_is_off_unless_the_index_or_the_query_asks_for_it()
+    public void Typo_tolerance_is_on_unless_the_query_asks_for_it()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord());
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         words.Upsert(1, "Apfelkuchen", 10);
 
         // the application asks for the build (ADR-0042): a query never does — the query asks for the
         // correction, the application pays for the dictionary
         words.WarmUpTypoDictionary();
 
-        var off = words.Query("apflekuchen").Execute();
-        off.Hits.ShouldBeEmpty();
-        off.CorrectedQuery.ShouldBeNull();
-
-        var on = words.Query("apflekuchen").TypoTolerance().Execute();
+        var on = words.Query("apflekuchen").Execute();
         on.CorrectedQuery.ShouldBe("apfelkuchen");
         on.Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
+
+        var off = words.Query("apflekuchen").TypoTolerance(false).Execute();
+        off.Hits.ShouldBeEmpty();
+        off.CorrectedQuery.ShouldBeNull();
     }
 
     [Fact]
@@ -266,20 +266,10 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance().TypoTolerance(false));
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance().TypoTolerance(LuiTypoDistance.None));
         words.Upsert(1, "Apfelkuchen", 10);
 
         words.Query("apflekuchen").Execute().CorrectedQuery.ShouldBeNull();
-    }
-
-    [Fact]
-    public void The_tolerance_is_a_default_of_the_instance_and_not_part_of_the_definition()
-    {
-        using var database = new TestDatabase();
-        using var catalog = database.Open();
-        catalog.Create("words", index => index.SingleWord().TypoTolerance());
-
-        Should.NotThrow(() => catalog.Create("words", index => index.SingleWord()));
     }
 
     [Fact]
@@ -373,30 +363,31 @@ public sealed class TypoToleranceTests
         result.Hits[0].Text.ShouldBe("Apfelkuchen", "the word start of the corrected input comes first");
     }
 
-    // review of pull request 10, M3: DistinctText keeps the correction
+    // review of pull request 10, M3: the correction survives a text that is written in two spellings
     [Fact]
-    public void DistinctText_does_not_swallow_the_correction()
+    public void The_correction_is_not_swallowed_by_a_text_that_is_written_in_two_spellings()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var titles = catalog.Create("titles", index => index.MultiWord().TypoTolerance());
         titles.Upsert(1, "Bratapfle Apfel", 10);
+        titles.Upsert(2, "bratapfle apfel", 10);
 
         // the application asks for the build (ADR-0042): a query never does
         titles.WarmUpTypoDictionary();
 
-        var plain = titles.Query("apfle").Execute();
-        var distinct = titles.Query("apfle").DistinctText().Execute();
+        var result = titles.Query("apfle").Execute();
 
-        plain.CorrectedQuery.ShouldBe("apfel");
-        distinct.CorrectedQuery.ShouldBe("apfel");
-        distinct.Hits.ShouldHaveSingleItem().AtWordStart.ShouldBeTrue();
-        distinct.Hits[0].Similarity.ShouldBe(plain.Hits[0].Similarity, 1e-9);
+        // the correction is there, and both spellings of the text are hits: one hit per entry (ADR-0055)
+        result.CorrectedQuery.ShouldBe("apfel");
+        result.Hits.Count.ShouldBe(2);
+        result.Hits.Select(h => h.Text).ShouldBe(["Bratapfle Apfel", "bratapfle apfel"]);
+        result.Hits.ShouldAllBe(hit => hit.AtWordStart);
     }
 
-    // review of pull request 10, M3: DistinctText keeps the correction
+    // review of pull request 10, M3: the correction reaches over the two spellings of a text
     [Fact]
-    public void DistinctText_across_the_input_and_its_correction_keeps_one_entry_per_text()
+    public void The_input_and_its_correction_keep_the_two_spellings_of_a_text()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
@@ -408,10 +399,12 @@ public sealed class TypoToleranceTests
         // the application asks for the build (ADR-0042): a query never does
         titles.WarmUpTypoDictionary();
 
-        var hits = titles.Query("apfle").DistinctText().Execute().Hits;
+        var result = titles.Query("apfle").Execute();
 
-        hits.Count(h => string.Equals(h.Text, "Teigapfle", StringComparison.OrdinalIgnoreCase)).ShouldBe(1);
-        hits.Select(h => h.Text).Contains("Apfelkuchen", StringComparer.Ordinal).ShouldBeTrue();
+        // the two spellings are two hits, and the correction still reaches the title that has the word start
+        result.CorrectedQuery.ShouldBe("apfel");
+        result.Hits.Count(h => string.Equals(h.Text, "Teigapfle", StringComparison.OrdinalIgnoreCase)).ShouldBe(2);
+        result.Hits.Select(h => h.Text).Contains("Apfelkuchen", StringComparer.Ordinal).ShouldBeTrue();
     }
 
     // review of pull request 10, N1: the builder takes a bool too
@@ -421,7 +414,7 @@ public sealed class TypoToleranceTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var on = catalog.Create("a", index => index.SingleWord().TypoTolerance());
-        var off = catalog.Create("b", index => index.SingleWord().TypoTolerance(true).TypoTolerance(false));
+        var off = catalog.Create("b", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError).TypoTolerance(LuiTypoDistance.None));
         on.Upsert(1, "Apfelkuchen", 1);
         off.Upsert(1, "Apfelkuchen", 1);
 

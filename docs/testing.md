@@ -1,8 +1,9 @@
 # The test landscape
 
-> Which test proves what. The specification is the contract of the library; this
-> file says which test holds which part of it up — so that a change to a rule can
-> be answered in one minute, without reading thirty test files.
+> Which test proves what. The behaviour of the library is written down in the
+> specification and in the decisions; this file says which test holds which part
+> of it up — so that a change to a rule can be answered in one minute, without
+> reading thirty test files.
 
 **The map is a guard, not a document.** The architecture test
 [`TestLandscapeTests.cs`](../tests/Nordmann.LUI.Architecture.Tests/TestLandscapeTests.cs)
@@ -15,7 +16,7 @@ than no map — it sends the reader to a test that no longer proves the rule.
 
 ## The three layers
 
-The standards ask for a test pyramid: unit, architecture, integration. LUI has
+The test pyramid has three layers: unit, architecture, integration. LUI has
 three test projects, one per layer, plus the shared infrastructure they all
 build on — and the sample application has a test project of its own, beside it.
 
@@ -25,7 +26,7 @@ build on — and the sample application has a test project of its own, beside it
 | [`Nordmann.LUI.Integration.Tests`](../tests/Nordmann.LUI.Integration.Tests) | the library against a real SQLite file — the schema, the writes, the query, the sync | **~32 s** | yes, one file per test |
 | [`Nordmann.LUI.Architecture.Tests`](../tests/Nordmann.LUI.Architecture.Tests) | the shape of the repository and of the public API | **~0.5 s** | no |
 | [`Lui.Sample.Tests`](../samples/Lui.Sample.Tests) | the sample application against its API, on a real Kestrel — beside the sample, not among the tests of the library | **~10 s** | yes, one file per test class |
-| [`Nordmann.LUI.Testing`](../tests/Nordmann.LUI.Testing) | the shared infrastructure — the database, the corpora, the fixtures. No tests of its own. | — | — |
+| [`Nordmann.LUI.Testing`](../tests/Nordmann.LUI.Testing) | the shared infrastructure — the database, the corpora, the fixtures, the budgets of the repository. No tests of its own. | — | — |
 
 **The unit layer is the fast one.** It is where a change to a rule is proved:
 no file, no connection, no schema — a rule and its table. Everything that needs
@@ -73,7 +74,7 @@ with a full dump that is uploaded with the results (ADR-0047, guarded by `Workfl
 | Package · Smoke test | the packed library in a throwaway application, beside the other jobs | the README's code is part of the test |
 | **Windows** | the three layers and the tests of the sample on `windows-2025` | the paths, the pragmas and the case of the file names — the platform where a path is a promise (issue #67) |
 | **Publish** (a tag `v*`) | the tag against `Directory.Build.props` and `main`, then **every lane above** (it calls `ci.yml`), then — after the owner's approval — the push with a key of one hour (Trusted Publishing) | a release passes exactly the gates of a pull request, and stores no key (ADR-0048) |
-| Performance (every night, by hand) | the seven targets of §16 | a time belongs to the machine it was measured on; a size is the same everywhere (ADR-0041) |
+| Performance (every night, by hand) | the budgets of the file — the targets of §16, in the file of ADR-0056 | a time belongs to the machine it was measured on; a size is the same everywhere (ADR-0041) |
 
 Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) moves the pins — the actions, the packages, the SDK —
 weekly, each as a pull request through every lane above.
@@ -112,7 +113,7 @@ as in the library (`NamespaceConventionTests`). `Support/` holds the types the t
 | [`LuiPayloadSerializerTests`](../tests/Nordmann.LUI.Unit.Tests/Payload/LuiPayloadSerializerTests.cs) | Unit | the JSON serialiser of the catalog: the round trip, the UTF-8, the type of the instance, a type missing from the context named on the write and the read, the strict reading (a type of another shape refused, a missing constructor parameter refused, a type with every member and optional ones besides read), the refused null | ADR-0013, ADR-0035 |
 | [`MultiWordExpressionTests`](../tests/Nordmann.LUI.Unit.Tests/Querying/MultiWordExpressionTests.cs) | Unit | the FTS5 expression: the words ANDed, the quoting, the input never copied into the expression raw | spec §8.2 |
 | [`RankingTests`](../tests/Nordmann.LUI.Unit.Tests/Querying/RankingTests.cs) | Unit | the ranking in groups, and the lazy similarity — the promise that a group that cannot reach the hits costs nothing | ADR-0008 |
-| [`TypoDictionaryStateTests`](../tests/Nordmann.LUI.Unit.Tests/Typos/TypoDictionaryStateTests.cs) | Unit | the states of the typo dictionary — not built, being built, current —, that it only grows, that every index has its own, and that a query's build does not wait behind another one | ADR-0021, ADR-0025 |
+| [`TypoDictionaryStateTests`](../tests/Nordmann.LUI.Unit.Tests/Typos/TypoDictionaryStateTests.cs) | Unit | the states of the typo dictionary — not built, being built, current —, that it only grows, that every index has its own, that a dictionary which forgives nothing is never built, and that a query's build does not wait behind another one | ADR-0021, ADR-0025, ADR-0054 |
 | [`PackageIdentityTests`](../tests/Nordmann.LUI.Unit.Tests/Package/PackageIdentityTests.cs) | Unit | the package identity and the dependency set of the compiled assembly | ADR-0004 |
 
 ## Integration — the library against SQLite
@@ -156,9 +157,9 @@ The four files share one table of the application ([`LinkedTable`](../tests/Nord
 
 | Test file | Layer | Proves | The rule |
 |---|---|---|
-| [`SingleWordQueryTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/SingleWordQueryTests.cs) | Integration | the query of a single-word index: the prefix path, the trigram candidates, the ranking, the options and their ranges, the defaults, the read interface; the snapshot of the candidates and the hits, the hash, the code points, the cancellation while ranking | spec §8, §9, §12.5, review of PR #6 |
+| [`SingleWordQueryTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/SingleWordQueryTests.cs) | Integration | the query of a single-word index: the prefix path, the trigram candidates, the ranking, the options and their ranges, the defaults, the read interface; the snapshot of the candidates and the hits, the hash, the code points, the cancellation while ranking; the priority leads the hits even when a text is written in two spellings | spec §8, §9, §12.5, ADR-0055, review of PR #6 |
 | [`MultiWordIndexTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/MultiWordIndexTests.cs) | Integration | the multi-word index: the schema, the candidates, the ranking of names and titles — and Anhang B | spec §8.2, §9, ADR-0011 |
-| [`GoldenQueryTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/GoldenQueryTests.cs) | Integration | the golden queries as fixed expectations — the system tag first among 30,000 hits | spec §19, Anhang B |
+| [`GoldenQueryTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/GoldenQueryTests.cs) | Integration | the golden queries as fixed expectations — the system tag first among 30,000 hits; two spellings of one text are two hits, and the data makes them one | spec §19, Anhang B, ADR-0055 |
 | [`QueryPlanTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/QueryPlanTests.cs) | Integration | the plan of the candidate query: the search index in the rowid order, no sorter | spec §8.2, §19 |
 | [`AllocationPoolTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/AllocationPoolTests.cs) | Integration | the allocation of a query **after the candidate budget has changed** — the pool of the buffers must not fill up with the lengths of the past | spec §16, ADR-0031 |
 | [`TypedIndexTests`](../tests/Nordmann.LUI.Integration.Tests/Querying/TypedIndexTests.cs) | Integration | the typed view of an index: the payload is read in the type of the application (a method, `GetPayload()`, not a property), the view answers as the index answers, the view describes the index as the index does (the kind, the key, the typo tolerance, the state of the dictionary), and the fluent path ends in the same typed answer (`LuiResult.As<T>()`) | issue #59, ADR-0044, issue #107 |
@@ -167,7 +168,8 @@ The four files share one table of the application ([`LinkedTable`](../tests/Nord
 
 | Test file | Layer | Proves | The rule |
 |---|---|---|
-| [`TypoToleranceTests`](../tests/Nordmann.LUI.Integration.Tests/Typos/TypoToleranceTests.cs) | Integration | a typo does not lead nowhere: the four kinds of edit, the correction, the limits; the cap keeps the candidates of the correction, `DistinctText` keeps the correction, the builder takes a bool | spec §10, ADR-0012, review of PR #10 |
+| [`TypoToleranceTests`](../tests/Nordmann.LUI.Integration.Tests/Typos/TypoToleranceTests.cs) | Integration | a typo does not lead nowhere: the four kinds of edit, the correction, the limits; the cap keeps the candidates of the correction, the correction survives a text that is written in two spellings, the builder takes a distance | spec §10, ADR-0012, ADR-0054, ADR-0055, review of PR #10 |
+| [`TypoDistanceTests`](../tests/Nordmann.LUI.Integration.Tests/Typos/TypoDistanceTests.cs) | Integration | the distance is an enumeration: it is part of the stored definition and survives a restart, an index that forgives nothing builds no dictionary — neither in the warm-up nor in a rebuild, and the sync of a linked index builds none either —, a query cannot widen the distance of its index, a typo of two errors is corrected by the index that forgives two and by no other, and an index that exists with another distance is a mismatch | spec §10, ADR-0054, issue #118 |
 | [`TypoDictionaryLifecycleTests`](../tests/Nordmann.LUI.Integration.Tests/Typos/TypoDictionaryLifecycleTests.cs) | Integration | a query does not wait for a build that runs and says so; the build does not hold up the writers, and a rebuild loses nothing — neither a word nor a batch; a sync teaches the dictionary its new words, a removed word lingers until a rebuild, and a rolled-back write too; one dictionary per index — two instances share it, two indexes never correct towards each other's words, a dropped index leaves none behind | spec §10.1, §10.3a, ADR-0021, ADR-0025, review of PR #10, issue #107 |
 | [`TypoQualityTests`](../tests/Nordmann.LUI.Integration.Tests/Typos/TypoQualityTests.cs) | Integration | the quality of the correction against a measured floor, by the length of the beginning | spec §10.4, §19, Anhang A4 |
 
@@ -182,7 +184,7 @@ The four files share one table of the application ([`LinkedTable`](../tests/Nord
 | [`LuiWarmupTests`](../tests/Nordmann.LUI.Integration.Tests/Hosting/LuiWarmupTests.cs) | Integration | the warm-up as a service of the host: the dictionaries are warmed at the start, the outbox of a linked index is applied, the rounds run on the interval, and without the registration nothing happens; only the named dictionaries are built, the outbox runs without them, an unknown name fails the start, a failed round reaches the logger of the host (with `RecordingLoggerProvider`, the logger that keeps what it heard), no round begins after the host stops, a round that waits for the write lock is not joined by the next one, and the registration is once and with a positive interval | issue #68, ADR-0043, ADR-0045, issue #106 |
 | [`NormalizationParityTests`](../tests/Nordmann.LUI.Integration.Tests/Normalization/NormalizationParityTests.cs) | Integration | the rule exists twice — as SQL and as C# — and both give the same answer, for every code point and for every word of the list | spec §6.2, §19, ADR-0005 |
 | [`FoldProbeTests`](../tests/Nordmann.LUI.Integration.Tests/Normalization/FoldProbeTests.cs) | Integration | the probe that asks the loaded SQLite how it folds — and that it finds a table which folds differently | ADR-0007 |
-| [`BudgetMachineTests`](../tests/Nordmann.LUI.Integration.Tests/Performance/BudgetMachineTests.cs) | Integration | the two kinds of target of §16: a time belongs to the machine it was measured on and is reported elsewhere; a size is the same everywhere and is asserted; a run never builds more than the scenario of its target — `LUI_PERF_ENTRIES` only makes it smaller | spec §16, ADR-0041, issue #99 |
+| [`BudgetMachineTests`](../tests/Nordmann.LUI.Integration.Tests/Performance/BudgetMachineTests.cs) | Integration | the two kinds of target: a time belongs to the machine it was measured on and is reported elsewhere; a size is the same everywhere and is asserted; a run never builds more than the scenario of its target — `LUI_PERF_ENTRIES` only makes it smaller | spec §16, ADR-0041, ADR-0056, issue #99 |
 
 ### The measurements — they run on purpose
 They are not tests of behaviour; they are the numbers in
@@ -210,7 +212,7 @@ a real Kestrel (`SampleHost`) over a database file of their own.
 
 | Test file | Layer | Proves | The rule |
 |---|---|---|
-| [`SampleApiTests`](../samples/Lui.Sample.Tests/SampleApiTests.cs) | Sample | the sample's API on a real Kestrel: every setting of a query is a parameter that reaches `LuiQueryOptions`; the three indexes (embedded + JSON payload, linked + column payload + priority, embedded without payload); a dictionary of its own per index; the write side and the maintenance; an abandoned request stops the server's work (abandoned once the server has it, issue #94); the policy of the page | ADR-0027, PR-011 |
+| [`SampleApiTests`](../samples/Lui.Sample.Tests/SampleApiTests.cs) | Sample | the sample's API on a real Kestrel: every setting of a query is a parameter that reaches `LuiQueryOptions`; the three indexes (embedded + JSON payload, linked + column payload + priority, embedded without payload); a dictionary of its own per index; the write side and the maintenance; a text that is written in two spellings is two hits, and the constraint is the one of the application; an abandoned request stops the server's work (abandoned once the server has it, issue #94); the policy of the page | ADR-0027, ADR-0055, PR-011 |
 | [`SampleBulkTests`](../samples/Lui.Sample.Tests/SampleBulkTests.cs) | Sample | the bulk indexes of the sample: the button that creates an index and loads it, the progress of the load, and exactly the number of entries that were asked for — and nothing else; the bulk indexes are not registered at startup, and the tests point the sample at the curated word list — a test never downloads 5.5 MB | ADR-0029 |
 | [`SampleIndexPanelTests`](../samples/Lui.Sample.Tests/SampleIndexPanelTests.cs) | Sample | the panel of the indexes: one index that cannot be read does not take the others down with it — an empty panel looks like data that was lost | ADR-0029 |
 
@@ -228,7 +230,8 @@ One folder: the rules read the tree, not a subject of the library. The names car
 | [`RepositoryLayoutTests`](../tests/Nordmann.LUI.Architecture.Tests/RepositoryLayoutTests.cs) | Architecture | the build wiring is part of the contract: one place for the versions, exactly one packable project, the documented dependency set | ADR-0001, ADR-0002, ADR-0004, ADR-0034 |
 | [`NamespaceConventionTests`](../tests/Nordmann.LUI.Architecture.Tests/NamespaceConventionTests.cs) | Architecture | folder = namespace — in the library and in the tests —, every namespace below the root | spec §17.2, issue #77 |
 | [`ReadmeBenchmarksTests`](../tests/Nordmann.LUI.Architecture.Tests/ReadmeBenchmarksTests.cs) | Architecture | the BenchmarkDotNet tables of the README are rendered from the committed reports of one run; every benchmark class has a report and a section | ADR-0022, ADR-0039 |
-| [`ReadmeBudgetsTests`](../tests/Nordmann.LUI.Architecture.Tests/ReadmeBudgetsTests.cs) | Architecture | the budget table of the README is the promise of §16: the limits of the entrance, of the target table of the record and of its status table are read out of the specification and compared with it — a limit that drifts fails the build | issue #38 |
+| [`ReadmeBudgetsTests`](../tests/Nordmann.LUI.Architecture.Tests/ReadmeBudgetsTests.cs) | Architecture | the budget table of the README is the promise: the limits of the entrance, of the target table of the record and of its status table are read out of the file of the budgets and compared with it — a limit that drifts fails the build | issue #38, ADR-0056 |
+| [`LuiBudgetsTests`](../tests/Nordmann.LUI.Architecture.Tests/LuiBudgetsTests.cs) | Architecture | the file of the budgets: every budget carries a scenario, a limit, a unit and a kind, the ids are unique, the kind follows the unit, and a budget carries nothing but its promise — the measured value belongs in the record | ADR-0056 |
 | [`SampleClientTests`](../tests/Nordmann.LUI.Architecture.Tests/SampleClientTests.cs) | Architecture | the sample's client: modules by concern with the direction of the imports as a table, one fetch boundary, no HTML from a string, no inline script or style, no dependency, and the vendored flexdatalist is the file its provenance names | ADR-0027 |
 | [`WorkflowRulesTests`](../tests/Nordmann.LUI.Architecture.Tests/WorkflowRulesTests.cs) | Architecture | the pipelines change only with the repository: every action pinned by its commit with its version, every image named, every job with a timeout, every test run with a hang timeout and a full dump, every job that tests uploads its results, the release calls the gates of every pull request and pushes after them, in the environment of the owner, without a stored key, the SDK only from `global.json` — exact, in its feature band, read by the setup action (a roll-forward across bands and a `10.0.x` pin nothing), every `curl` retries a transient error and says who answered (read as commands, not lines) — over `*.yml` and `*.yaml`, and the actions as `action.yml` and `action.yaml` | ADR-0047, issues #74, #91, #93, review of pull request 83 |
 | [`TestLandscapeTests`](../tests/Nordmann.LUI.Architecture.Tests/TestLandscapeTests.cs) | Architecture | this map is the truth: every test file is listed here, every row points at a file that exists and names the layer of its project, every test project of the tree has a layer; the unit layer opens no database | this file, ADR-0019, issue #89 |
@@ -250,6 +253,7 @@ share. It has no tests of its own — it is the setup, in one place.
 | [`RecipeStock`](../tests/Nordmann.LUI.Testing/RecipeStock.cs) | the stock of recipe titles the multi-word tests ask for |
 | [`Chip`](../tests/Nordmann.LUI.Testing/Chip.cs) | the payload the integration tests attach to an entry. The unit layer has one of its own, so that it does not depend on the infrastructure that opens databases |
 | [`TypoMaker`](../tests/Nordmann.LUI.Testing/TypoMaker.cs) | makes the typos the tests type |
+| [`LuiBudgets`](../tests/Nordmann.LUI.Testing/LuiBudgets.cs) | the budgets of the repository in one file: the scenario, the limit, the unit and the kind of every promise — read by the guard of the tables and by the measurements (ADR-0056) |
 | [`Repository`](../tests/Nordmann.LUI.Testing/Repository.cs) | finds the repository on disk — the architecture rules read the *source*, not a hand-written list |
 
 ## The test data
@@ -304,10 +308,10 @@ LUI_PERF=1 LUI_PERF_ENTRIES=3000000 dotnet test tests/Nordmann.LUI.Integration.T
 
 | Rule | Where it comes from |
 |---|---|
-| The name of a test is a sentence that names the rule, not the method | the standards |
+| The name of a test is a sentence that names the rule, not the method | ADR-0049 |
 | A test that proves nothing is not green — it is skipped with a reason | ADR-0010, the full-word-list gate |
 | A measurement is never a test of behaviour | ADR-0010 |
-| The specification is the contract; a test names the paragraph it holds | `AGENTS.md` |
+| A test names the rule it holds up — the paragraph, the decision or the file it belongs to | `AGENTS.md` |
 | A change to a rule comes with a change to the test that holds it | `AGENTS.md` |
 | A test asserts the order of magnitude of a time, never its milliseconds: a lower bound is strict (load only makes a wait longer), an upper bound has room and says why in the code. A test whose verdict depends on the clock carries `[Trait("Category", "Timing")]` | ADR-0050, guarded by `TimingTraitTests` |
 | A test waits for the event it needs, not for a fixed window: a deadline only stops a hang | ADR-0050, issue #94 |

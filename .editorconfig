@@ -45,9 +45,9 @@ dotnet_diagnostic.CA2007.severity = none # ConfigureAwait in a library is noise
 [*.{csproj,props,targets}]
 indent_size = 2
 
-# Test projects follow the standards' naming convention for test methods
+# Test projects follow the naming convention for test methods
 # (`Domain_does_not_depend_on_Infrastructure`) — underscore separated reads as
-# a sentence and is the convention in nordmanndev/standards.
+# a sentence (ADR-0049).
 #
 # xUnit1051 asks for the token of the test at every call that takes a token. Here the optional token of the library
 # would go into some 475 calls of tests whose subject is not cancellation. The token of the test is passed where a test

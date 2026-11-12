@@ -1,9 +1,8 @@
 <Project>
 
   <!--
-    Baseline: nordmanndev/standards @ c63d696 — architecture/layering.md
-    §"Directory.Build.props (repo root)". Kept verbatim; the project-level
-    additions below are the delta recorded in ADR-0002.
+    The build settings of the repository: one place, every project inherits
+    them. The additions below are the delta of a library, recorded in ADR-0002.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>

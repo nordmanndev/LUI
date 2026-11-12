@@ -46,26 +46,26 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
 
         var inputs = corpus.Inputs(Queries);
         var (latencies, allocations) = MeasureQueries(words, inputs, typoTolerance: false);
-        budget.AtMost("query p50", "3 M entries, inputs of 1–8 characters, no correction", Percentile(latencies, 50), 2.0, "ms");
+        budget.AtMost("query-p50", Percentile(latencies, 50), "ms");
 
         // §16 since the owner's decision on ADR-0010: the p95 per length of the input — FTS5's cost grows with it
-        budget.AtMost("query p95, 1–4 characters", "3 M entries, no correction", Percentile(OfLength(inputs, latencies, 1, 4), 95), 5.0, "ms");
-        budget.AtMost("query p95, 5–8 characters", "3 M entries, no correction", Percentile(OfLength(inputs, latencies, 5, 8), 95), 20.0, "ms");
+        budget.AtMost("query-p95-short", Percentile(OfLength(inputs, latencies, 1, 4), 95), "ms");
+        budget.AtMost("query-p95-long", Percentile(OfLength(inputs, latencies, 5, 8), 95), "ms");
 
         // §16 since ADR-0032: the causes of #30 are measured and the allocation is lowered — the target is p50 ≤ 60 KB, p95 ≤ 100 KB
-        budget.AtMost("allocation p50", "per query, the same inputs", Percentile(allocations, 50) / 1024, 60, "KB");
-        budget.AtMost("allocation p95", "per query, the same inputs (#30)", Percentile(allocations, 95) / 1024, 100, "KB");
+        budget.AtMost("allocation-p50", Percentile(allocations, 50) / 1024, "KB");
+        budget.AtMost("allocation-p95", Percentile(allocations, 95) / 1024, "KB");
 
         // the typo dictionary of three million entries is built before the corrected queries are timed
         var warm = Stopwatch.StartNew();
         words.WarmUpTypoDictionary();
         Report($"typo dictionary of {entries:N0} entries: {warm.Elapsed.TotalSeconds:F1} s");
         var (corrected, _) = MeasureQueries(words, corpus.Typos(Queries / 2), typoTolerance: true);
-        budget.AtMost("query with correction p95", "3 M entries, a beginning of 5–9 letters with one typo", Percentile(corrected, 95), 35.0, "ms");
+        budget.AtMost("query-corrected-p95", Percentile(corrected, 95), "ms");
 
-        budget.AtMost("single write p95", "Upsert / UpdateWeight / Remove, own transaction", Percentile(MeasureWrites(words, corpus), 95), 1.0, "ms");
+        budget.AtMost("write-p95", Percentile(MeasureWrites(words, corpus), 95), "ms");
         // §16 since the owner's decision of 2026-11-04: the build follows the disk — 172–206 s on two machines (#32)
-        budget.AtMost("build", "3 M entries, Embedded, a first load by Sync", build.Elapsed.TotalSeconds, 240, "s");
+        budget.AtMost("build-3m", build.Elapsed.TotalSeconds, "s");
 
         budget.Verify();
     }
@@ -90,8 +90,8 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         GC.KeepAlive(index);
 
         Report($"typo dictionary of {words.Count:N0} words: {build.Elapsed.TotalSeconds:F1} s, {(after - before) / 1_048_576.0:F0} MB");
-        budget.AtMost("typo dictionary, memory", $"{words.Count:N0} distinct words", (after - before) / 1_048_576.0, 200, "MB");
-        budget.AtMost("typo dictionary, build", $"{words.Count:N0} distinct words", build.Elapsed.TotalSeconds, 10, "s");
+        budget.AtMost("typo-dictionary-size", (after - before) / 1_048_576.0, "MB");
+        budget.AtMost("typo-dictionary-build", build.Elapsed.TotalSeconds, "s");
 
         budget.Verify();
     }
@@ -113,7 +113,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         var megabytes = database.FileMegabytes();
         Report($"titles: {entries:N0} by Sync in {build.Elapsed.TotalSeconds:F1} s, file {megabytes:N0} MB");
         // §16 since the owner's decision on ADR-0011/0020: titles of 36 characters on average, the text and its forms
-        budget.AtMost("file size", "1 M titles of 36 characters on average, MultiWord, the content table included", megabytes, 500, "MB");
+        budget.AtMost("file-size-1m", megabytes, "MB");
 
         budget.Verify();
     }

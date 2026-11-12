@@ -51,18 +51,13 @@ public sealed record LuiQueryOptions
         init => field = Setting.Defined(value, nameof(PriorityMode));
     } = LuiPriorityMode.First;
 
-    /// <summary>
-    /// Shows one entry per normalised text: the one with the highest priority,
-    /// then the highest weight. Default: off.
-    /// </summary>
-    public bool DistinctText { get; init; }
-
     /// <summary>The similarity measure; <see langword="null"/> takes the default of the index.</summary>
     public ILuiSimilarity? Similarity { get; init; }
 
     /// <summary>
-    /// Whether an input without a word start is corrected (§10). <see langword="null"/> takes the setting of
-    /// the index (<c>TypoTolerance</c> on the builder; off unless it was asked for).
+    /// Whether an input without a word start is corrected (§10). <see langword="null"/> takes the distance of the
+    /// index. <see langword="true"/> asks for the correction — but only within the distance of the index: a query
+    /// cannot widen it, and a distance of <see cref="LuiTypoDistance.None"/> forgives nothing at all.
     /// </summary>
     public bool? TypoTolerance { get; init; }
 

@@ -1,5 +1,11 @@
 # 0036 — The README is the entrance, the specification the contract, the tutorial the way
 
+> **Contract note (ADR-0056, 2026-11-12):** this record was written against a contract outside the repository — a
+> private one, that no reader of LUI can know and does not have to. The repository states its own rules since: the
+> rules that contract carried for LUI stand in [`AGENTS.md`](../../AGENTS.md) and in the documents of
+> [`docs/`](../../docs/README.md). The entrance, the record and the tutorial keep their places. The text below is
+> history and stays as it was written.
+
 > **Note (ADR-0039, 2026-11-06, issue #61):** the entrance grows. Decision 1 — "at most 250 lines" — and decision 4 —
 > "the raw tables move to the record" — are superseded: the entrance of the release carries the tables of the
 > BenchmarkDotNet measurement, the example of the bulk path, the matrix of the kinds and the decision guide of the

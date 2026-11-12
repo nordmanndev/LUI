@@ -156,7 +156,7 @@ public sealed class PublicApiShapeTests
     public void The_read_interface_only_reads_and_the_write_interfaces_carry_the_maintenance()
     {
         // What keeps an index in order is not part of the interface that a suggest endpoint gets injected (review of
-        // 2026-11-04, B.3). TypoTolerance and TypoDictionaryState stay: the hosting package sees the public API only.
+        // 2026-11-04, B.3). TypoDistance and TypoDictionaryState stay: the hosting package sees the public API only.
         const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
         static string[] Members(Type type) =>
         [
@@ -166,7 +166,7 @@ public sealed class PublicApiShapeTests
         ];
 
         Members(typeof(ILuiIndex)).Order(StringComparer.Ordinal)
-            .ShouldBe(["Count", "KeyKind", "Kind", "Name", "Query", "Search", "TypoDictionaryState", "TypoTolerance"]);
+            .ShouldBe(["Count", "KeyKind", "Kind", "Name", "Query", "Search", "TypoDictionaryState", "TypoDistance"]);
 
         foreach (var write in new[] { typeof(ILuiEmbeddedIndex), typeof(ILuiLinkedIndex) })
         {

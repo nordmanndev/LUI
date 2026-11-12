@@ -29,7 +29,7 @@ public sealed class SampleIndexPanelTests
         public string Name => name;
 
         public IndexInfo Describe() => new(
-            name, "MultiWord", "Embedded", true, "Current", string.Equals(name, "recipes", StringComparison.Ordinal) ? 85 : 59, "none", "An index.", null, null);
+            name, "MultiWord", "Embedded", "OneError", "Current", string.Equals(name, "recipes", StringComparison.Ordinal) ? 85 : 59, "none", "An index.", null, null);
 
         public SuggestResponse Suggest(string text, LuiQueryOptions options, CancellationToken cancellationToken) =>
             throw new NotSupportedException();

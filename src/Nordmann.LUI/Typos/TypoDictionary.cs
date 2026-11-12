@@ -53,6 +53,10 @@ internal sealed class TypoDictionary
 
     private readonly NormalizationOptions _normalization;
     private readonly Func<IEnumerable<(string Text, int Weight)>> _source;
+
+    /// <summary>How many errors the dictionary forgives — the distance it was built with (§10.1).</summary>
+    private readonly LuiTypoDistance _distance;
+
     private SymSpell? _symSpell;
     private Queue<(string Text, int Weight)>? _pending;
 
@@ -65,10 +69,11 @@ internal sealed class TypoDictionary
     // the initial capacity of the staging area of a build, the one SymSpell's own loaders use
     private const int StagingCapacity = 16384;
 
-    internal TypoDictionary(NormalizationOptions normalization, Func<IEnumerable<(string Text, int Weight)>> source)
+    internal TypoDictionary(NormalizationOptions normalization, Func<IEnumerable<(string Text, int Weight)>> source, LuiTypoDistance distance)
     {
         _normalization = normalization;
         _source = source;
+        _distance = distance;
     }
 
     /// <summary>Whether the dictionary has been built.</summary>
@@ -240,7 +245,7 @@ internal sealed class TypoDictionary
             var suggestions = new List<string[]?>(words.Count);
             foreach (var word in words)
             {
-                suggestions.Add(Suggest(symSpell, search.AsSpan(word.Start, word.Length)));
+                suggestions.Add(Suggest(symSpell, search.AsSpan(word.Start, word.Length), (int)_distance));
             }
 
             return Variants(search, words, suggestions);
@@ -251,13 +256,13 @@ internal sealed class TypoDictionary
         }
     }
 
-    private static string[]? Suggest(SymSpell symSpell, ReadOnlySpan<char> word)
+    private static string[]? Suggest(SymSpell symSpell, ReadOnlySpan<char> word, int distance)
     {
         var text = word.ToString();
         var head = CodePointPrefix(text, LongestBeginning);
         var tail = text[head.Length..];
 
-        var found = symSpell.Lookup(head, SymSpell.Verbosity.Closest, 1);
+        var found = symSpell.Lookup(head, SymSpell.Verbosity.Closest, distance);
 
         // the word is a beginning of a word of the index — nothing to correct; or nothing is near
         if (found.Count == 0 || found[0].distance == 0)
@@ -314,6 +319,15 @@ internal sealed class TypoDictionary
     /// </summary>
     private void BuildAndPublish(CancellationToken cancellationToken)
     {
+        // An index that forgives nothing has no dictionary: the memory of one would buy no correction
+        // (ADR-0054). The guard is here, where the dictionary is built — every path that reaches a build
+        // (the warm-up, the rebuild, the sync of a linked index) comes here and gets nothing. A guard in
+        // the caller that asks would cover one path only (review of pull request #126, I1).
+        if (_distance == LuiTypoDistance.None)
+        {
+            return;
+        }
+
         lock (_pendingGate)
         {
             _pending = new Queue<(string, int)>();
@@ -362,8 +376,9 @@ internal sealed class TypoDictionary
 
     private SymSpell Build(CancellationToken cancellationToken)
     {
-        // one edit, the default prefix length; a count of at least 1 keeps every beginning
-        var symSpell = new SymSpell(initialCapacity: 1 << 16, maxDictionaryEditDistance: 1, prefixLength: 7, countThreshold: 1);
+        // the distance of the index: the delete variants grow with it, and with them the memory
+        // (docs/typo-dictionary.md). The default prefix length; a count of at least 1 keeps every beginning.
+        var symSpell = new SymSpell(initialCapacity: 1 << 16, maxDictionaryEditDistance: (int)_distance, prefixLength: 7, countThreshold: 1);
 
         // The bulk path of the package, as its own LoadDictionary uses it: the delete lists are collected and put in place in
         // one step. About a fifth faster, a fifth less garbage, the same memory, the same dictionary (ADR-0025 has the measurements).
