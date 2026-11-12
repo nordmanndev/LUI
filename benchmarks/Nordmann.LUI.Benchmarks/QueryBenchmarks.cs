@@ -15,8 +15,8 @@ public class QueryBenchmarks
     private IndexFixture? _fixture;
 
     /// <summary>The kind of the index.</summary>
-    [Params(CorpusKind.SingleWord, CorpusKind.MultiWord)]
-    public CorpusKind Kind { get; set; }
+    [Params("words.txt", "wiki-titles.tsv")]
+    public string Corpus { get; set; } = string.Empty;
 
     /// <summary>The entries of the index. The budget scenario of three million is the budget test's; a benchmark is about the code.</summary>
     [Params(200_000)]
@@ -27,7 +27,7 @@ public class QueryBenchmarks
     public string Input { get; set; } = string.Empty;
 
     [GlobalSetup]
-    public void Setup() => _fixture = new IndexFixture(Kind, Entries);
+    public void Setup() => _fixture = new IndexFixture(Corpus, Entries);
 
     [GlobalCleanup]
     public void Cleanup() => _fixture?.Dispose();

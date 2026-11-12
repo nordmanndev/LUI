@@ -14,8 +14,8 @@ on:
     - cron: '17 3 * * *'
   workflow_dispatch:
     inputs:
-      entries:
-        description: 'How many entries the scenario builds'
+      prefixLength:
+        description: 'How many entries of the corpus the scenario takes'
         required: false
         default: '3000000'
       machine:
@@ -42,11 +42,9 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      # The whole word list, or the corpus of the scenario is not the corpus of
-      # the specification: the script fails if the list is short. The fetch is
-      # the guard — there is no switch that demands the list (ADR-0058, D19).
-      - name: Fetch the word list
-        run: bash tools/fetch-wordlist.sh
+      # The corpora are files in the repository (ADR-0059): the lane measures
+      # the files that are checked in, and needs no fetch. The word list of the
+      # parity is a different thing — the lane of the CI fetches it.
 
       # The scenario of the run is a file, not a variable (ADR-0058): the lane
       # writes it, the run reads it, and the diff of the file is the diff of
@@ -56,14 +54,11 @@ jobs:
           set -euo pipefail
           cat > tests/Nordmann.LUI.Performance.Tests/performance.scenario.json <<'JSON'
           {
-            "note": "The scenario of a measurement run (ADR-0058): the corpus, the prefix length and the settings of the run. It replaces the variables of the environment — a variable is invisible in the code and in the report, a file is a thing one can read, check in and diff. The lane of the schedule writes this file before it measures; the copy that is checked in is the default, and a run without the lane works with it.",
+            "note": "The scenario of a measurement run (ADR-0058): the settings of the run. It replaces the variables of the environment — a variable is invisible in the code and in the report, a file is a thing one can read, check in and diff. The lane of the schedule writes this file before it measures; the copy that is checked in is the default, and a run without the lane works with it. The corpus itself is not here: the budgets name their corpus (ADR-0056), and the corpus file carries the entries, their weights and their kind (ADR-0059).",
             "scenario": {
-              "corpus": "wordlist",
-              "prefixLength": 685739,
-              "kind": "single",
-              "entries": ${{ inputs.entries || '3000000' }},
+              "prefixLength": ${{ inputs.prefixLength || '3000000' }},
               "batch": 10000,
-              "weights": "longtail",
+              "minimumWeight": 0,
               "optimize": false,
               "machine": "${{ inputs.machine || 'other' }}",
               "database": ""

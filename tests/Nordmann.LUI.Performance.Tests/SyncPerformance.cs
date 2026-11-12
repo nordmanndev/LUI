@@ -21,17 +21,17 @@ public sealed class SyncPerformance(ITestOutputHelper output)
     [Fact]
     public void Sync_cancel_resume_check_and_rebuild()
     {
-        var entries = Scenario.Entries ?? 200_000;
+        var entries = Scenario.PrefixLength ?? 200_000;
         var batch = Scenario.Batch;
-        var words = Scenario.Words(out var corpus);
-        Report(Scenario.Describe(corpus, words.Count));
+        var corpus = CorpusOf("build-3m");
+        var words = corpus.Texts;
         Report($"  {entries:N0} entries, batch {batch:N0}");
 
         var random = new Random(42);
         var source = Enumerable.Range(1, entries)
-            .Select(i => new LuiEntry(i, i <= words.Count ? words[i - 1] : words[random.Next(words.Count)] + words[random.Next(words.Count)].ToLowerInvariant())
+            .Select(i => new LuiEntry(i, words[(i - 1) % words.Count])
             {
-                Weight = random.Next(0, 1_000_000),
+                Weight = corpus.Weights[(i - 1) % corpus.Weights.Count],
             })
             .OrderBy(_ => random.Next())
             .ToList();
@@ -82,11 +82,11 @@ public sealed class SyncPerformance(ITestOutputHelper output)
     [Fact]
     public void A_delta_sync_with_a_built_typo_dictionary()
     {
-        var entries = Scenario.Entries ?? 300_000;
-        var words = Scenario.Words(out var corpus);
-        Report(Scenario.Describe(corpus, words.Count));
+        var entries = Scenario.PrefixLength ?? 300_000;
+        var corpus = CorpusOf("build-3m");
+        var words = corpus.Texts;
         Report($"  {entries:N0} entries, typo tolerance");
-        var source = Corpus.Generate(words, entries, CorpusKind.SingleWord).Entries().ToList();
+        var source = corpus.Entries().ToList();
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
@@ -155,6 +155,22 @@ public sealed class SyncPerformance(ITestOutputHelper output)
         var result = run();
         Report($"{what,-40} {clock.Elapsed.TotalSeconds,6:F1} s");
         return result;
+    }
+
+    /// <summary>
+    /// Das Korpus der Messung: die Datei, die das Budget ihres Ziels nennt (ADR-0056). Der
+    /// Schnitt, den die Messung nimmt, ist der des Budgets, beschnitten um die Zahl der
+    /// Eintraege des Laufs. Welches Korpus es war, steht im Bericht — zwei Messungen auf
+    /// zwei Korpora sind kein Vergleich.
+    /// </summary>
+    /// <param name="budgetId">Die Kennung des Budgets, dessen Ziel gemessen wird.</param>
+    /// <returns>Das Korpus des Laufs.</returns>
+    private Corpus CorpusOf(string budgetId)
+    {
+        var corpus = Scenario.CorpusOf(budgetId, out var name);
+        Report(Scenario.Describe(name, corpus.Count, LuiBudgets.By(budgetId).Scenario.PrefixLength));
+        Report($"  {Environment.ProcessorCount} cores, .NET {Environment.Version}");
+        return corpus;
     }
 
     private void Report(string line)

@@ -19,19 +19,22 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
 {
     /// <summary>The scenario of this run (ADR-0058): the corpus, the prefix length and the settings.</summary>
     private static PerformanceScenario Scenario => PerformanceScenario.Current;
-    /// <summary>The scenario of §16: three million entries.</summary>
-    private const int ScenarioEntries = 3_000_000;
+    /// <summary>The scenario of §16: three million entries — the one the budgets name.</summary>
+    private static int ScenarioEntries => LuiBudgets.By("query-p50").Scenario.PrefixLength;
 
-    /// <summary>The scenario of the file size: one million titles.</summary>
-    private const int TitlesScenario = 1_000_000;
+    /// <summary>The scenario of the file size: one million titles — the one the budget names.</summary>
+    private static int TitlesScenario => LuiBudgets.By("file-size-1m").Scenario.PrefixLength;
+
+    /// <summary>The scenario of the typo dictionary — the one the budget names.</summary>
+    private static int TypoScenario => LuiBudgets.By("typo-dictionary-size").Scenario.PrefixLength;
 
     private const int Queries = 2_000;
 
     [Fact]
     public void The_single_word_index_at_three_million_entries()
     {
-        var entries = Entries(ScenarioEntries);
-        var corpus = Corpus.Generate(Words(), entries, CorpusKind.SingleWord, Scenario.Weights);
+        var corpus = CorpusOf("query-p50");
+        var entries = corpus.Count;
         var budget = new PerformanceBudget(output.WriteLine, entries >= ScenarioEntries, Scenario.Machine);
         budget.SayTheMachine();
 
@@ -76,14 +79,15 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
     [Fact]
     public void The_typo_dictionary_of_the_whole_word_list()
     {
-        var words = WholeWords();
-        var budget = new PerformanceBudget(output.WriteLine, words.Count >= TestFiles.FullWordListCount - 1_000, Scenario.Machine);
+        var corpus = CorpusOf("typo-dictionary-size");
+        var words = corpus.Texts;
+        var budget = new PerformanceBudget(output.WriteLine, words.Count >= TypoScenario, Scenario.Machine);
         budget.SayTheMachine();
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
         var index = catalog.Create("words", index => index.SingleWord().TypoTolerance());
-        index.Sync(Corpus.Generate(words, words.Count, CorpusKind.SingleWord).Entries(), new LuiSyncOptions { BatchSize = 100_000 });
+        index.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = 100_000 });
 
         var before = GC.GetTotalMemory(forceFullCollection: true);
         var build = Stopwatch.StartNew();
@@ -102,18 +106,23 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
     [Fact]
     public void The_file_of_a_million_titles()
     {
-        var entries = Entries(TitlesScenario);
+        var corpus = CorpusOf("file-size-1m");
+        var entries = corpus.Count;
         var budget = new PerformanceBudget(output.WriteLine, entries >= TitlesScenario, Scenario.Machine);
         budget.SayTheMachine();
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
+        // the kind comes out of the corpus file (ADR-0059): a title is more than one word
+        if (corpus.Kind != CorpusKind.MultiWord)
+        {
+            throw new InvalidOperationException(
+                $"The corpus '{corpus.Name}' is not a corpus of titles — the index of this measurement is a multi-word one.");
+        }
+
         var titles = catalog.Create("titles", index => index.MultiWord());
-        // the kind of the scenario belongs to the query measurement: this one measures a multi-word index, because a
-        // title is more than one word — the measurement says so, so that the report does not carry a claim it does not hold
-        Report("the index of this measurement is a multi-word one — the kind of the scenario belongs to the query measurement");
         var build = Stopwatch.StartNew();
-        titles.Sync(Corpus.Generate(Words(), entries, CorpusKind.MultiWord).Entries(), new LuiSyncOptions { BatchSize = 100_000 });
+        titles.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = 100_000 });
         build.Stop();
 
         var megabytes = database.FileMegabytes();
@@ -209,31 +218,26 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
     private static double[] OfLength(IReadOnlyList<string> inputs, double[] latencies, int shortest, int longest) =>
         [.. latencies.Where((_, i) => inputs[i].Length >= shortest && inputs[i].Length <= longest)];
 
-    private static int Entries(int scenario) =>
-        PerformanceBudget.ScenarioEntries(scenario, Scenario.Entries);
-
-    private IReadOnlyList<string> Words()
+    /// <summary>
+    /// Das Korpus der Messung: die Datei, die das Budget ihres Ziels nennt (ADR-0056). Der
+    /// Schnitt, den die Messung nimmt, ist der des Budgets, beschnitten um die Zahl der
+    /// Eintraege des Laufs. Welches Korpus es war, steht im Bericht — zwei Messungen auf
+    /// zwei Korpora sind kein Vergleich.
+    /// </summary>
+    /// <param name="budgetId">Die Kennung des Budgets, dessen Ziel gemessen wird.</param>
+    /// <returns>Das Korpus des Laufs.</returns>
+    private Corpus CorpusOf(string budgetId)
     {
-        var words = Scenario.Words(out var corpus);
-        Report(Scenario.Describe(corpus, words.Count));
+        var corpus = Scenario.CorpusOf(budgetId, out var name);
+        Report(Scenario.Describe(name, corpus.Count, LuiBudgets.By(budgetId).Scenario.PrefixLength));
         Report($"  {Environment.ProcessorCount} cores, .NET {Environment.Version}");
-        return words;
+        return corpus;
     }
 
     private static double Percentile(double[] values, double percentile)
     {
         var sorted = values.Order().ToArray();
         return sorted[Math.Min(sorted.Length - 1, (int)Math.Ceiling(sorted.Length * percentile / 100.0) - 1)];
-    }
-
-    /// <summary>The whole corpus of the scenario, without the prefix: this measurement is about the whole list.</summary>
-    /// <returns>The words of the corpus.</returns>
-    private IReadOnlyList<string> WholeWords()
-    {
-        var words = Scenario.WholeWords(out var corpus);
-        Report(Scenario.DescribeWhole(corpus, words.Count));
-        Report($"  {Environment.ProcessorCount} cores, .NET {Environment.Version}");
-        return words;
     }
 
     private void Report(string line)

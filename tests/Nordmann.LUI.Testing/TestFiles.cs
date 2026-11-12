@@ -36,19 +36,6 @@ public static class TestFiles
             .Where(line => line.Length > 0)
             .ToArray();
 
-    /// <summary>
-    /// The words of the corpus a measurement runs on: the whole word list when
-    /// it is there, the sample otherwise. Which one it was is reported — two
-    /// measurements on two corpora are not a comparison.
-    /// </summary>
-    public static IReadOnlyList<string> MeasurementWords(out string corpus)
-    {
-        var full = FullWordListPath;
-        var path = File.Exists(full) ? full : SampleWordListPath;
-        corpus = Path.GetRelativePath(Repository.RootPath, path);
-        return [.. File.ReadLines(path).Where(word => word.Length > 0)];
-    }
-
     /// <summary>The number of words the German word list has, as the specification names it.</summary>
     public const int FullWordListCount = 685_829;
 

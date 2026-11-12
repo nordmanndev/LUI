@@ -24,7 +24,7 @@ public class CorrectionBenchmarks
     [GlobalSetup]
     public void Setup()
     {
-        _fixture = new IndexFixture(CorpusKind.SingleWord, Entries, typoTolerance: true);
+        _fixture = new IndexFixture("words.txt", Entries, typoTolerance: true);
         _fixture.Index.WarmUpTypoDictionary();
     }
 
