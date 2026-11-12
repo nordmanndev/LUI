@@ -27,6 +27,18 @@ namespace Nordmann.LUI.Testing;
 /// </summary>
 public sealed class CorpusFile
 {
+    /// <summary>
+    /// The formats a corpus file may name: the columns of an entry, in the order of the line. The header of a file names
+    /// its format, and the reader **checks** it against the columns it finds — a self-description that nobody reads is a
+    /// second truth beside the file (the same rule the reader of the scenario file follows, ADR-0058).
+    /// </summary>
+    private static readonly string[][] Formats =
+    [
+        ["text"],
+        ["text", "weight"],
+        ["text", "weight", "context"]
+    ];
+
     /// <summary>The directory of the corpora in the repository.</summary>
     public static string Directory { get; } = Path.Combine(Repository.RootPath, "tests", "TestData", "corpora");
 
@@ -127,6 +139,7 @@ public sealed class CorpusFile
         using var reader = new StreamReader(gzip, Encoding.UTF8);
 
         var header = ReadHeader(reader, name);
+        var columns = Format(header, name);
         var texts = new List<string>(Math.Min(prefixLength, 1_000_000));
         var weights = new List<int>(texts.Capacity);
         var contexts = new List<string>(texts.Capacity);
@@ -138,20 +151,15 @@ public sealed class CorpusFile
                 continue;
             }
 
-            var parts = line.Split('\t');
-            var text = parts[0];
-            var weight = parts.Length > 1 && int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
-                ? parsed
-                : DerivedWeight(text);
-
-            if (weight < minimumWeight)
+            var entry = Entry(line, columns, name);
+            if (entry.Weight < minimumWeight)
             {
                 continue;
             }
 
-            texts.Add(text);
-            weights.Add(weight);
-            contexts.Add(parts.Length > 2 ? string.Join('\t', parts[2..]) : string.Empty);
+            texts.Add(entry.Text);
+            weights.Add(entry.Weight);
+            contexts.Add(entry.Context);
         }
 
         var kind = header.GetValueOrDefault("kind") switch
@@ -240,6 +248,60 @@ public sealed class CorpusFile
 
         throw new InvalidOperationException(
             $"The corpus file '{name}' has no header — the file ends before the first entry.");
+    }
+
+    /// <summary>
+    /// One entry of the file: its text, its weight and its context. The number of columns is checked against the format
+    /// the header names — the header of a file is read, not believed.
+    /// </summary>
+    /// <param name="line">The line of the entry.</param>
+    /// <param name="columns">The columns the header names.</param>
+    /// <param name="name">The name of the corpus, for the error message.</param>
+    /// <returns>The entry.</returns>
+    private static (string Text, int Weight, string Context) Entry(string line, string[] columns, string name)
+    {
+        var parts = line.Split('\t');
+        if (parts.Length != columns.Length)
+        {
+            throw new InvalidOperationException(
+                $"The entry '{parts[0]}' of the corpus file '{name}' has {parts.Length} columns, but its header names "
+                + $"{columns.Length} ({string.Join("<TAB>", columns)}) — the header of a file is read.");
+        }
+
+        var text = parts[0];
+        var weight = parts.Length > 1 && int.TryParse(parts[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed)
+            ? parsed
+            : DerivedWeight(text);
+        var context = parts.Length > 2 ? string.Join('\t', parts[2..]) : string.Empty;
+
+        return (text, weight, context);
+    }
+
+    /// <summary>
+    /// The format of the file: the columns the header names, checked against the formats that exist. A header that names
+    /// a format nobody knows is an error, not a shrug.
+    /// </summary>
+    /// <param name="header">The header of the file.</param>
+    /// <param name="name">The name of the corpus, for the error message.</param>
+    /// <returns>The columns of an entry, in order.</returns>
+    private static string[] Format(Dictionary<string, string> header, string name)
+    {
+        if (!header.TryGetValue("format", out var format))
+        {
+            throw new InvalidOperationException(
+                $"The header of the corpus file '{name}' does not name its format — the format is what the reader reads "
+                + "the columns by.");
+        }
+
+        var columns = format.Split("<TAB>", StringSplitOptions.None);
+        if (!Formats.Any(known => known.SequenceEqual(columns, StringComparer.Ordinal)))
+        {
+            throw new InvalidOperationException(
+                $"The format '{format}' of the corpus file '{name}' is not one of "
+                + $"{string.Join(", ", Formats.Select(known => string.Join("<TAB>", known)))}.");
+        }
+
+        return columns;
     }
 
     /// <summary>A member of the header that is a whole number.</summary>

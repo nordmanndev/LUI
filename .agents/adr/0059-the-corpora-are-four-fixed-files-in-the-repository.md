@@ -50,6 +50,11 @@ about one corpus.
   licence, the snapshot date, the number of entries, the format, the kind of the entries and the order. **A `#` inside
   an entry is data** — a film title that begins with `#` is a title, and a loader that eats it loses 316 entries of the
   film corpus alone. A convention that eats real data is a silent filter, not a convention.
+- **The format of a file is machine-readable, and the reader reads it.** The `format:` member is the list of the columns of
+  an entry (`text⇥weight`), the meaning of the weight stands in a `note:` member beside it. The reader compares the format
+  with the columns it finds and **refuses** a file whose header names a format that does not fit its entries or a format
+  nobody knows. A self-description that nobody checks is a second truth beside the file — the same rule the reader of the
+  scenario file follows (ADR-0058).
 - **The order of a corpus is a deterministic permutation of the file: by the SHA-256 of the text.** So a **prefix is
   always a representative sample**, never the alphabetically first *n*. One rule for every corpus, independent of how
   the source happens to be sorted.
@@ -109,8 +114,8 @@ and is not.
 - **The lane needs no fetch.** The corpora are in the repository; the lane writes the scenario of the run and measures
   the files that are checked in.
 - **The four files are 162 MB in the repository** — 432 MB of raw corpora, gzip-compressed. The two numbers are
-  measured, not estimated: `ls -l tests/TestData/corpora/` sums to **162,238,087 bytes**, and the four files unpacked
-  (`zcat … | wc -c`) to **432,303,880 bytes**. The places corpus is the largest of them (82 MB of the 162 MB) because it
+  measured, not estimated: `ls -l tests/TestData/corpora/` sums to **162,238,188 bytes**, and the four files unpacked
+  (`zcat … | wc -c`) to **432,304,016 bytes**. The places corpus is the largest of them (82 MB of the 162 MB) because it
   carries the country, the region and the district of every one of its 5.8 million entries. A public repository has to
   be able to answer *may this be redistributed?* (the licences are in the headers and in `docs/benchmarks.md`) and
   *may this be published at all?* (the data-protection boundary is above).

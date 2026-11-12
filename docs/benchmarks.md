@@ -97,7 +97,9 @@ Three rules hold for every corpus:
 
 - **The header is a block of comment lines at the top of the file, ended by an empty line.** It names the source, the
   licence, the snapshot date, the number of entries, the format and the kind. **A `#` inside an entry is data**: a film
-  title that begins with `#` is a title.
+  title that begins with `#` is a title. The **format** is machine-readable — the list of the columns of an entry, the
+  meaning of the weight stands in a `note:` — and **the reader checks it**: a file whose header names a format that does
+  not fit its entries, or a format nobody knows, is refused.
 - **The order of the entries is the SHA-256 of their text.** A **prefix is therefore always a representative sample**,
   never the alphabetically first *n* — that was the bug of the old generator, whose prefix of 200,000 entries held
   nothing but the letters a to f.

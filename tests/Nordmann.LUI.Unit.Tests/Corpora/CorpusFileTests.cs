@@ -238,6 +238,69 @@ public sealed class CorpusFileTests
     }
 
     [Fact]
+    public void A_file_whose_header_names_a_format_that_does_not_fit_its_entries_is_refused()
+    {
+        // the header is read: a self-description that nobody checks is a second truth beside the file
+        var content = new MemoryStream();
+        using (var gzip = new GZipStream(content, CompressionLevel.Optimal, leaveOpen: true))
+        {
+            var head = new[]
+            {
+                "# LUI corpus — a corpus of the test",
+                "# format: text<TAB>weight<TAB>context",
+                "# kind: single",
+                "# source: the test",
+                "# licence: the test",
+                "# snapshot: 2026-11-12",
+                "# entries: 1",
+                "",
+            };
+            foreach (var line in head)
+            {
+                gzip.Write(Encoding.UTF8.GetBytes(line + "\n"));
+            }
+
+            gzip.Write(Encoding.UTF8.GetBytes("einfach\t3\n"));
+        }
+
+        content.Position = 0;
+        var error = Should.Throw<InvalidOperationException>(() => CorpusFile.Read(content, "test-corpus", 10, 0));
+
+        error.Message.ShouldContain("columns");
+    }
+
+    [Fact]
+    public void A_file_whose_header_names_a_format_that_nobody_knows_is_refused()
+    {
+        var content = new MemoryStream();
+        using (var gzip = new GZipStream(content, CompressionLevel.Optimal, leaveOpen: true))
+        {
+            var head = new[]
+            {
+                "# LUI corpus — a corpus of the test",
+                "# format: text<TAB>weight<TAB>size",
+                "# kind: single",
+                "# source: the test",
+                "# licence: the test",
+                "# snapshot: 2026-11-12",
+                "# entries: 1",
+                "",
+            };
+            foreach (var line in head)
+            {
+                gzip.Write(Encoding.UTF8.GetBytes(line + "\n"));
+            }
+
+            gzip.Write(Encoding.UTF8.GetBytes("einfach\t3\n"));
+        }
+
+        content.Position = 0;
+        var error = Should.Throw<InvalidOperationException>(() => CorpusFile.Read(content, "test-corpus", 10, 0));
+
+        error.Message.ShouldContain("is not one of");
+    }
+
+    [Fact]
     public void A_corpus_that_is_not_in_the_repository_is_refused_with_its_path()
     {
         var error = Should.Throw<InvalidOperationException>(() => CorpusFile.Open("there-is-no-such-corpus.txt", 10, 0));

@@ -129,7 +129,7 @@ as in the library (`NamespaceConventionTests`). `Support/` holds the types the t
 
 | Test file | Layer | Proves | The rule |
 |---|---|---|---|
-| [`CorpusFileTests`](../tests/Nordmann.LUI.Unit.Tests/Corpora/CorpusFileTests.cs) | Unit | the corpora of the repository: four of them, each with more than 100,000 entries; the header names the source, the licence, the snapshot and the kind; a title that begins with `#` is an entry and not a comment; the weight of a place is its population; a prefix is sorted by the hash of its text and holds words beyond the letter f; the derived weight follows the rule of the specification | ADR-0059, issue #123 |
+| [`CorpusFileTests`](../tests/Nordmann.LUI.Unit.Tests/Corpora/CorpusFileTests.cs) | Unit | the corpora of the repository: four of them, each with more than 100,000 entries; the header names the source, the licence, the snapshot and the kind; a title that begins with `#` is an entry and not a comment; the weight of a place is its population; a prefix is sorted by the hash of its text and holds words beyond the letter f; the derived weight follows the rule of the specification; the format that the header names is checked against the columns of the entries | ADR-0059, issue #123 |
 
 ## Integration — the library against SQLite
 
@@ -266,7 +266,7 @@ share. It has no tests of its own — it is the setup, in one place.
 |---|---|
 | [`TestDatabase`](../tests/Nordmann.LUI.Testing/TestDatabase.cs) | a database file of its own for one test, deleted afterwards. A file and not `:memory:` — every connection of the pool must see the same database. |
 | [`Corpus`](../tests/Nordmann.LUI.Testing/Corpus.cs) | the corpus of the measurements, read out of a corpus file: the entries, their weights and the kind of the index they live in — plus the inputs users type and the typos (ADR-0020, ADR-0059) |
-| [`CorpusFile`](../tests/Nordmann.LUI.Testing/CorpusFile.cs) | the reader of a corpus file: gzip, the header as a block of comment lines, the three formats, the derived weight of a text without a weight column. A `#` inside an entry is data — a title that begins with `#` is a title (ADR-0059) |
+| [`CorpusFile`](../tests/Nordmann.LUI.Testing/CorpusFile.cs) | the reader of a corpus file: gzip, the header as a block of comment lines, the three formats — the format that the header names is read and checked against the columns of the entries —, the derived weight of a text without a weight column. A `#` inside an entry is data — a title that begins with `#` is a title (ADR-0059) |
 | [`TestFiles`](../tests/Nordmann.LUI.Testing/TestFiles.cs) | where the corpora are: the sample word list, the edge cases, the full word list, the golden schema. One place, because eight tests each built their own path out of the repository root — and a path that is spelled eight times is wrong once. |
 | [`ApplicationTable`](../tests/Nordmann.LUI.Testing/ApplicationTable.cs) | the table of the application, as a linked index sees it |
 | [`RecipeStock`](../tests/Nordmann.LUI.Testing/RecipeStock.cs) | the stock of recipe titles the multi-word tests ask for |

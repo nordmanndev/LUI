@@ -106,7 +106,7 @@ def write_corpus(dst: Path, name: str, header: list[str], tmp: Path,
 
 
 def header_lines(title: str, fmt: str, source: str, licence: str, snapshot: str,
-                 kind: str, count: int | None = None) -> list[str]:
+                 kind: str, count: int | None = None, note: str = "") -> list[str]:
     lines = [
         f"LUI corpus — {title}",
         f"format: {fmt}",
@@ -117,6 +117,8 @@ def header_lines(title: str, fmt: str, source: str, licence: str, snapshot: str,
         "order: the entries are sorted by the SHA-256 of their text — a prefix of this "
         "file is a representative sample, never the alphabetically first N",
     ]
+    if note:
+        lines.append(f"note: {note}")
     if count is not None:
         lines.insert(5, f"entries: {count}")
     return lines
@@ -156,6 +158,18 @@ def fetch(src: Path) -> None:
         print(f"{name}: {target.stat().st_size / 1e6:.1f} MB")
 
 
+# Das Format jedes Korpus: die **Spalten** und die Bedeutung des Gewichts. Der
+# Kopf nennt sie, und der Leser **prueft** sie gegen die Spalten, die er findet —
+# eine Selbstbeschreibung, die niemand liest, ist eine zweite Wahrheit.
+FORMATS = {
+    "words.txt": ("text<TAB>weight", "the weight is the derived weight of the text"),
+    "places.tsv": ("text<TAB>weight<TAB>context",
+                   "the weight is the population, the context is country/region/district"),
+    "movies.tsv": ("text<TAB>weight", "the weight is the number of votes"),
+    "wiki-titles.tsv": ("text<TAB>weight", "the weight is the derived weight of the text"),
+}
+
+
 def build_words(src: Path, dst: Path, snapshot: str) -> int:
     words = sorted({w.strip() for w in (src / "german.txt").read_text(
         encoding="utf-8", errors="replace").splitlines() if w.strip()})
@@ -165,11 +179,12 @@ def build_words(src: Path, dst: Path, snapshot: str) -> int:
             fh.write(f"{sha256_prefix4(w).hex()}\t{w}\n")
     head = header_lines(
         "the German words",
-        "text",
+        "text<TAB>weight",
         "https://github.com/kkrypt0nn/wordlists (wordlists/languages/german.txt)",
         "none stated by the repository for the lists it gathers itself — accepted by the owner",
         snapshot,
         "single",
+        note="the weight is the derived weight of the text",
     )
     count = write_corpus(dst, "words.txt", head, tmp, with_weight=False, with_context=False)
     print(f"words.txt: {count} entries")
@@ -213,13 +228,13 @@ def build_places(src: Path, dst: Path, snapshot: str) -> int:
                 count += 1
     head = header_lines(
         "the places of the world",
-        "text<TAB>weight<TAB>context — the weight is the population, the context is "
-        "country/region/district",
+        "text<TAB>weight<TAB>context",
         "https://download.geonames.org/export/dump/ (allCountries.txt, countryInfo.txt, "
         "admin1CodesASCII.txt, admin2Codes.txt)",
         "CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/) — Geonames",
         snapshot,
         "multi",
+        note="the weight is the population, the context is country/region/district",
     )
     count = write_corpus(dst, "places.tsv", head, tmp, with_weight=True, with_context=True)
     print(f"places.tsv: {count} entries")
@@ -254,11 +269,12 @@ def build_movies(src: Path, dst: Path, snapshot: str) -> int:
             count += 1
     head = header_lines(
         "the movie titles",
-        "text<TAB>weight — the weight is the number of votes",
+        "text<TAB>weight",
         "https://datasets.imdbws.com/ (title.basics.tsv, title.ratings.tsv)",
         "the non-commercial IMDb datasets (https://datasets.imdbws.com/#help)",
         snapshot,
         "multi",
+        note="the weight is the number of votes",
     )
     count = write_corpus(dst, "movies.tsv", head, tmp, with_weight=True, with_context=False)
     print(f"movies.tsv: {count} entries")
@@ -284,11 +300,12 @@ def build_wiki(src: Path, dst: Path, snapshot: str) -> int:
             count += 1
     head = header_lines(
         "the titles of the German Wikipedia",
-        "text",
+        "text<TAB>weight",
         "https://dumps.wikimedia.org/dewiki/latest/dewiki-latest-all-titles.gz",
         "CC BY-SA 4.0 + GFDL (https://creativecommons.org/licenses/by-sa/4.0/)",
         snapshot,
         "multi",
+        note="the weight is the derived weight of the text",
     )
     count = write_corpus(dst, "wiki-titles.tsv", head, tmp, with_weight=False, with_context=False)
     print(f"wiki-titles.tsv: {count} entries")
@@ -358,9 +375,12 @@ def main() -> int:
         # der Kopf nennt die Zahl der Eintraege der Datei und das Datum des
         # Abrufs der Quelle — beides aus der Datei selbst bzw. aus dem Aufruf,
         # nie aus einer Zahl, die mitgetragen wird.
-        head = [h for h in head if not h.startswith("entries:") and not h.startswith("snapshot:")]
+        head = [h for h in head if not h.startswith("entries:") and not h.startswith("snapshot:")
+                and not h.startswith("format:") and not h.startswith("note:")]
+        head.insert(1, f"format: {FORMATS[name][0]}")
         head.insert(5, f"entries: {count}")
         head.insert(6, f"snapshot: {snapshot}")
+        head.append(f"note: {FORMATS[name][1]}")
         with gzip.open(path, "wb", compresslevel=9) as gz:
             for line in head:
                 gz.write(f"# {line}\n".encode("utf-8"))

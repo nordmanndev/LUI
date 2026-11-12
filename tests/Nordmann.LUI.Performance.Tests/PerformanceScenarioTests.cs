@@ -62,7 +62,9 @@ public sealed class PerformanceScenarioTests
             scenario.PrefixLength.ShouldBe(1000);
             scenario.Batch.ShouldBe(100);
             scenario.MinimumWeight.ShouldBe(0);
+            scenario.Optimize.ShouldBeFalse();
             scenario.Machine.ShouldBe(BudgetMachine.Measurement);
+            scenario.Database.ShouldBe(string.Empty);
         }
         finally
         {
