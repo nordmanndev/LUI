@@ -1,5 +1,9 @@
 # Plan — The public surface of LUI and the measurement of its performance
 
+> **Note (ADR-0057, 2026-11-12, issue #121):** this paper named the contract outside the repository by its name of the
+> time. The sentences that named it are restated in the terms of this repository — they speak of "the external
+> contract" now. The text below is the paper of its time.
+
 - **Date:** 2026-11-11
 - **Base branch:** `dev` (the pull requests branch from it; `dev` → `main` is a release pull request)
 - **Decided by:** the owner, in six rounds on 2026-11-11
@@ -84,7 +88,7 @@ from that.
 |---|---|---|
 | D12 | **The specification is unlinked first, deleted afterwards.** `AGENTS.md` states the rules itself ("this repository's own rules; the decisions live in the ADRs and the docs"); the budgets move into the file of D6. The deletion is a separate pull request — it touches 175 files. | A big deletion mixed into the work is neither reviewable nor revertible on its own. |
 | D13 | **The §-references are rehung, not dropped.** Every `§x` becomes the ADR or the documentation page that carries the same rule; where none exists, the reference goes. The pull request delivers the mapping table. | A cross-reference to a deleted document is a dead end; a cross-reference to the decision that carries the rule is the same pointer, alive. |
-| D14 | **Every reference to the Nordmann standards goes** — `AGENTS.md`, `docs/architecture/alignment.md` (the file *is* about them), `docs/testing.md`, the README, `Directory.Build.props`, the CI comment, the ADRs (restated in place with a dated note) and the working papers. | LUI is a public library. Nobody outside knows what the standards are, and nobody has to. |
+| D14 | **Every reference to the external contract goes** — `AGENTS.md`, `docs/architecture/alignment.md` (the file *is* about them), `docs/testing.md`, the README, `Directory.Build.props`, the CI comment, the ADRs (restated in place with a dated note) and the working papers. | LUI is a public library. Nobody outside knows what the external contract is, and nobody has to. |
 | D15 | **The repository is English.** The specification is **not** translated — it is deleted (D12). The two German working papers are translated, the five tutorials get English file names. **The German sample data stays German** ("Gedeckter Apfelkuchen"): it shows what the normalisation is for. | Translating 1430 lines of a document that is about to be deleted is work without a purpose. |
 | D16 | **The base branch is `dev`.** The pull requests branch from it; `dev` → `main` is a release pull request with its own review. | The work is large and interdependent; the API breaks belong together, before the tag `v0.1.0`. |
 
@@ -120,8 +124,9 @@ and a measurement where a number is claimed. The acceptance bar is written below
 
 - `budgets.json` + the `LuiBudgets` API; `PerformanceBudget` and `ReadmeBudgetsTests` read it; the nine budgets of §16
   (the seven rows of its table, as the README lists them) are the first content.
-- `AGENTS.md` in its new form: the rules of this repository, no "the specification is the contract", no standards.
-- The standards references out of `AGENTS.md`, `docs/architecture/alignment.md` (restated as "what applies to a
+- `AGENTS.md` in its new form: the rules of this repository, no "the specification is the contract", no reference to the
+  external contract.
+- The references to the external contract out of `AGENTS.md`, `docs/architecture/alignment.md` (restated as "what applies to a
   library"), `docs/testing.md`, the README, `docs/README.md`, `Directory.Build.props`, the CI comment.
 - ADR 0056 (topic: *Measurement*).
 - **The two budget mutations change with it:** `a-budget-limit-in-the-readme-edited-by-hand` and
@@ -130,12 +135,13 @@ and a measurement where a number is claimed. The acceptance bar is written below
 - **Acceptance bar:** the budget test fails when a number in the file is wrong (a mutation), and the README renderer
   reads the same file — one source, two readers.
 
-### PR 4 — The documentation is English and free of the standards (D14, D15)
+### PR 4 — The documentation is English and free of the external contract (D14, D15)
 
 - The two German working papers translated (about 520 lines), the five tutorials renamed
-  (`01-first-index.md` …), the ADR texts restated without the standards (with a dated note), the ADR index updated.
-- **Acceptance bar:** a search for the German function words over the repository finds nothing outside the sample data;
-  a search for the standards finds nothing.
+  (`01-first-index.md` …), the ADR texts restated without the external contract (with a dated note), the ADR index updated.
+- **Acceptance bar:** a search for the German function words over the repository finds nothing outside the sample data
+  and the specification — the specification stays German until pull request 8 deletes it (D12); a search for the
+  external contract finds nothing outside the papers of the work and the decisions that say what was replaced.
 
 ### PR 5 — The measurement becomes its own layer (D17, D18, D19)
 
@@ -252,7 +258,7 @@ The decisions of this plan become ADRs in the same pull request as the change th
 | 1 — the typo distance | 0054 | Typo tolerance |
 | 2 — `DistinctText` goes | 0055 | Query path |
 | 3 — the budgets in a file | 0056 | Measurement |
-| 4 — English and free of the standards | 0057 | Documentation |
+| 4 — English and free of the external contract | 0057 | Documentation |
 | 5 — the measurement layer | 0058 | Measurement |
 | 6 — the corpora | 0059 | Measurement |
 | 7 — the benchmarks and the lane | 0060 | Measurement |

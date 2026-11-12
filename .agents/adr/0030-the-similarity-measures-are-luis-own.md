@@ -4,6 +4,9 @@
 > private one, that no reader of LUI can know and does not have to. The repository states its own rules since: the
 > rules that contract carried for LUI stand in [`AGENTS.md`](../../AGENTS.md) and in the documents of
 > [`docs/`](../../docs/README.md). The text below is history and stays as it was written.
+> **Note (ADR-0057, 2026-11-12, issue #121):** this record named an external contract that a reader of a public
+> library cannot know. The one sentence that named it is restated in the terms of this repository. The decision
+> stands as it was written; the text below is history.
 
 - **Status:** Accepted
 - **Date:** 2026-11-05
@@ -25,7 +28,7 @@
 
 ## Context
 
-ADR-0004 gave LUI two packages that the standards' closed library list does not name: `symspell` for the typo tolerance
+ADR-0004 gave LUI two packages that no ADR of this repository named yet: `symspell` for the typo tolerance
 and `F23.StringSimilarity` for the four similarity measures of §11. The owner's note on issue #30: *"own
 Jaro-Winkler/Damerau/Levenshtein ⇒ F23 falls away ⇒ runtime dependencies 3 → 2 ⇒ that needs an ADR."*
 

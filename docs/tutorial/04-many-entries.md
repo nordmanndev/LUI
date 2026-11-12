@@ -207,4 +207,4 @@ sorted and merges it at the end, and `UpsertMany` builds it row by row.
 - The limits, and the cost of every one of them.
 
 Next: the same library in a running application — step 5,
-[In the application](./05-in-der-anwendung.md).
+[In the application](./05-in-the-application.md).

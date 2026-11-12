@@ -13,7 +13,10 @@
 > of the documentation; the README shows the budgets of the specification and links to the record. The guard renders and
 > checks the section in the record. The decision below is written as it stands now.
 
-- **Status:** Accepted (owner's request of 2026-11-04: "ich will die Ergebnisse aus BenchmarkDotNet in der README sehen")
+> **Note (ADR-0057, 2026-11-12, issue #121):** the German wording of the record — the owner's request — was translated
+> into English. The decision stands as it was written; the text below is history.
+
+- **Status:** Accepted (owner's request of 2026-11-04: "I want to see the results from BenchmarkDotNet in the README")
 - **Date:** 2026-11-04 (restated 2026-11-06)
 - **Issue:** #36 (PR-010 of the plan), #61 (the move of the tables)
 - **Builds on:** [0020](./0020-the-performance-budgets-measured.md) (the corpus, the budget test, the benchmark project), [0036](./0036-the-readme-the-specification-and-the-tutorial.md) (where a document belongs)

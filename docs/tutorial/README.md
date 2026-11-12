@@ -32,11 +32,11 @@ Until then, reference the projects of the repository directly.
 
 | Step | What it does | Your time at the keyboard |
 |---|---|---|
-| [1 — Your first index](./01-erster-index.md) | the catalog, the first index, the first entries, the first query | 15 minutes |
-| [2 — Your own data](./02-eigene-daten.md) | an index over your own table, the reconciliation, the triggers | 20 minutes |
-| [3 — The payload](./03-nutzdaten.md) | the serialiser of the catalog, `GetPayload<T>()` | 15 minutes |
-| [4 — Many entries](./04-auf-vielen-eintraegen.md) | `Sync`, the limits, what it costs — with the measured numbers | 20 minutes |
-| [5 — In the application](./05-in-der-anwendung.md) | `AddLui` in ASP.NET Core, the catalog from the container, only reading | 15 minutes |
+| [1 — Your first index](./01-first-index.md) | the catalog, the first index, the first entries, the first query | 15 minutes |
+| [2 — Your own data](./02-your-own-data.md) | an index over your own table, the reconciliation, the triggers | 20 minutes |
+| [3 — The payload](./03-the-payload.md) | the serialiser of the catalog, `GetPayload<T>()` | 15 minutes |
+| [4 — Many entries](./04-many-entries.md) | `Sync`, the limits, what it costs — with the measured numbers | 20 minutes |
+| [5 — In the application](./05-in-the-application.md) | `AddLui` in ASP.NET Core, the catalog from the container, only reading | 15 minutes |
 
 About an hour and a half in all, if you type the code. The reading is the
 other half of it.

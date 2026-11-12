@@ -55,9 +55,9 @@ decided about the query path" without opening 36 files.
 | # | Title | Topic | Status |
 |---|---|---|---|
 | [0001](./0001-single-package.md) | One NuGet package instead of three | Packages | Accepted |
-| [0002](./0002-library-not-an-application.md) | LUI is a library, not an application — the standards delta | Architecture | Accepted (contract note of 2026-11-12, ADR-0056) |
+| [0002](./0002-library-not-an-application.md) | LUI is a library, not an application — and it stands on the rules of this repository | Architecture | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0003](./0003-defer-the-open-questions.md) | The nine open questions of the specification are deferred | Scope | Accepted |
-| [0004](./0004-dependencies.md) | The dependency set — and the deviation from the closed library list | Packages | Accepted |
+| [0004](./0004-dependencies.md) | The dependency set of the library, and the deviation from the closed list | Packages | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0005](./0005-measured-normalisation.md) | The normalisation rule is measured, not derived | Normalisation | Accepted |
 | [0006](./0006-the-single-word-index.md) | The single-word index: one rowid, three indexes, one external-content FTS5 table | Storage | Accepted |
 | [0007](./0007-the-catalog-checks-the-sqlite-it-runs-on.md) | The catalog checks the SQLite it runs on | Probe | Accepted |
@@ -80,16 +80,16 @@ decided about the query path" without opening 36 files.
 | [0024](./0024-the-api-polish-before-the-freeze.md) | The API polish before the freeze: `AddLinkedIndex`, `entries`, `CandidateRead`, `LuiPayloadRow`, `LuiException`, a read interface that only reads | API | Accepted |
 | [0025](./0025-the-typo-dictionary-only-grows.md) | The typo dictionary only grows: no `Stale`, no background rebuild, one dictionary per index | Typo tolerance | Accepted |
 | [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) | The public API from 0.1.0 on grows only additively: a breaking change needs a minor version, a migration note and an ADR | API | Accepted |
-| [0027](./0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md) | The sample: flexdatalist against the whole API, a modular client, one fetch boundary | Sample | Accepted |
+| [0027](./0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md) | The sample: flexdatalist against the whole API, a modular client, one fetch boundary | Sample | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0028](./0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md) | LUI has no Highlight: a correction is shown as a question (#20 struck) | API | Accepted |
 | [0029](./0029-the-sample-fills-its-own-bulk-indexes-on-demand.md) | The sample fills its own bulk indexes on demand: a word list, Bogus names and tags, behind a button | Sample | Accepted |
-| [0030](./0030-the-similarity-measures-are-luis-own.md) | The four similarity measures are LUI's own: the runtime dependency on F23 ends | Packages | Accepted |
+| [0030](./0030-the-similarity-measures-are-luis-own.md) | The four similarity measures are LUI's own: the runtime dependency on F23 ends | Packages | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0031](./0031-the-pool-displaces-instead-of-discarding.md) | The pool of the buffers displaces instead of discarding | Runtime | Accepted |
 | [0032](./0032-the-allocation-of-a-query.md) | The allocation of a query: what it costs, and what it may cost | Measurement | Accepted |
 | [0033](./0033-the-read-path-opens-an-index-without-writing.md) | The read path opens an index without writing: `Create()` and `Index()` in the catalog, the file that decides what may be written | API | Accepted |
 | [0034](./0034-the-hosting-package-carries-only-the-dependency-injection.md) | The hosting package carries only the dependency injection: the abstractions of the host are gone | Packages | Accepted |
 | [0035](./0035-the-index-knows-no-types.md) | The index knows no types: the serialiser belongs to the catalog, the type stands where the payload is used | API | Accepted |
-| [0036](./0036-the-readme-the-specification-and-the-tutorial.md) | The README is the entrance, the specification the contract, the tutorial the way | Documentation | Accepted (decisions 1 and 4 superseded 2026-11-06, ADR-0039) |
+| [0036](./0036-the-readme-the-specification-and-the-tutorial.md) | The README is the entrance, the specification the contract, the tutorial the way | Documentation | Accepted (decisions 1 and 4 superseded 2026-11-06, ADR-0039; restated 2026-11-12, issue #121, ADR-0057) |
 | [0037](./0037-the-papers-of-the-work-live-under-agents.md) | The papers of the work live under `.agents/`, the documentation of the library under `docs/` | Documentation | Accepted |
 | [0038](./0038-the-public-api-has-a-page-of-its-own.md) | The public API has a page of its own, and a test holds it up | Documentation | Accepted |
 | [0039](./0039-the-entrance-shows-the-measurement.md) | The entrance shows the measurement, the bulk path, the kinds and the sources | Documentation | Accepted |
@@ -106,7 +106,8 @@ decided about the query path" without opening 36 files.
 | [0050](./0050-the-tests-that-read-the-clock-carry-a-trait-and-argue-their-bounds.md) | The tests that read the clock carry a trait, and argue their bounds | Testing | Accepted |
 | [0051](./0051-xunit-v3-run-by-vstest.md) | xUnit.net v3, run by VSTest | Testing | Accepted |
 | [0052](./0052-a-null-column-is-null-for-a-type-that-can-hold-it.md) | A NULL column is null for a type that can hold it | API | Accepted |
-| [0053](./0053-the-first-release-is-a-prerelease.md) | The first release is a prerelease: 0.1.0-alpha | Packages | Accepted |
+| [0053](./0053-the-first-release-is-a-prerelease.md) | The first release is a prerelease: 0.1.0-alpha | Packages | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0054](./0054-the-typo-distance-is-an-enumeration.md) | The typo distance is an enumeration, and it belongs to the index | Typo tolerance | Accepted |
 | [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md) | The uniqueness of a text belongs to the data: `DistinctText` is removed | Query path | Accepted |
 | [0056](./0056-the-budgets-live-in-a-file.md) | The budgets live in a file: one source, two readers | Measurement | Accepted |
+| [0057](./0057-the-repository-of-a-public-library-is-english.md) | The repository of a public library is English | Documentation | Accepted |

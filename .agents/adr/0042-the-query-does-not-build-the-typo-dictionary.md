@@ -1,5 +1,9 @@
 # 0042 — The query does not build the typo dictionary: the application asks for it
 
+> **Note (ADR-0057, 2026-11-12, issue #121):** the two German quotations of §10.1 were translated into English. The
+> specification is German and stays German until it is deleted in pull request 8; the decision stands as it was
+> written; the text below is history.
+
 - **Status:** Accepted
 - **Date:** 2026-11-07
 - **Builds on:** [0021](./0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md) (the dictionary in the life of an
@@ -31,7 +35,7 @@ Three things follow from that, and all three are costs of the *query*:
   next keystroke would start the build again — a build bound to the request would never finish (review of pull request
   34, I3).
 
-The contract of §10.1 said so: *"Aufbau beim ersten Zugriff"* — the build on the first access. It is the one promise
+The contract of §10.1 said so: *"the build on the first access"*. It is the one promise
 of the library that the application cannot see, cannot pay for and cannot avoid.
 
 ## Decision
@@ -46,7 +50,7 @@ of the library that the application cannot see, cannot pay for and cannot avoid.
    answers without the correction, as before.
 5. **The public API does not change.** `WarmUpTypoDictionary()` and `RebuildTypoDictionary()` exist already, on the
    embedded and on the linked index; no member disappears, so `docs/api.md` stays as it is.
-6. **The specification follows.** §10.1 says *"Aufbau auf ausdrücklichen Wunsch"* and names the rule: a query asks,
+6. **The specification follows.** §10.1 says *"the build on explicit request"* and names the rule: a query asks,
    the application builds.
 
 ## Alternatives

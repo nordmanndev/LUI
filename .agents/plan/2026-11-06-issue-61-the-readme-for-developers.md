@@ -1,141 +1,154 @@
-# Plan — Issue #61: die README für Entwickler, das Tutorial, die Karte der Dokumentation
+# Plan — Issue #61: the README for developers, the tutorial, the map of the documentation
 
-Stand: 2026-11-06 · Branch: `docs/readme-and-tutorial` (von `main` = `111eefb`) · Issue:
+> **Note (ADR-0057, 2026-11-12, issue #121):** this paper was written in German and has been translated into English.
+> The translation keeps what the paper said at its time — the decisions, the numbers, the names, the branches, the issue
+> numbers and the dates. The text below is the paper of its time.
+
+State: 2026-11-06 · Branch: `docs/readme-and-tutorial` (from `main` = `111eefb`) · Issue:
 [#61](https://github.com/nordmanndev/LUI/issues/61)
 
-## Das Ziel
+## The goal
 
-Die README ist heute ein Architektur-Dokument. Sie wird der Einstieg für Entwickler, die LUI benutzen
-wollen — und die Lücke, die sie seit jeher hat, wird gefüllt: **ein Weg, das zu lernen**.
+The README is an architecture document today. It becomes the entrance for developers who want to
+use LUI — and the gap it has had from the start is filled: **a way to learn it**.
 
-Die drei Vorbilder, die der Owner genannt hat, liefern die Form: *Best-README-Template* (Abzeichen,
-Inhaltsverzeichnis, klarer Aufbau), *awesome-readme* (kurz, ein Beispiel, nichts Überflüssiges) und der
-.NET-Blog über NuGet-READMEs (was, welches Problem, Highlights, Installation, ein laufendes Beispiel,
-die wichtigsten Typen, wo es weitergeht).
+The three models the owner named deliver the shape: *Best-README-Template* (badges, a table of
+contents, a clear structure), *awesome-readme* (short, one example, nothing superfluous) and the .NET
+blog about NuGet READMEs (what, which problem, highlights, installation, a running example, the most
+important types, where to go next).
 
-## Die Diagnose, gegen `main` geprüft
+## The diagnosis, checked against `main`
 
-| | Befund |
+| | Finding |
 |---|---|
-| Umfang | 571 Zeilen, 18 Abschnitte |
-| Die fünf Konzeptabschnitte (182–311) | ein Duplikat von `.agents/spec/LUI-Spezifikation.md` — zwei Orte für eine Wahrheit |
-| Performance (ab 387) | das Vertrauensargument steht nach zwei Dritteln der Datei |
-| BenchmarkDotNet-Tabellen (414–494) | 80 Zeilen Rohdaten im falschen Dokument |
-| Inhaltsverzeichnis, Abzeichen | keine |
-| `normalization.md`, `architecture/alignment.md`, `domain/lui.md` | **null** Verweise aus der README — verwaist |
+| Scope | 571 lines, 18 sections |
+| The five concept sections (182–311) | a duplicate of `.agents/spec/LUI-Spezifikation.md` — two places for one truth |
+| Performance (from 387) | the argument for trust stands after two thirds of the file |
+| BenchmarkDotNet tables (414–494) | 80 lines of raw data in the wrong document |
+| Table of contents, badges | none |
+| `normalization.md`, `architecture/alignment.md`, `domain/lui.md` | **null** references from the README — orphaned |
 
-Die API ist seit `main` = `111eefb` endgültig: der Index kennt keine Typen (ADR-0035), der Serialisierer
-gehört dem Katalog, der Typ steht dort, wo der Payload benutzt wird. Die README wird gegen diese API
-geschrieben, nicht gegen eine spätere.
+The API is final since `main` = `111eefb`: the index knows no types (ADR-0035), the serialiser
+belongs to the catalog, the type stands where the payload is used. The README is written against this
+API, not against a later one.
 
-## Die Arbeit
+## The work
 
-### 1. Das Tutorial (`docs/tutorial/`)
+### 1. The tutorial (`docs/tutorial/`)
 
-Die Spezifikation ist ein Vertrag, kein Wegweiser. Das Tutorial ist der Weg: von der leeren Datenbank bis
-zur funktionierenden Autocomplete-Suche, in Schritten, mit lauffähigem Code nach jedem Schritt.
+The specification is a contract, not a wayfinder. The tutorial is the way: from the empty database
+to the working autocomplete search, in steps, with runnable code after every step.
 
-- `docs/tutorial/README.md` — der Wegweiser: die Schritte, was man danach kann, wie lange es dauert.
-- `docs/tutorial/01-erster-index.md` — der Katalog, der erste Index, die ersten Einträge, die erste Abfrage.
-- `docs/tutorial/02-eigene-daten.md` — ein Index über die eigene Tabelle (`Linked`), der Abgleich, die Trigger.
-- `docs/tutorial/03-nutzdaten.md` — der Payload: der Serialisierer des Katalogs, `GetPayload<T>()`.
-- `docs/tutorial/04-auf-vielen-eintraegen.md` — `Sync`, die Grenzen, was es kostet (mit den gemessenen Zahlen).
-- `docs/tutorial/05-in-der-anwendung.md` — `AddLui` in ASP.NET Core, der Katalog aus dem Container, der
-  Nur-Lesen-Zugang.
+- `docs/tutorial/README.md` — the wayfinder: the steps, what you can do afterwards, how long it
+  takes.
+- `docs/tutorial/01-first-index.md` — the catalog, the first index, the first entries, the first
+  query.
+- `docs/tutorial/02-your-own-data.md` — an index over your own table (`Linked`), the reconciliation,
+  the triggers.
+- `docs/tutorial/03-the-payload.md` — the payload: the serialiser of the catalog, `GetPayload<T>()`.
+- `docs/tutorial/04-many-entries.md` — `Sync`, the limits, what it costs (with the measured
+  numbers).
+- `docs/tutorial/05-in-the-application.md` — `AddLui` in ASP.NET Core, the catalog out of the
+  container, the read-only access.
 
-Regeln: jedes Codebeispiel **muss übersetzbar sein** (der Paket-Smoke-Test oder ein eigener Test
-übernimmt das); „warum so?" als Randnotiz statt als Kapitel; nichts, was die Spezifikation nicht sagt.
+Rules: every code example **must be compilable** (the package smoke test or a test of its own takes
+that over); "why so?" as a side note instead of a chapter; nothing that the specification does not
+say.
 
-### 2. Die neue README
+### 2. The new README
 
-Höchstens ~250 Zeilen, in dieser Reihenfolge:
+At most ~250 lines, in this order:
 
-1. Titel, Tagzeile, **Abzeichen** (Build, Version, NuGet, Lizenz, .NET).
-2. **Was LUI ist** — drei Sätze.
-3. **Das Problem** — zwei Sätze: 98 % der Eingaben sind Lesevorgänge; ein zweiter Datenspeicher für
-   dieselben Daten ist der teuerste Teil.
-4. **Highlights** — fünf bis sieben outcome-fokussierte Bullets.
-5. **Inhaltsverzeichnis**.
-6. **Install** — die zwei `dotnet add package`-Zeilen.
-7. **Quick start** — **ein** Beispiel, ~20 Zeilen, mit der Ausgabe.
-8. **Performance** — die Budgettabelle (Ziel / gemessen / Limit), ein Satz zur Maschine, ein Link nach
-   `docs/benchmarks.md`.
-9. **Die zwei Indexarten und die zwei Inhaltsquellen** — **eine** Tabelle statt zwei Abschnitte.
-10. **Ein Payload** — der Serialisierer des Katalogs, `GetPayload<T>()` (ein eigener Abschnitt, damit der
-    Quick start kurz bleibt).
-11. **In einer ASP.NET Core-Anwendung** — `AddLui` und der Katalog.
-12. **Nur lesen** — `Mode=ReadOnly`.
-13. **Die wichtigsten Typen** — eine Tabelle: `LuiCatalog`, `LuiEntry`, `LuiKey`, `LuiQueryOptions`,
+1. Title, tagline, **badges** (build, version, NuGet, licence, .NET).
+2. **What LUI is** — three sentences.
+3. **The problem** — two sentences: 98 % of the inputs are reads; a second store for the same data
+   is the most expensive part.
+4. **Highlights** — five to seven outcome-focused bullets.
+5. **Table of contents**.
+6. **Install** — the two `dotnet add package` lines.
+7. **Quick start** — **one** example, ~20 lines, with the output.
+8. **Performance** — the budget table (target / measured / limit), a sentence about the machine, a
+   link to `docs/benchmarks.md`.
+9. **The two index kinds and the two content sources** — **one** table instead of two sections.
+10. **A payload** — the serialiser of the catalog, `GetPayload<T>()` (a section of its own, so that
+    the quick start stays short).
+11. **In an ASP.NET Core application** — `AddLui` and the catalog.
+12. **Reading only** — `Mode=ReadOnly`.
+13. **The most important types** — a table: `LuiCatalog`, `LuiEntry`, `LuiKey`, `LuiQueryOptions`,
     `LuiCatalogOptions`.
-14. **Die Beispielanwendung** — die zwei Screenshots und der Weg zum Sample.
-15. **Die Dokumentation** — die Karte: Tutorial, Spezifikation, Benchmarks, Normalisierung, ADRs, Testkarte.
-16. **Status, Beitragen, Lizenz** — der Repo-Teil, nach hinten.
+14. **The sample application** — the two screenshots and the way to the sample.
+15. **The documentation** — the map: tutorial, specification, benchmarks, normalisation, ADRs, test
+    map.
+16. **Status, contributing, licence** — the part of the repository, at the back.
 
-Was rausgeht: die fünf Konzeptabschnitte (sie stehen vollständig in der Spezifikation), die
-BenchmarkDotNet-Tabellen (sie gehören nach `docs/benchmarks.md`), der lange „Status"-Block (nach hinten).
+What goes out: the five concept sections (they stand in the specification in full), the
+BenchmarkDotNet tables (they belong in `docs/benchmarks.md`), the long "status" block (to the
+back).
 
-**„What this is not" bleibt** — `AGENTS.md` Zeile 16 verlangt es.
+**"What this is not" stays** — `AGENTS.md` line 16 demands it.
 
-### 3. Die Karte der Dokumentation
+### 3. The map of the documentation
 
-- `docs/README.md` — neu: was liegt wo, was ist der Vertrag, was ist die Historie, wer liest was.
-- `.agents/adr/README.md` — eine Spalte „Thema" (API / Speicher / Messung / Betrieb / Probe), damit ein
-  Entwickler „was wurde entschieden" findet, ohne 36 Dateien zu öffnen.
-- Die verwaisten Dokumente (`normalization.md`, `architecture/alignment.md`, `domain/lui.md`) werden aus
-  der README verlinkt.
-- `.agents/plan/` — eine `README.md`, die die Lieferpläne als die Geschichte des Repos erklärt.
+- `docs/README.md` — new: what lies where, what is the contract, what is the history, who reads
+  what.
+- `.agents/adr/README.md` — a column "topic" (API / storage / measurement / runtime / probe), so
+  that a developer finds "what was decided" without opening 36 files.
+- The orphaned documents (`normalization.md`, `architecture/alignment.md`, `domain/lui.md`) are
+  linked from the README.
+- `.agents/plan/` — a `README.md` that explains the delivery plans as the history of the repository.
 
-### 4. Die Wächter und das Papier
+### 4. The guards and the paper
 
-- `Readme_Benchmarks` — der Wächter vergleicht die Benchmark-Abschnitte **in der README** mit den
-  BenchmarkDotNet-Reports. Wenn die Tabellen umziehen, zieht der Wächter mit: er prüft die neue Stelle
-  (`docs/benchmarks.md`) und rendert dorthin.
-- **ADR-0022** („The benchmark results in the README") wird neu gefasst: die Rohdaten liegen in
-  `docs/benchmarks.md`, die Budgets in der README.
-- Eine neue ADR für die Neuordnung (die README ist der Einstieg, die Spezifikation der Vertrag, das
-  Tutorial der Weg) — in der Hausart der anderen.
-- Der Paket-Smoke-Test führt jeden C#-Block der README aus — das muss nach der Neuordnung weiterhin
-  gelten (und für die verschobenen Blöcke gilt: die Konzepte stehen jetzt in der Spezifikation).
+- `Readme_Benchmarks` — the guard compares the benchmark sections **in the README** with the
+  BenchmarkDotNet reports. If the tables move, the guard moves with them: it checks the new place
+  (`docs/benchmarks.md`) and renders there.
+- **ADR-0022** ("The benchmark results in the README") is restated: the raw data lies in
+  `docs/benchmarks.md`, the budgets in the README.
+- A new ADR for the new order (the README is the entrance, the specification the contract, the
+  tutorial the way) — in the house style of the others.
+- The package smoke test executes every C# block of the README — that has to keep holding after the
+  new order (and for the blocks that moved it holds: the concepts stand in the specification now).
 
-### 5. Bauen, testen, committen, pushen, den Pull Request füllen
+### 5. Build, test, commit, push, fill the pull request
 
-- `dotnet build -c Release`, `dotnet test`, `dotnet pack -c Release`, `npm test` — Exit 0, die echte
-  Ausgabe in den Bericht und in den Pull Request.
-- Ein Commit auf dem Zweig, auf Englisch, im Stil des Repos. `main` bleibt unberührt, kein Force-Push.
-- Der Pull Request gegen `main` bekommt einen neuen Body: Was, Warum (Issue #61), die echte
-  Verification-Ausgabe, die geänderten Tests, der CHANGELOG-Hinweis.
-- Nicht auf die CI warten, nichts mergen.
+- `dotnet build -c Release`, `dotnet test`, `dotnet pack -c Release`, `npm test` — exit 0, the real
+  output in the report and in the pull request.
+- One commit on the branch, in English, in the style of the repository. `main` stays untouched, no
+  force push.
+- The pull request against `main` gets a new body: what, why (issue #61), the real verification
+  output, the changed tests, the CHANGELOG note.
+- Do not wait for the CI, do not merge anything.
 
-### 6. Die Verifikation des Pull Requests
+### 6. The verification of the pull request
 
-Read-only, mit eigenen Belegen und nicht mit den Tests des Entwicklers:
+Read-only, with its own evidence and not with the tests of the developer:
 
-- baut und testet der Zweig ✓
-- ist die README kürzer, hat sie ein Inhaltsverzeichnis und Abzeichen, steht die Performance im ersten
-  Drittel, sind die Konzepte draußen ✓
-- sind die verwaisten Dokumente verlinkt ✓
-- funktioniert der Wächter noch (der Benchmark-Vergleich besteht) ✓
-- stimmen die Codebeispiele mit dem Code überein (die README zeigt keine API, die es nicht gibt) ✓
-- ist `main` unberührt, kein Force-Push, kein Build-Müll, keine Secrets im Diff ✓
+- does the branch build and do the tests pass ✓
+- is the README shorter, does it have a table of contents and badges, does the performance stand in
+  the first third, are the concepts out ✓
+- are the orphaned documents linked ✓
+- does the guard still work (the benchmark comparison passes) ✓
+- do the code examples agree with the code (the README shows no API that does not exist) ✓
+- is `main` untouched, no force push, no build rubbish, no secrets in the diff ✓
 
-Bericht nach `/workspace/verify-61-readme.md`, die erste Zeile PASS oder FAIL, die letzte Zeile der
-Zusammenfassung `VERDICT: PASS` oder `VERDICT: FAIL`.
+Report to `/workspace/verify-61-readme.md`, the first line PASS or FAIL, the last line of the
+summary `VERDICT: PASS` or `VERDICT: FAIL`.
 
-## Die Annahmen, die geprüft werden
+## The assumptions that are checked
 
-a) Die README ist höchstens ~250 Zeilen, hat ein Inhaltsverzeichnis und Abzeichen.
-b) Die fünf Konzeptabschnitte stehen in der Spezifikation und nicht mehr in der README.
-c) Die Performance-Budgettabelle steht vor dem ersten Drittel der README.
-d) Die BenchmarkDotNet-Rohdaten stehen in `docs/benchmarks.md`, und der Wächter `Readme_Benchmarks`
-   prüft dort — der Test ist grün.
-e) `docs/normalization.md`, `docs/architecture/alignment.md` und `docs/domain/lui.md` sind aus der
-   README erreichbar; `docs/README.md` existiert.
-f) Das Tutorial existiert, und jedes seiner Codebeispiele übersetzt.
-g) Jeder C#-Block der README übersetzt und läuft im Paket-Smoke-Test.
-h) Die README zeigt keine API, die der Code nicht hat (AGENTS.md).
-i) `main` ist unberührt, kein Force-Push, kein Build-Müll, keine Secrets.
+a) The README is at most ~250 lines, has a table of contents and badges.
+b) The five concept sections stand in the specification and no longer in the README.
+c) The performance budget table stands before the first third of the README.
+d) The BenchmarkDotNet raw data stands in `docs/benchmarks.md`, and the guard `Readme_Benchmarks`
+   checks there — the test is green.
+e) `docs/normalization.md`, `docs/architecture/alignment.md` and `docs/domain/lui.md` are reachable
+   from the README; `docs/README.md` exists.
+f) The tutorial exists, and every one of its code examples compiles.
+g) Every C# block of the README compiles and runs in the package smoke test.
+h) The README shows no API that the code does not have (AGENTS.md).
+i) `main` is untouched, no force push, no build rubbish, no secrets.
 
-## Was offen ist
+## What is open
 
-Nichts. Der Owner hat den Plan am 2026-11-06 freigegeben: erst das Tutorial, dann die README, dann die
-Karte, alles in einem Pull Request gegen Issue #61.
+Nothing. The owner released the plan on 2026-11-06: first the tutorial, then the README, then the
+map, all in one pull request against issue #61.

@@ -270,4 +270,4 @@ KEY` — and refuses a text key.
 - A query that returns its hits, best first.
 
 Next: the same idea, but over a table **you** own — step 2,
-[Your own data](./02-eigene-daten.md).
+[Your own data](./02-your-own-data.md).

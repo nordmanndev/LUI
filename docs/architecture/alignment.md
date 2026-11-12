@@ -4,6 +4,10 @@
 > rules that describe the shape of an *application* and therefore do not apply
 > here, and what LUI adds on top. The short form is ADR-0002; this file is the
 > long form, with the pointers.
+>
+> One quotation of the specification was translated into English (ADR-0057,
+> 2026-11-12, issue #121); the specification is German and stays German until
+> it is deleted in pull request 8.
 
 LUI is a **library**: a NuGet package that an application builds against. The
 question this file answers is not "which rules does LUI follow?" but "which
@@ -30,11 +34,11 @@ which describe *application shape* — and therefore do not".
 
 | The shape of an application | Why it does not apply to a library | Where it would have hurt |
 |---|---|---|
-| DDD aggregates, CQS, Mediator dispatch | LUI has no domain, no commands, no handlers. Its API is `LuiCatalog → ILuiIndex → Query`. | a source generator in every consumer's build, for no behaviour |
-| OrmLite persistence | LUI *is* the persistence layer, over raw `Microsoft.Data.Sqlite`. The specification's §8 is explicit SQL. | a second ORM hiding the SQL the design depends on |
-| Outbox + `BackgroundService` | LUI has no events and no process. | a queue for a library that has one long operation with a `CancellationToken` |
-| ULID identifiers | `TKey` is the *application's* key (`long` or `string`, §12.3). | imposing an ID type on consumers |
-| Serilog → Seq | A library must not force a logging stack on consumers. | a transitive logging dependency in every app |
+| Domain aggregates, a command bus | LUI has no domain, no commands, no handlers. Its API is `LuiCatalog → ILuiIndex → Query`. | a source generator in every consumer's build, for no behaviour |
+| A persistence layer above the database | LUI *is* the persistence layer, over raw `Microsoft.Data.Sqlite`. The specification's §8 is explicit SQL. | a second ORM hiding the SQL the design depends on |
+| Events and a `BackgroundService` | LUI has no events and no process. | a queue for a library that has one long operation with a `CancellationToken` |
+| Its own identifier type | `TKey` is the *application's* key (`long` or `string`, §12.3). | imposing an ID type on consumers |
+| A logging stack of its own | A library must not force a logging stack on consumers. | a transitive logging dependency in every app |
 | Multi-tenant by default | One catalog = one database. Tenancy is the application's. | the library deciding a tenancy model for its consumer |
 | A frontend framework for the sample | That governs the frontends of *projects*. The sample is a library demo with one inline page, plain ES modules and its own CSS. | a demo whose subject is the LUI API buried under a frontend stack |
 | `lib/http.js` as the only fetch boundary | The library ships no browser code. The sample's page has exactly one fetch boundary. | — |
@@ -44,7 +48,7 @@ which describe *application shape* — and therefore do not".
 | Rule | Why |
 |---|---|
 | The behaviour is written down in the repository | a reader who has only the repository knows everything a change needs to know: the decisions live in the ADRs, the budgets in one file (ADR-0056) |
-| Every decision of the specification's §3 (E1–E10) becomes an ADR here | the specification asks for it: *"Jede Entscheidung bekommt in der Umsetzung ein ADR."* |
+| Every decision of the specification's §3 (E1–E10) becomes an ADR here | the specification asks for it: *"Every decision becomes an ADR in the implementation."* |
 | The performance budgets are tests, not prose | Anhang A's numbers are measurements on a machine that is not the consumer's machine |
 | The dependency set is asserted | a library's dependency list is a public contract (ADR-0004) |
 | The SQL ↔ C# normalisation parity is a test over the whole word list | the rule exists twice (§6.2); a drift between the two sides is a silent search miss |

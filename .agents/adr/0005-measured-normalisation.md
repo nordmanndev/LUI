@@ -1,5 +1,9 @@
 # 0005 — The normalisation rule is measured, not derived
 
+> **Note (ADR-0057, 2026-11-12, issue #121):** the quotation of §6.2 of the specification was
+> translated into English. The specification is German and stays German until it is deleted in pull request 8; the
+> decision stands as it was written; the text below is history.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
@@ -13,8 +17,8 @@ The normalisation rule exists **twice**: as SQL expressions in the index
 columns and as the C# `Normalizer`. The specification (§6.2) says so and
 demands a test:
 
-> Die Regel existiert damit zweimal. Ein Test muss für eine große Stichprobe
-> … zeigen, dass SQL und C# dieselbe Suchform liefern.
+> The rule therefore exists twice. A test must show over a large sample
+> … that SQL and C# deliver the same search form.
 
 The rule itself (§6.1) is written in three steps:
 

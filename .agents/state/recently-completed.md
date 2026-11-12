@@ -97,7 +97,7 @@ the scratchpad here at the end of a session.
   `searchDisabled`), a cache keyed without `params`, an unescaped `innerHTML`.
 - **`Highlight` struck (owner, 2026-11-04, ADR-0028, #20 closed):** the page marks nothing; a correction is "Did you mean …?" from
   `CorrectedQuery` (one line above the list, choosing it searches the word). A first version with a measured fold table and a span map
-  was built, matched the tokenizer for 334 letters of 16 Latin alphabets, and was dropped. Spec §9.3 "entfällt".
+  was built, matched the tokenizer for 334 letters of 16 Latin alphabets, and was dropped. Spec §9.3 "falls away".
 - Tests: 35 `SampleApiTests` (real Kestrel), 16 `Sample_Client`, 32 node tests (`npm test`, a CI lane), five mutations;
   browser assertions by hand (Chromium). The sample's `appsettings.json` is gone (a referencing test project copied it and changed its log level).
 

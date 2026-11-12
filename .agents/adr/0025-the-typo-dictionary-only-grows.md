@@ -1,6 +1,9 @@
 # 0025 — The typo dictionary only grows: no `Stale`, no background rebuild, one dictionary per index
 
-- **Status:** Accepted (owner's decision, 2026-11-04: option G of #48, "wenn du G als gut empfindest und die Komplexität dadurch reduziert wird, finde ich, ist das ein guter Weg")
+> **Note (ADR-0057, 2026-11-12, issue #121):** the German wording of the record — the owner's decision — was translated
+> into English. The decision stands as it was written; the text below is history.
+
+- **Status:** Accepted (owner's decision, 2026-11-04: option G of #48, "if you find G good and it reduces the complexity by it, I think that is a good way")
 - **Date:** 2026-11-04
 - **Issue:** #48
 - **Amends:** [0021](./0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md) — the part that made a built dictionary

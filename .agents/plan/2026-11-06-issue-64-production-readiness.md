@@ -1,8 +1,12 @@
 # The plan of the production readiness
 
+> **Note (ADR-0057, 2026-11-12, issue #121):** the German parts of this paper have been translated into English.
+> The translation keeps what the paper said at its time — the decisions, the numbers, the names, the branches, the issue
+> numbers and the dates. The text below is the paper of its time.
+
 > An independent architecture review of 2026-11-06 asked the question "is LUI production-ready for Nordmann-Dev?" —
 > performance, concurrency, test behaviour and the work of a developer who adopts it. Its verdict: the library is
-> **architekturally reif** and **not yet delivered**. It named three gaps that no single commit can close — no
+> **architecturally mature** and **not yet delivered**. It named three gaps that no single commit can close — no
 > release, no automatic gate for the budgets of §16, and a typo dictionary that is built inside the read transaction
 > of the query — plus one stale number that stands in two documents. This plan is what this round does about the parts
 > that belong together: one issue, one pull request, seven tasks, one commit each.
@@ -181,20 +185,19 @@
   - [x] `docs/api.md` carries the two new methods of the catalog and the new registration.
   - [x] The CHANGELOG (additive), the README (the ASP.NET section), the tutorial (chapter 5).
   - **Test delta:** +4 integration tests, +2 public methods (`WarmUpTypoDictionaries`, `ApplyPending`), +1 registration.
-    **Proof:** the red commit `7029503` (2 of 3 cases red, frisch im Worktree nachgeprüft) ⇒ the green run **#154**
-    (`988b670`): Unit 263, Architektur 82, Integration 445 + 14 übersprungen, Client 43, `package-smoke-test: OK`,
-    Mutations-Check 0 failure(s) — alle fünf Jobs grün.
+    **Proof:** the red commit `7029503` (2 of 3 cases red, checked again fresh in the worktree) ⇒ the green run **#154**
+    (`988b670`): unit 263, architecture 82, integration 445 + 14 skipped, client 43, `package-smoke-test: OK`,
+    mutation check 0 failure(s) — all five jobs green.
 
-  **Was die Runde fand:** der **Package-Smoke-Test** erwischte das README — er führt alle C#-Blöcke als **ein Programm**
-  aus, und mein zweiter Block registrierte den Katalog ein zweites Mal (`AddLui` wirft). Der Wärmer wanderte in den
-  Block des Hosts, wo der Katalog einmal registriert wird.
+  **What the round found:** the **package smoke test** caught the README — it runs all C# blocks as **one program**,
+  and my second block registered the catalog a second time (`AddLui` throws). The warm-up wandered into the block of
+  the host, where the catalog is registered once.
 
-  Und die **Windows-Lane** fand ein Rennen, das Task 5 offen gelassen hatte (#67): der Dispose-Test wartete auf den
-  Zustand des Wörterbuchs mit `await Task.Delay(10)` — und die Fortsetzung des `await` braucht einen freien Thread des
-  Pools. Unter der Last der Suite kam sie so spät, dass der Build fertig war (`Current` statt `Building`) und der
-  Dispose den Katalog unter dem Warm-up schloss. Die Warteschleife schläft jetzt auf dem Thread des Tests, und die
-  Behauptung „der Dispose kommt während des Warm-ups" wird über die **Zeitstempel** der beiden Worker bewiesen statt
-  gehofft.
+  And the **Windows lane** found a race that task 5 had left open (#67): the dispose test waited for the state of
+  the dictionary with `await Task.Delay(10)` — and the continuation of the `await` needs a free thread of the pool.
+  Under the load of the suite it came so late that the build was done (`Current` instead of `Building`) and the
+  dispose closed the catalog under the warm-up. The waiting loop now sleeps on the thread of the test, and the claim
+  "the dispose comes during the warm-up" is proven over the **timestamps** of the two workers instead of hoped for.
 
 - [x] **Task 7 — A typed view over the untyped index (#59)**
   - [x] `index.As<T>()` — a thin, allocation-free view that delegates to the one index and calls `GetPayload<T>()` for
@@ -206,21 +209,20 @@
   - [x] The CHANGELOG (additive — allowed by ADR-0026), the README, the tutorial.
   - **Test delta:** +2 integration tests. **Proof:** the CI run; #59 gets the comment and is closed.
 
-  **Der rote Zustand zuerst:** Commit `36ec435` — die Sicht ist die Form ohne die Arbeit ⇒ Lauf **42393907837**:
-  genau die zwei neuen Tests sind rot, alles andere ist grün (Unit 263, Architektur 82, Integration 445 + 14
-  übersprungen; die Windows-Lane meldet dieselben zwei roten Tests). Der grüne Commit `c7260ce` ⇒ Lauf **42394766341**:
-  alle fünf Jobs grün — Unit 263, Architektur 82, Integration 447 + 14 übersprungen, Windows-Lane, Parität,
-  Mutations-Check `=== 0 failure(s) ===`, `package-smoke-test: OK`. **#59 ist kommentiert und geschlossen.**
+  **The red state first:** commit `36ec435` — the view is the form without the work ⇒ run **42393907837**:
+  exactly the two new tests are red, everything else is green (unit 263, architecture 82, integration 445 + 14
+  skipped; the Windows lane reports the same two red tests). The green commit `c7260ce` ⇒ run **42394766341**:
+  all five jobs green — unit 263, architecture 82, integration 447 + 14 skipped, Windows lane, parity,
+  mutation check `=== 0 failure(s) ===`, `package-smoke-test: OK`. **#59 is commented and closed.**
 
-  **Was die Runde fand:** die drei neuen Typen sind die **ersten generischen Typen** der öffentlichen Oberfläche. Die
-  Laufzeit hängt die Aritätät an den Namen eines generischen Typs — und die Wächter, die die Seite mit den Assemblies
-  vergleichen, stellten die Frage auf beiden Seiten verschieden: die Seite schrieb `LuiTypedHit`, der Namensvergleich
-  suchte die Arität. Ein kleiner Helfer (`Type_Names`) fragt jetzt auf beiden Seiten gleich — und die beiden Wächter,
-  die die Typen mit benannten Eigenschaften und die API-Dokumentation prüfen, decken die generischen Typen jetzt
-  überhaupt erst ab.
+  **What the round found:** the three new types are the **first generic types** of the public surface. The runtime
+  hangs the arity on the name of a generic type — and the guards that compare the page with the assemblies asked the
+  question differently on the two sides: the page wrote `LuiTypedHit`, the name comparison looked for the arity. A
+  small helper (`Type_Names`) asks it the same way on both sides now — and the two guards that check the types with
+  named properties and the API documentation cover the generic types at all now.
 
-  Und eine Regel des Hauses, die auch hier galt: **eine Datei, ein Typ** (MA0048) — die Antwort, der Treffer und die
-  Sicht liegen in drei Dateien, nicht in einer.
+  And a rule of the house that held here too: **one file, one type** (MA0048) — the answer, the hit and the view
+  lie in three files, not in one.
 
 ## What actually happened
 

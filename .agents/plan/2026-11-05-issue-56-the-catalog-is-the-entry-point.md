@@ -1,29 +1,33 @@
-# Issue #56 — Der Read-Pfad und der Katalog als Einstiegspunkt
+# Issue #56 — The read path and the catalog as the entry point
 
-- **Branch:** `feature/read-path-open` (PR #57, gegen `main`)
+> **Note (ADR-0057, 2026-11-12, issue #121):** this paper was written in German and has been translated into English.
+> The translation keeps what the paper said at its time — the decisions, the numbers, the names, the branches, the issue
+> numbers and the dates. The text below is the paper of its time.
+
+- **Branch:** `feature/read-path-open` (PR #57, against `main`)
 - **ADR:** [0033 — The read path opens an index without writing](../adr/0033-the-read-path-opens-an-index-without-writing.md)
 - **Issue:** #56
-- **Stand:** 2026-11-05, nach der Entscheidung des Owners über die Form der API
+- **State:** 2026-11-05, after the owner's decision on the shape of the API
 
-## Das Ziel
+## The goal
 
-LUI bekommt einen Read-Pfad, der die Datei **nicht schreibt**, und eine API, die so wenig wie möglich
-verlangt:
+LUI gets a read path that does **not** write to the file, and an API that demands as little as
+possible:
 
-1. Der **Katalog ist der Einstiegspunkt** — er wird injiziert, er ist das einzige im Container.
-2. Das **Erstellen** ist ein eigener Aufruf (`Create`) und liegt in der Migration der Anwendung.
-3. Im Betrieb wird der Index **geöffnet** (`Index`) — die restlichen APIs bleiben am Index.
-4. **Ein Interface je Fähigkeit**, keine zweite Implementierung: die untypisierte Fassade
-   (`ILuiDocumentIndex`) entfällt.
-5. Die Datei entscheidet, **was erlaubt ist**: eine nur lesbare Verbindung → der Katalog schreibt nicht.
+1. The **catalog is the entry point** — it is injected, it is the only one in the container.
+2. **Creating** is a call of its own (`Create`) and belongs in the migration of the application.
+3. At run time the index is **opened** (`Index`) — the remaining APIs stay on the index.
+4. **One interface per capability**, no second implementation: the untyped facade
+   (`ILuiDocumentIndex`) falls away.
+5. The file decides **what is allowed**: a read-only connection → the catalog does not write.
 
-## Die API, die entsteht
+## The API that emerges
 
 ```csharp
-// Der Katalog — statische Fabrik, unverändert.
+// The catalog — static factory, unchanged.
 public static LuiCatalog Open(string connectionString, LuiCatalogOptions? options = null);
 
-// Das Erstellen — einmal, in der Migration.
+// Creating — once, in the migration.
 public ILuiEmbeddedIndex<TKey, TPayload> Create<TKey, TPayload>(
     string name,
     Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder<TKey, TPayload>> index);
@@ -32,7 +36,7 @@ public ILuiLinkedIndex<TPayload> Create<TPayload>(
     string name,
     Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>> index);
 
-// Im Betrieb — der Index wird geöffnet, die Datei bleibt unberührt.
+// At run time — the index is opened, the file stays untouched.
 public ILuiEmbeddedIndex<TKey, TPayload> Index<TKey, TPayload>(
     string name,
     ILuiPayloadSerializer<TPayload>? payload = null);
@@ -44,147 +48,146 @@ public ILuiLinkedIndex<TPayload> Index<TPayload>(
 public ILuiLinkedIndex<LuiNoPayload> Index(string name);
 ```
 
-`catalog.Index(name)` (der Builder) **entfällt** — damit kann der Laufzeitpfad keinen Index mehr
-erstellen. `catalog.OpenIndex(...)` **entfällt** — `Open` ist die statische Fabrik des Katalogs,
-`Index` ist der Index. `ILuiDocumentIndex`, `LuiDocumentHit`, `DocumentIndex`, `DocumentSource`,
-`RawJsonPayload` und `ReadOnlyEmbeddedIndex` **entfallen**.
+`catalog.Index(name)` (the builder) **falls away** — with that the run-time path can no longer create
+an index. `catalog.OpenIndex(...)` **falls away** — `Open` is the static factory of the catalog,
+`Index` is the index. `ILuiDocumentIndex`, `LuiDocumentHit`, `DocumentIndex`, `DocumentSource`,
+`RawJsonPayload` and `ReadOnlyEmbeddedIndex` **fall away**.
 
-### Die nur lesbare Datei
+### The read-only file
 
 ```csharp
-// Der Schreiber
+// The writer
 var catalog = LuiCatalog.Open("Data Source=app.db");
-// Der Leser — derselbe Anwendungscode
+// The reader — the same application code
 var catalog = LuiCatalog.Open("Data Source=app.db;Mode=ReadOnly");
 ```
 
-Ein Katalog auf einer nur lesbaren Datei:
+A catalog on a read-only file:
 
-- schaltet **nicht** auf WAL um,
-- legt **`lui_meta` nicht an** — die Tabelle muss da sein; fehlt sie, sagt der Katalog das,
-- verweigert **jeden Schreibvorgang** mit `LuiReadOnlyException` (neu, erbt von `LuiException`):
+- does **not** switch to WAL,
+- does **not** create **`lui_meta`** — the table has to be there; if it is missing, the catalog says so,
+- refuses **every write** with `LuiReadOnlyException` (new, inherits from `LuiException`):
   `Create`, `DropIndex`, `Upsert`, `Sync`.
 
-Die Datei entscheidet das, nicht ein Schalter in `LuiCatalogOptions` — und nicht der Index.
+The file decides that, not a switch in `LuiCatalogOptions` — and not the index.
 
-### Die Definition merkt sich den Payload-Typ
+### The definition remembers the payload type
 
-`IndexDefinition` bekommt `PayloadType` (der volle Name des Typs, `null` ohne Payload). Beim Erstellen
-wird er aus dem Typparameter des Builders geschrieben, beim Öffnen verglichen:
+`IndexDefinition` gets `PayloadType` (the full name of the type, `null` without a payload). When
+creating, it is written from the type parameter of the builder; when opening, it is compared:
 
 ```
 LuiDefinitionMismatchException: the index stores the payload type 'TagChip',
 you asked for 'RecipeChip'
 ```
 
-Der **Serialisierer** wird nicht gespeichert — er ist ein Objekt der Anwendung. Die Anwendung übergibt
-ihn beim Öffnen.
+The **serialiser** is not stored — it is an object of the application. The application hands it over
+when it opens the index.
 
-### Der Container
+### The container
 
 ```csharp
 services.AddLui("Data Source=app.db");
 ```
 
-`AddIndex`, `AddLinkedIndex`, `AddOpenIndex`, `EnsureOnStart` und `WarmUpTypoDictionariesOnStart`
-**entfallen** — samt `LuiRegistrations`, `LuiStartup`, `IndexRegistration`,
-`LinkedIndexRegistration`, `OpenIndexRegistration`. `AddLui` liefert `IServiceCollection` zurück.
+`AddIndex`, `AddLinkedIndex`, `AddOpenIndex`, `EnsureOnStart` and `WarmUpTypoDictionariesOnStart`
+**fall away** — along with `LuiRegistrations`, `LuiStartup`, `IndexRegistration`,
+`LinkedIndexRegistration`, `OpenIndexRegistration`. `AddLui` returns `IServiceCollection`.
 
-## Die Arbeit, Schritt für Schritt
+## The work, step by step
 
-### A. Die Bibliothek
+### A. The library
 
 1. `LuiCatalog`:
-   - `Index(string)` (der Builder) entfernen; `Create(...)` mit den beiden Überladungen nach
-     `LuiIndexKindBuilder`/`LuiEmbeddedIndexBuilder`/`LuiLinkedIndexBuilder` einführen.
-   - `OpenIndex(...)` durch `Index(...)` ersetzen: die Definition aus `lui_meta` lesen, den Index daraus
-     bauen, nichts schreiben. Für `Linked` die Spalten aus der Definition und die Abbildung der
-     Anwendung nehmen.
-   - `DropIndex` bleibt.
-2. `Database`: `ReadOnly` aus der Verbindungszeichenkette ableiten
+   - remove `Index(string)` (the builder); introduce `Create(...)` with the two overloads after
+     `LuiIndexKindBuilder`/`LuiEmbeddedIndexBuilder`/`LuiLinkedIndexBuilder`.
+   - replace `OpenIndex(...)` with `Index(...)`: read the definition from `lui_meta`, build the index
+     from it, write nothing. For `Linked` take the columns from the definition and the mapping of
+     the application.
+   - `DropIndex` stays.
+2. `Database`: derive `ReadOnly` from the connection string
    (`new SqliteConnectionStringBuilder(connectionString).Mode == SqliteOpenMode.ReadOnly`).
-   Der Writer wirft in einem nur lesbaren Katalog `LuiReadOnlyException`.
-3. `LuiCatalog.Open`: bei `ReadOnly` kein WAL und kein `CREATE TABLE lui_meta`; fehlt die Tabelle,
-   kommt ein klarer Fehler.
-4. `IndexDefinition`: `PayloadType` ergänzen; beim Erstellen schreiben, beim Öffnen prüfen.
-5. Die Dateien der Fassade löschen (siehe oben) und alle Verweise auflösen.
+   The writer throws `LuiReadOnlyException` in a read-only catalog.
+3. `LuiCatalog.Open`: with `ReadOnly` no WAL and no `CREATE TABLE lui_meta`; if the table is
+   missing, a clear error comes.
+4. `IndexDefinition`: add `PayloadType`; write it when creating, check it when opening.
+5. Delete the files of the facade (see above) and resolve every reference.
 
-### B. Die Aufrufer
+### B. The callers
 
-- `catalog.Index("x")....Create()` → `catalog.Create("x", index => index....)`. **Achtung:** der
-  Lambda-Parameter heißt `index`, das Ergebnis darf nicht `index` heißen (CS0136) — z. B.
+- `catalog.Index("x")....Create()` → `catalog.Create("x", index => index....)`. **Careful:** the
+  lambda parameter is called `index`, the result must not be called `index` (CS0136) — for example
   `var recipes = catalog.Create("recipes", index => index.MultiWord().WithPayload<Recipe>(ctx));`
 - `catalog.OpenIndex<TKey, TPayload>(name, payload)` → `catalog.Index<TKey, TPayload>(name, payload)`.
-- `catalog.OpenIndex(name)` → entfällt.
-- Der Container: `AddIndex`/`AddLinkedIndex`/`AddOpenIndex` und ihre Aufrufer (Probe, Tests) auf
-  `catalog.Create(...)`/`catalog.Index(...)` umstellen.
+- `catalog.OpenIndex(name)` → falls away.
+- The container: switch `AddIndex`/`AddLinkedIndex`/`AddOpenIndex` and their callers (the probe, the
+  tests) to `catalog.Create(...)`/`catalog.Index(...)`.
 
-### C. Die Probe
+### C. The probe
 
-Die Endpunkte der Probe injizieren heute die Indizes aus dem Container. Sie injizieren jetzt **den
-Katalog** und holen sich den Index bei Bedarf:
+The endpoints of the probe inject the indexes out of the container today. They now inject **the
+catalog** and get the index when they need it:
 
 ```csharp
 var index = catalog.Index<long, RecipeChip>("recipes", RecipeJsonContext.Default.RecipeChip);
 ```
 
-Die Probe erstellt ihre Indizes selbst (sie füllt sie auf Zuruf) — `catalog.Create(...)` in der
-Probe, nicht im Container.
+The probe creates its indexes itself (it fills them on demand) — `catalog.Create(...)` in the
+probe, not in the container.
 
-### D. Die Tests
+### D. The tests
 
-- `tests/Nordmann.LUI.Integration.Tests/ReadPathTests.cs` — anpassen: die Fassade fällt weg, der
-  typisierte Pfad bleibt, neu sind der nur lesbare Katalog und die Prüfung des Payload-Typs.
-- `tests/Nordmann.LUI.Integration.Tests/OpenIndexHostingTests.cs` — fällt weg (der Container kennt
-  keine Indizes mehr).
-- Neu: `tests/Nordmann.LUI.Integration.Tests/ReadOnlyCatalogTests.cs` — der Katalog auf einer nur
-  lesbaren Datei: `Open` schreibt nicht, `Upsert`/`Create`/`DropIndex`/`Sync` werfen
-  `LuiReadOnlyException`, `Search` funktioniert.
-- `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs` — die neuen Mitglieder, die
-  entfallenen.
-- `docs/testing.md` — die Testkarte: jede neue Testdatei braucht eine Zeile, jede entfallene ihre
-  Zeile weg (der Wächter `Test_Landscape` prüft das).
+- `tests/Nordmann.LUI.Integration.Tests/ReadPathTests.cs` — adjust: the facade falls away, the typed
+  path stays, new are the read-only catalog and the check of the payload type.
+- `tests/Nordmann.LUI.Integration.Tests/OpenIndexHostingTests.cs` — falls away (the container knows
+  no indexes any more).
+- New: `tests/Nordmann.LUI.Integration.Tests/ReadOnlyCatalogTests.cs` — the catalog on a read-only
+  file: `Open` does not write, `Upsert`/`Create`/`DropIndex`/`Sync` throw `LuiReadOnlyException`,
+  `Search` works.
+- `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs` — the new members, the fallen ones.
+- `docs/testing.md` — the test map: every new test file needs a row, every fallen one loses its
+  row (the guard `Test_Landscape` checks that).
 
-### E. Die Dokumente
+### E. The documents
 
-- **Spezifikation** §7.1, §12, §14, §15: `Create`, `Index`, die nur lesbare Datei, die
-  `PayloadType` in der Definition, der Container ohne Indizes.
-- **README**: der Schnellstart (`AddLui`, `Create`, `Index`).
-- **CHANGELOG**: die Migrationsliste (was von `Ensure`/`OpenIndex`/`AddIndex` nach was).
-- **ADR-0033** ist geschrieben (liegt im Branch) — die Zeile in `.agents/adr/README.md` anpassen, wenn
-  sich der Titel ändert.
+- **Specification** §7.1, §12, §14, §15: `Create`, `Index`, the read-only file, the `PayloadType` in
+  the definition, the container without indexes.
+- **README**: the quick start (`AddLui`, `Create`, `Index`).
+- **CHANGELOG**: the migration list (what from `Ensure`/`OpenIndex`/`AddIndex` to what).
+- **ADR-0033** is written (it lies in the branch) — adjust the row in `.agents/adr/README.md` if the
+  title changes.
 
-## Die Regeln des Repos
+## The rules of the repository
 
-- `AGENTS.md` lesen. Ein Typ pro Datei, Methoden höchstens 60 Zeilen, keine Regex ohne Timeout,
-  kultur-sichere Formatierung (Meziantou.Analyzer), `string.Equals(…, StringComparison.Ordinal)`.
-- `TreatWarningsAsErrors` ist an: der Build muss **0 Warnungen** ergeben.
-- Ein ADR ist nur nötig, wenn `Directory.Build.props`, `Directory.Packages.props` oder die Abhängigkeiten
-  von `Nordmann.LUI`/`Nordmann.LUI.Hosting` angefasst werden — das ist hier **nicht** der Fall (ADR-0033
-  existiert bereits).
-- Keine neue Abhängigkeit.
+- Read `AGENTS.md`. One type per file, methods of at most 60 lines, no regex without a timeout,
+  culture-safe formatting (Meziantou.Analyzer), `string.Equals(…, StringComparison.Ordinal)`.
+- `TreatWarningsAsErrors` is on: the build must yield **0 warnings**.
+- An ADR is only needed if `Directory.Build.props`, `Directory.Packages.props` or the dependencies
+  of `Nordmann.LUI`/`Nordmann.LUI.Hosting` are touched — that is **not** the case here (ADR-0033
+  exists already).
+- No new dependency.
 
-## Die Annahmen, an denen die Arbeit gemessen wird
+## The assumptions the work is measured against
 
-1. `catalog.Create("tags", index => index.SingleWord().WithPayload<TagChip>(ctx))` erzeugt den Index und
-   liefert `ILuiEmbeddedIndex<long, TagChip>`; ein zweiter Aufruf mit derselben Beschreibung ändert
-   nichts; ein Index mit einer anderen Definition ist ein `LuiDefinitionMismatchException`.
-2. `catalog.Index<long, TagChip>("tags", ctx)` öffnet einen vorhandenen Index, **schreibt nichts** — der
-   rote Beweis: mit offenem Write-Transaktion kehrt `Index` sofort zurück, `Create` blockt.
-3. `catalog.Index<long, TagChip>("tags", ctx)` auf einem Index ohne diesen Payload-Typ ist ein
-   `LuiDefinitionMismatchException`, der den Typ nennt.
-4. `catalog.Index<long, RecipeChip>("tags", ctx)` auf einem Index mit `string`-Schlüssel ist ein
-   `LuiDefinitionMismatchException`, der den Schlüsseltyp nennt.
-5. `LuiCatalog.Open("Data Source=x.db;Mode=ReadOnly")` öffnet eine nur lesbare Datei: kein WAL, kein
-   `CREATE TABLE`, `Search` funktioniert, `Upsert`/`Create`/`DropIndex`/`Sync` werfen
+1. `catalog.Create("tags", index => index.SingleWord().WithPayload<TagChip>(ctx))` creates the index
+   and yields `ILuiEmbeddedIndex<long, TagChip>`; a second call with the same description changes
+   nothing; an index with another definition is a `LuiDefinitionMismatchException`.
+2. `catalog.Index<long, TagChip>("tags", ctx)` opens an existing index, **writes nothing** — the
+   red proof: with an open write transaction `Index` returns immediately, `Create` blocks.
+3. `catalog.Index<long, TagChip>("tags", ctx)` on an index without this payload type is a
+   `LuiDefinitionMismatchException` that names the type.
+4. `catalog.Index<long, RecipeChip>("tags", ctx)` on an index with a `string` key is a
+   `LuiDefinitionMismatchException` that names the key type.
+5. `LuiCatalog.Open("Data Source=x.db;Mode=ReadOnly")` opens a read-only file: no WAL, no
+   `CREATE TABLE`, `Search` works, `Upsert`/`Create`/`DropIndex`/`Sync` throw
    `LuiReadOnlyException`.
-6. `AddIndex`, `AddLinkedIndex`, `AddOpenIndex`, `ILuiDocumentIndex` und `LuiCatalog.OpenIndex` gibt es
-   nicht mehr — im öffentlichen API und im Container.
-7. Der Container kennt nur den Katalog: `services.AddLui("Data Source=app.db")` und sonst nichts.
+6. `AddIndex`, `AddLinkedIndex`, `AddOpenIndex`, `ILuiDocumentIndex` and `LuiCatalog.OpenIndex` do
+   not exist any more — in the public API and in the container.
+7. The container knows only the catalog: `services.AddLui("Data Source=app.db")` and nothing else.
 
-## Die Abnahme
+## The acceptance
 
-- `dotnet build -c Release`: 0 Warnungen, 0 Fehler.
-- `dotnet test`: alles grün, die Zahl der Tests im Bericht.
-- `dotnet pack -c Release` und `npm test` in `samples/Lui.Sample`: grün.
-- Kein Force-Push, `main` bleibt unberührt, kein Merge.
+- `dotnet build -c Release`: 0 warnings, 0 errors.
+- `dotnet test`: everything green, the number of tests in the report.
+- `dotnet pack -c Release` and `npm test` in `samples/Lui.Sample`: green.
+- No force push, `main` stays untouched, no merge.
