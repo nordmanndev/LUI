@@ -7,6 +7,55 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The typo distance is an enumeration, and it belongs to the index**
+  ([ADR-0054](.agents/adr/0054-the-typo-distance-is-an-enumeration.md), #118). **A breaking change** — and still
+  free: the freeze of
+  [ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) begins with the tag `v0.1.0`,
+  and there is no such tag yet.
+  - **`LuiTypoDistance`** (`None`, `OneError`, `TwoErrors`) is the new public type. The distance is an enumeration and
+    not a number: the dictionary of the word beginnings keeps the delete variants of SymSpell, and their number grows
+    with the distance — so the distances are the ones that were measured, and a caller cannot ask for a tenth. What the
+    distances cost is measured in [`docs/typo-dictionary.md`](docs/typo-dictionary.md).
+  - **The builder takes the distance**: `TypoTolerance(LuiTypoDistance distance = LuiTypoDistance.OneError)`. The bool
+    overload is gone — `TypoTolerance(false)` was "no correction", which is `LuiTypoDistance.None` now, and
+    `TypoTolerance(true)` is `LuiTypoDistance.OneError`.
+  - **The query keeps the bool**: `Query(text).TypoTolerance(bool)` and `LuiQueryOptions.TypoTolerance` are unchanged. A
+    query switches the correction on or off; the distance belongs to the index, because the dictionary is built with it.
+    **A query cannot exceed the distance of the index**: `TypoTolerance(true)` asks for the correction, but a distance of
+    `None` forgives nothing at all — the query asks, the index does not correct, and the query says so
+    (`CorrectionSkipped`).
+  - **The distance is part of the stored definition.** An index that is opened again knows how its dictionary was
+    built, and its queries correct — unless the query says otherwise. Before this change an opened index never
+    corrected, and only a query that asked for it did.
+  - **A distance of `None` builds no dictionary at all.** The state of the dictionary stays `NotBuilt`, and the memory
+    of one is not taken.
+  - **Migration.**
+    - `TypoTolerance()` and `TypoTolerance(true)` → `TypoTolerance(LuiTypoDistance.OneError)` (or `TypoTolerance()`
+      without an argument — its parameter default is `OneError`; **not calling it at all means `None`**, an index that
+      forgives nothing).
+    - `TypoTolerance(false)` → `TypoTolerance(LuiTypoDistance.None)`. **The difference is the query:** the old `false`
+      meant "the index corrects nothing by itself, a query may still ask for it", and `None` means "nothing is
+      corrected at all" — a query cannot widen the distance of its index. An application that used the builder's `false`
+      together with a query's `true` loses its correction; it wants `OneError` on the builder now.
+    - `index.TypoTolerance` (a bool) → `index.TypoDistance` (a `LuiTypoDistance`).
+    - An application that reads `ILuiIndex` itself (an own implementation of the interface) has to implement
+      `TypoDistance` instead of `TypoTolerance`.
+    - **An index of the old library has no distance in its stored definition** — it reads back as `None`, an index that
+      corrected nothing. The step that decides whether the application comes up after the upgrade is its `Create`:
+      - An index that is created again **with** a distance is a `LuiDefinitionMismatchException` (the stored
+        definition says `None`, the new one says `OneError`): **the application does not come up.**
+      - An index that is created again **without** a distance (the default of the builder) matches the stored one: the
+        application comes up, but the index corrects nothing at all — not even what it corrected before.
+      - The way out is `DropIndex(name)` and a new `Create` — **and for an embedded index that empties the index**: its
+        entries live in the content table of the library, and the drop takes them with it, so the application has to
+        load its data again. For a linked index the content lives in the table of the application and survives; the
+        index is empty after the drop, and `Sync()` fills it again.
+    - An application that creates its indexes in its migration **describes an index the same way every time** — also
+      after the upgrade, because the distance is part of the definition: a change of the distance wants a
+      `DropIndex(name)` and a new index.
+
 ## [0.1.0-alpha] — 2026-11-11
 
 The first release, and a **prerelease** of 0.1.0

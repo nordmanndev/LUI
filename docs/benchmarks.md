@@ -22,8 +22,15 @@ corpus.
 | allocation p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | single write p95 | 0.51–0.78 ms | ≤ 1 ms |
 | build of 3 M | 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 240 s (#32) |
-| typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s (the machine of the record), 4.3 s (the run of 2026-11-12) | ≤ 200 MB, ≤ 10 s |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
+
+**The two-error distance is missed, and the miss is written down.** The typo dictionary of the whole list costs
+**240 MB** with two errors — 40 MB more than the target of §16 allows (≤ 200 MB). The target was written for one error,
+and it holds for one error. The two-error distance has **no budget of its own yet**: the budgets move into
+`budgets.json` with pull request 3 of the series, and the distance gets its budget there. Until then the miss stands
+here and in [`docs/typo-dictionary.md`](./typo-dictionary.md) — a target that is missed is written down as missed, never
+quietly lowered (ADR-0054 is the decision behind it).
 
 ## The targets
 
@@ -399,7 +406,7 @@ The two scenarios of their own:
 
 | Target | Measured | Limit |
 |---|---:|---:|
-| typo dictionary of 685,829 distinct words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of 685,739 distinct words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
 | file of 1,000,000 titles, `MultiWord`, built by `Sync` in 88.1 s | 457 MB | ≤ 300 MB |
 
 ### The benchmarks

@@ -15,14 +15,16 @@ internal sealed class TypoDictionaries
     /// <param name="indexName">The name of the index.</param>
     /// <param name="normalization">The normalisation of the index.</param>
     /// <param name="texts">Reads <c>(text, weight)</c> of every entry, when the dictionary is built.</param>
+    /// <param name="distance">How many errors the dictionary forgives — the distance of the index.</param>
     internal TypoDictionary For(
         string indexName,
         NormalizationOptions normalization,
-        Func<IEnumerable<(string Text, int Weight)>> texts) =>
+        Func<IEnumerable<(string Text, int Weight)>> texts,
+        LuiTypoDistance distance) =>
         _byIndex.GetOrAdd(
             indexName,
-            static (_, state) => new TypoDictionary(state.Normalization, state.Texts),
-            (Normalization: normalization, Texts: texts));
+            static (_, state) => new TypoDictionary(state.Normalization, state.Texts, state.Distance),
+            (Normalization: normalization, Texts: texts, Distance: distance));
 
     /// <summary>Whether the typo dictionary of an index exists and is built.</summary>
     internal bool IsBuilt(string indexName) => _byIndex.TryGetValue(indexName, out var dictionary) && dictionary.IsBuilt;

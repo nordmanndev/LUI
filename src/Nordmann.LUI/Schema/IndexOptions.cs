@@ -13,9 +13,9 @@ namespace Nordmann.LUI.Schema;
 /// </summary>
 /// <param name="Similarity">The similarity measure; <see langword="null"/> takes the default of the kind.</param>
 /// <param name="GermanTransliteration">Whether <c>ä → ae</c>, <c>ß → ss</c> is applied.</param>
-/// <param name="TypoTolerance">Whether an input without a word start is corrected.</param>
-internal sealed record IndexOptions(ILuiSimilarity? Similarity, bool GermanTransliteration, bool TypoTolerance)
+/// <param name="TypoDistance">How many errors a query forgives; <see cref="LuiTypoDistance.None"/> is no correction.</param>
+internal sealed record IndexOptions(ILuiSimilarity? Similarity, bool GermanTransliteration, LuiTypoDistance TypoDistance)
 {
-    /// <summary>The options of a description that changed none: the kind's similarity, transliteration on, typo tolerance off.</summary>
-    internal static IndexOptions Default { get; } = new(Similarity: null, GermanTransliteration: true, TypoTolerance: false);
+    /// <summary>The options of a description that changed none: the kind's similarity, transliteration on, no correction.</summary>
+    internal static IndexOptions Default { get; } = new(Similarity: null, GermanTransliteration: true, TypoDistance: LuiTypoDistance.None);
 }

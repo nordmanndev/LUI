@@ -32,7 +32,7 @@ internal sealed class SampleIndexes(IEnumerable<ISampleIndex> indexes)
                 index.Name,
                 "?",
                 "?",
-                false,
+                "?",
                 "?",
                 0,
                 "?",

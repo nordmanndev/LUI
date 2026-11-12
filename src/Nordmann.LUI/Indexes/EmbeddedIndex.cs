@@ -46,7 +46,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         EmbeddedSource source,
         ILuiPayloadSerializer? payload,
         ILuiSimilarity similarity,
-        bool typoTolerance)
+        LuiTypoDistance typoDistance)
     {
         _database = database;
         _payload = payload;
@@ -54,9 +54,9 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         Name = source.IndexName;
         Kind = source.Rules.Kind;
         KeyKind = KeyCodec.KindOf(source.Definition.KeyType);
-        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql));
+        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance);
         _runner = new QueryRunner(
-            database, source, new SerializedPayload(Name, payload), similarity, _typos, typoTolerance);
+            database, source, new SerializedPayload(Name, payload), similarity, _typos, typoDistance);
         _sync = new EmbeddedSync(database, source, KeyText, PayloadBytes, _typos);
         _check = new EmbeddedCheck(database, source, KeyText, PayloadBytes);
     }
@@ -67,7 +67,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
 
     public LuiKeyKind KeyKind { get; }
 
-    public bool TypoTolerance => _runner.TypoTolerance;
+    public LuiTypoDistance TypoDistance => _runner.TypoDistance;
 
     public LuiTypoDictionaryState TypoDictionaryState => _typos.State;
 

@@ -71,7 +71,7 @@ public static class LuiServiceCollectionExtensions
     /// </para>
     /// <para>
     /// The start of the host waits for the dictionaries — so that the first query already corrects a typo. A dictionary
-    /// costs seconds and memory (138 MB for 685,829 words, ADR-0021): name the indexes that correct typos in
+    /// costs seconds and memory (138 MB for 685,739 words, ADR-0021): name the indexes that correct typos in
     /// <see cref="LuiWarmupOptions.TypoDictionaryIndexes"/>, or none, and every index gets one.
     /// </para>
     /// </summary>
