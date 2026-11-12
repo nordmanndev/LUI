@@ -117,7 +117,7 @@ public sealed class GoldenQueryTests
     }
 
     [Fact]
-    public void An_ordinary_tag_with_the_same_text_is_a_duplicate_the_caller_can_hide()
+    public void Two_spellings_of_one_text_are_two_hits_and_the_data_makes_them_one()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
@@ -126,8 +126,15 @@ public sealed class GoldenQueryTests
         tags.Upsert(2, "Vegan", 800_000);
         tags.Upsert(3, "vegane torte", 700_000);
 
-        tags.Query("veg").Execute().Hits.Select(h => h.Key).ShouldBe([1, 2, 3]);
-        tags.Query("veg").DistinctText().Execute().Hits.Select(h => h.Key).ShouldBe([1, 3]);
+        // the library does not hide the second spelling: one hit per entry, and the uniqueness of a text
+        // belongs to the data (ADR-0055)
+        var hits = tags.Query("veg").Execute().Hits;
+        hits.Select(h => h.Key).ShouldBe([1, 2, 3]);
+        hits.Select(h => h.Text).ShouldBe(["vegan", "Vegan", "vegane torte"]);
+
+        // the data decides: the entry that holds the second spelling is gone, and the text is one again
+        tags.Remove(2);
+        tags.Query("veg").Execute().Hits.Select(h => h.Key).ShouldBe([1, 3]);
     }
 
     private static void LoadTagCorpus(TestDatabase database, ILuiEmbeddedIndex index)

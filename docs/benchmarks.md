@@ -27,14 +27,15 @@ corpus.
 | allocation p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | single write p95 | 0.51–0.78 ms | ≤ 1 ms |
 | build of 3 M | 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 240 s (#32) |
-| typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s (the machine of the record), 4.3 s (the run of 2026-11-12) | ≤ 200 MB, ≤ 10 s |
 | typo dictionary of two errors, 685,739 words | 240 MB (2026-11-12) | ≤ 240 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
 
 The dictionary of two errors is the one the **distance `TwoErrors`** builds (ADR-0054): the promise of 200 MB belongs to
-the dictionary of one error, and the two-error dictionary measured 240 MB. That is a **miss of the old promise** — it is
-written down as one, in the ADR of the typo distance and in the document of the dictionary, and no limit is lowered
-quietly here: the file states 240 MB, the number that was measured.
+the dictionary of one error, and the two-error dictionary measured **240 MB** — 40 MB more than the target of §16 allows
+(≤ 200 MB). That is a **miss of the old promise** — it is written down as one, in the ADR of the typo distance and in
+[`docs/typo-dictionary.md`](typo-dictionary.md), and no limit is lowered quietly here: the file states 240 MB, the number
+that was measured.
 
 ## The targets
 

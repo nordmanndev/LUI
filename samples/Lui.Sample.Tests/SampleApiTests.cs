@@ -66,7 +66,7 @@ public sealed class SampleApiTests(SampleHost host) : IClassFixture<SampleHost>
         foreach (var name in new[] { "recipes", "names", "tags" })
         {
             indexes[name]!["count"]!.GetValue<long>().ShouldBeGreaterThan(0, name);
-            indexes[name]!["typoTolerance"]!.GetValue<bool>().ShouldBeTrue(name);
+            indexes[name]!["typoDistance"]!.GetValue<string>().ShouldBe("OneError", name);
             indexes[name]!["source"].ShouldBeNull(name);
         }
 
@@ -150,9 +150,6 @@ public sealed class SampleApiTests(SampleHost host) : IClassFixture<SampleHost>
     public async Task The_settings_of_a_query_are_parameters_and_reach_the_library()
     {
         (await Get("/api/suggest/recipes?q=kuchen&take=2"))["results"]!.AsArray().Count.ShouldBe(2);
-
-        var distinct = Texts(await Get("/api/suggest/names?q=m&take=100&distinct=true"));
-        distinct.ShouldBe([.. distinct.Distinct(StringComparer.Ordinal)]);
 
         var byWeight = (await Get("/api/suggest/recipes?q=kartoffel&rank=WeightOnly&take=50"))["results"]!.AsArray()
             .Select(hit => hit!["weight"]!.GetValue<int>()).ToArray();
@@ -289,6 +286,26 @@ public sealed class SampleApiTests(SampleHost host) : IClassFixture<SampleHost>
         (await Client.DeleteAsync($"/api/indexes/tags/rows/{id}")).StatusCode.ShouldBe(HttpStatusCode.NoContent);
         await Post("/api/indexes/tags/apply-pending");
         Texts(await Suggest("tags", "outboxt")).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public async Task A_text_that_is_written_in_two_spellings_is_two_hits_and_the_constraint_is_the_one_of_the_application()
+    {
+        // the tag table is the application's own: it holds a second spelling of the system tag "vegan" (ADR-0055)
+        var id = (await Post("/api/indexes/tags/rows", new { name = "Vegan", kind = "Ernährung", color = "#2f855a", usageCount = 1 }))["id"]!.GetValue<long>();
+
+        // the triggers noted the key; applying the outbox brings the row into the index
+        await Post("/api/indexes/tags/apply-pending");
+
+        var hits = Texts(await Suggest("tags", "vegan"));
+        ShouldFind(hits, "vegan");
+        ShouldFind(hits, "Vegan");
+
+        // the constraint belongs to the application: the row is its own, and it goes with it
+        await Client.DeleteAsync($"/api/indexes/tags/rows/{id}");
+        await Post("/api/indexes/tags/apply-pending");
+        var gone = Texts(await Suggest("tags", "vegan"));
+        gone.Any(text => string.Equals(text, "Vegan", StringComparison.Ordinal)).ShouldBeFalse();
     }
 
     [Fact]

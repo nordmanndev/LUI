@@ -253,7 +253,7 @@ public sealed class SingleWordQueryTests
     }
 
     [Fact]
-    public void DistinctText_keeps_the_entry_of_the_highest_priority()
+    public void The_priority_leads_the_hits_even_when_a_text_is_written_in_two_spellings()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
@@ -262,12 +262,12 @@ public sealed class SingleWordQueryTests
         tags.Upsert(2, "vegan", 5, priority: LuiPriority.System);
         tags.Upsert(3, "veganer kuchen", 10);
 
-        tags.Query("vegan").Execute().Hits.Count.ShouldBe(3);
-
-        var distinct = tags.Query("vegan").DistinctText().Execute().Hits;
-        distinct.Count.ShouldBe(2);
-        distinct.Select(h => h.Key).ShouldContain(2L);
-        distinct.Select(h => h.Key).ShouldNotContain(1L);
+        // the far greater weight of the first entry does not beat the priority of the second one, and the
+        // two spellings are two hits — the data decides which of them an application keeps (ADR-0055)
+        var hits = tags.Query("vegan").Execute().Hits;
+        hits.Count.ShouldBe(3);
+        hits.Select(h => h.Key).ShouldBe([2, 1, 3]);
+        hits.Select(h => h.Text).ShouldBe(["vegan", "Vegan", "veganer kuchen"]);
     }
 
     [Fact]

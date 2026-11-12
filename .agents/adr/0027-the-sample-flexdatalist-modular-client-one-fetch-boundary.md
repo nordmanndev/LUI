@@ -1,5 +1,8 @@
 # 0027 — The sample: flexdatalist against the whole API, a modular client, one fetch boundary
 
+> **Note (ADR-0055, 2026-11-12):** the `distinct` parameter of the sample is gone with the option — the query string
+> maps one to one onto `LuiQueryOptions` without it. The text below is history. See
+> [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md).
 > **Contract note (ADR-0056, 2026-11-12):** this record was written against a contract outside the repository — a
 > private one, that no reader of LUI can know and does not have to. The repository states its own rules since: the
 > rules that contract carried for LUI stand in [`AGENTS.md`](../../AGENTS.md) and in the documents of

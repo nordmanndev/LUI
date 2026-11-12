@@ -25,7 +25,7 @@ public sealed class LuiWarmupTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance());
         tags.Upsert(1, "vegan");
 
         using var host = Host(database, warmup: true);
@@ -103,16 +103,24 @@ public sealed class LuiWarmupTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
-        catalog.Create("names", index => index.SingleWord()).Upsert(1, "Vera");
+        catalog.Create("tags", index => index.SingleWord().TypoTolerance()).Upsert(1, "vegan");
+        catalog.Create("names", index => index.SingleWord().TypoTolerance()).Upsert(1, "Vera");
+
+        // an index that forgives nothing has no dictionary at all — not even when the warm-up is told to build it
+        catalog.Create("plain", index => index.SingleWord()).Upsert(1, "nothing");
 
         // a dictionary costs memory — the index whose queries correct no typos does not get one (ADR-0043)
-        using var host = Host(database, warmup: true, configure: options => options.TypoDictionaryIndexes.Add("tags"));
+        using var host = Host(database, warmup: true, configure: options =>
+        {
+            options.TypoDictionaryIndexes.Add("tags");
+            options.TypoDictionaryIndexes.Add("plain");
+        });
         await host.StartAsync();
 
         var catalogOfTheHost = host.Services.GetRequiredService<LuiCatalog>();
         catalogOfTheHost.Index("tags").TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
         catalogOfTheHost.Index("names").TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
+        catalogOfTheHost.Index("plain").TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt, "a distance of None builds no dictionary");
     }
 
     [Fact]

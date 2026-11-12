@@ -41,14 +41,14 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
         LinkedSource source,
         PayloadReader payload,
         ILuiSimilarity similarity,
-        bool typoTolerance)
+        LuiTypoDistance typoDistance)
     {
         _database = database;
         _source = source;
         Name = source.IndexName;
         Kind = source.Rules.Kind;
-        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql));
-        _runner = new QueryRunner(database, source, payload, similarity, _typos, typoTolerance);
+        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance);
+        _runner = new QueryRunner(database, source, payload, similarity, _typos, typoDistance);
         _payloadColumns = payload.Columns;
     }
 
@@ -58,7 +58,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
 
     public LuiKeyKind KeyKind => LuiKeyKind.Number;
 
-    public bool TypoTolerance => _runner.TypoTolerance;
+    public LuiTypoDistance TypoDistance => _runner.TypoDistance;
 
     public LuiTypoDictionaryState TypoDictionaryState => _typos.State;
 

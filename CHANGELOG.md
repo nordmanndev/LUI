@@ -9,6 +9,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The typo distance is an enumeration, and it belongs to the index**
+  ([ADR-0054](.agents/adr/0054-the-typo-distance-is-an-enumeration.md), #118). **A breaking change** — and still
+  free: the freeze of
+  [ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) begins with the tag `v0.1.0`,
+  and there is no such tag yet.
+  - **`LuiTypoDistance`** (`None`, `OneError`, `TwoErrors`) is the new public type. The distance is an enumeration and
+    not a number: the dictionary of the word beginnings keeps the delete variants of SymSpell, and their number grows
+    with the distance — so the distances are the ones that were measured, and a caller cannot ask for a tenth. What the
+    distances cost is measured in [`docs/typo-dictionary.md`](docs/typo-dictionary.md).
+  - **The builder takes the distance**: `TypoTolerance(LuiTypoDistance distance = LuiTypoDistance.OneError)`. The bool
+    overload is gone — `TypoTolerance(false)` was "no correction", which is `LuiTypoDistance.None` now, and
+    `TypoTolerance(true)` is `LuiTypoDistance.OneError`.
+  - **The query keeps the bool**: `Query(text).TypoTolerance(bool)` and `LuiQueryOptions.TypoTolerance` are unchanged. A
+    query switches the correction on or off; the distance belongs to the index, because the dictionary is built with it.
+    **A query cannot exceed the distance of the index**: `TypoTolerance(true)` asks for the correction, but a distance of
+    `None` forgives nothing at all — the query asks, the index does not correct, and the query says so
+    (`CorrectionSkipped`).
+  - **The distance is part of the stored definition.** An index that is opened again knows how its dictionary was
+    built, and its queries correct — unless the query says otherwise. Before this change an opened index never
+    corrected, and only a query that asked for it did.
+  - **A distance of `None` builds no dictionary at all.** The state of the dictionary stays `NotBuilt`, and the memory
+    of one is not taken.
+  - **Migration.**
+    - `TypoTolerance()` and `TypoTolerance(true)` → `TypoTolerance(LuiTypoDistance.OneError)` (or `TypoTolerance()`
+      without an argument — its parameter default is `OneError`; **not calling it at all means `None`**, an index that
+      forgives nothing).
+    - `TypoTolerance(false)` → `TypoTolerance(LuiTypoDistance.None)`. **The difference is the query:** the old `false`
+      meant "the index corrects nothing by itself, a query may still ask for it", and `None` means "nothing is
+      corrected at all" — a query cannot widen the distance of its index. An application that used the builder's `false`
+      together with a query's `true` loses its correction; it wants `OneError` on the builder now.
+    - `index.TypoTolerance` (a bool) → `index.TypoDistance` (a `LuiTypoDistance`).
+    - An application that reads `ILuiIndex` itself (an own implementation of the interface) has to implement
+      `TypoDistance` instead of `TypoTolerance`.
+    - **An index of the old library has no distance in its stored definition** — it reads back as `None`, an index that
+      corrected nothing. The step that decides whether the application comes up after the upgrade is its `Create`:
+      - An index that is created again **with** a distance is a `LuiDefinitionMismatchException` (the stored
+        definition says `None`, the new one says `OneError`): **the application does not come up.**
+      - An index that is created again **without** a distance (the default of the builder) matches the stored one: the
+        application comes up, but the index corrects nothing at all — not even what it corrected before.
+      - The way out is `DropIndex(name)` and a new `Create` — **and for an embedded index that empties the index**: its
+        entries live in the content table of the library, and the drop takes them with it, so the application has to
+        load its data again. For a linked index the content lives in the table of the application and survives; the
+        index is empty after the drop, and `Sync()` fills it again.
+    - An application that creates its indexes in its migration **describes an index the same way every time** — also
+      after the upgrade, because the distance is part of the definition: a change of the distance wants a
+      `DropIndex(name)` and a new index.
 - **The budgets live in one file**
   ([ADR-0056](.agents/adr/0056-the-budgets-live-in-a-file.md), #120). The budgets of §16 were written down three
   times — in the specification, in the tables of the entrance and of the record, and as a number at the call site of
@@ -29,6 +75,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository, and the references to that contract are out of the documentation, of the build files and of the CI. The
   specification keeps its number and its paragraph references, and points at the file of the budgets.
   - **No change to the public API.**
+### Removed
+
+- **`DistinctText` is gone** ([ADR-0055](.agents/adr/0055-the-uniqueness-of-a-text-belongs-to-the-data.md), #119).
+  The option showed one hit per normalised text — the system tag "vegan" and the ordinary tag "Vegan" were one hit
+  instead of two. It was the most expensive option in the library: it kept the folded text of every candidate (**+28 KB**
+  per query with one word, **+84 KB** with several, ADR-0032), and a duplicate used up a place of the candidate budget,
+  so the option made the search shallower, not only the answer shorter.
+  - **Gone**: `LuiQueryOptions.DistinctText` and `LuiQuery.DistinctText(bool)`. The option was **off by default**, so a
+    query that did not ask for it behaves exactly as before — only an application that asked for it sees a difference.
+  - **Migration**: an application that used the option takes the uniqueness of a text into its own data — **the
+    application keeps its own text unique, in its own data, over its own column, with its own rule**, and that rule is
+    not the fold of the library. The table of the library holds the **transliterated** text in the generated column
+    `s_norm` (case and diacritics untouched); the **folded** text, the one the tokenizer compares, lives inside the
+    search index, and the **search form** of the C# side is computed by an internal helper — the fold is not part of the
+    public API. A constraint over `s_norm` therefore does not catch "vegan" and "Vegan", and `lower(s_norm)` is an ASCII
+    approximation of the fold, not the fold (see [the normalisation](docs/normalization.md)). In the `Linked` case the
+    table is the application's own, and the constraint is the application's own over its own column, with the same
+    caveat. Without a rule of its own, an application gets two hits for a text in two spellings — the library does not
+    hide the second one, because it cannot know which of them the application means.
+  - The sample's checkbox and its `distinct` parameter are gone; the tutorial, the README and
+    [`docs/api.md`](docs/api.md) follow.
 
 ## [0.1.0-alpha] — 2026-11-11
 

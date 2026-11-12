@@ -23,7 +23,7 @@ internal sealed class LinkedSampleIndex(
         index.Name,
         index.Kind.ToString(),
         "Linked",
-        index.TypoTolerance,
+        index.TypoDistance.ToString(),
         index.TypoDictionaryState.ToString(),
         index.Count(),
         payloadDescription,

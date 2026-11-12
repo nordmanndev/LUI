@@ -128,13 +128,24 @@ in [`docs/benchmarks.md`](./docs/benchmarks.md).
 | typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
 | typo dictionary of two errors, 685,739 words | 240 MB | ≤ 240 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
-
 The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
 (ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
 values** are the numbers of the last measurement of each row: the latencies, the build and the size of the file from
 the CI machine (2026-11-05, before the allocation was lowered — so they are an upper bound); the allocation in bytes,
 and therefore independent of the machine (2026-11-06, the current code). A measured value does **not** live in the
 file: it belongs to a run and to its machine, and a file that carried it would be a second truth beside the promise.
+
+The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
+(ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
+values** are the numbers of the last measurement of each row: the latencies, the build and the size of the file from
+the CI machine (2026-11-05, before the allocation was lowered — so they are an upper bound); the allocation in bytes,
+and therefore independent of the machine (2026-11-06, the current code); the typo dictionary in bytes and in seconds
+(2026-11-06, the machine of the record — a time belongs to the machine it was measured on,
+[ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured again on
+2026-11-12 — **4.3 s** for the same **138 MB** ([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)): a time belongs
+to the machine and the date it was measured on (ADR-0041), the memory is the claim that does not depend on the machine.
+A measured value does **not** live in the file: it belongs to a run and to its machine, and a file that carried it would
+be a second truth beside the promise.
 
 **The tables** below are the output of [BenchmarkDotNet](https://benchmarkdotnet.org/) — the code on the corpus of the
 measurement, not the scenario of the budgets. They are rendered from the reports of the run in
@@ -362,7 +373,7 @@ decides what may happen.
 | `LuiCatalog` | the entry point: `Open`, `Create`, `Index`, `LinkedIndex`, `DropIndex` |
 | `LuiEntry` | what is written: a key, a text, a weight, a priority, a payload |
 | `LuiKey` | the key of the application: a number or a text — `1` and `"1"` are different keys |
-| `LuiQuery` | a query that is configured step by step: `Take`, `Candidates`, `Rank`, `PriorityMode`, `DistinctText`, `Similarity`, `TypoTolerance`, `TrackTimings` |
+| `LuiQuery` | a query that is configured step by step: `Take`, `Candidates`, `Rank`, `PriorityMode`, `Similarity`, `TypoTolerance`, `TrackTimings` |
 | `LuiQueryOptions` | the same settings as a record, for the configuration of an application |
 | `LuiResult` | the answer of a query: the hits, the candidates it considered, the query it corrected |
 | `LuiHit` | one hit: the key, the text, the weight, the priority, the similarity — and `GetPayload<T>()` |

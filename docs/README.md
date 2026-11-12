@@ -11,6 +11,7 @@ is, and a **record** that says what it costs. The [README](../README.md) is the 
 | [The API](./api.md) | every public type of the package, with a sentence for each | you want to know what you can call |
 | [The benchmarks](./benchmarks.md) | every measured number, with the machine, the corpus and the method | you need a number you can cite |
 | [The normalisation](./normalization.md) | the rule that turns a text into a searchable form — and what was measured about it | you touch the fold rule or the parity |
+| [The typo dictionary](./typo-dictionary.md) | how the memory of the correction is built — the word beginnings, the delete variants — and what every distance costs | you turn the typo tolerance on, or you wonder what it costs |
 | [The test map](./testing.md) | which test proves which rule — a guard, not a document | you change a rule and need its test |
 | [What applies to a library](./architecture/alignment.md) | the engineering hygiene of a library: the rules that apply here, and the ones that describe an application and do not | you wonder why the library is built the way it is |
 | [The domain](./domain/lui.md) | the language, the invariants, the data model — the context behind the contract | you want the vocabulary |

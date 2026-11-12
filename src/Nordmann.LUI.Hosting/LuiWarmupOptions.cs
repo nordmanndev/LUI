@@ -14,7 +14,7 @@ public sealed class LuiWarmupOptions
 
     /// <summary>
     /// The names of the indexes whose typo dictionary the start of the host builds; <b>empty builds the dictionary of
-    /// every index</b> of the catalog. A dictionary costs memory — 138 MB for 685,829 words (ADR-0021) —, so an index
+    /// every index</b> of the catalog. A dictionary costs memory — 138 MB for 685,739 words (ADR-0021) —, so an index
     /// whose queries correct no typos does not need one. A name the catalog does not know fails the start of the host
     /// with a <see cref="LuiIndexNotFoundException"/>.
     /// </summary>

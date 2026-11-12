@@ -21,7 +21,7 @@ internal sealed class EmbeddedSampleIndex(
         index.Name,
         index.Kind.ToString(),
         "Embedded",
-        index.TypoTolerance,
+        index.TypoDistance.ToString(),
         index.TypoDictionaryState.ToString(),
         index.Count(),
         payloadDescription,

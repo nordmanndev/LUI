@@ -83,7 +83,7 @@ export function mountIndexesPanel({ root, bus, meta }) {
         const button = (label, title, action) => el('button', { type: 'button', class: 'button', title, text: label, on: { click: () => run(label, action) } });
         const facts = [
             ['Kind', info.kind], ['Storage', info.storage], ['Entries', number(info.count)], ['Payload', info.payload],
-            ['TypoTolerance', info.typoTolerance], ['Typo dictionary', info.typoDictionaryState],
+            ['Typo distance', info.typoDistance], ['Typo dictionary', info.typoDictionaryState],
             ...(info.storage === 'Linked' ? [['Outbox (Pending)', number(info.pending)], ['Triggers', info.triggers]] : []),
         ];
 

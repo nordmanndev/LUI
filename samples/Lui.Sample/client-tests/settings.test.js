@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { createSettings, defaultSettings, toParams } from '../wwwroot/js/suggest/settings.js';
 
-const libraryDefaults = { maxResults: 20, candidates: 500, rank: 'WordStartThenSimilarity', priorityMode: 'First', distinctText: false };
+const libraryDefaults = { maxResults: 20, candidates: 500, rank: 'WordStartThenSimilarity', priorityMode: 'First' };
 const defaults = defaultSettings(libraryDefaults);
 
 test('the defaults are the library’s, not the page’s', () => {
@@ -21,11 +21,10 @@ test('only what differs from the library’s default is sent', () => {
     settings.query.take = 5;
     settings.query.rank = 'WeightOnly';
     settings.query.priorityMode = 'CandidatesOnly';
-    settings.query.distinct = true;
     settings.query.similarity = 'ngram-dice';
     settings.query.candidates = 100;
     assert.deepEqual(toParams(settings, defaults), {
-        take: '5', rank: 'WeightOnly', priorityMode: 'CandidatesOnly', distinct: 'true', similarity: 'ngram-dice', candidates: '100',
+        take: '5', rank: 'WeightOnly', priorityMode: 'CandidatesOnly', similarity: 'ngram-dice', candidates: '100',
     });
 });
 

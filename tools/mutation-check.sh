@@ -604,6 +604,39 @@ expect_caught "a-null-read-as-null-for-every-type-refused" "${INTEGRATION_PROJEC
   "FullyQualifiedName~A_null_column_is_null_for_a_type_that_can_hold_null_and_refused_for_one_that_cannot" \
   "sed -i 's|        return default(T) is null \&\& reader.IsDBNull(ordinal)|        return false \&\& reader.IsDBNull(ordinal)|' src/Nordmann.LUI/LuiPayloadRow.cs"
 
+# 26x. The distance of the index is not the distance of its definition (ADR-0054): an opened index forgets how its
+#       dictionary was built, and a query has to ask for the correction again. The test that opens the catalog a
+#       second time has to notice.
+expect_caught "the-distance-does-not-survive-a-restart" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~An_opened_index_keeps_its_distance_and_corrects_without_the_query_asking_for_it" \
+  "sed -i 's|typoDistance: entry.Definition.TypoDistance);|typoDistance: LuiTypoDistance.None);|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 26y. The distance of the index never reaches its dictionary (ADR-0054): every index forgives one error, whatever
+#       its definition says. The index that forgives nothing would build a dictionary — and pay for it.
+expect_caught "the-distance-of-the-index-never-reaches-its-dictionary" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~An_index_that_forgives_nothing_builds_no_dictionary" \
+  "sed -i 's|Distance: distance));|Distance: LuiTypoDistance.OneError));|' src/Nordmann.LUI/Typos/TypoDictionaries.cs"
+
+# 26z. The correction always forgives one error (ADR-0054): the enumeration is a number again, and the index that
+#       forgives two errors forgives one. The typo of two errors has to stay uncorrected.
+expect_caught "the-correction-always-forgives-one-error" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_typo_of_two_errors_is_corrected_by_the_index_that_forgives_two_and_by_no_other" \
+  "sed -i 's|suggestions.Add(Suggest(symSpell, search.AsSpan(word.Start, word.Length), (int)_distance));|suggestions.Add(Suggest(symSpell, search.AsSpan(word.Start, word.Length), 1));|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
+
+# 26aa. The guard of the distance None sits in the caller that asks, not in the thing that builds
+#       (ADR-0054, review of pull request #126, I1): the guard fires only when the dictionary is already
+#       built — and it never is, while a build starts. A rebuild of an index that forgives nothing builds
+#       the dictionary: 138 MB for a correction that is never made.
+expect_caught "a-rebuild-that-forgives-nothing-builds-a-dictionary" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_rebuild_of_an_index_that_forgives_nothing_builds_no_dictionary" \
+  "sed -i 's|        if (_distance == LuiTypoDistance.None)|        if (IsBuilt \&\& _distance == LuiTypoDistance.None)|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
+# 26y. The query path drops a duplicate again (ADR-0055): the uniqueness of a text belongs to the data, so the
+#      library answers with one hit per entry — a candidate whose search form was seen is dropped again, and the
+#      four restated tests notice.
+expect_caught "a-duplicate-of-a-text-is-dropped-again" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~Two_spellings_of_one_text_are_two_hits|FullyQualifiedName~The_priority_leads_the_hits|FullyQualifiedName~The_correction_is_not_swallowed|FullyQualifiedName~The_input_and_its_correction_keep" \
+  "sed -i 's|        var read = 0;|        var seen = new HashSet<string>(StringComparer.Ordinal);\\n        var read = 0;|' src/Nordmann.LUI/Querying/CandidateReader.cs && sed -i 's|            candidates\\[count++\\] = new Scored { RowId = reader.GetInt64(0), Text = text, WordStart = start, Variant = variant };|            if (seen.Add(Normalizer.ToSearchForm(text, _normalization))) { candidates[count++] = new Scored { RowId = reader.GetInt64(0), Text = text, WordStart = start, Variant = variant }; }|' src/Nordmann.LUI/Querying/CandidateReader.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

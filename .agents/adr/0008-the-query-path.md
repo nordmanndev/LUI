@@ -2,6 +2,11 @@
 
 > **Note (ADR-0028, 2026-11-04):** `Highlight` is not coming back: LUI delivers no found positions, and issue #20 is closed.
 > The text below is history.
+>
+> **Note (ADR-0055, 2026-11-12):** `DistinctText` is gone — the uniqueness of a text belongs to the data. The paragraph
+> about it below is history, and it was wrong about the budget: a duplicate did use up a place of the candidate budget,
+> so the option made the search shallower, not only the answer shorter. See
+> [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md).
 
 - **Status:** Accepted
 - **Date:** 2026-11-02
