@@ -119,10 +119,11 @@ and is not.
   carries the country, the region and the district of every one of its 5.8 million entries. A public repository has to
   be able to answer *may this be redistributed?* (the licences are in the headers and in `docs/benchmarks.md`) and
   *may this be published at all?* (the data-protection boundary is above).
-- **Two of the four files are above GitHub's recommended maximum of 50 MB** (the places 78.3 MB, the Wikipedia titles
-  54.6 MB). They are stored as they are, **without Git LFS**, so that a clone needs no LFS client and a `git clone` is
-  enough to measure. The cost is that every clone of the repository carries 162 MB — a price the owner decides, not this
-  ADR.
+- **Two of the four files are above the 50 MB that GitHub warns about** (the places 82,099,316 bytes, the Wikipedia
+  titles 57,243,360 bytes — 82.1 MB and 57.2 MB in the decimal system this document uses; GitHub's own warning names
+  them 78.30 MB and 54.59 MB, because it counts 1024-based). They are stored as they are, **without Git LFS**, so that a
+  clone needs no LFS client and a `git clone` is enough to measure. The cost is that every clone of the repository
+  carries 162 MB — a price the owner decides, not this ADR.
 
 ## The criterion that is not met literally
 
