@@ -1,5 +1,9 @@
 # 0010 — The query budget of §16 does not hold at three million entries on FTS5 alone
 
+> **Note (ADR-0057, 2026-11-12, issue #121):** the German phrase of the record was translated into English. The
+> specification is German and stays German until it is deleted in pull request 8; the decision stands as it was
+> written; the text below is history.
+
 - **Status:** Accepted — owner's decision of 2026-11-04: option 2 (the budget per input length) now, option 1 (a real
   stock) when there is one; option 3 only when a real stock asks for it
 - **Date:** 2026-11-02
@@ -46,7 +50,7 @@ It is not the library, and it is not the prefix path.
 - The corpus makes it worse: 3 M compounds of two random words from the
   German word list are far denser in `sch`/`ung`/`ter`… than a stock of tags
   or titles. §16's own numbers (Anhang A1, A5) were taken on a different
-  synthetic corpus, "als Größenordnung" (Anhang A).
+  synthetic corpus, "as an order of magnitude" (Anhang A).
 
 ## Follow-up measurement (same day, after review)
 

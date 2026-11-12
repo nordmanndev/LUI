@@ -10,7 +10,7 @@
 - **Affects:** `src/Nordmann.LUI/LuiQueryOptions.cs`, `src/Nordmann.LUI/LuiQuery.cs`,
   `src/Nordmann.LUI/Querying/CandidateReader.cs`, `src/Nordmann.LUI/Querying/Scored.cs`,
   `src/Nordmann.LUI/Querying/TypoCorrection.cs`, `samples/Lui.Sample/Api/SuggestParameters.cs`,
-  `samples/Lui.Sample/wwwroot/js/`, `docs/api.md`, `docs/tutorial/01-erster-index.md`, `README.md`,
+  `samples/Lui.Sample/wwwroot/js/`, `docs/api.md`, `docs/tutorial/01-first-index.md`, `README.md`,
   `docs/testing.md`, `CHANGELOG.md`
 - **Issue:** #119, step 2 of #117. The owner's decision of 2026-11-11, in the plan
   [`.agents/plan/2026-11-11-the-public-surface-and-the-measurement.md`](../plan/2026-11-11-the-public-surface-and-the-measurement.md)

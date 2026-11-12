@@ -12,6 +12,11 @@
 > sources. The rule that stays is the one that mattered: the entrance may not say what the specification says. The
 > decisions 2, 3, 5, 6, 7, 8 and 9 stand as they are written.
 
+> **Note (ADR-0057, 2026-11-12, issue #121):** this record named an external contract that a reader of a public
+> library cannot know, and its table of the diagnosis was in German. The sentences that named the contract are
+> restated in the terms of this repository, and the table is translated. The decisions stand as they are written;
+> the text below is history.
+
 - **Status:** Accepted
 - **Date:** 2026-11-06
 - **Builds on:** [0022](./0022-the-benchmark-results-in-the-readme.md) (the benchmark tables and their guard),
@@ -29,14 +34,14 @@
 The README of this repository grew into an architecture document. On `main` (111eefb) it had 571 lines and 18
 sections, and it said the same things in two places:
 
-| | Befund |
+| | Finding |
 |---|---|
-| Umfang | 571 lines, 18 sections |
-| Die fünf Konzeptabschnitte (182–311) | ein Duplikat von `.agents/spec/LUI-Spezifikation.md` — zwei Orte für eine Wahrheit |
-| Performance (ab 387) | das Vertrauensargument steht nach zwei Dritteln der Datei |
-| BenchmarkDotNet-Tabellen (414–494) | 80 Zeilen Rohdaten im falschen Dokument |
-| Inhaltsverzeichnis, Abzeichen | keine |
-| `normalization.md`, `architecture/alignment.md`, `domain/lui.md` | **null** Verweise aus der README — verwaist |
+| Scope | 571 lines, 18 sections |
+| The five concept sections (182–311) | a duplicate of `.agents/spec/LUI-Spezifikation.md` — two places for one truth |
+| Performance (from 387) | the argument for trust stands after two thirds of the file |
+| BenchmarkDotNet tables (414–494) | 80 lines of raw data in the wrong document |
+| Table of contents, badges | none |
+| `normalization.md`, `architecture/alignment.md`, `domain/lui.md` | **null** references from the README — orphaned |
 
 Two things were missing besides. A reader who wanted to use LUI found a contract, not a way: the specification
 defines the kinds of index, the query path, the ranking and the typo tolerance, but it does not take anybody by the
@@ -78,7 +83,8 @@ one were wrong.
    packed `.nupkg` (AGENTS.md). The blocks are few on purpose — one quick start, the payload, the host, reading only —
    and every one of them is a promise that can be checked.
 7. **The map of the documentation is in the README**, near its end: the tutorial, the specification, the record, the
-   normalisation, the ADRs, the test map — and the corners that are read less often, the alignment with the standards
+   normalisation, the ADRs, the test map — and the corners that are read less often, the alignment with the rules
+   of the repository
    and the domain of the library.
 8. **A document nobody links to is a document nobody reads.** `docs/normalization.md`, `docs/architecture/alignment.md`
    and `docs/domain/lui.md` had no link from anywhere; the README links all three.
@@ -113,7 +119,7 @@ one were wrong.
 - **The map of the documentation is a list of links**, and it grows with the documents: `docs/README.md` (the map of
   the documents themselves) is written by the same issue.
 - **The documents of the corners are reachable** from the entrance: the normalisation, the alignment with the
-  standards, the domain of the library.
+  rules of the repository, the domain of the library.
 - **A rule for the next README**: it may not grow past the length of a sitting, and it may not say what the
   specification says.
 

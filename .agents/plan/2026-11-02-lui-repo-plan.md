@@ -2,9 +2,13 @@
 
 > **Name note (ADR-0023, 2026-11-04):** this plan says `Owned` where the code now says `Embedded`; it keeps the names of its time.
 
+> **Note (ADR-0057, 2026-11-12, issue #121):** this paper named an external contract that a reader of a public library cannot
+> know. The sentences that named it are restated in the terms of this repository — what it called the rulebook of the
+> time is now the rulebook of the repository. The text below is the paper of its time.
+
 - **Status:** Proposed
 - **Date:** 2026-11-02
-- **Inputs:** `LUI-Spezifikation.md` (Entwurf 2, 2026-11-01)
+- **Inputs:** `LUI-Spezifikation.md` (draft 2, 2026-11-01)
 - **Scope:** the new `nordmanndev/LUI` repo, one NuGet package, one sample app
 
 ---

@@ -1,9 +1,13 @@
 # 0028 — LUI has no Highlight: a correction is shown as a question
 
-- **Status:** Accepted (owner's decision, 2026-11-04: "baue es so um und Nummer 20 würde ich streichen")
+> **Note (ADR-0057, 2026-11-12, issue #121):** the German wording of the record — the owner's decision and two
+> sentences of the specification — was translated into English. The specification is German and stays German until it
+> is deleted in pull request 8; the decision stands as it was written; the text below is history.
+
+- **Status:** Accepted (owner's decision, 2026-11-04: "build it that way, and I would strike number 20")
 - **Date:** 2026-11-04
 - **Issue:** #20 (closed, not planned); found by PR-011 (#51)
-- **Amends:** spec §9.3 (now "entfällt"), §12 (the remark on the target API), §12.5 (the listing of the query), the table of the steps;
+- **Amends:** spec §9.3 (now "falls away"), §12 (the remark on the target API), §12.5 (the listing of the query), the table of the steps;
   [0013](./0013-the-api-shape-before-the-first-release.md), [0017](./0017-dependency-injection-and-hosted-services.md) and
   [0008](./0008-the-query-path.md) (each says `Highlight` comes in a later version; they get a note)
 - **Builds on:** [0027](./0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md) (the sample), [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (additive-only)
@@ -34,7 +38,7 @@ the test said it is the wrong thing to build:
 
 1. **LUI delivers no found positions.** There is no `LuiHit.Highlight`, no `.Highlight(…)` on the query, no property on
    `LuiQueryOptions`, and no map from the search form to the original in the `Normalizer`. None of them exists in the code (ADR-0013
-   removed the field); the specification stops promising them: §9.3 becomes "entfällt", the listing of §12.5 loses its line.
+   removed the field); the specification stops promising them: §9.3 becomes "falls away", the listing of §12.5 loses its line.
 2. **A correction is shown as a question.** An application reads `CorrectedQuery` and shows "Did you mean …?". The sample does
    (`suggest/did-you-mean.js`): one line above the list, and choosing it searches the corrected word as it is.
 3. **An application that wants marks makes them itself**, with what it knows about its script and its input. The library does not

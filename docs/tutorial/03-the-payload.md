@@ -192,4 +192,4 @@ read, and the message names it — there is no reflection and no guessing.
 - A linked index that builds its payload from your own columns.
 
 Next: what happens when there are a hundred thousand entries — step 4,
-[Many entries](./04-auf-vielen-eintraegen.md).
+[Many entries](./04-many-entries.md).

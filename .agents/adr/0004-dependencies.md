@@ -1,4 +1,4 @@
-# 0004 — The dependency set, and the deviation from the closed library list
+# 0004 — The dependency set of the library, and the deviation from the closed list
 
 > **Contract note (ADR-0056, 2026-11-12):** this record was written against a contract outside the repository — a
 > private one, that no reader of LUI can know and does not have to. The repository states its own rules since: the
@@ -11,6 +11,11 @@
 > remains a test dependency — the parity tests compare against the library they replace. The runtime dependencies of
 > `Nordmann.LUI` are `Microsoft.Data.Sqlite` and `symspell`. The text below is history and stays as it was written.
 
+> **Note (ADR-0057, 2026-11-12, issue #121):** this record was written against an external contract that a reader of a
+> public library cannot know. Its decision is restated in the terms of this repository: the dependency set of a
+> library is closed, and a package outside the list needs an ADR that says why. The decision stands as it was
+> written; the text below is history.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
@@ -19,9 +24,8 @@
 
 ## Context
 
-The standards' `architecture/stack.md` runs a **closed library list**
-(standards ADR-0008): a package that is not in the catalogue does not land in
-a project without an ADR that says why.
+This repository runs a **closed library list**: a package that is not in the catalogue does not land in the
+project without an ADR that says why.
 
 LUI needs two packages that the catalogue does not name:
 
@@ -30,8 +34,7 @@ LUI needs two packages that the catalogue does not name:
 | `symspell` 6.7.3 | MIT | The typo tolerance (§10) is SymSpell over the **word beginnings** of an index, with one edit and the three best corrections. The measurements in Anhang A are SymSpell measurements. |
 | `F23.StringSimilarity` 7.0.1 | MIT | The four similarity measures of §11 (Jaro-Winkler, N-gram Dice, Damerau-Levenshtein, Levenshtein). |
 
-`Microsoft.Data.Sqlite` 10.0.14 needs no exemption: it is already in the
-standards' stack as OrmLite's provider.
+`Microsoft.Data.Sqlite` 10.0.14 needs no exemption: it is the provider of the persistence layer.
 
 ## Decision
 
@@ -78,10 +81,9 @@ dependency is smaller than the risk of owning the algorithm.
 
 ## Consequences
 
-- The standards' catalogue does not list `symspell` or `F23.StringSimilarity`.
-  This ADR is the exemption for this project; it does **not** amend the
-  standards. If another Nordmann project wants them, it gets its own ADR —
-  or the standards adopt them.
+- The catalogue of this repository does not list `symspell` or `F23.StringSimilarity`.
+  This ADR is the exemption for this project; it does **not** amend the rules of the repository. If another
+  project wants them, it gets its own ADR.
 - The dependency set is a public contract of the package. Changing it is a
   breaking change for consumers and needs a new ADR.
 

@@ -75,6 +75,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   repository, and the references to that contract are out of the documentation, of the build files and of the CI. The
   specification keeps its number and its paragraph references, and points at the file of the budgets.
   - **No change to the public API.**
+- **The repository is English, and its decisions speak in its own terms**
+  ([ADR-0057](.agents/adr/0057-the-repository-of-a-public-library-is-english.md), #121). The working papers under
+  `.agents/plan/` are translated, the five tutorials carry English file names, and the six ADRs that named the external
+  contract of the time are restated in the terms of this repository — each with a dated note, so that the history of the
+  work stays visible. **No change to the public API.**
 ### Removed
 
 - **`DistinctText` is gone** ([ADR-0055](.agents/adr/0055-the-uniqueness-of-a-text-belongs-to-the-data.md), #119).
@@ -334,7 +339,7 @@ The sections below are the changes made on the way to it.
 
 - **`Highlight` is struck from the specification** ([ADR-0028](.agents/adr/0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md), #20
   closed): LUI delivers no found positions (`LuiHit.Highlight`, `.Highlight(…)`, a map from the search form to the original). It never
-  existed in the code; spec §9.3 now says "entfällt". An application shows a correction with `LuiResult.CorrectedQuery`.
+  existed in the code; spec §9.3 now says "falls away". An application shows a correction with `LuiResult.CorrectedQuery`.
 
 - **The freeze** ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md), #43). From the tag `v0.1.0` on, the
   public API of `Nordmann.LUI` and `Nordmann.LUI.Hosting` grows only additively. A breaking change — a removed or renamed
