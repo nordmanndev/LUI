@@ -23,13 +23,23 @@ The dictionary of SymSpell is a **symmetric delete** dictionary: for every word
 it keeps the word itself and its *delete variants* — the words that come from it
 by deleting one, two, … letters. A lookup deletes the letters of the input in
 the same way and looks the deletes up. The number of the delete variants is
-what makes the distance expensive:
+what makes the **second** error expensive:
 
 | Distance | Delete variants per beginning | What is forgiven |
 |---|---|---|
-| `None` | none — **no dictionary is built at all** | nothing |
+| `None` | none — **LUI builds no dictionary at all** | nothing |
 | `OneError` | the word + its deletions of one letter (7 with a prefix length of 7) | a letter left out, one too many, one wrong, two swapped |
 | `TwoErrors` | the word + its deletions of one letter + its deletions of two (21 more) | two of the above |
+
+**The distance `None` is free because LUI builds nothing — not because the
+dictionary of SymSpell would be small.** SymSpell keeps the *same* delete
+variants at the distance 0 as at the distance 1: the distance says how many
+deletions a **lookup** accepts, and the delete variants of the dictionary are
+the ones of one deletion either way. Measured over the beginnings of the corpus
+of the measurement (647,948 of them): **880,384 entries at the distance 0 and
+at the distance 1**, 1,367,891 at the distance 2. A dictionary of the distance 0
+would cost the memory of the one of the distance 1 — and it could never correct
+anything.
 
 The prefix length of the dictionary is **7**: SymSpell keys a word by its first
 seven letters, and the correction looks a word up by its first ten letters
@@ -41,19 +51,28 @@ beginning and keeps the rest.
 The numbers were **measured**, not estimated — the word list of the repository
 (685,829 words, the list that [`tools/fetch-wordlist.sh`](../tools/fetch-wordlist.sh)
 fetches; 685,739 of them are used: the words of three letters or more, without
-a digit), on one index per distance, each in a database of its own.
+a digit), one index and one database per distance.
 
 | Distance | The dictionary | The build | The memory |
 |---|---|---|---|
 | `None` | **not built** — the state stays `NotBuilt` | **0.0 s** | **0 MB** |
-| `OneError` | built | **4.1 s** | **138 MB** |
-| `TwoErrors` | built | **8.6 s** | **240 MB** |
+| `OneError` | built | **4.3 s** | **138 MB** |
+| `TwoErrors` | built | **8.5 s** | **240 MB** |
+
+**The time belongs to the machine and to the run below** (ADR-0041): it is a
+measurement, not a promise, and it is not reproducible — a parallel job on the
+same machine makes it twice as slow (a second run of the same day, with a
+parallel build in the same sandbox, took 4.4 s and 8.7 s). **The memory is the
+claim that does not depend on the machine**: 138 MB and 240 MB are the sizes of
+the dictionaries, and they come out the same on every machine.
 
 Two errors cost **1.7 times** the memory of one and **twice** the time — and
 **40 MB more than the budget of §16** allows (§16: *typo dictionary, 700,000
 different words: ≤ 200 MB, build ≤ 10 s*). The build time is still inside the
 budget; the memory is not. The budget was written for one error, and it holds
-for one error.
+for one error. The two-error distance has **no budget of its own yet**: the
+budgets move into `budgets.json` with pull request 3 of the series, and the
+distance gets its budget there. The miss stands written down until then.
 
 The row of one error is the number of ADR-0021 — the same word list, the same
 138 MB. A measurement that reproduces the old
@@ -63,11 +82,11 @@ number is a measurement that is comparable with the old one.
 
 | What | Value |
 |---|---|
-| The date | 2026-11-11 |
+| The date | 2026-11-12 |
 | The corpus | `artifacts/wordlist/german-words.txt` — 685,829 words, the German word list of [enz/german-wordlist](https://github.com/enz/german-wordlist) (CC0) |
-| The machine | Intel Xeon Platinum, 2 cores, 3.0 GB RAM, Debian 12 (bookworm), .NET 10.0.403 |
-| The method | the growth of the heap of the process while the dictionary is built (`GC.GetTotalMemory(forceFullCollection: true)` before and after `WarmUpTypoDictionary()`), one index and one database per distance, so that no other dictionary is in the process |
-| The command | `LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests --filter "FullyQualifiedName~TypoPerformance.What_every_distance_costs" --logger "console;verbosity=detailed"` |
+| The machine | Intel Xeon Platinum, 2 cores, 3.0 GB RAM, Debian 12 (bookworm), .NET 10.0.403 — the load average of the machine was 1.1 during the run |
+| The method | the growth of the heap of the process while the dictionary is built (`GC.GetTotalMemory(forceFullCollection: true)` before and after `WarmUpTypoDictionary()`), one index and one database per distance in **one run of the process** — the heap is read with a forced collection, so the dictionary of the previous distance is reclaimed before the next one is measured |
+| The command | `LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests --configuration Release --filter "FullyQualifiedName~TypoPerformance.What_every_distance_costs" --logger "console;verbosity=detailed"` |
 
 The memory is the size of the dictionary, not the size of the index: the index
 of 685,739 words is in the file, and the file is not in the heap.
@@ -80,7 +99,10 @@ with `WarmUpTypoDictionary()` or through the warm-up of the host (ADR-0043).
 
 - **A distance of `None` pays nothing.** There is no dictionary, and the state
   of the dictionary stays `NotBuilt` — the proof is that the source of the
-  dictionary is never read, not a measurement of a heap.
+  dictionary is never read, not a measurement of a heap. The guard sits where
+  the dictionary is **built**, so every path that reaches a build pays nothing:
+  the warm-up, the rebuild (`RebuildTypoDictionary()`) and the sync of a linked
+  index.
 - **The dictionary only grows** (ADR-0025):
   a word that is written after the build is learned at once, a word that is
   removed stays until the dictionary is built anew.

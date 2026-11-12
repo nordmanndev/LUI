@@ -182,7 +182,7 @@ public sealed class LuiCatalog : IDisposable
     /// opens later sees the same dictionary and reports it as built (ADR-0025).
     /// </para>
     /// <para>
-    /// The build takes seconds and needs memory — 138 MB for 685,829 words (ADR-0021). A host that wants corrections
+    /// The build takes seconds and needs memory — 138 MB for 685,739 words (ADR-0021). A host that wants corrections
     /// from its first query warms the catalog at the start; the registration <c>AddLuiWarmup()</c> of the hosting
     /// package does it for the host (ADR-0043).
     /// </para>
@@ -196,7 +196,7 @@ public sealed class LuiCatalog : IDisposable
 
     /// <summary>
     /// Builds the typo dictionary of the named indexes (ADR-0043) — for a catalog whose indexes do not all correct typos:
-    /// a dictionary costs memory, 138 MB for 685,829 words (ADR-0021), and an index whose queries correct nothing needs
+    /// a dictionary costs memory, 138 MB for 685,739 words (ADR-0021), and an index whose queries correct nothing needs
     /// none.
     /// </summary>
     /// <param name="names">The names of the indexes, embedded or linked.</param>

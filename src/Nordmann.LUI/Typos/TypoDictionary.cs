@@ -97,12 +97,6 @@ internal sealed class TypoDictionary
             return;
         }
 
-        // an index that forgives nothing has no dictionary: the memory of one would buy no correction
-        if (_distance == LuiTypoDistance.None)
-        {
-            return;
-        }
-
         EnterGate(cancellationToken);
         try
         {
@@ -325,6 +319,15 @@ internal sealed class TypoDictionary
     /// </summary>
     private void BuildAndPublish(CancellationToken cancellationToken)
     {
+        // An index that forgives nothing has no dictionary: the memory of one would buy no correction
+        // (ADR-0054). The guard is here, where the dictionary is built — every path that reaches a build
+        // (the warm-up, the rebuild, the sync of a linked index) comes here and gets nothing. A guard in
+        // the caller that asks would cover one path only (review of pull request #126, I1).
+        if (_distance == LuiTypoDistance.None)
+        {
+            return;
+        }
+
         lock (_pendingGate)
         {
             _pending = new Queue<(string, int)>();

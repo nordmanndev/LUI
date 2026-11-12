@@ -623,6 +623,14 @@ expect_caught "the-correction-always-forgives-one-error" "${INTEGRATION_PROJECT}
   "FullyQualifiedName~A_typo_of_two_errors_is_corrected_by_the_index_that_forgives_two_and_by_no_other" \
   "sed -i 's|suggestions.Add(Suggest(symSpell, search.AsSpan(word.Start, word.Length), (int)_distance));|suggestions.Add(Suggest(symSpell, search.AsSpan(word.Start, word.Length), 1));|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
 
+# 26aa. The guard of the distance None sits in the caller that asks, not in the thing that builds
+#       (ADR-0054, review of pull request #126, I1): the guard fires only when the dictionary is already
+#       built — and it never is, while a build starts. A rebuild of an index that forgives nothing builds
+#       the dictionary: 138 MB for a correction that is never made.
+expect_caught "a-rebuild-that-forgives-nothing-builds-a-dictionary" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_rebuild_of_an_index_that_forgives_nothing_builds_no_dictionary" \
+  "sed -i 's|        if (_distance == LuiTypoDistance.None)|        if (IsBuilt \&\& _distance == LuiTypoDistance.None)|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
+
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

@@ -56,8 +56,10 @@ public sealed class TypoPerformance(ITestOutputHelper output)
     /// SymSpell, and their number grows with the distance — so the distances are the ones that were measured, and the
     /// numbers stand in <c>docs/typo-dictionary.md</c>.
     /// <para>
-    /// One index per distance, one database per index: the dictionary of a distance is measured in a process that holds
-    /// no other dictionary, so the numbers are comparable.
+    /// One index and one database per distance, the three distances in <b>one run of the process</b>: the heap is read
+    /// with a forced collection before and after the build, so the dictionary of the previous distance is reclaimed
+    /// before the next one is measured. The memory is the machine-independent number; the time belongs to the machine
+    /// of the run (ADR-0041).
     /// </para>
     /// </summary>
     [PerformanceFact]

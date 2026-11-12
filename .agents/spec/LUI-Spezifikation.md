@@ -214,12 +214,14 @@ gewünschten passt. Eine Abweichung ist ein Fehler mit klarer Meldung — ein
 Index wird nie stillschweigend umgebaut (§ 12.2).
 
 Die Definition ist JSON und trägt alles, was ein **geöffneter** Index braucht:
-die Art, die Quelle, **die Art des Schlüssels** (Zahlen oder Texte), die
-Faltversion und — bei einem verknüpften Index mit Payload — **die Spalten des
-Payloads in ihrer Reihenfolge**. **Keinen Typ der Anwendung** (ADR-0035): Die
-Payload ist Bytes, die der Serialisierer des Katalogs schreibt und liest; was sie
-ist, verantwortet die Anwendung. Eine ältere Definition mit `payload` und
-`payloadType` wird gelesen, die beiden Felder werden übergangen. Damit kann ein
+die Art, die Quelle, **die Art des Schlüssels** (Zahlen oder Texte), **die
+Tippfehler-Distanz** (ADR-0054), die Faltversion und — bei einem verknüpften Index
+mit Payload — **die Spalten des Payloads in ihrer Reihenfolge**. **Keinen Typ der
+Anwendung** (ADR-0035): Die Payload ist Bytes, die der Serialisierer des Katalogs
+schreibt und liest; was sie ist, verantwortet die Anwendung. Eine ältere
+Definition mit `payload` und `payloadType` wird gelesen, die beiden Felder werden
+übergangen. Eine ältere Definition **ohne** das Feld der Distanz wird als `None`
+gelesen — ein Index, der nichts verzeiht. Damit kann ein
 Index gelesen werden, ohne dass die Anwendung etwas dazutun muss (ADR-0033):
 `Index` liest die Definition, prüft Schemaversion und Faltversion und baut den
 Index daraus auf — **ohne zu schreiben**: keine Tabelle, keine Definition, kein
@@ -570,7 +572,9 @@ Wer markieren will, tut es in der Anwendung, mit dem, was sie über ihre Schrift
 - **Quelle:** alle Wörter (≥ 3 Zeichen) der normalisierten Texte eines Index.
 - **Inhalt:** alle **Wortanfänge** der Länge 3 … 10 dieser Wörter, jeweils mit
   der Summe der Gewichte als Häufigkeit.
-- **Werkzeug:** SymSpell (`symspell` 6.7.3, MIT), maximal **1** Fehler.
+- **Werkzeug:** SymSpell (`symspell` 6.7.3, MIT), mit der **Distanz des Index** (ADR-0054): `OneError` verzeiht einen
+  Fehler, `TwoErrors` zwei. Eine Distanz `None` baut **gar kein Wörterbuch** — der Zustand bleibt `NotBuilt`, und der
+  Speicher eines Wörterbuchs wird nicht genommen.
 - **Ort:** im Arbeitsspeicher, **pro Index** (ADR-0025): Die Wörterbücher sind nach dem Namen des Index getrennt — eine
   Suche in Tags korrigiert nie zu Namen und umgekehrt. Aufbau **auf ausdrücklichen Wunsch** aus der Inhaltstabelle (im
   Stapel: `SuggestionStage` + `CommitStaged`): `WarmUpTypoDictionary()` baut das Wörterbuch, `RebuildTypoDictionary()`
@@ -580,10 +584,11 @@ Wer markieren will, tut es in der Anwendung, mit dem, was sie über ihre Schrift
 - **Es wächst nur.** `Remove`, eine Textänderung und das `Sync` eines `Embedded`-Index lassen entfernte Wörter stehen
   (SymSpell kennt kein Entfernen); nichts baut das Wörterbuch von selbst neu. **Ausnahme:** `Sync()` eines `Linked`-Index
   füllt den Index aus der Tabelle der Anwendung neu auf — ein ausdrückliches „von vorn" — und baut ein gebautes Wörterbuch
-  an seinem Ende neu, weil sich die Wörter der Tabelle ändern können, ohne dass LUI es sieht (ADR-0025, Punkt 8). Eine Korrektur zu einem entfernten Wort kostet fast nichts: der
-  Index ist der Filter, die Korrektur findet keinen Kandidaten und fällt weg. `RebuildTypoDictionary()` vergisst die
-  entfernten Wörter und setzt die Häufigkeiten neu; es liest alle Einträge, Schreibzugriffe währenddessen gehen nicht
-  verloren, Abfragen nutzen bis dahin das alte Wörterbuch.
+  an seinem Ende neu, weil sich die Wörter der Tabelle ändern können, ohne dass LUI es sieht (ADR-0025, Punkt 8). Ein Index
+  der Distanz `None` hat kein gebautes Wörterbuch, und der Sync baut keins. Eine Korrektur zu einem entfernten Wort kostet
+  fast nichts: der Index ist der Filter, die Korrektur findet keinen Kandidaten und fällt weg. `RebuildTypoDictionary()`
+  vergisst die entfernten Wörter und setzt die Häufigkeiten neu; es liest alle Einträge, Schreibzugriffe währenddessen
+  gehen nicht verloren, Abfragen nutzen bis dahin das alte Wörterbuch.
 - **Zustand** (`TypoDictionaryState`, ADR-0021, ADR-0025): `NotBuilt`, `Building`, `Current`. Es gibt keinen Zustand „veraltet"
   (ADR-0021 hatte `Stale`, einen Zähler und einen Hintergrunddienst; ADR-0025 nimmt sie zurück). Keine Abfrage wartet auf
   einen Aufbau und **keine startet einen**: Eine, die währenddessen korrigieren müsste, antwortet ohne Korrektur und
@@ -598,7 +603,7 @@ Wörtern.
 ### 10.3 Wie korrigiert wird
 
 1. Jedes Wort der Eingabe mit ≥ 3 Zeichen wird nachgeschlagen
-   (`Verbosity.Closest`, Distanz 1).
+   (`Verbosity.Closest`, mit der Distanz des Index).
 2. Die **3 besten Korrekturen** werden als Kandidatensuche ausgeführt, die
    Kandidaten vereinigt (je `doc_id` der beste Wert).
 3. Das Ranking läuft mit der korrigierten Eingabe; `CorrectedQuery` sagt, was
@@ -606,8 +611,13 @@ Wörtern.
 
 ### 10.3a Festlegungen der Umsetzung (ADR-0012)
 
-- **Standard: aus.** `.TypoTolerance()` am Builder schaltet ein, `.TypoTolerance(false)` aus — mehr als eine Änderung gibt es
-  nicht, deshalb keine Zahl (ADR-0013); die Abfrage überschreibt mit `.TypoTolerance(bool)`. Das Wörterbuch kostet Speicher, den die Anwendung nicht verlangt hat.
+- **Standard: aus.** Der Builder nimmt die **Distanz** (ADR-0054): `.TypoTolerance(LuiTypoDistance.OneError)` verzeiht
+  einen Fehler, `.TypoTolerance(LuiTypoDistance.None)` keinen — mehr als eine Änderung gibt es nicht, deshalb keine Zahl
+  (ADR-0013). Die Distanz gehört zum **Index**: sie steht in der gespeicherten Definition, überlebt einen Neustart und ist
+  der Deckel der Abfrage. Die Abfrage schaltet die Korrektur mit `.TypoTolerance(bool)` ein oder aus, aber sie kann die
+  Distanz des Index **nicht vergrößern** — für `None` gibt es nichts zu überschreiten, und die Abfrage antwortet dann
+  ohne Korrektur und setzt `CorrectionSkipped`. Das Wörterbuch kostet Speicher, den die Anwendung nicht verlangt hat, und
+  ein Index der Distanz `None` baut gar keins.
 - **Häufigkeit = Summe von `Gewicht + 1`** (SymSpell verwirft einen Eintrag mit Häufigkeit 0). Der Aufbau summiert über alle Texte;
   `Upsert` ergänzt nur Wortanfänge, die es noch nicht gibt, und ändert die Häufigkeit der vorhandenen nicht. Die Häufigkeiten (und damit
   die Reihenfolge der drei Vorschläge) spiegeln den Bestand daher erst nach `RebuildTypoDictionary()` genau wider.
@@ -712,7 +722,7 @@ jeden Schreibvorgang (§ 7.1, § 12.8). Dieselbe Anwendung läuft damit im schre
 ILuiEmbeddedIndex recipes = lui.Create("recipes", index =>   // der Name
     index.MultiWord()                                        // die Art; danach: Embedded mit Zahlen als Schlüssel
         .Similarity(LuiSimilarity.NgramDice)                  // Standard für MultiWord, hier explizit
-        .TypoTolerance());
+        .TypoTolerance(LuiTypoDistance.OneError)             // ein Fehler wird verziehen; `None` verzeiht keinen
 
 // mit Texten als Schlüssel
 ILuiEmbeddedIndex words = lui.Create("words", index => index.SingleWord().WithKey(LuiKeyKind.Text));
@@ -792,7 +802,7 @@ der Typ der Payload ist das Wissen des Aufrufers und steht dort, wo die Payload 
   das ihre Sache; die Bibliothek merkt es frühestens, wenn der Serialisierer die Bytes nicht lesen kann.
 - **Die typisierte Sicht** (ADR-0044): Wer den Typ vom Compiler geprüft haben will, fragt nach einer Sicht —
   `index.As<RecipeChip>()` (eine Erweiterungsmethode auf `ILuiIndex`) gibt ein `LuiTypedIndex<RecipeChip>` mit
-  `Name`, `Kind`, `KeyKind`, `TypoTolerance`, `TypoDictionaryState`, `Count()` und `Search(…)`; der fluent Weg endet in
+  `Name`, `Kind`, `KeyKind`, `TypoDistance`, `TypoDictionaryState`, `Count()` und `Search(…)`; der fluent Weg endet in
   derselben Antwort: `….Execute().As<RecipeChip>()` (`LuiResult.As<TPayload>()`). Die Antwort ist ein
   `LuiTypedResult<TPayload>`, der Treffer ein `LuiTypedHit<TPayload>`; der Schlüssel bleibt `LuiKey`. Die Payload des
   typisierten Treffers liest **eine Methode**, keine Eigenschaft — `GetPayload()` und `TryGetPayload(out …)` —, weil sie
@@ -802,7 +812,7 @@ der Typ der Payload ist das Wissen des Aufrufers und steht dort, wo die Payload 
 ### 12.4 Schreiben (`Embedded`)
 
 Lesen und Schreiben sind zwei Schnittstellen (ADR-0013): `ILuiIndex` hat jeder Index und liest nur —
-`Query`, `Search`, `Count`, `KeyKind`, `TypoTolerance`, `TypoDictionaryState` —; `ILuiEmbeddedIndex` ergänzt die
+`Query`, `Search`, `Count`, `KeyKind`, `TypoDistance`, `TypoDictionaryState` —; `ILuiEmbeddedIndex` ergänzt die
 Schreibmethoden und die Pflege des Index (`Check`, `WarmUpTypoDictionary`, `RebuildTypoDictionary`; ADR-0024). Dasselbe gilt für
 `ILuiLinkedIndex`. Keine der Schnittstellen hat einen Typparameter (ADR-0035). Ein Eintrag ist ein `LuiEntry`; ein
 Upsert speichert **ihn ganz** — Text, Gewicht, Priorität und Payload.
@@ -872,7 +882,7 @@ LuiResult result = recipes
     .PriorityMode(LuiPriorityMode.First)            // Standard
     .DistinctText(false)                             // Standard
     .Similarity(LuiSimilarity.JaroWinkler)           // überschreibt den Standard der Art
-    .TypoTolerance(true)                             // Standard: wie beim Index festgelegt
+    .TypoTolerance(true)                             // fragt die Korrektur an — die Distanz des Index ist der Deckel
     .TrackTimings(false)
     .Execute(cancellationToken);
 
@@ -1029,8 +1039,11 @@ Regeln:
 - **Die Quelle wird geprüft**: `Index` auf einem verknüpften Index, `LinkedIndex` auf einem eingebetteten,
   `LinkedIndex(name)` auf einem Index mit Payload-Spalten und `LinkedIndex(name, map)` auf einem ohne sind ein
   `LuiDefinitionMismatchException`, das beide nennt. Ein Typ wird nicht geprüft — die Datei kennt keinen (§ 12.3).
-- **Die Ähnlichkeit ist der Standard der Art** des Index, die **Tippfehler-Toleranz ist aus**: ein geöffneter Index
-  korrigiert nichts. Eine Abfrage fragt danach (`LuiQueryOptions.TypoTolerance`, `LuiQueryOptions.Similarity`).
+- **Die Ähnlichkeit ist der Standard der Art** des Index, die **Tippfehler-Distanz ist die der gespeicherten
+  Definition** (ADR-0054): ein geöffneter Index verzeiht, was seine Definition sagt — auch nach einem Neustart. Eine
+  Definition ohne das Feld der Distanz (ein Index aus der Zeit vor der Distanz) wird als `None` gelesen und verzeiht
+  nichts. Eine Abfrage fragt danach (`LuiQueryOptions.TypoTolerance`, `LuiQueryOptions.Similarity`), kann die Distanz des
+  Index aber nicht vergrößern.
 - **Ein geöffneter Index schreibt, wenn die Datei es erlaubt**: Der Index ist ein Blick auf die Datei, keine Kopie
   davon — wer schreiben darf, entscheidet die Datei, nicht der Index (der nächste Punkt).
 - **Die Datei entscheidet, was geschehen darf — nicht der Index**: Eine Datei, die nicht geschrieben werden darf, wird
