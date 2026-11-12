@@ -94,4 +94,4 @@ Moving the CI to MTP would change a lot at once:
 ## Note (2026-11-12, issue #122)
 
 ADR-0058 takes the gate of the measurements away — the measurement has a layer of its own, and the layer is the gate. The
-gate of the whole word list stays a dynamic skip, and its guard is the fetch of the list. The decision stands; the sentences above that named a variable of the environment are rewritten, because that variable died with ADR-0058.
+gate of the whole word list stays a dynamic skip, and its guard is the fetch of the list. The decision stands; the sentences above that named a variable of the environment **or a file of the measurements** are rewritten, because that variable died with ADR-0058 and that file moved into the layer of the measurements.
