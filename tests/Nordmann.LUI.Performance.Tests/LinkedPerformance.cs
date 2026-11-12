@@ -20,7 +20,8 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     {
         var entries = Scenario.Entries ?? 200_000;
         var words = Scenario.Words(out var corpus);
-        Report($"corpus: {corpus} ({words.Count:N0} words), {entries:N0} entries");
+        Report(Scenario.Describe(corpus, words.Count));
+        Report($"  {entries:N0} entries");
 
         var random = new Random(42);
         var rows = Enumerable.Range(1, entries)

@@ -1,4 +1,4 @@
-# 0019 — The test tree: three layers, one shared infrastructure, one map that is a guard
+# 0019 — The test tree: three layers and the measurement layer, one shared infrastructure, one map that is a guard
 
 - **Status:** Accepted
 - **Date:** 2026-11-03
@@ -163,8 +163,8 @@ compares the **layer** of a row with its project, and reads the test projects fr
 ## Note (2026-11-12, issue #122)
 
 [ADR-0058](./0058-the-measurement-is-a-layer-of-its-own.md) gives the measurement a layer of its own
-(`tests/Nordmann.LUI.Performance.Tests`) and takes the variables of the environment away. The decision stands; the history
-above stays as written, and these are the differences:
+(`tests/Nordmann.LUI.Performance.Tests`) and takes the variables of the environment away. The decision stands; the sentences above that named a variable of the environment are rewritten, because that variable died with ADR-0058.
+These are the differences:
 
 - **The tree has a fourth layer.** The six files that read the clock moved from the integration layer into
   `tests/Nordmann.LUI.Performance.Tests`. The gate of the measurements is the layer — there is no variable that switches

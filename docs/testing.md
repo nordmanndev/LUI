@@ -19,6 +19,9 @@ than no map — it sends the reader to a test that no longer proves the rule.
 The test pyramid has three layers: unit, architecture, integration. LUI has
 three test projects, one per layer, plus the shared infrastructure they all
 build on — and the sample application has a test project of its own, beside it.
+The fourth row of the table is the measurement layer: it stands beside the
+pyramid, not in it (a measurement is not a test of behaviour), and it is a
+project of the tree like the three others (ADR-0058).
 
 | Project | What it holds | How long it takes | Needs a database |
 |---|---|---|---|

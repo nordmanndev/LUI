@@ -150,4 +150,4 @@ after 0.1.0. `PerformanceBudgets` asserts it; no target of §16 is waived any mo
 ## Note (2026-11-12, issue #122)
 
 The budget test lives in the layer of the measurements since ADR-0058, and the scenario of a run lives in
-`performance.scenario.json`. The decision stands; the history above stays as written.
+`performance.scenario.json`. The decision stands; the sentences above that named a variable of the environment are rewritten, because that variable died with ADR-0058.

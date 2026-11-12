@@ -15,7 +15,8 @@ namespace Nordmann.LUI.Performance.Tests;
 /// read would be a second truth beside the scenario.
 /// </para>
 /// </summary>
-/// <param name="Corpus">The corpus of the run — the word list of the repository until the corpora of the owner arrive.</param>
+/// <param name="Corpus">The corpus of the run: 'wordlist' (the word list of the repository — the sample when the fetch
+/// did not bring it) or 'sample' (the sample of the repository, always there). A name nobody knows is an error.</param>
 /// <param name="PrefixLength">How many entries of the corpus the scenario has.</param>
 /// <param name="Kind">The kind of the index the measurement builds: single words or titles.</param>
 /// <param name="Entries">How many entries a measurement builds, or null when it builds the scenario of its target.</param>
@@ -46,25 +47,69 @@ public sealed record PerformanceScenario(
     public static PerformanceScenario Current { get; } = Read();
 
     /// <summary>
-    /// The words of the corpus of this scenario: the whole word list when it is there, the sample otherwise — cut to the
-    /// prefix of the scenario. Which corpus it was is reported: two measurements on two corpora are not a comparison.
+    /// The words of the corpus of this scenario: the corpus the file names, cut to the prefix of the scenario. Which
+    /// corpus it was is reported: two measurements on two corpora are not a comparison.
     /// </summary>
     /// <param name="corpus">The name of the corpus the words come from.</param>
     /// <returns>The words of the corpus.</returns>
     public IReadOnlyList<string> Words(out string corpus)
     {
-        var words = TestFiles.MeasurementWords(out corpus);
+        var words = CorpusWords(out corpus);
         return words.Count <= PrefixLength ? words : [.. words.Take(PrefixLength)];
     }
 
-    /// <summary>The line that says what this run measures — the corpus, the size and the machine.</summary>
+    /// <summary>
+    /// The whole corpus of this scenario, without the prefix: the measurement of the whole word list needs it — the
+    /// prefix of the scenario would shrink the corpus the measurement is about.
+    /// </summary>
+    /// <param name="corpus">The name of the corpus the words come from.</param>
+    /// <returns>The words of the corpus.</returns>
+    public IReadOnlyList<string> WholeWords(out string corpus) => CorpusWords(out corpus);
+
+    /// <summary>The words of the corpus the scenario names: the member decides, an unknown name is an error.</summary>
+    /// <param name="corpus">The name of the corpus the words come from.</param>
+    /// <returns>The words of the corpus.</returns>
+    private IReadOnlyList<string> CorpusWords(out string corpus)
+    {
+        switch (Corpus)
+        {
+            case "wordlist":
+                return TestFiles.MeasurementWords(out corpus);
+            case "sample":
+                corpus = Path.GetRelativePath(Repository.RootPath, TestFiles.SampleWordListPath);
+                return TestFiles.SampleWords();
+            default:
+                throw new InvalidOperationException(
+                    $"The corpus '{Corpus}' of the scenario is not known: a measurement runs on the word list of the "
+                    + "repository ('wordlist') or on its sample ('sample').");
+        }
+    }
+
+    /// <summary>The line that says what this run measures — the scenario, the corpus and the size.</summary>
     /// <param name="corpus">The name of the corpus the words come from.</param>
     /// <param name="words">The words of the corpus.</param>
     /// <returns>The line.</returns>
-    public string Describe(string corpus, int words) =>
+    public string Describe(string corpus, int words) => Describe(corpus, words, PrefixLength);
+
+    /// <summary>
+    /// The line of the scenario for a measurement that runs on the whole corpus: the prefix of the scenario does not
+    /// apply to it, and the line says so.
+    /// </summary>
+    /// <param name="corpus">The name of the corpus the words come from.</param>
+    /// <param name="words">The words of the corpus.</param>
+    /// <returns>The line.</returns>
+    public string DescribeWhole(string corpus, int words) => Describe(corpus, words, null);
+
+    /// <summary>The line that says what this run measures — the scenario, the corpus and the size.</summary>
+    /// <param name="corpus">The name of the corpus the words come from.</param>
+    /// <param name="words">The words of the corpus.</param>
+    /// <param name="prefix">The prefix of the scenario, or null when the measurement runs on the whole corpus.</param>
+    /// <returns>The line.</returns>
+    private string Describe(string corpus, int words, int? prefix) =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"scenario: {Corpus} ({corpus}, {words:N0} words, prefix {PrefixLength:N0}), {Entries?.ToString(CultureInfo.InvariantCulture) ?? "the scenario of the target"} entries, batch {Batch:N0}, {Kind}, {Weights}, machine {Machine}");
+            $"scenario: {Corpus} ({corpus}, {words:N0} words, {(prefix is { } length ? $"prefix {length:N0}" : "the whole corpus")}), "
+            + $"{Entries?.ToString(CultureInfo.InvariantCulture) ?? "the scenario of the target"} entries, batch {Batch:N0}, {Kind}, {Weights}, machine {Machine}");
 
     /// <summary>Reads the file of the scenario out of the repository and turns it into a scenario.</summary>
     /// <returns>The scenario of the file.</returns>

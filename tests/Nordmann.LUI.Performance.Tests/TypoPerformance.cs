@@ -22,7 +22,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
             words = [.. words.Take(limit)];
         }
 
-        Report($"corpus: {corpus} ({words.Count:N0} words)");
+        Report(Scenario.Describe(corpus, words.Count));
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
@@ -76,7 +76,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
             words = [.. words.Take(limit)];
         }
 
-        Report($"corpus: {corpus} ({words.Count:N0} words) from {Path.GetRelativePath(Repository.RootPath, TestFiles.FullWordListPath)}");
+        Report(Scenario.Describe(corpus, words.Count));
 
         foreach (var distance in new[] { LuiTypoDistance.None, LuiTypoDistance.OneError, LuiTypoDistance.TwoErrors })
         {

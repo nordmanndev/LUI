@@ -8,10 +8,12 @@
   [0056](./0056-the-budgets-live-in-a-file.md) (the budgets live in a file)
 - **Affects:**
   - `tests/Nordmann.LUI.Performance.Tests/` (new) — the six files that read the clock, and the scenario file
-  - `tests/Nordmann.LUI.Testing/PerformanceBudget.cs`, `BudgetMachine.cs`, `BudgetTargetMissedException.cs`,
-    `FullWordListFactAttribute.cs` (new)
+  - `tests/Nordmann.LUI.Testing/PerformanceBudget.cs`, `BudgetMachine.cs` (moved from the integration layer),
+    `BudgetTargetMissedException.cs`, `FullWordListFactAttribute.cs` (new)
   - `tests/Nordmann.LUI.Unit.Tests/Budgets/BudgetMachineTests.cs` (moved from the integration layer)
   - `tests/Nordmann.LUI.Architecture.Tests/TestLandscapeTests.cs`, `TimingTraitTests.cs`
+  - `src/Nordmann.LUI/Nordmann.LUI.csproj` — the fifth `InternalsVisibleTo` (the measurement layer reads the internals
+    of the library; no public member, no dependency and no file of `src/` changes)
   - `.github/workflows/performance.yml`, `.github/workflows/ci.yml`, `tools/fetch-wordlist.sh`
   - `docs/testing.md`, `docs/benchmarks.md`, `docs/normalization.md`, `docs/typo-dictionary.md`
 - **Issues:** #122 (epic #64)
@@ -35,7 +37,7 @@ Six files of the integration layer read the clock: `BudgetPerformance`, `QueryPe
 
 The variables of the environment had a second problem: they were read in six files, and each of them had its own name for
 one thing — the size of the corpus, the kind of the index, the size of the batch, the database to keep, the machine of the
-run. Six names for one scenario, and a scenario that could only be described in prose.
+run. Nine names for one scenario, and a scenario that could only be described in prose.
 
 ## Decision
 
@@ -51,7 +53,8 @@ run. Six names for one scenario, and a scenario that could only be described in 
   length, the size, the kind, the batch, the weights, the machine of the run and the database to keep. The copy in the
   repository is the default, so a run without the lane works; the lane writes the file before it measures. A member that
   nobody reads is an error and not a shrug: a file that grows a member beside the ones that are read would be a second truth
-  beside the scenario.
+  beside the scenario. Every member is read: the corpus member **selects** the corpus of the run (`wordlist` or `sample`;
+  a name nobody knows stops the run), and the rest of the members steer the measurements that use them.
 - **The rules of the budget live in the shared infrastructure, without a test framework.** `PerformanceBudget` and
   `BudgetMachine` sit in `Nordmann.LUI.Testing` and know nothing about xUnit: the budget reports a missed target as a
   `BudgetTargetMissedException`, and the layer turns it into a red test. The unit layer references the infrastructure and
@@ -67,7 +70,10 @@ run. Six names for one scenario, and a scenario that could only be described in 
   `Microsoft.Data.Sqlite` — and not the name of the infrastructure. The rule is narrowed and not lifted:
   `BudgetMachineTests` opens nothing, and the unit project has no database to open.
 - A measurement that runs is a measurement of the scenario of the file. The scenario stands in the report of the run, and
-  the report names the corpus: two measurements on two corpora are not a comparison.
+  the report names the corpus: two measurements on two corpora are not a comparison. A measurement that does not use a member
+  of the scenario says so in its own line — the measurement of the whole word list runs without the prefix of the scenario,
+  the measurement of the titles builds a multi-word index, and the measurement of the batch writes synthetic texts. The
+  report never claims a member that the measurement did not take.
 - `PerformanceFact` and `TestGates` are gone. `FullWordListFact` moves into the shared infrastructure, because the parity
   that uses it stays in the integration layer.
 - **The measurements carry the trait of the clock** (`Category=Timing`): their verdict depends on the clock, and the fast

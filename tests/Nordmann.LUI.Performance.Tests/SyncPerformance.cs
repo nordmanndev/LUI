@@ -24,7 +24,8 @@ public sealed class SyncPerformance(ITestOutputHelper output)
         var entries = Scenario.Entries ?? 200_000;
         var batch = Scenario.Batch;
         var words = Scenario.Words(out var corpus);
-        Report($"corpus: {corpus} ({words.Count:N0} words), {entries:N0} entries, batch {batch:N0}");
+        Report(Scenario.Describe(corpus, words.Count));
+        Report($"  {entries:N0} entries, batch {batch:N0}");
 
         var random = new Random(42);
         var source = Enumerable.Range(1, entries)
@@ -83,7 +84,8 @@ public sealed class SyncPerformance(ITestOutputHelper output)
     {
         var entries = Scenario.Entries ?? 300_000;
         var words = Scenario.Words(out var corpus);
-        Report($"corpus: {corpus} ({words.Count:N0} words), {entries:N0} entries, typo tolerance");
+        Report(Scenario.Describe(corpus, words.Count));
+        Report($"  {entries:N0} entries, typo tolerance");
         var source = Corpus.Generate(words, entries, CorpusKind.SingleWord).Entries().ToList();
 
         using var database = new TestDatabase();

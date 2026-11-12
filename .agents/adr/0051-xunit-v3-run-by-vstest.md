@@ -72,7 +72,8 @@ Moving the CI to MTP would change a lot at once:
 - **The same tests.** The names, listed before and after, are the same in every project. Three lines differ only in the display of the arguments of a theory, which v3 shortens at another length (`"s_compact : (\"near\" AND \"apfel\" AND \"kuchen\""···` against the whole string).
 - **The gates, at run time:**
   - the measurement of the tree lives in its own layer (ADR-0058); the report of a skipped test says why;
-  - a run of the measurement layer with a scenario of 2,000 entries runs and passes;
+  - a run of the measurement layer with a scenario of 2,000 entries runs and passes (measured on 2026-11-12: 8 passed,
+    2 skipped — the two that need the whole word list);
   - `LUI_WORDLIST=/nonexistent/…` alone skips the parity with `The full word list is not present (…)`;
   - the lane of the parity fetches the list, and the fetch fails the lane when the list is not the right one.
 - **The hang dump still reaches the test.** v3 runs the test in a process of its own. A probe test that sleeps for ever, run with the flags of the CI (`--blame-hang-timeout 20s --blame-hang-dump-type full`), aborted with "Collecting hang dumps from testhost and its child processes". It left two dumps: one of `dotnet`, the test host, and one of `Nordmann.LUI.Unit.Tests`, the process where the test hung.
@@ -93,5 +94,4 @@ Moving the CI to MTP would change a lot at once:
 ## Note (2026-11-12, issue #122)
 
 ADR-0058 takes the gate of the measurements away — the measurement has a layer of its own, and the layer is the gate. The
-gate of the whole word list stays a dynamic skip, and its guard is the fetch of the list. The decision stands; the history
-above stays as written.
+gate of the whole word list stays a dynamic skip, and its guard is the fetch of the list. The decision stands; the sentences above that named a variable of the environment are rewritten, because that variable died with ADR-0058.
