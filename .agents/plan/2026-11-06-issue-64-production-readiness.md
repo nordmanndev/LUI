@@ -7,7 +7,7 @@
 > of the query — plus one stale number that stands in two documents. This plan is what this round does about the parts
 > that belong together: one issue, one pull request, seven tasks, one commit each.
 
-**Issue:** #64 (the epic — one issue, one pull request, the standards' way)
+**Issue:** #64 (the epic — one issue, one pull request)
 **Branch:** `feat/production-readiness`
 
 ## The decisions of the owner (2026-11-06)

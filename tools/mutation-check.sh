@@ -428,18 +428,18 @@ expect_caught "the-json-payload-is-read-tolerantly" "${UNIT_PROJECT}" \
   "FullyQualifiedName~LuiPayloadSerializerTests" \
   "sed -i '/UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,/d; /RespectRequiredConstructorParameters = true,/d' src/Nordmann.LUI/LuiPayloadSerializer.cs"
 
-# 24e. A limit of the budget table of the README is edited by hand (issue #38): the limits are the targets of
-#      §16, and a promise that drifts from the contract is a promise nobody checked. The guard reads the
-#      specification and compares.
+# 24e. A limit of the file of the budgets is edited by hand (issue #38, ADR-0056): the limit is the promise, and a
+#      promise that drifts from the tables of the entrance and of the record is a promise nobody checked. The guard
+#      reads the file and compares.
 expect_caught "a-budget-limit-in-the-readme-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~ReadmeBudgetsTests" \
-  "sed -i '0,/≤ 5 ms/s//≤ 6 ms/' README.md"
+  "sed -i '0,/\"limit\": 5,/s/\"limit\": 5,/\"limit\": 6,/' tests/Nordmann.LUI.Testing/Budgets/budgets.json"
 
-# 24f. A limit of the status table of the record is edited by hand (issue #38): the summary of the run promises
-#      what the contract does not. The guard reads the specification and compares.
+# 24f. Another limit of the file of the budgets is edited by hand (issue #38, ADR-0056): the summary of the run
+#      promises what the file does not. The guard reads the file and compares.
 expect_caught "a-budget-limit-in-the-record-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~ReadmeBudgetsTests" \
-  "sed -i '0,/≤ 20 ms/s//≤ 21 ms/' docs/benchmarks.md"
+  "sed -i '0,/\"limit\": 20,/s/\"limit\": 20,/\"limit\": 21,/' tests/Nordmann.LUI.Testing/Budgets/budgets.json"
 
 # 24g. A link of the documentation points at nothing (issue #66): the promise of the link check is that every
 #      relative link of every markdown file names a file that exists. A link that points at nothing is a broken

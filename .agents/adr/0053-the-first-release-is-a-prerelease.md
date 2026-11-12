@@ -1,5 +1,10 @@
 # 0053 — The first release is a prerelease: 0.1.0-alpha
 
+> **Contract note (ADR-0056, 2026-11-12):** this record was written against a contract outside the repository — a
+> private one, that no reader of LUI can know and does not have to. The repository states its own rules since: the
+> rules that contract carried for LUI stand in [`AGENTS.md`](../../AGENTS.md) and in the documents of
+> [`docs/`](../../docs/README.md). The text below is history and stays as it was written.
+
 - **Status:** Accepted
 - **Date:** 2026-11-11
 - **Builds on:** [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (the freeze begins with the tag),

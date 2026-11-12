@@ -13,7 +13,7 @@ is, and a **record** that says what it costs. The [README](../README.md) is the 
 | [The normalisation](./normalization.md) | the rule that turns a text into a searchable form — and what was measured about it | you touch the fold rule or the parity |
 | [The typo dictionary](./typo-dictionary.md) | how the memory of the correction is built — the word beginnings, the delete variants — and what every distance costs | you turn the typo tolerance on, or you wonder what it costs |
 | [The test map](./testing.md) | which test proves which rule — a guard, not a document | you change a rule and need its test |
-| [The alignment](./architecture/alignment.md) | which rules of `nordmanndev/standards` apply to a library, and which do not | you wonder why the standards are not applied literally |
+| [What applies to a library](./architecture/alignment.md) | the engineering hygiene of a library: the rules that apply here, and the ones that describe an application and do not | you wonder why the library is built the way it is |
 | [The domain](./domain/lui.md) | the language, the invariants, the data model — the context behind the contract | you want the vocabulary |
 
 ## Who reads what
@@ -21,7 +21,7 @@ is, and a **record** that says what it costs. The [README](../README.md) is the 
 | Reader | Reads |
 |---|---|
 | **a user of the package** | the [tutorial](./tutorial/README.md), then the [API](./api.md) for the details |
-| **a contributor** | [`AGENTS.md`](../AGENTS.md) — the contract of the repository — then the [test map](./testing.md) and the [alignment](./architecture/alignment.md) |
+| **a contributor** | [`AGENTS.md`](../AGENTS.md) — the rules of the repository — then the [test map](./testing.md) and [what applies to a library](./architecture/alignment.md) |
 | **someone with a number** | the [benchmarks](./benchmarks.md) — a number without a machine is a rumour |
 | **a reviewer** | the [diff of the pull request](https://github.com/nordmanndev/LUI/pulls) — the decisions of the work are papers of the work, not documentation of the package |
 

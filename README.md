@@ -109,10 +109,12 @@ application asks for.
 
 Two measurements, two machines — and both name the machine they stand on.
 
-**The budgets** below are the targets of the specification, measured in their scenario — three million single words of the
-German word list and one million titles — on the CI machine: Intel Xeon 2.10 GHz, 4 cores, 15 GB, Ubuntu 24.04,
-.NET 10.0.14. Every target is asserted by a test in its scenario; the method and the corpus are in
-[`docs/benchmarks.md`](./docs/benchmarks.md).
+**The budgets** below are the promises of the repository: they live in one file
+([`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json), ADR-0056), and
+each of them carries its scenario, its limit, its unit and its kind. They are measured in their scenario — three
+million single words of the German word list and one million titles — on the CI machine: Intel Xeon 2.10 GHz, 4 cores,
+15 GB, Ubuntu 24.04, .NET 10.0.14. Every target is asserted by a test in its scenario; the method and the corpus are
+in [`docs/benchmarks.md`](./docs/benchmarks.md).
 
 | Target | Measured | Limit |
 |---|---:|---:|
@@ -124,17 +126,26 @@ German word list and one million titles — on the CI machine: Intel Xeon 2.10 G
 | `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms | ≤ 1 ms |
 | first load of 3 M entries (`Sync`) | 172.5–205.9 s | ≤ 4 min (#32) |
 | typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of two errors, 685,739 words | 240 MB | ≤ 240 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
+The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
+(ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
+values** are the numbers of the last measurement of each row: the latencies, the build and the size of the file from
+the CI machine (2026-11-05, before the allocation was lowered — so they are an upper bound); the allocation in bytes,
+and therefore independent of the machine (2026-11-06, the current code). A measured value does **not** live in the
+file: it belongs to a run and to its machine, and a file that carried it would be a second truth beside the promise.
 
-The **limits** are the targets of the specification — a test reads them out of the contract and fails when this table
-drifts from it (issue #38). The **measured values** are the numbers of the last measurement of each row: the latencies,
-the build and the size of the file from the CI machine (2026-11-05, before the allocation was lowered — so they are an
-upper bound); the allocation in bytes, and therefore independent of the machine (2026-11-06, the current code); the typo
-dictionary in bytes and in seconds (2026-11-06, the machine of the record — a time belongs to the machine it was
-measured on, [ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured
-again on 2026-11-12 — **4.3 s** for the same **138 MB** ([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)): a
-time belongs to the machine and the date it was measured on (ADR-0041), the memory is the claim that does not depend
-on the machine.
+The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
+(ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
+values** are the numbers of the last measurement of each row: the latencies, the build and the size of the file from
+the CI machine (2026-11-05, before the allocation was lowered — so they are an upper bound); the allocation in bytes,
+and therefore independent of the machine (2026-11-06, the current code); the typo dictionary in bytes and in seconds
+(2026-11-06, the machine of the record — a time belongs to the machine it was measured on,
+[ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured again on
+2026-11-12 — **4.3 s** for the same **138 MB** ([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)): a time belongs
+to the machine and the date it was measured on (ADR-0041), the memory is the claim that does not depend on the machine.
+A measured value does **not** live in the file: it belongs to a run and to its machine, and a file that carried it would
+be a second truth beside the promise.
 
 **The tables** below are the output of [BenchmarkDotNet](https://benchmarkdotnet.org/) — the code on the corpus of the
 measurement, not the scenario of the budgets. They are rendered from the reports of the run in
@@ -398,7 +409,7 @@ are **created on demand** — the page fills them when you ask for it, and shows
 | **[The benchmarks](./docs/benchmarks.md)** | every measured number, with the machine, the corpus and the method |
 | **[The normalisation](./docs/normalization.md)** | the rule that turns a text into a searchable form — and what was measured about it |
 | **[The test map](./docs/testing.md)** | which test proves which rule |
-| **[The alignment](./docs/architecture/alignment.md)** and **[the domain](./docs/domain/lui.md)** | which rules of the standards apply to a library — and the terms the library speaks |
+| **[What applies to a library](./docs/architecture/alignment.md)** and **[the domain](./docs/domain/lui.md)** | the engineering hygiene of a library — and the terms the library speaks |
 
 ## Status
 
@@ -413,8 +424,8 @@ change, each change with an ADR and an entry in the [CHANGELOG](./CHANGELOG.md).
 
 ## Working on LUI
 
-Read [`AGENTS.md`](./AGENTS.md) first — it is the contract for this repository, and it inherits
-[`nordmanndev/standards`](https://github.com/nordmanndev/standards).
+Read [`AGENTS.md`](./AGENTS.md) first — it states the rules of this repository: one issue, one pull request, an ADR
+with every decision that changes the public API, and a test with every rule.
 
 - **One issue, one pull request**, each with its tests, its measurement and — for a decision that changes the public
   API, the schema or the dependencies — its record.

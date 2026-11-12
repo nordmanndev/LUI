@@ -55,6 +55,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - An application that creates its indexes in its migration **describes an index the same way every time** — also
       after the upgrade, because the distance is part of the definition: a change of the distance wants a
       `DropIndex(name)` and a new index.
+- **The budgets live in one file**
+  ([ADR-0056](.agents/adr/0056-the-budgets-live-in-a-file.md), #120). The budgets of §16 were written down three
+  times — in the specification, in the tables of the entrance and of the record, and as a number at the call site of
+  the measurement. They live in one file now
+  ([`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)), an
+  embedded resource of the shared test infrastructure. Every budget carries its scenario (the corpus file, the prefix
+  length, the condition), its limit, its unit and its kind — a time or a size. The measured value does not belong in
+  the file: it stays in the record, beside the machine it was measured on.
+  - The table of the entrance and the two tables of the record are checked against the file; a limit that drifts fails
+    the build. The mutation check has two mutations for it: a limit of the file edited by hand turns the build red.
+  - A new row: the typo dictionary of the distance `TwoErrors` — 685,739 words, 240 MB, measured 2026-11-12. It has
+    no time limit: a build time is a property of the machine it was measured on, and it is measured in the record, not
+    promised.
+  - **No change to the public API** — the file and its reader live in a test project, and the package ships neither.
+
+- **The repository states its own rules** ([ADR-0056](.agents/adr/0056-the-budgets-live-in-a-file.md), #120).
+  `AGENTS.md` does not inherit a contract from outside the repository any more: it states the rules of this
+  repository, and the references to that contract are out of the documentation, of the build files and of the CI. The
+  specification keeps its number and its paragraph references, and points at the file of the budgets.
+  - **No change to the public API.**
 ### Removed
 
 - **`DistinctText` is gone** ([ADR-0055](.agents/adr/0055-the-uniqueness-of-a-text-belongs-to-the-data.md), #119).

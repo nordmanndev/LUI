@@ -4,7 +4,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-11-02
-- **Inputs:** `LUI-Spezifikation.md` (Entwurf 2, 2026-11-01) · `nordmanndev/standards` @ `c63d696` (v2.5.5)
+- **Inputs:** `LUI-Spezifikation.md` (Entwurf 2, 2026-11-01)
 - **Scope:** the new `nordmanndev/LUI` repo, one NuGet package, one sample app
 
 ---
@@ -15,9 +15,7 @@
 |---|---|
 | `nordmanndev/LUI` is **empty** — 0 KB, branch `main`, no commits, no other refs | `git clone` → "warning: You have cloned an empty repository"; `git ls-remote` → no refs |
 | The previous LUI (roaring-bitmaps, snapshot format v12, 57 ADRs, 433 tests) is **gone from the remote** | same as above — nothing to carry over except the *working method* (spec §17.4) |
-| `nordmanndev/standards` is the reference baseline | cloned to `/workspace/repos/standards` @ `c63d696` |
-| The standards already name **`flexdatalist` 3.x** as *the* browser autocomplete library (Tier 1, `architecture/stack.md`) | read `architecture/stack.md` |
-| The standards' browser baseline is Alpine.js + Tailwind 4, **no bundler**, ES modules from CDN | `architecture/stack.md` §Browser runtime, `examples/frontend-stack/` |
+| The sample uses **`flexdatalist` 3.x** as *the* browser autocomplete library | the vendor's documentation |
 | Sandbox ships .NET **9.0.316**; .NET **10.0.403** was installed to `/workspace/dn10` for this work | `dotnet --list-sdks` |
 
 **Consequence:** this is a greenfield build. The spec is the contract; nothing in it has been implemented yet. The repo's own history starts here.
@@ -65,15 +63,15 @@ The spec §17.1 proposes three packages (`Nordmann.LUI.Abstractions`, `Nordmann.
 ```
 nordmanndev/LUI/
 ├── README.md                    ← the front door (see §7)
-├── AGENTS.md                    ← project contract; inherits the standards, thin delta
+├── AGENTS.md                    ← the rules of the repository
 ├── CHANGELOG.md                 ← Keep-a-Changelog; required on public API change
-├── LICENSE                      ← MIT, "Copyright (c) 2026 Nordmann" (as the standards)
-├── Directory.Build.props        ← the standards' exact block (net10.0, nullable, warnings-as-errors, analyzers)
+├── LICENSE                      ← MIT, "Copyright (c) 2026 Nordmann"
+├── Directory.Build.props        ← the build settings of the repository (net10.0, nullable, warnings-as-errors, analyzers)
 ├── Directory.Packages.props     ← central package management — the only place versions live
 ├── .editorconfig
 ├── .gitignore
 ├── .github/
-│   ├── ISSUE_TEMPLATE/          ← task / bug / adr (from the standards)
+│   ├── ISSUE_TEMPLATE/          ← task / bug / adr
 │   └── workflows/
 │       ├── ci.yml               ← build · test · arch-test · format · pack · smoke-test
 │       └── publish.yml          ← v* tag → nuget.org (owner-gated)
@@ -83,7 +81,7 @@ nordmanndev/LUI/
 │   └── plan/                    ← this file
 ├── src/
 │   └── Nordmann.LUI/            ← THE package (one assembly)
-│       ├── Extensions/          ← ServiceCollectionExtensions.cs (standards: every project ships one)
+│       ├── Extensions/          ← ServiceCollectionExtensions.cs (every project ships one)
 │       ├── Catalog/             ← LuiCatalog, LuiCatalogOptions
 │       ├── Indexing/            ← schema, triggers, Ensure, Sync, Check, Rebuild
 │       ├── Querying/            ← candidate selection, ranking, prefix path
@@ -98,7 +96,7 @@ nordmanndev/LUI/
 │   ├── Nordmann.LUI.Architecture.Tests/← the shape of the repository
 │   ├── Nordmann.LUI.Testing/          ← the shared setup (a library, no tests)
 │   ├── Nordmann.LUI.TestData/         ← the corpora (no project)
-│   ├── Nordmann.LUI.Architecture.Tests/← NetArchTest rules (standards mandate)
+│   ├── Nordmann.LUI.Architecture.Tests/← NetArchTest rules (the shape of the library)
 │   └── Nordmann.LUI.TestData/         ← corpus + fixtures shared by tests & benchmarks
 ├── benchmarks/
 │   └── Nordmann.LUI.Benchmarks/  ← BenchmarkDotNet + the 3M-corpus generator (§16)
@@ -108,11 +106,11 @@ nordmanndev/LUI/
     └── fetch-wordlist.sh        ← the full 685k-word German list (opt-in)
 ```
 
-**Why `samples/` and not `src/`:** the standards' `src/` layout is for the application's own layers. `Lui.Sample` is not part of the package and is not shipped; it is the demo. Keeping it out of `src/` keeps the package graph honest — `dotnet pack` cannot accidentally pick it up.
+**Why `samples/` and not `src/`:** a `src/` layout is for the application's own layers. `Lui.Sample` is not part of the package and is not shipped; it is the demo. Keeping it out of `src/` keeps the package graph honest — `dotnet pack` cannot accidentally pick it up.
 
-### D3 — Standards alignment: what applies, what does not
+### D3 — What applies to a library, what does not
 
-This is a **library**, not a product. The standards' non-negotiable rules target products; applying all of them to a NuGet library would produce a worse library. Here is the line I draw, and why.
+This is a **library**, not a product. The rules that target products would produce a worse library if they were applied to a NuGet package. Here is the line I draw, and why.
 
 **Applies (and is enforced mechanically):**
 
@@ -120,17 +118,17 @@ This is a **library**, not a product. The standards' non-negotiable rules target
 |---|---|
 | `Directory.Build.props` block verbatim | net10.0, nullable, `TreatWarningsAsErrors`, `EnableNETAnalyzers`, `AnalysisLevel=latest-recommended`, `NuGetAudit` |
 | Central package management | `Directory.Packages.props`; **no `.csproj` may carry a `Version` on a `PackageReference`** — arch test |
-| `Meziantou.Analyzer` from day one | analyzer package in `Directory.Packages.props` (standards entry 9 — "adopted from day one") |
+| `Meziantou.Analyzer` from day one | analyzer package in `Directory.Packages.props` — "adopted from day one" |
 | Test pyramid: unit + architecture + integration | xUnit + Shouldly + Alba + NetArchTest, three test projects |
 | ADR discipline | `.agents/adr/NNNN-slug.md`, format `# NNNN — Title` / Status / Date / Supersedes / Affects / Context / Decision / Consequences |
-| `CHANGELOG.md` on public API change | standards' rule, unchanged |
-| Closed-library policy | ADR for every dependency that is not in the standards' catalogue (see D4) |
-| `AGENTS.md` at repo root | inherits the standards' contract, states the project-level delta only |
-| README shape | "What this is / what this is not / quick start / install / API map / license" — the standards' own README structure |
+| `CHANGELOG.md` on public API change | unchanged |
+| Closed-library policy | ADR for every dependency that is not in the catalogue (see D4) |
+| `AGENTS.md` at repo root | states the rules of the repository |
+| README shape | "What this is / what this is not / quick start / install / API map / license" |
 
 **Does not apply (with the reason):**
 
-| Standards rule | Why it does not apply to a library |
+| The rule | Why it does not apply to a library |
 |---|---|
 | DDD aggregates, CQS handlers, Mediator dispatch | LUI has no domain and no handlers. `LuiCatalog` → `ILuiIndex` → `Query` is a **library API**, not a command bus. Forcing Mediator in would add a source generator to every consumer's build for no behaviour. |
 | OrmLite persistence layer | LUI *is* the persistence layer, over raw `Microsoft.Data.Sqlite`. A second ORM would hide the SQL that the whole design depends on (the spec's §8 is explicit SQL). |
@@ -142,11 +140,11 @@ This is a **library**, not a product. The standards' non-negotiable rules target
 
 ### D4 — Dependencies, and the one closed-library deviation
 
-The spec §17.3 names three dependencies. The standards' `architecture/stack.md` "closed list" (ADR-0008) does **not** list `symspell` or `F23.StringSimilarity`.
+The spec §17.3 names three dependencies. The closed list of the dependencies does **not** name `symspell` or `F23.StringSimilarity`.
 
-→ **ADR required**, naming both, with the licensing and the alternatives considered. `Microsoft.Data.Sqlite` is already in the standards' stack (it is OrmLite's provider), so it needs no exemption.
+→ **ADR required**, naming both, with the licensing and the alternatives considered. `Microsoft.Data.Sqlite` is the provider of the stack itself, so it needs no exemption.
 
-One more dependency decision: the standards say "never add a NuGet dependency not listed" — and `symspell` is a *dictionary* library, `F23.StringSimilarity` a *distance* library. Both are MIT and actively maintained. The alternative (hand-rolling SymSpell) is a non-starter for a 1.0. The deviation is recorded, not hidden.
+One more dependency decision: the rule says "never add a NuGet dependency not listed" — and `symspell` is a *dictionary* library, `F23.StringSimilarity` a *distance* library. Both are MIT and actively maintained. The alternative (hand-rolling SymSpell) is a non-starter for a 1.0. The deviation is recorded, not hidden.
 
 ### D5 — The nine open questions (§21 O1–O9) are deferred, each with an ADR
 
@@ -172,7 +170,7 @@ The spec §19 demands SQL ↔ C# parity over **all 685,829 words** of the German
 
 **Shape:** one `wwwroot/index.html` with inline `<style>` and an inline `<script type="module">`; `wwwroot/assets/js/flexdatalist.es.js` vendored (flexdatalist 3.1.1, MIT, pinned, with provenance + license header).
 
-**"flexdatalist js only version"** = the JS build, **without** the library's CSS — the sample ships its own styles (the standards' ink/brand tokens, hand-written). That is also why the sample is vanilla JS rather than Alpine: the demo's subject is the **LUI API**, and a reactivity framework would add a dependency without teaching anything about LUI. The deviation from the standards' Alpine baseline gets an ADR.
+**"flexdatalist js only version"** = the JS build, **without** the library's CSS — the sample ships its own styles (ink and brand tokens, hand-written). That is also why the sample is vanilla JS rather than Alpine: the demo's subject is the **LUI API**, and a reactivity framework would add a dependency without teaching anything about LUI. The deviation from the Alpine baseline gets an ADR.
 
 **The page must show the whole API, not just a search box:**
 
@@ -238,7 +236,7 @@ The spec §20 gives nine steps; I add a repo foundation and the sample, and spli
 
 | PR | Content | Done when |
 |---|---|---|
-| **001** `chore: repo foundation` | solution, `Directory.Build.props`/`.Packages.props`, `.editorconfig`, CI, `AGENTS.md`, LICENSE, ADR-0001 (one package) · 0002 (library vs. standards) · 0003 (defer O1–O9) · 0004 (dependencies) | build green, arch tests green, `dotnet pack` produces the `.nupkg` |
+| **001** `chore: repo foundation` | solution, `Directory.Build.props`/`.Packages.props`, `.editorconfig`, CI, `AGENTS.md`, LICENSE, ADR-0001 (one package) · 0002 (library vs. application) · 0003 (defer O1–O9) · 0004 (dependencies) | build green, arch tests green, `dotnet pack` produces the `.nupkg` |
 | **002** `feat: normalizer` | `Normalizer` (C#) + the SQL expressions, §6 tables, **parity test** on the curated corpus | parity holds for the whole curated corpus + the spec's edge cases — **done, see §6b** |
 | **003** `feat: single-word owned index` | schema, triggers, packed rowid, candidates, prefix path (1–2 chars), ranking, payload-for-hits-only, `Upsert`/`UpdateWeight`/`UpdatePriority`/`Remove` | golden queries (§Anhang B) green · plan test (`INDEX 64`, no `TEMP B-TREE`) · p50 ≤ 2 ms / p95 ≤ 5 ms on 3M entries |
 | **004** `feat: multi-word index` | word split, `s_compact`, word-start on the compact form, N-gram Dice | golden queries for `MultiWord` green |
@@ -268,7 +266,7 @@ The plan is done when **all** of these hold — and I will report each one with 
 5. **The mutation check** (`tools/mutation-check.sh`) — every architecture guard is mutated in an isolated copy and must react. A guard that has never been seen red is a guess. The script reports *how* each mutation was caught: **CAUGHT BY TEST** or **REFUSED BY BUILD** — the difference matters, because a mutation caught for the wrong reason proves nothing.
 6. **The sample runs**: `dotnet run --project samples/Lui.Sample` → the page loads, a suggestion round-trips, and every control changes the JSON result.
 7. **Benchmarks**: `docs/benchmarks.md` carries the measured numbers for the §16 targets, with the machine and the corpus described.
-8. **Everything on a branch with a PR** — never straight to `main` (the standards' rule).
+8. **Everything on a branch with a PR** — never straight to `main`.
 
 ---
 
@@ -384,7 +382,7 @@ also changed three things the plan did not foresee:
 | Section | Content |
 |---|---|
 | Title + one paragraph | what LUI is, in the user's terms: *suggestions for a search field, out of the app's own SQLite database* |
-| **What this is / what this is not** | the standards' structure: not a full-text search engine, not a server, not a KV store |
+| **What this is / what this is not** | not a full-text search engine, not a server, not a KV store |
 | Install | `dotnet add package Nordmann.LUI` |
 | Quick start | the 12-line version: open a catalog → define an index → upsert → query. **This exact code is the smoke test** |
 | The two index kinds | `SingleWord` vs `MultiWord`, with the difference in one table |
@@ -407,7 +405,7 @@ also changed three things the plan did not foresee:
 | A **decomposed umlaut** (`Mu` + U+0308 + `ller`) was transliterated differently from the composed one — two spellings, one of them unfindable. | **High** — silent, and macOS file names and some clipboards deliver that form | **Fixed in PR-002**: both sides transliterate the letter plus the combining diaeresis; the edge cases carry the decomposed forms as assertions. |
 | The prefix SymSpell dictionary costs **179 MB / 676k prefixes per index** (§10.1, Anhang A) | Medium | Build it lazily on first typo-tolerant query, not at `Ensure()`; expose `RebuildTypoDictionary()`; document the RAM cost in the README |
 | `Linked` mode writes to the **application's schema** (5 columns + 3 indexes + 3 triggers) | Medium | **Resolved by ADR-0015:** `Linked` never changes the application's table; triggers only on an explicit call or through the application's own migration (`TriggerScript()`) |
-| `symspell` + `F23.StringSimilarity` are **outside the standards' closed library list** | Low (process) | ADR-0004 names both, with license and alternatives |
+| `symspell` + `F23.StringSimilarity` are **outside the closed library list** | Low (process) | ADR-0004 names both, with license and alternatives |
 | The spec's §16 targets were measured on a 4-core Xeon with the DB in the page cache — **this sandbox is smaller** | Medium | Measure and publish the *sandbox* numbers honestly; keep §16 as the target and report the delta, rather than lowering the target silently |
 | `Microsoft.Data.Sqlite` bundles its own SQLite — the consumer's app may load a **different** SQLite version | Medium | The library checks `sqlite_version()` at open and fails loudly below 3.45 (§17.3) instead of misbehaving |
 
@@ -421,7 +419,7 @@ Each of these is a decision I made and would happily revisit — they are all ch
 2. **Open questions O1–O9:** all deferred, one ADR each (D5). Nothing from §21 enters 1.0.
 3. **Corpus:** curated in-repo + opt-in full-list script (D6).
 4. **Publishing:** pipeline ready, owner-gated on the tag and the API key (D8). Nothing is pushed to nuget.org from my side.
-5. **License:** MIT, "Copyright (c) 2026 Nordmann" — same holder as the standards.
+5. **License:** MIT, "Copyright (c) 2026 Nordmann".
 6. **Version:** `0.1.0` for the first publishable package (the old RC1 never shipped; this is a different design, not a continuation of it).
 7. **Repo is private, PRs go through branches** — I will not push to `main` without an explicit ask.
 
@@ -433,4 +431,4 @@ Each of these is a decision I made and would happily revisit — they are all ch
 
 Before I touch the remote: **the plan above is uncommitted in `/workspace/repos/LUI/.agents/plan/`.** Tell me to commit it (and whether to open it as a PR branch) and I will.
 
-One answer I would still like, because it changes real work: **do you want `symspell` and `F23.StringSimilarity` in the package at all**, or would you rather I implement SymSpell myself (a few hundred lines, no dependency, but a correctness risk I would have to test myself)? My recommendation is to take both dependencies and record the deviation in an ADR — but it is your call, and it is the one place where the standards' closed-list rule and the spec's design genuinely pull apart.
+One answer I would still like, because it changes real work: **do you want `symspell` and `F23.StringSimilarity` in the package at all**, or would you rather I implement SymSpell myself (a few hundred lines, no dependency, but a correctness risk I would have to test myself)? My recommendation is to take both dependencies and record the deviation in an ADR — but it is your call, and it is the one place where the closed-list rule and the spec's design genuinely pull apart.

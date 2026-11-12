@@ -55,7 +55,7 @@ decided about the query path" without opening 36 files.
 | # | Title | Topic | Status |
 |---|---|---|---|
 | [0001](./0001-single-package.md) | One NuGet package instead of three | Packages | Accepted |
-| [0002](./0002-library-not-an-application.md) | LUI is a library, not an application — the standards delta | Architecture | Accepted |
+| [0002](./0002-library-not-an-application.md) | LUI is a library, not an application — the standards delta | Architecture | Accepted (contract note of 2026-11-12, ADR-0056) |
 | [0003](./0003-defer-the-open-questions.md) | The nine open questions of the specification are deferred | Scope | Accepted |
 | [0004](./0004-dependencies.md) | The dependency set — and the deviation from the closed library list | Packages | Accepted |
 | [0005](./0005-measured-normalisation.md) | The normalisation rule is measured, not derived | Normalisation | Accepted |
@@ -109,3 +109,4 @@ decided about the query path" without opening 36 files.
 | [0053](./0053-the-first-release-is-a-prerelease.md) | The first release is a prerelease: 0.1.0-alpha | Packages | Accepted |
 | [0054](./0054-the-typo-distance-is-an-enumeration.md) | The typo distance is an enumeration, and it belongs to the index | Typo tolerance | Accepted |
 | [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md) | The uniqueness of a text belongs to the data: `DistinctText` is removed | Query path | Accepted |
+| [0056](./0056-the-budgets-live-in-a-file.md) | The budgets live in a file: one source, two readers | Measurement | Accepted |

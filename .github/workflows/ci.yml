@@ -80,8 +80,9 @@ jobs:
       # The three lanes of the pyramid (ADR-0019). The unit lane is the fast
       # one — the rules of the library, without a database. The architecture
       # tests read the repository from disk — they are the mechanical half of
-      # the standards' rules (ADR-0002) and the guard of the map of the tests.
-      # A test that hangs for ten minutes is stopped, and its dump is uploaded.
+      # the rules of the repository (ADR-0002) and the guard of the map of the
+      # tests. A test that hangs for ten minutes is stopped, and its dump is
+      # uploaded.
       - name: Test · unit
         run: >
           dotnet test tests/Nordmann.LUI.Unit.Tests

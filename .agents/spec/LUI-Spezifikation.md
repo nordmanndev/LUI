@@ -1134,64 +1134,29 @@ Index ist ein Blick auf die Datei, keine Kopie davon. Auf einer Datei, die nicht
 
 ## 16. Leistungsziele
 
-Abgeleitet aus Anhang A (4-Kern-VM, Datenbank im Page Cache). Sie werden als
-Tests festgehalten (§ 19) und mit Kommando in `docs/benchmarks.md`
-veröffentlicht.
+Abgeleitet aus Anhang A (4-Kern-VM, Datenbank im Page Cache). Sie werden als Tests festgehalten (§ 19) und mit Kommando in `docs/benchmarks.md` veröffentlicht.
 
-| Messung | Szenario | Ziel |
-|---|---|---|
-| Abfrage ohne Korrektur | 3 Mio. Einträge, Eingaben 1–8 Zeichen | p50 ≤ 2 ms; p95 ≤ 5 ms bei 1–4 Zeichen, ≤ 20 ms bei 5–8 Zeichen |
-| Abfrage mit Tippfehler-Korrektur | 3 Mio. Einträge, ein Wortanfang mit einem Tippfehler | p95 ≤ 35 ms |
-| Allokation pro Abfrage | 3 Mio. Einträge, Eingaben 1–8 Zeichen, **Budget der Kandidaten 500** | p50 ≤ 60 KB, p95 ≤ 100 KB (ADR-0032) |
-| `Upsert` / `UpdateWeight` / `Remove` | einzeln, eigene Transaktion | p95 ≤ 1 ms |
-| Aufbau | 3 Mio. Einträge, `Embedded`, ein erster Ladevorgang mit `Sync` | ≤ 4 min |
-| Tippfehler-Wörterbuch | 700.000 verschiedene Wörter | ≤ 200 MB, Aufbau ≤ 10 s |
-| Dateigröße | 1 Mio. Titel von im Mittel 36 Zeichen, `MultiWord` | ≤ 500 MB inkl. Inhaltstabelle |
+**Die Ziele stehen in einer Datei:** [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](../../tests/Nordmann.LUI.Testing/Budgets/budgets.json) (ADR-0056). Jedes Ziel nennt sein Szenario (die Korpusdatei, die Präfixlänge, die Bedingung), sein Limit, seine Einheit und seine Art — eine Zeit oder eine Größe (ADR-0041: eine Zeit gehört der Maschine, auf der sie gemessen wurde; eine Größe gehört niemandem). Der gemessene Wert steht **nicht** in der Datei: er steht im Protokoll ([`docs/benchmarks.md`](../../docs/benchmarks.md)), neben der Maschine, auf der er gemessen wurde.
 
-**Geändert gegenüber Entwurf 2 (Entscheidung des Eigentümers, 2026-11-04, ADR-0010, ADR-0020):** Gemessen im Szenario
-(Schritt 9, `PerformanceBudgets` — seit ADR-0049 `BudgetPerformance`) waren fünf Ziele verfehlt. Sie sind neu formuliert — für lange Eingaben, die
-Korrektur und die Datei ist das eine **Lockerung**, keine Erfüllung:
+Die Datei ist die einzige Quelle. Die Tabelle des README und die beiden Tabellen des Protokolls werden gegen sie geprüft (ADR-0040): ein Limit, das in einer dieser Tabellen anders steht als in der Datei, lässt den Build scheitern.
 
-- **p95 der Abfrage pro Eingabelänge.** Gemessen bei 3 Mio. Einträgen: bis vier Zeichen ≤ 3,1 ms, bei acht Zeichen
-  17,5 ms; über alle Längen 9,6–10,3 ms. Was bleibt, sind die eigenen Kosten von FTS5 für einen langen Trigramm-Ausdruck
-  über drei Millionen Einträge eines synthetischen, trigrammdichten Korpus. Ein Suchfeld wartet 100–300 ms zwischen
-  zwei Tasten; 20 ms sind dort nicht spürbar. Mit einem echten Bestand wird nachgemessen, eine eigene Struktur für
-  Wortanfänge von 5–8 Zeichen erst, wenn er es verlangt.
-- **Korrektur p95 ≤ 35 ms.** Gemessen 28–29 ms: bis zu drei weitere FTS5-Abfragen derselben Kosten.
-- **Allokation p50 ≤ 250 KB, p95 ≤ 350 KB.** Gemessen p50 83 KB, p95 298 KB; sie folgt den gelesenen Kandidaten (wer
-  das Budget von 500 ausschöpft: p95 306 KB, sonst 173 KB). Das Budget bleibt — kleiner kostete Qualität. Der Eigentümer
-  hält 250–300 KB pro Abfrage für zu viel: **Bug #30** misst die Ursachen und senkt die Allokation.
+**Die Szenarien.** Die Korpusdateien kommen mit der Messinfrastruktur; die Präfixlängen sind die von heute — 3 000 000 Einträge, 1 000 000 Titel, 685 739 Wörter — und werden gegen die gemessenen Korpora neu entschieden, nie stillschweigend gesenkt.
 
-**Geändert gegenüber der vorigen Fassung (ADR-0032, 2026-11-05, Bug #30):** Die Ursachen sind gemessen, die Allokation
-ist gesenkt. Eine Abfrage mit dem Budget von 500 Kandidaten allokiert **26,6 KB statt 153,3 KB** (SingleWord, −83 %)
-und **105,7 KB statt 185,2 KB** (MultiWord, −43 %); je Kandidat sinkt der Preis von 302 B auf 40 B. Die drei Anteile waren
-die Ähnlichkeit (36 %, F23 baute vier Arrays je Vergleich), die zweite Normalisierung (29 %, die Suchform wurde ein
-String) und die Kandidentexte samt der `Scored[]` (29 %). Behoben: LUIs eigenes Jaro-Winkler (bit-exakt zu F23 7.0.1,
-ohne Allokation), die Messung der Ähnlichkeit auf Spans (die Suchform bleibt im Puffer) und die Wiederverwendung der
-Kandidaten-Puffer je Thread. Das Ziel ist damit **p50 ≤ 60 KB, p95 ≤ 100 KB** (gemessen bei 200.000 Einträgen: p50 42 KB, p95 60 KB; bei 3 Mio. Einträgen waren es vor der Änderung rund 20 % mehr). Was bleibt, ist der Boden: die Texte der
-Kandidaten (32–64 B je Kandidat, weil der SQLite-Provider nur Strings herausgibt und der Wortanfang die gefaltete Form
-braucht, die nicht in der Datenbank steht), die Treffer (≈ 370 B je Treffer), der Boden einer Abfrage (≈ 7 KB) und die
-Tippfehler-Korrektur (≈ 20 KB, sie liest bis zu dreimal so viele Kandidaten).
+**Was gemessen wurde** — und warum die Ziele so und nicht anders aussehen:
 
-  Das Ziel gilt für das **Budget der Kandidaten 500**; die Allokation folgt dem Budget, ein größeres Budget kostet
-  mehr Puffer (bei 1.000 Kandidaten und der Korrektur: 59,7 KB statt 19,6 KB, wenn der Pool zuvor mit den Längen
-  anderer Budgets gefüllt war). Der Weg, den die Abfrage nimmt, zählt ebenso: ohne Korrektur allokiert dieselbe
-  Abfrage 4,2 KB, mit Korrektur 19,6 KB.
+- **Die Abfrage pro Eingabelänge.** Gemessen bei 3 Mio. Einträgen: bis vier Zeichen ≤ 3,1 ms, bei acht Zeichen 17,5 ms; über alle Längen 9,6–10,3 ms. Was bleibt, sind die eigenen Kosten von FTS5 für einen langen Trigramm-Ausdruck über drei Millionen Einträge eines synthetischen, trigrammdichten Korpus. Ein Suchfeld wartet 100–300 ms zwischen zwei Tasten; 20 ms sind dort nicht spürbar. Mit einem echten Bestand wird nachgemessen, eine eigene Struktur für Wortanfänge von 5–8 Zeichen erst, wenn er es verlangt.
+- **Die Korrektur.** Gemessen 28–29 ms: bis zu drei weitere FTS5-Abfragen derselben Kosten.
+- **Die Allokation.** Der Median und das 95. Perzentil folgen den gelesenen Kandidaten (wer das Budget von 500 ausschöpft: p95 306 KB, sonst 173 KB). Das Budget bleibt — kleiner kostete Qualität. Der Eigentümer hält 250–300 KB pro Abfrage für zu viel: **Bug #30** misst die Ursachen und senkt die Allokation.
 
-- **Geändert gegenüber der vorigen Fassung (ADR-0031, 2026-11-05, das Review von PR #53):** Der Puffer je Thread
-  (ADR-0032) ist gemessen worden und hatte einen Fehler: die Länge der großen Puffer folgt dem Budget der
-  Kandidaten, und der Pufferplatz reichte nur für ein Budget. Nach einem Wechsel des Budgets war der Pool voll mit
-  den Längen der Vergangenheit, jede Abfrage allokierte alles neu — **294,9 KB** bei einem Budget von 1.000
-  (die Basis ohne Pool: 83,4 KB). Jetzt verdrängt der kleinste Puffer den neuen. Dieselbe Abfrage allokiert
-  **59,7 KB** — weniger als die Basis ohne Pool. Der Wächter `AllocationPoolTests` misst das nach einem Wechsel des
-  Budgets (39,8 KB, Grenze 64 KB).
-- **Dateigröße ≤ 500 MB** für Titel von im Mittel 36 Zeichen (gemessen 457 MB): Die Tabelle hält den Text und zwei
-  abgeleitete Formen. Wer große Bestände hat, nimmt `Linked` — dort liegt der Text nicht doppelt in der Datei.
+  Behoben (ADR-0032): Eine Abfrage mit dem Budget von 500 Kandidaten allokiert **26,6 KB statt 153,3 KB** (SingleWord, −83 %) und **105,7 KB statt 185,2 KB** (MultiWord, −43 %); je Kandidat sinkt der Preis von 302 B auf 40 B. LUIs eigenes Jaro-Winkler (bit-exakt zu F23 7.0.1, ohne Allokation), die Messung der Ähnlichkeit auf Spans (die Suchform bleibt im Puffer) und die Wiederverwendung der Kandidaten-Puffer je Thread. Der Boden bleibt: die Texte der Kandidaten (32–64 B je Kandidat, weil der SQLite-Provider nur Strings herausgibt und der Wortanfang die gefaltete Form braucht, die nicht in der Datenbank steht), die Treffer (≈ 370 B je Treffer), der Boden einer Abfrage (≈ 7 KB) und die Tippfehler-Korrektur (≈ 20 KB, sie liest bis zu dreimal so viele Kandidaten). Gemessen bei 200.000 Einträgen: p50 42 KB, p95 60 KB; bei 3 Mio. Einträgen waren es vor der Änderung rund 20 % mehr.
 
-Erfüllt wie in Entwurf 2: der Median der Abfrage (1,3–1,7 ms), der einzelne Schreibvorgang (p95 0,5–0,8 ms) und das
-Wörterbuch (138 MB, 4,1–4,9 s). Der **Aufbau** ist ebenfalls neu formuliert (≤ 4 min statt ≤ 3 min): Mit `Sync` und Stapeln zu 1.000.000 dauerte er
-172–174 s auf einer Maschine und 195–206 s auf der nächsten bei gleichem Code — er schreibt 925 MB und folgt der Platte.
-Ein schnellerer erster Ladevorgang ist Issue #32.
+  Das Ziel gilt für das **Budget der Kandidaten 500**; die Allokation folgt dem Budget, ein größeres Budget kostet mehr Puffer (bei 1.000 Kandidaten und der Korrektur: 59,7 KB statt 19,6 KB, wenn der Pool zuvor mit den Längen anderer Budgets gefüllt war). Der Weg, den die Abfrage nimmt, zählt ebenso: ohne Korrektur allokiert dieselbe Abfrage 4,2 KB, mit Korrektur 19,6 KB.
+
+- **Die Dateigröße** für Titel von im Mittel 36 Zeichen (gemessen 457 MB): Die Tabelle hält den Text und zwei abgeleitete Formen. Wer große Bestände hat, nimmt `Linked` — dort liegt der Text nicht doppelt in der Datei.
+
+Erfüllt wie in Entwurf 2: der Median der Abfrage (1,3–1,7 ms), der einzelne Schreibvorgang (p95 0,5–0,8 ms) und das Wörterbuch (138 MB, 4,1–4,9 s). Der **Aufbau** folgt der Platte: Mit `Sync` und Stapeln zu 1.000.000 dauerte er 172–174 s auf einer Maschine und 195–206 s auf der nächsten bei gleichem Code — er schreibt 925 MB. Ein schnellerer erster Ladevorgang ist Issue #32.
+
+**Das Wörterbuch mit zwei Fehlern.** Die 685 739 Wörter kosten 240 MB (gemessen 2026-11-12). Das Versprechen von 200 MB gehört dem Wörterbuch mit **einem** Fehler; das Wörterbuch mit zwei Fehlern hat eine eigene Zeile in der Datei — und **keine** Zeitgrenze: eine Aufbauzeit ist eine Eigenschaft der Maschine, auf der sie gemessen wurde, und steht im Protokoll, nicht im Versprechen. Die Verfehlung (240 MB gegen 200 MB) bleibt als Verfehlung geschrieben (ADR-0054, `docs/typo-dictionary.md`).
 
 ---
 
