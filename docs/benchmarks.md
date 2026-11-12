@@ -84,8 +84,10 @@ which is a smaller one. The difference is stated, not hidden.
 
 The targets of §16 run on a schedule of their own
 (`.github/workflows/performance.yml`, ADR-0041): every night, and by hand when
-somebody wants to see it. The lane fetches the whole word list, runs the parity with the gate
-(`LUI_REQUIRE_FULL_WORDLIST=1`) and then the budgets.
+somebody wants to see it. The lane fetches the whole word list — the fetch is the guard, and it fails loudly
+when the list is not the one of 685,829 lines — writes the scenario of the run into
+`tests/Nordmann.LUI.Performance.Tests/performance.scenario.json` and then runs the budgets of the
+measurement layer (ADR-0058).
 
 The lane runs on a shared runner — not on the machine of the record. That changes what a target means there:
 
@@ -94,9 +96,10 @@ The lane runs on a shared runner — not on the machine of the record. That chan
 | a **size** — bytes: the allocation, the memory of the dictionary, the file | asserted | **asserted** — the bytes are the bytes |
 | a **time** — the query, the write, the build | asserted | **reported** — a time belongs to the machine it was measured on |
 
-A run without `LUI_PERF_MACHINE` is on the machine of the record and asserts everything, as before. The lane sets
-`LUI_PERF_MACHINE=other` on purpose, and the summary of its run says which machine it was. A size that is missed fails
-the lane; a time that is missed in the lane stands in the log with the machine named.
+The machine of a run is a member of the scenario file: `"machine": "measurement"` is the machine of the record and
+asserts everything, as before, `"machine": "other"` is another one. The lane writes `"other"` on purpose, and the
+summary of its run says which machine it was. A size that is missed fails the lane; a time that is missed in the
+lane stands in the log with the machine named.
 
 The numbers of the lane are **not** the numbers of this file: a runner is smaller and louder than the machine of the
 record. What the lane decides is whether the sizes still hold.
@@ -108,7 +111,7 @@ entries took 148.5 s, and the typo dictionary of the whole list took 1.95 s and 
 the lane is sized by that: a timeout of 30 minutes, a hang timeout of 20.
 
 The one red was the lane's, not the library's. The target of one million titles built three million, because
-`LUI_PERF_ENTRIES=3000000` of the single-word index also enlarged the titles scenario. Its file of 1,309 MB is
+The `entries` of 3,000,000 of the single-word index also enlarged the titles scenario. Its file of 1,309 MB is
 ≈ 436 MB per million, under the 500 MB of the target. A run now never builds more than the scenario of its target.
 
 ---
@@ -137,10 +140,10 @@ candidates, `WordStartThenSimilarity`, Jaro-Winkler. One query is
 
 ```bash
 tools/fetch-wordlist.sh
-LUI_PERF=1 LUI_PERF_ENTRIES=3000000 \
-  dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter QueryPerformance \
+# the scenario of the run is a file: set "entries" to 3000000 in it, then
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter QueryPerformance \
   --logger "console;verbosity=detailed"
-# LUI_PERF_DB=<path> keeps the database, so that the next run skips the build
+# the member "database" keeps the database, so that the next run skips the build
 ```
 
 ### The query
@@ -226,7 +229,7 @@ difference is the bulk path of ADR-0010, not the source. Many single refreshes l
 after 3,000 changes at 200,000 rows, 0.82 ms after `Optimize()`.
 
 ```text
-LUI_PERF=1 dotnet test -c Release --filter LinkedPerformance --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter LinkedPerformance --logger "console;verbosity=detailed"
 ```
 
 The spike of the layout (`LinkedLayoutExperiment`) is gone from the tree (issue #76); its numbers are in ADR-0015, its
@@ -243,7 +246,7 @@ each in a transaction of its own, 100,000 single-word entries:
 | one `UpsertMany` | **3.8 s** | 26,052/s — **4.4×** |
 
 ```text
-LUI_PERF=1 LUI_PERF_ENTRIES=100000 dotnet test -c Release --filter BatchPerformance --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter BatchPerformance --logger "console;verbosity=detailed"
 ```
 
 ### The build
@@ -298,9 +301,9 @@ changes and 100 removals took **4.4 / 4.8 s** while it rebuilt the dictionary at
 that it marks it stale; the rebuild on its own is 2.0 / 2.3 s.
 
 ```text
-LUI_PERF=1 LUI_PERF_ENTRIES=1000000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"
-LUI_PERF=1 LUI_PERF_ENTRIES=1000000 LUI_PERF_BATCH=100000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"
-LUI_PERF=1 LUI_PERF_ENTRIES=300000 dotnet test --filter A_delta_sync_with_a_built_typo_dictionary --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests --filter SyncPerformance --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests --filter SyncPerformance --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests --filter A_delta_sync_with_a_built_typo_dictionary --logger "console;verbosity=detailed"
 ```
 
 ### Opening a catalog
@@ -320,8 +323,8 @@ beginning of a title or a piece of it, 1–8 characters; one third the first two
 each, in either order. Row-by-row build through the triggers.
 
 ```bash
-LUI_PERF=1 LUI_PERF_KIND=multi LUI_PERF_ENTRIES=1000000 \
-  dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter QueryPerformance \
+# "kind": "multi" and "entries": 1000000 in the scenario file, then
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter QueryPerformance \
   --logger "console;verbosity=detailed"
 ```
 
@@ -352,7 +355,7 @@ kinds (a letter left out, one too many, one wrong, two swapped) after the first 
 
 ```bash
 tools/fetch-wordlist.sh
-LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter TypoPerformance --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter TypoPerformance --logger "console;verbosity=detailed"
 ```
 
 | | Result | Target (§16) |
@@ -385,7 +388,7 @@ million, weights with a long tail; 2,000 inputs of 1–8 characters, 1,000 begin
 other load; two runs, a third for the batch size of the build.
 
 ```text
-LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests --filter BudgetPerformance --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests --filter BudgetPerformance --logger "console;verbosity=detailed"
 ```
 
 | Target | Run 1 | Run 2 | Run 3 (batches of 1,000,000) | Run 4 (as committed) | Limit |

@@ -29,6 +29,12 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Nordmann.LUI/Nordmann.LUI.csproj" />
+    <!--
+      The shared infrastructure, for the rules of the budget (ADR-0058): the logic of a
+      target belongs to the rules, and a rule is tested here. The layer opens no
+      database — the guard of TestLandscapeTests reads this source and says so.
+    -->
+    <ProjectReference Include="../Nordmann.LUI.Testing/Nordmann.LUI.Testing.csproj" />
   </ItemGroup>
 
   <ItemGroup>

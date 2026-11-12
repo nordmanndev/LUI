@@ -204,8 +204,9 @@ was measured rather than assumed.
 
 The full list is not checked in. `tools/fetch-wordlist.sh` downloads it; the
 test uses it when it is there and skips it when it is not. The **release
-gate** (`publish.yml`) fetches it and demands it —
-`LUI_REQUIRE_FULL_WORDLIST=1` makes the test fail rather than skip. The pull
+gate** (`publish.yml`) fetches it and demands it — the fetch is the guard: it
+checks the 685,829 lines and fails loudly, so that a lane cannot run the parity
+on a short list and call it a proof (ADR-0058, D19). The pull
 request gate runs the sample and says in its output that the full gate did
 not run.
 

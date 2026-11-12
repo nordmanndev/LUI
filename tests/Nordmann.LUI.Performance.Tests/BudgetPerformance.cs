@@ -1,7 +1,6 @@
 using System.Diagnostics;
-using System.Globalization;
 
-namespace Nordmann.LUI.Integration.Tests.Performance;
+namespace Nordmann.LUI.Performance.Tests;
 
 /// <summary>
 /// The performance targets of LUI-Spezifikation §16 as tests (PR-009, ADR-0020): each target in the scenario of the
@@ -9,36 +8,40 @@ namespace Nordmann.LUI.Integration.Tests.Performance;
 /// <b>waived</b>, with a reason and the record that holds it. A target that is missed is never lowered quietly
 /// (<c>docs/benchmarks.md</c>, rule 5); a waiver that is met is reported, so it can go.
 /// <para>
-/// The scenario is three million entries (one million titles for the file size). With <c>LUI_PERF_ENTRIES</c> smaller,
-/// the numbers are reported and nothing is asserted: a budget of three million entries is not a claim about 200,000.
+/// The scenario is three million entries (one million titles for the file size). With the <c>entries</c> of the
+/// scenario file smaller, the numbers are reported and nothing is asserted: a budget of three million entries is
+/// not a claim about 200,000.
 /// </para>
-/// <code>LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests --filter BudgetPerformance --logger "console;verbosity=detailed"</code>
+/// <code>dotnet test tests/Nordmann.LUI.Performance.Tests --filter BudgetPerformance --logger "console;verbosity=detailed"</code>
 /// </summary>
+[Trait("Category", "Timing")]
 public sealed class BudgetPerformance(ITestOutputHelper output)
 {
+    /// <summary>The scenario of this run (ADR-0058): the corpus, the prefix length and the settings.</summary>
+    private static PerformanceScenario Scenario => PerformanceScenario.Current;
     /// <summary>The scenario of §16: three million entries.</summary>
-    private const int Scenario = 3_000_000;
+    private const int ScenarioEntries = 3_000_000;
 
     /// <summary>The scenario of the file size: one million titles.</summary>
     private const int TitlesScenario = 1_000_000;
 
     private const int Queries = 2_000;
 
-    [PerformanceFact]
+    [Fact]
     public void The_single_word_index_at_three_million_entries()
     {
-        var entries = Entries(Scenario);
+        var entries = Entries(ScenarioEntries);
         var corpus = Corpus.Generate(Words(), entries, CorpusKind.SingleWord);
-        var budget = new PerformanceBudget(output, entries >= Scenario, PerformanceBudget.CurrentMachine());
+        var budget = new PerformanceBudget(output.WriteLine, entries >= ScenarioEntries, Scenario.Machine);
         budget.SayTheMachine();
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
         var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
 
-        // the build: the bulk path of a sync into an empty index (ADR-0016); LUI_PERF_BATCH measures another batch
-        // the first load of a file no other process writes: the largest batch, the fewest commits (ADR-0016, ADR-0020)
-        var batch = int.Parse(Environment.GetEnvironmentVariable("LUI_PERF_BATCH") ?? "1000000", CultureInfo.InvariantCulture);
+        // the build: the bulk path of a sync into an empty index (ADR-0016); the batch of the scenario measures another
+        // batch — the first load of a file no other process writes: the largest batch, the fewest commits (ADR-0016, ADR-0020)
+        var batch = Scenario.Batch;
         var build = Stopwatch.StartNew();
         words.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = batch });
         build.Stop();
@@ -70,11 +73,11 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         budget.Verify();
     }
 
-    [PerformanceFact]
+    [Fact]
     public void The_typo_dictionary_of_the_whole_word_list()
     {
         var words = Words();
-        var budget = new PerformanceBudget(output, words.Count >= TestFiles.FullWordListCount - 1_000, PerformanceBudget.CurrentMachine());
+        var budget = new PerformanceBudget(output.WriteLine, words.Count >= TestFiles.FullWordListCount - 1_000, Scenario.Machine);
         budget.SayTheMachine();
 
         using var database = new TestDatabase();
@@ -96,11 +99,11 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         budget.Verify();
     }
 
-    [PerformanceFact]
+    [Fact]
     public void The_file_of_a_million_titles()
     {
         var entries = Entries(TitlesScenario);
-        var budget = new PerformanceBudget(output, entries >= TitlesScenario, PerformanceBudget.CurrentMachine());
+        var budget = new PerformanceBudget(output.WriteLine, entries >= TitlesScenario, Scenario.Machine);
         budget.SayTheMachine();
 
         using var database = new TestDatabase();
@@ -204,11 +207,11 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         [.. latencies.Where((_, i) => inputs[i].Length >= shortest && inputs[i].Length <= longest)];
 
     private static int Entries(int scenario) =>
-        PerformanceBudget.ScenarioEntries(scenario, Environment.GetEnvironmentVariable("LUI_PERF_ENTRIES"));
+        PerformanceBudget.ScenarioEntries(scenario, Scenario.Entries);
 
     private IReadOnlyList<string> Words()
     {
-        var words = TestFiles.MeasurementWords(out var corpus);
+        var words = Scenario.Words(out var corpus);
         Report($"corpus: {corpus} ({words.Count:N0} words), {Environment.ProcessorCount} cores, .NET {Environment.Version}");
         return words;
     }

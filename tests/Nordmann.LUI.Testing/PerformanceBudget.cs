@@ -1,9 +1,6 @@
 using System.Globalization;
-using Shouldly;
 
-using Nordmann.LUI.Testing;
-
-namespace Nordmann.LUI.Integration.Tests.Performance;
+namespace Nordmann.LUI.Testing;
 
 /// <summary>
 /// The targets of one scenario: each one measured, then met, waived or missed.
@@ -12,10 +9,18 @@ namespace Nordmann.LUI.Integration.Tests.Performance;
 /// their unit and their kind (ADR-0056). This class reads the file and measures
 /// against it — one source, two readers.
 /// </para>
+/// <para>
+/// The class lives in the shared infrastructure and not in the measurement layer: what it holds — how many entries a run
+/// builds, whether a target belongs to the machine it was measured on — are <b>rules</b>, and a rule is tested in the unit
+/// layer (ADR-0058). It knows no test framework: the report goes to the sink it is given, and a missed target is an
+/// exception of its own.
+/// </para>
 /// </summary>
-internal sealed class PerformanceBudget(ITestOutputHelper output, bool scenario, BudgetMachine machine)
+/// <param name="report">Where the run of the budget writes its lines — the test output of the measurement.</param>
+/// <param name="scenario">Whether the run is in the scenario of the target. Below the scenario nothing is asserted.</param>
+/// <param name="machine">The machine of this run: the one of the record, or another one.</param>
+public sealed class PerformanceBudget(Action<string> report, bool scenario, BudgetMachine machine)
 {
-
     /// <summary>
     /// The targets that are missed on purpose, with the reason and the record that holds it. A target that is not here
     /// has to be met. The owner's decisions of 2026-11-04 (ADR-0020) stated four targets anew, and they are asserted;
@@ -27,36 +32,27 @@ internal sealed class PerformanceBudget(ITestOutputHelper output, bool scenario,
     private readonly List<string> _missed = [];
 
     /// <summary>Whether a target of this kind belongs to the machine it was measured on: a time does, a size does not.</summary>
-    internal static bool BelongsToTheMachine(LuiBudgets.Kind kind) => kind == LuiBudgets.Kind.Time;
+    public static bool BelongsToTheMachine(LuiBudgets.Kind kind) => kind == LuiBudgets.Kind.Time;
 
     /// <summary>
-    /// The entries a run builds: the scenario of the target, or fewer when <c>LUI_PERF_ENTRIES</c> asks for a quick run —
+    /// The entries a run builds: the scenario of the target, or fewer when the scenario file asks for a quick run —
     /// never more. A size set for one scenario must not grow another: the first run of the lane built three million titles
     /// for the target of one million, and the file of three million missed the 500 MB of one (issue #99).
     /// </summary>
     /// <param name="scenario">The size of the scenario of the target.</param>
-    /// <param name="configured">The value of <c>LUI_PERF_ENTRIES</c>, or null.</param>
+    /// <param name="configured">The number of entries of the scenario file, or null when the file names none.</param>
     /// <returns>The number of entries to build.</returns>
-    internal static int ScenarioEntries(int scenario, string? configured) =>
+    public static int ScenarioEntries(int scenario, int? configured) =>
         configured is null
             ? scenario
-            : Math.Min(int.Parse(configured, System.Globalization.CultureInfo.InvariantCulture), scenario);
+            : Math.Min(configured.Value, scenario);
 
-    /// <summary>The machine of this run: the one of the record, unless the run says that it is another one.</summary>
-    internal static BudgetMachine CurrentMachine() =>
-        string.Equals(Environment.GetEnvironmentVariable("LUI_PERF_MACHINE"), "other", StringComparison.Ordinal)
-            ? BudgetMachine.Other
-            : BudgetMachine.Measurement;
-
-    /// <summary>
-    /// The line that says which machine this run is on — the times of the file belong to it.
-    /// </summary>
-    internal void SayTheMachine()
+    /// <summary>The line that says which machine this run is on — the times of the file belong to it.</summary>
+    public void SayTheMachine()
     {
         var line = string.Create(CultureInfo.InvariantCulture,
             $"budget machine: {machine} — {(machine == BudgetMachine.Measurement ? "every target is asserted" : "the times are reported, the sizes are asserted")}");
-        output.WriteLine(line);
-        Console.Error.WriteLine("[perf] " + line);
+        report(line);
     }
 
     /// <summary>
@@ -70,7 +66,7 @@ internal sealed class PerformanceBudget(ITestOutputHelper output, bool scenario,
     /// <param name="id">The id of the target, as the file of the budgets writes it.</param>
     /// <param name="measured">The measured value, in the unit of the measurement.</param>
     /// <param name="unit">The unit of the measurement.</param>
-    internal void AtMost(string id, double measured, string unit)
+    public void AtMost(string id, double measured, string unit)
     {
         var budget = LuiBudgets.By(id);
         var limit = budget.LimitIn(unit);
@@ -93,9 +89,7 @@ internal sealed class PerformanceBudget(ITestOutputHelper output, bool scenario,
             (false, _, _, _) => $"waived: {waiver}",
         };
 
-        var line = string.Create(CultureInfo.InvariantCulture, $"budget | {id,-28} | {condition,-58} | {measured,8:F2} {unit,-2} | ≤ {limit} {unit} | {verdict}");
-        output.WriteLine(line);
-        Console.Error.WriteLine("[perf] " + line);
+        report(string.Create(CultureInfo.InvariantCulture, $"budget | {id,-28} | {condition,-58} | {measured,8:F2} {unit,-2} | ≤ {limit} {unit} | {verdict}"));
 
         if (scenario && !met && waiver is null && !foreign)
         {
@@ -104,6 +98,11 @@ internal sealed class PerformanceBudget(ITestOutputHelper output, bool scenario,
     }
 
     /// <summary>The targets that were missed: the run fails if there is one.</summary>
-    internal void Verify() =>
-        _missed.ShouldBeEmpty("A target of the budgets that is missed is fixed or waived with a reason and a record (ADR-0020) — never lowered quietly.");
+    public void Verify()
+    {
+        if (_missed.Count > 0)
+        {
+            throw new BudgetTargetMissedException(_missed);
+        }
+    }
 }

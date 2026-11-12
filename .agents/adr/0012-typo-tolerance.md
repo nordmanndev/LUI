@@ -100,7 +100,7 @@ build sums the weights, `Upsert` adds only beginnings that are new; the frequenc
 
 Whole German word list as a `SingleWord` index (685,739 words, weights random), 4 cores, built row by row; typos of the four kinds
 after the first letter, 400 cases per length, Hit@20 = the meant word among the best 20
-(`TypoPerformance`, `LUI_PERF=1`):
+(`TypoPerformance`, the layer of the measurements):
 
 | Beginning typed | right | with one typo | Anhang A4 (3 M entries) right / typo |
 |---:|---:|---:|---:|

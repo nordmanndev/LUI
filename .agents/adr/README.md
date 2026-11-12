@@ -111,3 +111,4 @@ decided about the query path" without opening 36 files.
 | [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md) | The uniqueness of a text belongs to the data: `DistinctText` is removed | Query path | Accepted |
 | [0056](./0056-the-budgets-live-in-a-file.md) | The budgets live in a file: one source, two readers | Measurement | Accepted |
 | [0057](./0057-the-repository-of-a-public-library-is-english.md) | The repository of a public library is English | Documentation | Accepted |
+| [0058](./0058-the-measurement-is-a-layer-of-its-own.md) | The measurement is a layer of its own: the measurements live in `tests/Nordmann.LUI.Performance.Tests`, and the scenario of a run is a file | Measurement | Accepted |

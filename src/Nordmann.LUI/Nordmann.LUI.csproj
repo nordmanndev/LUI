@@ -31,6 +31,8 @@
     <InternalsVisibleTo Include="Nordmann.LUI.Integration.Tests" />
     <InternalsVisibleTo Include="Nordmann.LUI.Architecture.Tests" />
     <InternalsVisibleTo Include="Nordmann.LUI.Benchmarks" />
+    <!-- the measurement layer opens a connection of the catalog (ADR-0058) -->
+    <InternalsVisibleTo Include="Nordmann.LUI.Performance.Tests" />
   </ItemGroup>
 
   <ItemGroup>

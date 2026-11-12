@@ -14,7 +14,7 @@ than no map — it sends the reader to a test that no longer proves the rule.
 
 ---
 
-## The three layers
+## The four layers
 
 The test pyramid has three layers: unit, architecture, integration. LUI has
 three test projects, one per layer, plus the shared infrastructure they all
@@ -25,6 +25,7 @@ build on — and the sample application has a test project of its own, beside it
 | [`Nordmann.LUI.Unit.Tests`](../tests/Nordmann.LUI.Unit.Tests) | the rules of the library on their own — the normalisation, the word start, the similarity, the FTS5 expression | **~1 s** | no |
 | [`Nordmann.LUI.Integration.Tests`](../tests/Nordmann.LUI.Integration.Tests) | the library against a real SQLite file — the schema, the writes, the query, the sync | **~32 s** | yes, one file per test |
 | [`Nordmann.LUI.Architecture.Tests`](../tests/Nordmann.LUI.Architecture.Tests) | the shape of the repository and of the public API | **~0.5 s** | no |
+| [`Nordmann.LUI.Performance.Tests`](../tests/Nordmann.LUI.Performance.Tests) | **the measurements** — the numbers of [`docs/benchmarks.md`](./benchmarks.md), and nothing else. A layer of its own, because a measurement is not a test of behaviour (ADR-0058) | minutes — and only when somebody runs it | yes, one file per measurement |
 | [`Lui.Sample.Tests`](../samples/Lui.Sample.Tests) | the sample application against its API, on a real Kestrel — beside the sample, not among the tests of the library | **~10 s** | yes, one file per test class |
 | [`Nordmann.LUI.Testing`](../tests/Nordmann.LUI.Testing) | the shared infrastructure — the database, the corpora, the fixtures, the budgets of the repository. No tests of its own. | — | — |
 
@@ -40,21 +41,20 @@ the reason is in the report.
 
 | Gate | What it switches | Who sets it |
 |---|---|---|
-| `LUI_PERF=1` | the measurements | a person, on purpose: [`docs/benchmarks.md`](./benchmarks.md) |
-| `LUI_PERF_ENTRIES` | how many entries a measurement builds (default 200,000) | the same |
-| `LUI_PERF_KIND=multi` | whether a measurement runs on the multi-word index | the same |
-| `LUI_REQUIRE_FULL_WORDLIST=1` | the full 685,829-word parity **must** run, or the test fails | the lane of the parity in [`ci.yml`](../.github/workflows/ci.yml) — on every pull request, and in the release, which calls `ci.yml` |
+| the **scenario file** [`performance.scenario.json`](../tests/Nordmann.LUI.Performance.Tests/performance.scenario.json) | the scenario of a measurement run: the corpus, the prefix length, the size, the kind, the batch, the weights, the machine of the run, the database to keep | a person, on purpose, or the lane, which writes the file before it measures (ADR-0058) |
 | `LUI_WORDLIST` | where the full word list is | a person, on purpose |
-| `LUI_PERF_MACHINE=other` | the machine of the run: `measurement` asserts every target, `other` reports the times and asserts the sizes | the lane (`.github/workflows/performance.yml`) |
 
-**The gates are dynamic skips** (xUnit.net v3, ADR-0051): `[PerformanceFact]` and `[FullWordListFact]` ask
-[`TestGates`](../tests/Nordmann.LUI.Integration.Tests/Support/TestGates.cs) when the test is about to run, not when
-the tests are found, and a skipped test says why in the report.
+**The gates are dynamic skips** (xUnit.net v3, ADR-0051): `[FullWordListFact]` asks
+whether the whole word list is there when the test is about to run, not when
+the tests are found, and a skipped test says why in the report. The measurements
+have no attribute at all any more: they have a layer of their own, and the
+layer is the gate (ADR-0058).
 
 **A skipped test that reports itself as passed proves nothing.** The full-word-list
 parity is skipped — and says so — when the list is missing, rather than
-returning green. The lane of the parity sets `LUI_REQUIRE_FULL_WORDLIST=1` — on every pull request, and in the release, which calls it — and then
-the test fails with the reason instead of skipping.
+returning green. The lane of the parity fetches the list before it runs the
+test — on every pull request, and in the release, which calls it — and the fetch
+is the guard: it checks the 685,829 lines and fails loudly (ADR-0058, D19).
 
 ### The lanes of the CI
 
@@ -115,6 +115,12 @@ as in the library (`NamespaceConventionTests`). `Support/` holds the types the t
 | [`RankingTests`](../tests/Nordmann.LUI.Unit.Tests/Querying/RankingTests.cs) | Unit | the ranking in groups, and the lazy similarity — the promise that a group that cannot reach the hits costs nothing | ADR-0008 |
 | [`TypoDictionaryStateTests`](../tests/Nordmann.LUI.Unit.Tests/Typos/TypoDictionaryStateTests.cs) | Unit | the states of the typo dictionary — not built, being built, current —, that it only grows, that every index has its own, that a dictionary which forgives nothing is never built, and that a query's build does not wait behind another one | ADR-0021, ADR-0025, ADR-0054 |
 | [`PackageIdentityTests`](../tests/Nordmann.LUI.Unit.Tests/Package/PackageIdentityTests.cs) | Unit | the package identity and the dependency set of the compiled assembly | ADR-0004 |
+
+### Budgets
+
+| Test file | Layer | Proves | The rule |
+|---|---|---|---|
+| [`BudgetMachineTests`](../tests/Nordmann.LUI.Unit.Tests/Budgets/BudgetMachineTests.cs) | Unit | the two kinds of target: a time belongs to the machine it was measured on and is reported elsewhere; a size is the same everywhere and is asserted; a run never builds more than the scenario of its target — the size of the scenario only makes it smaller | spec §16, ADR-0041, ADR-0056, ADR-0058, issue #99 |
 
 ## Integration — the library against SQLite
 
@@ -184,12 +190,14 @@ The four files share one table of the application ([`LinkedTable`](../tests/Nord
 | [`LuiWarmupTests`](../tests/Nordmann.LUI.Integration.Tests/Hosting/LuiWarmupTests.cs) | Integration | the warm-up as a service of the host: the dictionaries are warmed at the start, the outbox of a linked index is applied, the rounds run on the interval, and without the registration nothing happens; only the named dictionaries are built, the outbox runs without them, an unknown name fails the start, a failed round reaches the logger of the host (with `RecordingLoggerProvider`, the logger that keeps what it heard), no round begins after the host stops, a round that waits for the write lock is not joined by the next one, and the registration is once and with a positive interval | issue #68, ADR-0043, ADR-0045, issue #106 |
 | [`NormalizationParityTests`](../tests/Nordmann.LUI.Integration.Tests/Normalization/NormalizationParityTests.cs) | Integration | the rule exists twice — as SQL and as C# — and both give the same answer, for every code point and for every word of the list | spec §6.2, §19, ADR-0005 |
 | [`FoldProbeTests`](../tests/Nordmann.LUI.Integration.Tests/Normalization/FoldProbeTests.cs) | Integration | the probe that asks the loaded SQLite how it folds — and that it finds a table which folds differently | ADR-0007 |
-| [`BudgetMachineTests`](../tests/Nordmann.LUI.Integration.Tests/Performance/BudgetMachineTests.cs) | Integration | the two kinds of target: a time belongs to the machine it was measured on and is reported elsewhere; a size is the same everywhere and is asserted; a run never builds more than the scenario of its target — `LUI_PERF_ENTRIES` only makes it smaller | spec §16, ADR-0041, ADR-0056, issue #99 |
 
 ### The measurements — they run on purpose
 They are not tests of behaviour; they are the numbers in
-[`docs/benchmarks.md`](./benchmarks.md). They are skipped unless `LUI_PERF=1`. The corpus they measure is
-generated by `Corpus` in `Nordmann.LUI.Testing` — the same one the benchmark project
+[`docs/benchmarks.md`](./benchmarks.md). They have a layer of their own
+([`Nordmann.LUI.Performance.Tests`](../tests/Nordmann.LUI.Performance.Tests)) — the layer is the gate:
+a run of that project measures, every other run does not (ADR-0058). The scenario of a run is the file
+[`performance.scenario.json`](../tests/Nordmann.LUI.Performance.Tests/performance.scenario.json), and the
+corpus it measures is generated by `Corpus` in `Nordmann.LUI.Testing` — the same one the benchmark project
 (`benchmarks/Nordmann.LUI.Benchmarks`) measures (ADR-0020).
 
 The lane of the schedule runs them every night on a shared runner: there the **times** are reported — a time belongs to the
@@ -197,12 +205,12 @@ machine it was measured on — and the **sizes** are asserted (ADR-0041).
 
 | Test file | Layer | Measures | The number |
 |---|---|---|
-| [`BudgetPerformance`](../tests/Nordmann.LUI.Integration.Tests/Performance/BudgetPerformance.cs) | Integration | **the seven targets of §16 in their scenario** — 3 M entries, the whole word list, 1 M titles; each one met and asserted, or waived with a reason | spec §16, ADR-0020 |
-| [`QueryPerformance`](../tests/Nordmann.LUI.Integration.Tests/Performance/QueryPerformance.cs) | Integration | the latency and the allocation of a query, the cost of a write, the build | spec §16 |
-| [`SyncPerformance`](../tests/Nordmann.LUI.Integration.Tests/Performance/SyncPerformance.cs) | Integration | what a sync costs, a cancelled one, the check, the rebuild — and a delta sync beside a built typo dictionary | spec §20 step 7, ADR-0016, ADR-0021 |
-| [`TypoPerformance`](../tests/Nordmann.LUI.Integration.Tests/Performance/TypoPerformance.cs) | Integration | what the typo dictionary costs, and how good the correction is on the whole list | spec §16, ADR-0012 |
-| [`LinkedPerformance`](../tests/Nordmann.LUI.Integration.Tests/Performance/LinkedPerformance.cs) | Integration | what a linked index costs against the table of the application | ADR-0015 |
-| [`BatchPerformance`](../tests/Nordmann.LUI.Integration.Tests/Performance/BatchPerformance.cs) | Integration | what a batch saves over a loop of single upserts | ADR-0013 |
+| [`BudgetPerformance`](../tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs) | Performance | **the seven targets of §16 in their scenario** — 3 M entries, the whole word list, 1 M titles; each one met and asserted, or waived with a reason | spec §16, ADR-0020, ADR-0058 |
+| [`QueryPerformance`](../tests/Nordmann.LUI.Performance.Tests/QueryPerformance.cs) | Performance | the latency and the allocation of a query, the cost of a write, the build | spec §16, ADR-0058 |
+| [`SyncPerformance`](../tests/Nordmann.LUI.Performance.Tests/SyncPerformance.cs) | Performance | what a sync costs, a cancelled one, the check, the rebuild — and a delta sync beside a built typo dictionary | spec §20 step 7, ADR-0016, ADR-0021, ADR-0058 |
+| [`TypoPerformance`](../tests/Nordmann.LUI.Performance.Tests/TypoPerformance.cs) | Performance | what the typo dictionary costs, and how good the correction is on the whole list | spec §16, ADR-0012, ADR-0058 |
+| [`LinkedPerformance`](../tests/Nordmann.LUI.Performance.Tests/LinkedPerformance.cs) | Performance | what a linked index costs against the table of the application | ADR-0015, ADR-0058 |
+| [`BatchPerformance`](../tests/Nordmann.LUI.Performance.Tests/BatchPerformance.cs) | Performance | what a batch saves over a loop of single upserts | ADR-0013, ADR-0058 |
 
 ## Sample — the sample application against its API
 
@@ -255,6 +263,10 @@ share. It has no tests of its own — it is the setup, in one place.
 | [`TypoMaker`](../tests/Nordmann.LUI.Testing/TypoMaker.cs) | makes the typos the tests type |
 | [`LuiBudgets`](../tests/Nordmann.LUI.Testing/LuiBudgets.cs) | the budgets of the repository in one file: the scenario, the limit, the unit and the kind of every promise — read by the guard of the tables and by the measurements (ADR-0056) |
 | [`Repository`](../tests/Nordmann.LUI.Testing/Repository.cs) | finds the repository on disk — the architecture rules read the *source*, not a hand-written list |
+| [`PerformanceBudget`](../tests/Nordmann.LUI.Testing/PerformanceBudget.cs) | the promise of a budget: the scenario it belongs to, its limit, its unit and its kind — read out of the file of the budgets, without a test framework in it (ADR-0058) |
+| [`BudgetMachine`](../tests/Nordmann.LUI.Testing/BudgetMachine.cs) | the machine of a run: the one of the record, or another one. A time belongs to the machine it was measured on; a size belongs to no machine (ADR-0041, ADR-0058) |
+| [`BudgetTargetMissedException`](../tests/Nordmann.LUI.Testing/BudgetTargetMissedException.cs) | the exception of a missed target — the layer of the measurements reports it without a test framework in the infrastructure (ADR-0058) |
+| [`FullWordListFactAttribute`](../tests/Nordmann.LUI.Testing/FullWordListFactAttribute.cs) | the fact that needs the whole word list: it is skipped with a reason when the list is not there, and the fetch is the guard that demands it (ADR-0058, D19) |
 
 ## The test data
 
@@ -270,6 +282,8 @@ no project, no code, just the files the tests read.
 The full list (685,829 words) is **not** checked in — 5.5 MB that nobody
 reviews. [`tools/fetch-wordlist.sh`](../tools/fetch-wordlist.sh) puts it in
 `artifacts/wordlist/`, and the lane of the parity fetches it and demands it — on every pull request and in the release.
+The fetch is the guard: it checks the 685,829 lines and fails loudly, so that a lane cannot run the parity on a
+short list and call it a proof (ADR-0058, D19).
 
 ## How to run what
 
@@ -286,7 +300,13 @@ dotnet test tests/Nordmann.LUI.Integration.Tests --filter "FullyQualifiedName~In
 # the shape of the repository
 dotnet test tests/Nordmann.LUI.Architecture.Tests
 
-# everything, as CI runs it
+# everything, as CI runs it — the four projects, one after the other
+dotnet test tests/Nordmann.LUI.Unit.Tests
+dotnet test tests/Nordmann.LUI.Architecture.Tests
+dotnet test tests/Nordmann.LUI.Integration.Tests
+dotnet test samples/Lui.Sample.Tests
+
+# the whole solution, the measurement layer included
 dotnet test Lui.sln
 
 # the fast local loop: everything but the tests that read the clock (ADR-0050) — CI runs those too
@@ -300,8 +320,9 @@ bash tools/mutation-check.sh
 bash tools/mutation-check.sh --shard 2/4
 bash tools/mutation-check.sh --only the-provider-retries-for-thirty-seconds
 
-# a measurement, on purpose
-LUI_PERF=1 LUI_PERF_ENTRIES=3000000 dotnet test tests/Nordmann.LUI.Integration.Tests --filter QueryPerformance
+# a measurement, on purpose — the layer of the measurements, and the scenario
+# of the run in tests/Nordmann.LUI.Performance.Tests/performance.scenario.json
+dotnet test tests/Nordmann.LUI.Performance.Tests --filter QueryPerformance
 ```
 
 ## The rules the tests follow

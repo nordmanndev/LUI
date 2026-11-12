@@ -29,7 +29,7 @@ The flat tree had the consequences one expects:
   four times.
 - **A test that proved nothing was green.** `NormalizationParity.The_normalizer_and_the_tokenizer_agree_on_the_full_word_list`
   reported *Passed* in 1 ms when the word list was not there — it compared nothing with nothing. Only
-  `publish.yml` set `LUI_REQUIRE_FULL_WORDLIST=1`; CI never fetched the list.
+  Only `publish.yml` demanded the whole word list; CI never fetched it.
 - **A measurement could pass without measuring.** `QueryPerformance` asserted its budgets only at
   `entries >= 3_000_000`; below that it asserted nothing.
 - **A dead dependency looked like a dependency.** `Alba 8.5.3` was pinned in `Directory.Packages.props` and
@@ -62,11 +62,12 @@ disk. The `InternalsVisibleTo` of both packages name the new projects.
 for one of its tests, so it stays in the integration layer — a file was not split to make a number look better.
 
 **A missing input is a skip with a reason, never a green.** `FullWordListFactAttribute` reads the gate at
-discovery: with `LUI_REQUIRE_FULL_WORDLIST=1` the test runs and fails when the list is missing; without it the test
-is skipped and says why. The same pattern the measurements already use (`PerformanceFactAttribute`).
+discovery: the test is skipped and says why when the list is missing. The guard that the list is really there is
+the fetch — `tools/fetch-wordlist.sh` checks the 685,829 lines and fails loudly (ADR-0058). The measurements need
+no gate of their own: they live in their own layer.
 
-**A measurement is never a test of behaviour.** The measurements stay in the integration layer and stay gated behind
-`LUI_PERF=1`; the budgets are asserted at every size, not only at three million.
+**A measurement is never a test of behaviour.** The measurements live in a layer of their own since ADR-0058; the
+budgets are asserted at every size, not only at three million.
 
 **The map of the tests is a guard, not a document.** `docs/testing.md` says which test holds which rule of the
 specification up. `Test_Landscape` reads the map and the tree and fails when they disagree: a test **file** that is
@@ -133,7 +134,7 @@ filter matches no test, and the pattern escapes its brackets.
 
 **Verified by:** `tests/Nordmann.LUI.Unit.Tests/` (the rules without a database, the JSON payload serialiser, the
 ranking and the lazy similarity), `tests/Nordmann.LUI.Integration.Tests/` (the library against SQLite, the
-measurements gated behind `LUI_PERF=1`), `tests/Nordmann.LUI.Architecture.Tests/Test_Landscape.cs` (the map and
+the measurements in their own layer), `tests/Nordmann.LUI.Architecture.Tests/Test_Landscape.cs` (the map and
 the tree agree — a file is a test file by any form of its test attribute, `[Fact(Skip = …)]` included; two test
 files of the same name in two projects are told apart; the unit layer opens no database), `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs` (every pinned version is used);
 `dotnet format --verify-no-changes`; `tools/mutation-check.sh`.
@@ -158,3 +159,19 @@ history above stays as written, and these are the differences:
 subject (a folder is a namespace) and gives every test class one suffix. Its table maps the old names in this ADR to the
 new ones (`Test_Landscape` is `TestLandscapeTests`, `Repository_Layout` is `RepositoryLayoutTests`). The map guard now also
 compares the **layer** of a row with its project, and reads the test projects from the tree rather than from a list.
+
+## Note (2026-11-12, issue #122)
+
+[ADR-0058](./0058-the-measurement-is-a-layer-of-its-own.md) gives the measurement a layer of its own
+(`tests/Nordmann.LUI.Performance.Tests`) and takes the variables of the environment away. The decision stands; the history
+above stays as written, and these are the differences:
+
+- **The tree has a fourth layer.** The six files that read the clock moved from the integration layer into
+  `tests/Nordmann.LUI.Performance.Tests`. The gate of the measurements is the layer — there is no variable that switches
+  them on, and the scenario of a run lives in `performance.scenario.json`, in the repository.
+- **The unit layer names the shared infrastructure.** The rules of the budget live there (`PerformanceBudget`,
+  `BudgetMachine`), so `BudgetMachineTests` is a unit test and the unit project references the infrastructure. The rule of
+  the unit layer stands: it opens no database — no line of its code names `LuiCatalog`, `TestDatabase` or a `Sqlite…` type,
+  and the guard reads the project file and the source.
+- **The guard of the whole word list is the fetch.** `tools/fetch-wordlist.sh` checks the 685,829 lines and fails loudly;
+  the lane of the parity fetches the list before it runs the test.

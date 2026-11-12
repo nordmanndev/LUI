@@ -64,7 +64,7 @@ of *none* would have been the better word for it.
 The numbers of the dictionary, measured on the word list of the repository (685,829 words, the list that
 [`tools/fetch-wordlist.sh`](../../tools/fetch-wordlist.sh) fetches; 685,739 of them are used), on 2026-11-12 on an Intel
 Xeon Platinum (2 cores, 3.0 GB RAM, Debian 12, .NET 10.0.403), with
-`LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests --configuration Release --filter "FullyQualifiedName~TypoPerformance.What_every_distance_costs"`:
+`dotnet test tests/Nordmann.LUI.Performance.Tests --configuration Release --filter "FullyQualifiedName~TypoPerformance.What_every_distance_costs"`:
 
 <!--MEASURED-->
 | Distance | The dictionary | The build | The memory | The budget of §16 |
@@ -126,3 +126,8 @@ measurement is comparable with the old one.
   mistake as the free number, one level down.
 - **`None` keeps building a dictionary.** Rejected: 138 MB and 4.3 s for a correction that is never made. The state of
   the dictionary stays `NotBuilt` instead.
+
+## Note (2026-11-12, issue #122)
+
+The measurement lives in its own layer since ADR-0058, and the command above is the one of today. The numbers and the
+machine they were measured on stay as they are.

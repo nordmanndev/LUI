@@ -151,15 +151,14 @@ jobs:
       # compares them over every word of the German word list. Without the
       # list the test is skipped and says so; this job fetches the list and
       # demands it, so that the parity is proved here and not only in the
-      # release gate (ADR-0019). The rest of the integration layer — the other
-      # tests of the parity too — runs in the job "Build · Test": this one runs
-      # the test of the whole list, and nothing twice.
+      # release gate (ADR-0019). The fetch is the guard: it checks the 685,829
+      # lines and fails loudly (ADR-0058, D19). The rest of the integration layer —
+      # the other tests of the parity too — runs in the job "Build · Test": this
+      # one runs the test of the whole list, and nothing twice.
       - name: Fetch the word list
         run: bash tools/fetch-wordlist.sh
 
       - name: Build and test
-        env:
-          LUI_REQUIRE_FULL_WORDLIST: '1'
         run: |
           dotnet build tests/Nordmann.LUI.Integration.Tests --configuration Release --no-restore
           dotnet test tests/Nordmann.LUI.Integration.Tests --configuration Release --no-build \

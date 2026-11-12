@@ -37,7 +37,7 @@ with the row-by-row build of PR-003, `TypoPerformance` the dictionary, ADR-0011 
 The same seed gives the same corpus, so the budget test and the benchmarks measure the same thing, and a run can be
 repeated.
 
-**A test per target, in the scenario of §16** (`PerformanceBudgets`, gated behind `LUI_PERF=1`):
+**A test per target, in the scenario of §16** (`PerformanceBudgets`, in the layer of the measurements):
 
 - `The_single_word_index_at_three_million_entries` — the build by `Sync`, the query without and with a correction, the
   allocation, the single writes;
@@ -46,8 +46,8 @@ repeated.
 
 Each target is **met** — then it is asserted — or **waived**: a waiver names its reason and the record that holds it,
 and a waived target is still measured and printed. A target that is missed and not waived fails the test. A waiver
-that is met is printed as "the waiver can go". Below the scenario (`LUI_PERF_ENTRIES` smaller) nothing is asserted: a
-budget of three million is not a claim about 200,000.
+that is met is printed as "the waiver can go". Below the scenario (fewer entries in the scenario file) nothing is
+asserted: a budget of three million is not a claim about 200,000.
 
 **The build is the first load of a file no other process writes:** `Sync` with `BatchSize = 1_000_000` — the fewest
 commits, which ADR-0016 measured to matter more than the order of the rows.
@@ -110,10 +110,11 @@ the p95 was 244–249 KB). It is not a leak of the scale but the budget: 500 tex
   3. **The file size** — ADR-0011: titles of 36 characters, the table holds the text and two generated forms.
 - The build meets its target only with the largest batch. With the default of 10,000 it does not (ADR-0016: 78 s for a
   million); a first load is told to use the large batch (`LuiSyncOptions.BatchSize`).
-- The budget test runs for about ten minutes; it is not part of CI — a budget on a shared runner is a coin toss
-  (`PerformanceFactAttribute`). It is run on purpose, on the measurement machine, and its output goes here.
+- The budget test runs for about ten minutes; it is not part of CI — a budget on a shared runner is a coin toss.
+  It lives in the layer of the measurements (ADR-0058) and is run on purpose, on the measurement machine, and its
+  output goes here.
 
-**Verified by:** `tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs` (gated; the table above is its output),
+**Verified by:** `tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs` (the table above is its output),
 `benchmarks/Nordmann.LUI.Benchmarks` (`dotnet run -c Release --project benchmarks/Nordmann.LUI.Benchmarks -- --filter '*'`),
 and the test map (`Test_Landscape`), which lists the budget test.
 
@@ -145,3 +146,8 @@ speed of the disk; the 180 s of §16 are met on one machine and missed on the ne
 day:** the target is **≤ 4 min** for the first load of three million entries, and a faster first load is issue #32,
 after 0.1.0. `PerformanceBudgets` asserts it; no target of §16 is waived any more.
 
+
+## Note (2026-11-12, issue #122)
+
+The budget test lives in the layer of the measurements since ADR-0058, and the scenario of a run lives in
+`performance.scenario.json`. The decision stands; the history above stays as written.

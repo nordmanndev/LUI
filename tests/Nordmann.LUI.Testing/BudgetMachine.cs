@@ -1,7 +1,7 @@
-namespace Nordmann.LUI.Integration.Tests.Performance;
+namespace Nordmann.LUI.Testing;
 
 /// <summary>The machine a run of the budgets happens on: the one of the record, or another one.</summary>
-internal enum BudgetMachine
+public enum BudgetMachine
 {
     /// <summary>
     /// The machine of the record (Intel Xeon 2.1 GHz, 4 cores, 16 GB, Ubuntu 24.04). Every target of §16 is asserted

@@ -1,0 +1,14 @@
+{
+  "note": "The scenario of a measurement run (ADR-0058): the corpus, the prefix length and the settings of the run. It replaces the variables of the environment — a variable is invisible in the code and in the report, a file is a thing one can read, check in and diff. The lane of the schedule writes this file before it measures; the copy that is checked in is the default, and a run without the lane works with it.",
+  "scenario": {
+    "corpus": "wordlist",
+    "prefixLength": 685739,
+    "kind": "single",
+    "entries": 200000,
+    "batch": 10000,
+    "weights": "longtail",
+    "optimize": false,
+    "machine": "measurement",
+    "database": ""
+  }
+}

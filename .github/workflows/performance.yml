@@ -37,20 +37,39 @@ jobs:
     # sized by the first run (issue #99): the tests took 8.3 minutes on a hosted runner (4 cores, 15 GB, 85 GB of disk),
     # the whole job about 9 — thirty minutes are three times that
     timeout-minutes: 30
-    env:
-      LUI_PERF: '1'
-      LUI_PERF_ENTRIES: ${{ inputs.entries || '3000000' }}
-      LUI_PERF_MACHINE: ${{ inputs.machine || 'other' }}
-      LUI_REQUIRE_FULL_WORDLIST: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup
 
       # The whole word list, or the corpus of the scenario is not the corpus of
-      # the specification: the script fails if the list is short.
+      # the specification: the script fails if the list is short. The fetch is
+      # the guard — there is no switch that demands the list (ADR-0058, D19).
       - name: Fetch the word list
         run: bash tools/fetch-wordlist.sh
+
+      # The scenario of the run is a file, not a variable (ADR-0058): the lane
+      # writes it, the run reads it, and the diff of the file is the diff of
+      # the scenario. The copy in the repository is the default.
+      - name: The scenario of this run
+        run: |
+          set -euo pipefail
+          cat > tests/Nordmann.LUI.Performance.Tests/performance.scenario.json <<'JSON'
+          {
+            "note": "The scenario of a measurement run (ADR-0058): the corpus, the prefix length and the settings of the run. It replaces the variables of the environment — a variable is invisible in the code and in the report, a file is a thing one can read, check in and diff. The lane of the schedule writes this file before it measures; the copy that is checked in is the default, and a run without the lane works with it.",
+            "scenario": {
+              "corpus": "wordlist",
+              "prefixLength": 685739,
+              "kind": "single",
+              "entries": ${{ inputs.entries || '3000000' }},
+              "batch": 10000,
+              "weights": "longtail",
+              "optimize": false,
+              "machine": "${{ inputs.machine || 'other' }}",
+              "database": ""
+            }
+          }
+          JSON
 
       - name: Build
         run: dotnet build Lui.sln --configuration Release --no-restore
@@ -72,9 +91,9 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts/test-results
-          dotnet test tests/Nordmann.LUI.Integration.Tests \
+          dotnet test tests/Nordmann.LUI.Performance.Tests \
             --configuration Release --no-build \
-            --filter 'BudgetPerformance|NormalizationParityTests' \
+            --filter 'BudgetPerformance' \
             --logger "console;verbosity=detailed" --blame-hang-timeout 20m --blame-hang-dump-type full \
             --results-directory artifacts/test-results 2>&1 | tee artifacts/test-results/budgets.log
 
