@@ -8,7 +8,7 @@ internal sealed record IndexInfo(
     string Name,
     string Kind,
     string Storage,
-    bool TypoTolerance,
+    string TypoDistance,
     string TypoDictionaryState,
     long Count,
     string Payload,

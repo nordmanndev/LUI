@@ -411,7 +411,7 @@ public sealed class ReadPathTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance());
         tags.Upsert(1, "Apfelkuchen");
 
         // the application asks for the build (ADR-0042): a query never does. The read path writes nothing,
@@ -419,11 +419,11 @@ public sealed class ReadPathTests
         tags.WarmUpTypoDictionary();
 
         var index = catalog.Index("tags");
-        index.TypoTolerance.ShouldBeFalse("an opened index corrects no typo");
+        index.TypoDistance.ShouldBe(LuiTypoDistance.OneError, "the distance is part of the definition");
 
-        index.Search("apflekuchen").Hits.ShouldBeEmpty("nothing corrects the typo");
-        index.Search("apflekuchen", new LuiQueryOptions { TypoTolerance = true })
-            .Hits.ShouldHaveSingleItem("the query asks for the correction");
+        index.Search("apflekuchen").Hits.ShouldHaveSingleItem("the opened index forgives what its definition says");
+        index.Search("apflekuchen", new LuiQueryOptions { TypoTolerance = false })
+            .Hits.ShouldBeEmpty("the query asks for no correction");
 
         var constant = new Constant(0.25);
         index.Search("apfel", new LuiQueryOptions { Similarity = constant })

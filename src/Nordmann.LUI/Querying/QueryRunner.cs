@@ -18,7 +18,7 @@ internal sealed class QueryRunner
     private readonly Database _database;
     private readonly ContentSource _source;
     private readonly ILuiSimilarity _defaultSimilarity;
-    private readonly bool _typoDefault;
+    private readonly LuiTypoDistance _typoDefault;
     private readonly CandidateReader _candidates;
     private readonly TypoCorrection _correction;
     private readonly HitReader _hits;
@@ -29,7 +29,7 @@ internal sealed class QueryRunner
         PayloadReader payload,
         ILuiSimilarity defaultSimilarity,
         TypoDictionary typos,
-        bool typoDefault)
+        LuiTypoDistance typoDefault)
     {
         _database = database;
         _source = source;
@@ -40,8 +40,8 @@ internal sealed class QueryRunner
         _hits = new HitReader(source, payload);
     }
 
-    /// <summary>Whether a query corrects a typo unless its options say otherwise.</summary>
-    internal bool TypoTolerance => _typoDefault;
+    /// <summary>How many errors a query of this instance forgives unless its options say otherwise.</summary>
+    internal LuiTypoDistance TypoDistance => _typoDefault;
 
     internal LuiResult Execute(string input, LuiQueryOptions options, CancellationToken cancellationToken)
     {
@@ -152,7 +152,7 @@ internal sealed class QueryRunner
         bool truncated,
         CancellationToken cancellationToken)
     {
-        if (!(options.TypoTolerance ?? _typoDefault) || query.IsPrefixPath || !TypoCorrection.IsWanted(candidates, count))
+        if (!(options.TypoTolerance ?? (_typoDefault != LuiTypoDistance.None)) || query.IsPrefixPath || !TypoCorrection.IsWanted(candidates, count))
         {
             return (candidates, count, truncated, [query.Search], null, false, false);
         }

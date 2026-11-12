@@ -66,7 +66,7 @@ public sealed class SampleApiTests(SampleHost host) : IClassFixture<SampleHost>
         foreach (var name in new[] { "recipes", "names", "tags" })
         {
             indexes[name]!["count"]!.GetValue<long>().ShouldBeGreaterThan(0, name);
-            indexes[name]!["typoTolerance"]!.GetValue<bool>().ShouldBeTrue(name);
+            indexes[name]!["typoDistance"]!.GetValue<string>().ShouldBe("OneError", name);
             indexes[name]!["source"].ShouldBeNull(name);
         }
 

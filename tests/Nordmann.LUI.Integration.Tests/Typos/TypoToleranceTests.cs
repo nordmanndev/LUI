@@ -121,24 +121,24 @@ public sealed class TypoToleranceTests
     }
 
     [Fact]
-    public void Typo_tolerance_is_off_unless_the_index_or_the_query_asks_for_it()
+    public void Typo_tolerance_is_on_unless_the_query_asks_for_it()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord());
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         words.Upsert(1, "Apfelkuchen", 10);
 
         // the application asks for the build (ADR-0042): a query never does — the query asks for the
         // correction, the application pays for the dictionary
         words.WarmUpTypoDictionary();
 
-        var off = words.Query("apflekuchen").Execute();
-        off.Hits.ShouldBeEmpty();
-        off.CorrectedQuery.ShouldBeNull();
-
-        var on = words.Query("apflekuchen").TypoTolerance().Execute();
+        var on = words.Query("apflekuchen").Execute();
         on.CorrectedQuery.ShouldBe("apfelkuchen");
         on.Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
+
+        var off = words.Query("apflekuchen").TypoTolerance(false).Execute();
+        off.Hits.ShouldBeEmpty();
+        off.CorrectedQuery.ShouldBeNull();
     }
 
     [Fact]
@@ -266,20 +266,10 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance().TypoTolerance(false));
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance().TypoTolerance(LuiTypoDistance.None));
         words.Upsert(1, "Apfelkuchen", 10);
 
         words.Query("apflekuchen").Execute().CorrectedQuery.ShouldBeNull();
-    }
-
-    [Fact]
-    public void The_tolerance_is_a_default_of_the_instance_and_not_part_of_the_definition()
-    {
-        using var database = new TestDatabase();
-        using var catalog = database.Open();
-        catalog.Create("words", index => index.SingleWord().TypoTolerance());
-
-        Should.NotThrow(() => catalog.Create("words", index => index.SingleWord()));
     }
 
     [Fact]
@@ -424,7 +414,7 @@ public sealed class TypoToleranceTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var on = catalog.Create("a", index => index.SingleWord().TypoTolerance());
-        var off = catalog.Create("b", index => index.SingleWord().TypoTolerance(true).TypoTolerance(false));
+        var off = catalog.Create("b", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError).TypoTolerance(LuiTypoDistance.None));
         on.Upsert(1, "Apfelkuchen", 1);
         off.Upsert(1, "Apfelkuchen", 1);
 

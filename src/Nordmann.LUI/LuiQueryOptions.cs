@@ -55,8 +55,9 @@ public sealed record LuiQueryOptions
     public ILuiSimilarity? Similarity { get; init; }
 
     /// <summary>
-    /// Whether an input without a word start is corrected (§10). <see langword="null"/> takes the setting of
-    /// the index (<c>TypoTolerance</c> on the builder; off unless it was asked for).
+    /// Whether an input without a word start is corrected (§10). <see langword="null"/> takes the distance of the
+    /// index. <see langword="true"/> asks for the correction — but only within the distance of the index: a query
+    /// cannot widen it, and a distance of <see cref="LuiTypoDistance.None"/> forgives nothing at all.
     /// </summary>
     public bool? TypoTolerance { get; init; }
 

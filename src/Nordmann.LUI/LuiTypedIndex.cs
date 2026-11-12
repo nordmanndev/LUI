@@ -19,8 +19,11 @@ public sealed class LuiTypedIndex<TPayload>
     /// <summary>What the keys of the index are: numbers or texts (ADR-0035).</summary>
     public LuiKeyKind KeyKind => _index.KeyKind;
 
-    /// <summary>Whether a query of this instance corrects a typo unless it says otherwise.</summary>
-    public bool TypoTolerance => _index.TypoTolerance;
+    /// <summary>
+    /// How many errors a query of this instance forgives (§10): <see cref="LuiTypoDistance.None"/> corrects nothing.
+    /// The distance belongs to the index — a query may switch the correction on or off, but it cannot widen it.
+    /// </summary>
+    public LuiTypoDistance TypoDistance => _index.TypoDistance;
 
     /// <summary>Where the typo dictionary of the index stands (ADR-0025).</summary>
     public LuiTypoDictionaryState TypoDictionaryState => _index.TypoDictionaryState;

@@ -123,13 +123,18 @@ German word list and one million titles — on the CI machine: Intel Xeon 2.10 G
 | allocation per query, p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms | ≤ 1 ms |
 | first load of 3 M entries (`Sync`) | 172.5–205.9 s | ≤ 4 min (#32) |
-| typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
 
 The **limits** are the targets of the specification — a test reads them out of the contract and fails when this table
 drifts from it (issue #38). The **measured values** are the numbers of the last measurement of each row: the latencies,
 the build and the size of the file from the CI machine (2026-11-05, before the allocation was lowered — so they are an
-upper bound); the allocation in bytes, and therefore independent of the machine (2026-11-06, the current code).
+upper bound); the allocation in bytes, and therefore independent of the machine (2026-11-06, the current code); the typo
+dictionary in bytes and in seconds (2026-11-06, the machine of the record — a time belongs to the machine it was
+measured on, [ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured
+again on 2026-11-12 — **4.3 s** for the same **138 MB** ([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)): a
+time belongs to the machine and the date it was measured on (ADR-0041), the memory is the claim that does not depend
+on the machine.
 
 **The tables** below are the output of [BenchmarkDotNet](https://benchmarkdotnet.org/) — the code on the corpus of the
 measurement, not the scenario of the budgets. They are rendered from the reports of the run in
@@ -217,7 +222,7 @@ not have to know it.
 
 ### The four combinations
 
-The typo tolerance is a decision of the application: the dictionary of the words of an index costs 138 MB for 685,829
+The typo tolerance is a decision of the application: the dictionary of the words of an index costs 138 MB for 685,739
 words, so it is **off by default** and switched on with `TypoTolerance()`.
 
 | | **Typo tolerance off** (the default) | **Typo tolerance on** |
