@@ -73,15 +73,25 @@ public sealed record PerformanceScenario(
 
     /// <summary>Reads the file of the scenario out of the repository and turns it into a scenario.</summary>
     /// <returns>The scenario of the file.</returns>
-    private static PerformanceScenario Read()
+    public static PerformanceScenario Read() => Read(FilePath);
+
+    /// <summary>
+    /// Reads a scenario file and turns it into a scenario. The path is a parameter, so that a file of the test can be
+    /// read — the file of the repository is the one of the run, and a test that wrote it would race with the lane.
+    /// </summary>
+    /// <param name="path">The path of the file of the scenario.</param>
+    /// <returns>The scenario of the file.</returns>
+    public static PerformanceScenario Read(string path)
     {
-        if (!File.Exists(FilePath))
+        ArgumentException.ThrowIfNullOrEmpty(path);
+
+        if (!File.Exists(path))
         {
             throw new InvalidOperationException(
-                $"The scenario file is missing ({FilePath}). A measurement without a scenario measures nothing (ADR-0058).");
+                $"The scenario file is missing ({path}). A measurement without a scenario measures nothing (ADR-0058).");
         }
 
-        using var document = JsonDocument.Parse(File.ReadAllText(FilePath));
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
         var root = document.RootElement;
         Only(root, "note", "scenario");
 

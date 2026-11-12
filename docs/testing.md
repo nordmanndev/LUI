@@ -220,6 +220,7 @@ machine it was measured on — and the **sizes** are asserted (ADR-0041).
 | [`TypoPerformance`](../tests/Nordmann.LUI.Performance.Tests/TypoPerformance.cs) | Performance | what the typo dictionary costs, and how good the correction is on the whole list | spec §16, ADR-0012, ADR-0058 |
 | [`LinkedPerformance`](../tests/Nordmann.LUI.Performance.Tests/LinkedPerformance.cs) | Performance | what a linked index costs against the table of the application | ADR-0015, ADR-0058 |
 | [`BatchPerformance`](../tests/Nordmann.LUI.Performance.Tests/BatchPerformance.cs) | Performance | what a batch saves over a loop of single upserts | ADR-0013, ADR-0058 |
+| [`PerformanceScenarioTests`](../tests/Nordmann.LUI.Performance.Tests/PerformanceScenarioTests.cs) | Performance | the reader of the scenario file: a scenario with an unknown member is refused — a member that nobody reads would be a second truth beside the scenario — and a scenario with the members of the run is read | ADR-0058, ADR-0059 |
 
 ## Sample — the sample application against its API
 
