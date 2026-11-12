@@ -61,7 +61,16 @@ public sealed class NgramDiceEquivalenceTests
     public void A_comparison_allocates_nothing()
     {
         var measure = LuiSimilarity.NgramDice;
-        measure.Similarity("apfelkuch", "gedeckter apfelkuchen mit sahne");
+
+        // the warm-up repeats and uses its result: the type initialisation, the first call and the
+        // tiering of the measure belong to the start of the run, not to the measured window. A call
+        // whose result is discarded may be removed by an optimising JIT, and a one-off cost then
+        // lands inside the window (issue #132: 1912 bytes on a runner).
+        var warm = 0d;
+        for (var i = 0; i < 100; i++)
+        {
+            warm += measure.Similarity("apfelkuch", "gedeckter apfelkuchen mit sahne");
+        }
 
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 1_000; i++)
@@ -69,6 +78,7 @@ public sealed class NgramDiceEquivalenceTests
             measure.Similarity("apfelkuch", "gedeckter apfelkuchen mit sahne");
         }
 
+        warm.ShouldBeGreaterThan(0d, "the warm-up has to run, otherwise the window measures the start of the run");
         (GC.GetAllocatedBytesForCurrentThread() - before).ShouldBeLessThan(1_000, "less than a byte per call");
     }
 
