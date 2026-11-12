@@ -206,7 +206,6 @@ The query that is configured step by step. Every method returns the query, and `
 | `LuiQuery Candidates(int candidates)` | how many candidates the query looks at. 1 to 100,000, the default 500. |
 | `LuiQuery Rank(LuiRankingOrder order)` | the order of the hits |
 | `LuiQuery PriorityMode(LuiPriorityMode mode)` | `First` (the default) puts the priority before everything; `CandidatesOnly` uses it while the candidates are collected |
-| `LuiQuery DistinctText(bool distinct = true)` | the same text only once in the hits |
 | `LuiQuery Similarity(ILuiSimilarity similarity)` | the measure of the ranking, for this query |
 | `LuiQuery TypoTolerance(bool enabled = true)` | forgives a typo in this query — but only within the distance of the index: a query cannot widen it, and a distance of `None` forgives nothing |
 | `LuiQuery TrackTimings(bool track = true)` | measures the phases of the query |
@@ -223,13 +222,28 @@ The same settings as a record — for the configuration of an application, for a
 | `int Candidates` | 500 (1 to 100,000, `LuiQueryOptions.CandidatesLimit`) |
 | `LuiRankingOrder Rank` | `WordStartThenSimilarity` |
 | `LuiPriorityMode PriorityMode` | `First` |
-| `bool DistinctText` | `false` |
 | `ILuiSimilarity? Similarity` | the default of the kind of the index |
 | `bool? TypoTolerance` | `null` — the distance of the index |
 | `bool TrackTimings` | `false` |
 
 Every value checks itself: a `MaxResults` of 0 or a `Rank` that is not defined throws `ArgumentOutOfRangeException`
 before the query runs.
+
+**One hit per entry — the uniqueness of a text belongs to the data.** Two entries that hold the same text in two
+spellings — "vegan" and "Vegan" — are two hits: the library does not hide the second one, because it cannot know
+which of them the application means. Where the uniqueness is stated depends on the kind of the index (ADR-0055):
+
+- **`Embedded`** — the entries live in the table of the library, and that table holds the **transliterated** text in
+  the generated column `s_norm` — case and diacritics untouched. The **folded** text, the one the tokenizer compares,
+  lives inside the search index, and the **search form** of the C# side is computed by an internal helper: the fold is
+  not part of the public API. A constraint over `s_norm` does not catch "vegan" and "Vegan", and `lower(s_norm)` is an
+  ASCII approximation of the fold, not the fold — see [the normalisation](normalization.md).
+- **`Linked`** — the table is the application's own, and so is the constraint: over the application's own column, with
+  the application's own rule. The same caveat holds, because the library builds its search index over the raw column
+  of the table.
+
+In both cases the rule is the application's own: **the application keeps its own text unique, in its own data, over
+its own column, with its own rule** — a rule that is not the fold of the library.
 
 ### `LuiResult`
 

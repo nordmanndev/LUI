@@ -1,5 +1,9 @@
 # 0012 — Typo tolerance: SymSpell over the word beginnings, corrected when nothing stands at a word start
 
+> **Note (ADR-0055, 2026-11-12):** `DistinctText` is gone — the uniqueness of a text belongs to the data, and the
+> candidates of the input and of its corrections are united without dropping a duplicate. The sentence about it below
+> is history. See [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md).
+
 > **Name note (ADR-0023, 2026-11-04):** since this record was written, `Owned` is called `Embedded`: `ILuiOwnedIndex` is
 > `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
 > `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.

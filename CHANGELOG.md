@@ -55,6 +55,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - An application that creates its indexes in its migration **describes an index the same way every time** — also
       after the upgrade, because the distance is part of the definition: a change of the distance wants a
       `DropIndex(name)` and a new index.
+### Removed
+
+- **`DistinctText` is gone** ([ADR-0055](.agents/adr/0055-the-uniqueness-of-a-text-belongs-to-the-data.md), #119).
+  The option showed one hit per normalised text — the system tag "vegan" and the ordinary tag "Vegan" were one hit
+  instead of two. It was the most expensive option in the library: it kept the folded text of every candidate (**+28 KB**
+  per query with one word, **+84 KB** with several, ADR-0032), and a duplicate used up a place of the candidate budget,
+  so the option made the search shallower, not only the answer shorter.
+  - **Gone**: `LuiQueryOptions.DistinctText` and `LuiQuery.DistinctText(bool)`. The option was **off by default**, so a
+    query that did not ask for it behaves exactly as before — only an application that asked for it sees a difference.
+  - **Migration**: an application that used the option takes the uniqueness of a text into its own data — **the
+    application keeps its own text unique, in its own data, over its own column, with its own rule**, and that rule is
+    not the fold of the library. The table of the library holds the **transliterated** text in the generated column
+    `s_norm` (case and diacritics untouched); the **folded** text, the one the tokenizer compares, lives inside the
+    search index, and the **search form** of the C# side is computed by an internal helper — the fold is not part of the
+    public API. A constraint over `s_norm` therefore does not catch "vegan" and "Vegan", and `lower(s_norm)` is an ASCII
+    approximation of the fold, not the fold (see [the normalisation](docs/normalization.md)). In the `Linked` case the
+    table is the application's own, and the constraint is the application's own over its own column, with the same
+    caveat. Without a rule of its own, an application gets two hits for a text in two spellings — the library does not
+    hide the second one, because it cannot know which of them the application means.
+  - The sample's checkbox and its `distinct` parameter are gone; the tutorial, the README and
+    [`docs/api.md`](docs/api.md) follow.
 
 ## [0.1.0-alpha] — 2026-11-11
 

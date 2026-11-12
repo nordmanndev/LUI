@@ -54,15 +54,6 @@ public sealed class LuiQuery
         return this;
     }
 
-    /// <summary>Shows one entry per normalised text.</summary>
-    /// <param name="distinct">Whether duplicates are dropped.</param>
-    /// <returns>The query.</returns>
-    public LuiQuery DistinctText(bool distinct = true)
-    {
-        _options = _options with { DistinctText = distinct };
-        return this;
-    }
-
     /// <summary>Overrides the default similarity measure of the index.</summary>
     /// <param name="similarity">The measure.</param>
     /// <returns>The query.</returns>
