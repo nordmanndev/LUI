@@ -22,7 +22,7 @@ public sealed class RepositoryLayoutTests
             .ToArray();
 
         offenders.ShouldBeEmpty(
-            "Package versions live in Directory.Packages.props only (standards: architecture/layering.md).");
+            "Package versions live in Directory.Packages.props only.");
     }
 
     [Fact]

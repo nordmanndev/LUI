@@ -1,10 +1,17 @@
 using System.Globalization;
 using Shouldly;
 
+using Nordmann.LUI.Testing;
+
 namespace Nordmann.LUI.Integration.Tests.Performance;
 
 /// <summary>
 /// The targets of one scenario: each one measured, then met, waived or missed.
+/// <para>
+/// The limits are not written here: they live in one file, with their scenario,
+/// their unit and their kind (ADR-0056). This class reads the file and measures
+/// against it — one source, two readers.
+/// </para>
 /// </summary>
 internal sealed class PerformanceBudget(ITestOutputHelper output, bool scenario, BudgetMachine machine)
 {
@@ -19,8 +26,8 @@ internal sealed class PerformanceBudget(ITestOutputHelper output, bool scenario,
 
     private readonly List<string> _missed = [];
 
-    /// <summary>Whether a target in this unit belongs to the machine it was measured on: a time does, a size does not.</summary>
-    internal static bool BelongsToTheMachine(string unit) => unit is "ms" or "s";
+    /// <summary>Whether a target of this kind belongs to the machine it was measured on: a time does, a size does not.</summary>
+    internal static bool BelongsToTheMachine(LuiBudgets.Kind kind) => kind == LuiBudgets.Kind.Time;
 
     /// <summary>
     /// The entries a run builds: the scenario of the target, or fewer when <c>LUI_PERF_ENTRIES</c> asks for a quick run —
@@ -42,7 +49,7 @@ internal sealed class PerformanceBudget(ITestOutputHelper output, bool scenario,
             : BudgetMachine.Measurement;
 
     /// <summary>
-    /// The line that says which machine this run is on — the times of §16 belong to it.
+    /// The line that says which machine this run is on — the times of the file belong to it.
     /// </summary>
     internal void SayTheMachine()
     {
@@ -54,15 +61,27 @@ internal sealed class PerformanceBudget(ITestOutputHelper output, bool scenario,
 
     /// <summary>
     /// One target: measured, then met, waived or missed. A target that is missed and has no waiver fails the run.
+    /// <para>
+    /// The limit, the unit, the condition and the kind of the target come from the file of the budgets (ADR-0056);
+    /// the unit that comes with the measurement is the unit the limit is brought into — the promise of four minutes
+    /// is compared against the seconds of a run.
+    /// </para>
     /// </summary>
-    internal void AtMost(string target, string condition, double measured, double limit, string unit)
+    /// <param name="id">The id of the target, as the file of the budgets writes it.</param>
+    /// <param name="measured">The measured value, in the unit of the measurement.</param>
+    /// <param name="unit">The unit of the measurement.</param>
+    internal void AtMost(string id, double measured, string unit)
     {
+        var budget = LuiBudgets.By(id);
+        var limit = budget.LimitIn(unit);
+        var condition = budget.Scenario.Condition;
+
         var met = measured <= limit;
-        var waiver = Waivers.GetValueOrDefault(target);
+        var waiver = Waivers.GetValueOrDefault(id);
 
         // a time belongs to the machine it was measured on: on another machine it is reported, never missed
         // (ADR-0041). A size — bytes — is the same everywhere and is asserted.
-        var foreign = BelongsToTheMachine(unit) && machine != BudgetMachine.Measurement;
+        var foreign = BelongsToTheMachine(budget.Kind) && machine != BudgetMachine.Measurement;
 
         var verdict = (met, waiver, scenario, foreign) switch
         {
@@ -74,17 +93,17 @@ internal sealed class PerformanceBudget(ITestOutputHelper output, bool scenario,
             (false, _, _, _) => $"waived: {waiver}",
         };
 
-        var line = string.Create(CultureInfo.InvariantCulture, $"budget | {target,-28} | {condition,-58} | {measured,8:F2} {unit,-2} | ≤ {limit} {unit} | {verdict}");
+        var line = string.Create(CultureInfo.InvariantCulture, $"budget | {id,-28} | {condition,-58} | {measured,8:F2} {unit,-2} | ≤ {limit} {unit} | {verdict}");
         output.WriteLine(line);
         Console.Error.WriteLine("[perf] " + line);
 
         if (scenario && !met && waiver is null && !foreign)
         {
-            _missed.Add($"{target}: {measured:F2} {unit} > {limit} {unit} ({condition})");
+            _missed.Add($"{id}: {measured:F2} {unit} > {limit} {unit} ({condition})");
         }
     }
 
     /// <summary>The targets that were missed: the run fails if there is one.</summary>
     internal void Verify() =>
-        _missed.ShouldBeEmpty("A target of §16 that is missed is fixed or waived with a reason and a record (ADR-0020) — never lowered quietly.");
+        _missed.ShouldBeEmpty("A target of the budgets that is missed is fixed or waived with a reason and a record (ADR-0020) — never lowered quietly.");
 }

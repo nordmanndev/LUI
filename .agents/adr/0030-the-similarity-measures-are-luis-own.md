@@ -1,5 +1,10 @@
 # 0030 — The four similarity measures are LUI's own: the runtime dependency on F23 ends
 
+> **Contract note (ADR-0056, 2026-11-12):** this record was written against a contract outside the repository — a
+> private one, that no reader of LUI can know and does not have to. The repository states its own rules since: the
+> rules that contract carried for LUI stand in [`AGENTS.md`](../../AGENTS.md) and in the documents of
+> [`docs/`](../../docs/README.md). The text below is history and stays as it was written.
+
 - **Status:** Accepted
 - **Date:** 2026-11-05
 - **Builds on:** [0004](./0004-dependencies.md) (the dependency set),

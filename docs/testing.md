@@ -1,8 +1,9 @@
 # The test landscape
 
-> Which test proves what. The specification is the contract of the library; this
-> file says which test holds which part of it up — so that a change to a rule can
-> be answered in one minute, without reading thirty test files.
+> Which test proves what. The behaviour of the library is written down in the
+> specification and in the decisions; this file says which test holds which part
+> of it up — so that a change to a rule can be answered in one minute, without
+> reading thirty test files.
 
 **The map is a guard, not a document.** The architecture test
 [`TestLandscapeTests.cs`](../tests/Nordmann.LUI.Architecture.Tests/TestLandscapeTests.cs)
@@ -15,7 +16,7 @@ than no map — it sends the reader to a test that no longer proves the rule.
 
 ## The three layers
 
-The standards ask for a test pyramid: unit, architecture, integration. LUI has
+The test pyramid has three layers: unit, architecture, integration. LUI has
 three test projects, one per layer, plus the shared infrastructure they all
 build on — and the sample application has a test project of its own, beside it.
 
@@ -25,7 +26,7 @@ build on — and the sample application has a test project of its own, beside it
 | [`Nordmann.LUI.Integration.Tests`](../tests/Nordmann.LUI.Integration.Tests) | the library against a real SQLite file — the schema, the writes, the query, the sync | **~32 s** | yes, one file per test |
 | [`Nordmann.LUI.Architecture.Tests`](../tests/Nordmann.LUI.Architecture.Tests) | the shape of the repository and of the public API | **~0.5 s** | no |
 | [`Lui.Sample.Tests`](../samples/Lui.Sample.Tests) | the sample application against its API, on a real Kestrel — beside the sample, not among the tests of the library | **~10 s** | yes, one file per test class |
-| [`Nordmann.LUI.Testing`](../tests/Nordmann.LUI.Testing) | the shared infrastructure — the database, the corpora, the fixtures. No tests of its own. | — | — |
+| [`Nordmann.LUI.Testing`](../tests/Nordmann.LUI.Testing) | the shared infrastructure — the database, the corpora, the fixtures, the budgets of the repository. No tests of its own. | — | — |
 
 **The unit layer is the fast one.** It is where a change to a rule is proved:
 no file, no connection, no schema — a rule and its table. Everything that needs
@@ -73,7 +74,7 @@ with a full dump that is uploaded with the results (ADR-0047, guarded by `Workfl
 | Package · Smoke test | the packed library in a throwaway application, beside the other jobs | the README's code is part of the test |
 | **Windows** | the three layers and the tests of the sample on `windows-2025` | the paths, the pragmas and the case of the file names — the platform where a path is a promise (issue #67) |
 | **Publish** (a tag `v*`) | the tag against `Directory.Build.props` and `main`, then **every lane above** (it calls `ci.yml`), then — after the owner's approval — the push with a key of one hour (Trusted Publishing) | a release passes exactly the gates of a pull request, and stores no key (ADR-0048) |
-| Performance (every night, by hand) | the seven targets of §16 | a time belongs to the machine it was measured on; a size is the same everywhere (ADR-0041) |
+| Performance (every night, by hand) | the budgets of the file — the targets of §16, in the file of ADR-0056 | a time belongs to the machine it was measured on; a size is the same everywhere (ADR-0041) |
 
 Dependabot ([`.github/dependabot.yml`](../.github/dependabot.yml)) moves the pins — the actions, the packages, the SDK —
 weekly, each as a pull request through every lane above.
@@ -182,7 +183,7 @@ The four files share one table of the application ([`LinkedTable`](../tests/Nord
 | [`LuiWarmupTests`](../tests/Nordmann.LUI.Integration.Tests/Hosting/LuiWarmupTests.cs) | Integration | the warm-up as a service of the host: the dictionaries are warmed at the start, the outbox of a linked index is applied, the rounds run on the interval, and without the registration nothing happens; only the named dictionaries are built, the outbox runs without them, an unknown name fails the start, a failed round reaches the logger of the host (with `RecordingLoggerProvider`, the logger that keeps what it heard), no round begins after the host stops, a round that waits for the write lock is not joined by the next one, and the registration is once and with a positive interval | issue #68, ADR-0043, ADR-0045, issue #106 |
 | [`NormalizationParityTests`](../tests/Nordmann.LUI.Integration.Tests/Normalization/NormalizationParityTests.cs) | Integration | the rule exists twice — as SQL and as C# — and both give the same answer, for every code point and for every word of the list | spec §6.2, §19, ADR-0005 |
 | [`FoldProbeTests`](../tests/Nordmann.LUI.Integration.Tests/Normalization/FoldProbeTests.cs) | Integration | the probe that asks the loaded SQLite how it folds — and that it finds a table which folds differently | ADR-0007 |
-| [`BudgetMachineTests`](../tests/Nordmann.LUI.Integration.Tests/Performance/BudgetMachineTests.cs) | Integration | the two kinds of target of §16: a time belongs to the machine it was measured on and is reported elsewhere; a size is the same everywhere and is asserted; a run never builds more than the scenario of its target — `LUI_PERF_ENTRIES` only makes it smaller | spec §16, ADR-0041, issue #99 |
+| [`BudgetMachineTests`](../tests/Nordmann.LUI.Integration.Tests/Performance/BudgetMachineTests.cs) | Integration | the two kinds of target: a time belongs to the machine it was measured on and is reported elsewhere; a size is the same everywhere and is asserted; a run never builds more than the scenario of its target — `LUI_PERF_ENTRIES` only makes it smaller | spec §16, ADR-0041, ADR-0056, issue #99 |
 
 ### The measurements — they run on purpose
 They are not tests of behaviour; they are the numbers in
@@ -228,7 +229,8 @@ One folder: the rules read the tree, not a subject of the library. The names car
 | [`RepositoryLayoutTests`](../tests/Nordmann.LUI.Architecture.Tests/RepositoryLayoutTests.cs) | Architecture | the build wiring is part of the contract: one place for the versions, exactly one packable project, the documented dependency set | ADR-0001, ADR-0002, ADR-0004, ADR-0034 |
 | [`NamespaceConventionTests`](../tests/Nordmann.LUI.Architecture.Tests/NamespaceConventionTests.cs) | Architecture | folder = namespace — in the library and in the tests —, every namespace below the root | spec §17.2, issue #77 |
 | [`ReadmeBenchmarksTests`](../tests/Nordmann.LUI.Architecture.Tests/ReadmeBenchmarksTests.cs) | Architecture | the BenchmarkDotNet tables of the README are rendered from the committed reports of one run; every benchmark class has a report and a section | ADR-0022, ADR-0039 |
-| [`ReadmeBudgetsTests`](../tests/Nordmann.LUI.Architecture.Tests/ReadmeBudgetsTests.cs) | Architecture | the budget table of the README is the promise of §16: the limits of the entrance, of the target table of the record and of its status table are read out of the specification and compared with it — a limit that drifts fails the build | issue #38 |
+| [`ReadmeBudgetsTests`](../tests/Nordmann.LUI.Architecture.Tests/ReadmeBudgetsTests.cs) | Architecture | the budget table of the README is the promise: the limits of the entrance, of the target table of the record and of its status table are read out of the file of the budgets and compared with it — a limit that drifts fails the build | issue #38, ADR-0056 |
+| [`LuiBudgetsTests`](../tests/Nordmann.LUI.Architecture.Tests/LuiBudgetsTests.cs) | Architecture | the file of the budgets: every budget carries a scenario, a limit, a unit and a kind, the ids are unique, the kind follows the unit, and a budget carries nothing but its promise — the measured value belongs in the record | ADR-0056 |
 | [`SampleClientTests`](../tests/Nordmann.LUI.Architecture.Tests/SampleClientTests.cs) | Architecture | the sample's client: modules by concern with the direction of the imports as a table, one fetch boundary, no HTML from a string, no inline script or style, no dependency, and the vendored flexdatalist is the file its provenance names | ADR-0027 |
 | [`WorkflowRulesTests`](../tests/Nordmann.LUI.Architecture.Tests/WorkflowRulesTests.cs) | Architecture | the pipelines change only with the repository: every action pinned by its commit with its version, every image named, every job with a timeout, every test run with a hang timeout and a full dump, every job that tests uploads its results, the release calls the gates of every pull request and pushes after them, in the environment of the owner, without a stored key, the SDK only from `global.json` — exact, in its feature band, read by the setup action (a roll-forward across bands and a `10.0.x` pin nothing), every `curl` retries a transient error and says who answered (read as commands, not lines) — over `*.yml` and `*.yaml`, and the actions as `action.yml` and `action.yaml` | ADR-0047, issues #74, #91, #93, review of pull request 83 |
 | [`TestLandscapeTests`](../tests/Nordmann.LUI.Architecture.Tests/TestLandscapeTests.cs) | Architecture | this map is the truth: every test file is listed here, every row points at a file that exists and names the layer of its project, every test project of the tree has a layer; the unit layer opens no database | this file, ADR-0019, issue #89 |
@@ -250,6 +252,7 @@ share. It has no tests of its own — it is the setup, in one place.
 | [`RecipeStock`](../tests/Nordmann.LUI.Testing/RecipeStock.cs) | the stock of recipe titles the multi-word tests ask for |
 | [`Chip`](../tests/Nordmann.LUI.Testing/Chip.cs) | the payload the integration tests attach to an entry. The unit layer has one of its own, so that it does not depend on the infrastructure that opens databases |
 | [`TypoMaker`](../tests/Nordmann.LUI.Testing/TypoMaker.cs) | makes the typos the tests type |
+| [`LuiBudgets`](../tests/Nordmann.LUI.Testing/LuiBudgets.cs) | the budgets of the repository in one file: the scenario, the limit, the unit and the kind of every promise — read by the guard of the tables and by the measurements (ADR-0056) |
 | [`Repository`](../tests/Nordmann.LUI.Testing/Repository.cs) | finds the repository on disk — the architecture rules read the *source*, not a hand-written list |
 
 ## The test data
@@ -304,10 +307,10 @@ LUI_PERF=1 LUI_PERF_ENTRIES=3000000 dotnet test tests/Nordmann.LUI.Integration.T
 
 | Rule | Where it comes from |
 |---|---|
-| The name of a test is a sentence that names the rule, not the method | the standards |
+| The name of a test is a sentence that names the rule, not the method | ADR-0049 |
 | A test that proves nothing is not green — it is skipped with a reason | ADR-0010, the full-word-list gate |
 | A measurement is never a test of behaviour | ADR-0010 |
-| The specification is the contract; a test names the paragraph it holds | `AGENTS.md` |
+| A test names the rule it holds up — the paragraph, the decision or the file it belongs to | `AGENTS.md` |
 | A change to a rule comes with a change to the test that holds it | `AGENTS.md` |
 | A test asserts the order of magnitude of a time, never its milliseconds: a lower bound is strict (load only makes a wait longer), an upper bound has room and says why in the code. A test whose verdict depends on the clock carries `[Trait("Category", "Timing")]` | ADR-0050, guarded by `TimingTraitTests` |
 | A test waits for the event it needs, not for a fixed window: a deadline only stops a hang | ADR-0050, issue #94 |

@@ -3,6 +3,12 @@
 > **Note (ADR-0027, 2026-11-04):** the sample's page is no longer "one inline page": it is plain ES modules in folders by
 > concern, with the vendored `flexdatalist` as its only dependency, one fetch boundary and a strict policy. The text below is history.
 
+> **Contract note (ADR-0056, 2026-11-12):** this record was written against a contract outside the repository — a
+> private one, that no reader of LUI can know and does not have to. The repository states its own rules since: the
+> rules that contract carried for LUI stand in [`AGENTS.md`](../../AGENTS.md) and in the documents of
+> [`docs/`](../../docs/README.md), and the file of the budgets (ADR-0056) is the one place a limit is written down.
+> The text below is history and stays as it was written.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
