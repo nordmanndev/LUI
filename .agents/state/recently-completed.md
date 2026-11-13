@@ -5,6 +5,15 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — LUI 0.1.1 is released (the pull request `dev` → `main` merged, the tag `v0.1.1` cut)
+
+- The release of the round after the first release: the guards of the repository and the dead paths of the records. The
+  public API did not move — the freeze of ADR-0026 holds, and there was no migration note to give.
+- The two packages are on nuget.org at the version `0.1.1`: `Nordmann.LUI` and `Nordmann.LUI.Hosting`.
+- The gates of every pull request are green on the tagged commit (the format, the workflows, the three layers and the tests
+  of the sample, the parity over the whole word list, the mutation check in four shards, the package smoke test, the tutorial
+  check and the Windows lane).
+
 ## 2026-11-13 — The release of 0.1.1: the version line, the CHANGELOG section, the README status
 
 - `Directory.Build.props` has `VersionPrefix` `0.1.1`, without a suffix (ADR-0053): the tag `v0.1.1` follows the tag `v0.1.0`
