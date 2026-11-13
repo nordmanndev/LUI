@@ -22,7 +22,7 @@
 - **Affects:**
   - `src/Nordmann.LUI.Hosting/` (`LuiServiceCollectionExtensions`, `LuiServicesBuilder`, `Hosting/`)
   - `src/Nordmann.LUI/Querying/CandidateReader.cs`, `LuiResult.cs`
-  - spec ADR-0015, ADR-0028, docs/api.md, ADR-0017, ADR-0034, the plan; `README.md`
+  - ADR-0015, ADR-0028, docs/api.md, ADR-0017, ADR-0034, the plan; `README.md`
 
 ## Context
 

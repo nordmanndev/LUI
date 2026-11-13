@@ -4,6 +4,11 @@
 > specification is German and stays German until it is deleted in pull request 8; the decision stands as it was
 > written; the text below is history.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-07
 - **Builds on:** [0021](./0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md) (the dictionary in the life of an

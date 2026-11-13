@@ -5,7 +5,7 @@ namespace Nordmann.LUI.Unit.Tests.Similarity;
 
 /// <summary>
 /// LUI's own N-gram Dice allocates nothing; it must give the same number as the library it replaces
-/// (<c>F23.StringSimilarity.SorensenDice(2)</c>) — the measurements of the specification are measurements
+/// (<c>F23.StringSimilarity.SorensenDice(2)</c>) — the measurements of ADR-0020 are measurements
 /// of that definition (ADR-0030).
 /// </summary>
 public sealed class NgramDiceEquivalenceTests

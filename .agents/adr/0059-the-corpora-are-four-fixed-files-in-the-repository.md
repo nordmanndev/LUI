@@ -1,5 +1,10 @@
 # 0059 — The corpora are four fixed files in the repository, not generators
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-12
 - **Builds on:** [0019](./0019-the-test-tree-three-layers-one-map.md) (the test tree),
@@ -101,7 +106,7 @@ and is not.
   old, generated corpus; **the counts of the budgets of ADR-0020 are re-decided against the measured corpora** — that is the
   work of the next round, and until then the promise of the file of the budgets is not met by a run on these corpora.
   The measurement says so in its report: a budget below its scenario is reported, not missed.
-- **The distribution of the weights of Anhang A1 is not measured any more.** The weights come from the corpus, and
+- **The distribution of the weights of the record is not measured any more.** The weights come from the corpus, and
   none of the four corpora has half of its entries at the weight 0. The words corpus carries the derived weight — a
   long tail of distinct weights, which is the harder case for the rowid (ADR-0010).
 - **The query over the multi-word index is not measured any more.** The corpus of the titles exists, but no budget

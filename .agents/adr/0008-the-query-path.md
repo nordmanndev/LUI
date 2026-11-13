@@ -8,6 +8,11 @@
 > so the option made the search shallower, not only the answer shorter. See
 > [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md).
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
@@ -21,7 +26,7 @@
 
 ADR-0008 and ADR-0008 describe the query: normalise, read the candidates in the order of
 the rowid, rank them, read key and payload of the hits. The specification
-measures the hit rates (Anhang A2) and the latency budget (ADR-0020: p50 ≤ 2 ms,
+measures the hit rates (the record) and the latency budget (ADR-0020: p50 ≤ 2 ms,
 p95 ≤ 5 ms, ≤ 250 KB per query). The similarity is the expensive stage —
 4.5 µs and 336 B per comparison for Jaro-Winkler (ADR-0030) — and 500 candidates
 times 4.5 µs is 2.25 ms, more than the whole budget.
@@ -39,7 +44,7 @@ candidates arrive in, and computes no similarity at all.
 **A one- or two-character input is not ranked by similarity.** The prefix
 path (ADR-0008) returns the best entries whose text *begins* with the input; all of
 them satisfy the word-start rule, and the similarity of one letter to a word
-carries nothing. Anhang B says what the user should see — „the most popular
+carries nothing. the golden queries says what the user should see — „the most popular
 first" — so the order is the order of the rowid. The hits still carry their
 similarity (computed for the ≤ 20 of them), so a caller can show it.
 

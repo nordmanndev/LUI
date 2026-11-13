@@ -7,7 +7,7 @@
 - **Affects:**
   - `src/Nordmann.LUI/Querying/ScoredBuffer.cs` (the rule of the pool, the doc comment)
   - `tests/Nordmann.LUI.Integration.Tests/AllocationPoolTests.cs` (new)
-  - spec ADR-0020, `docs/testing.md`, CHANGELOG, ADR-0032
+  - ADR-0020, `docs/testing.md`, CHANGELOG, ADR-0032
 - **Issue:** #30 (the review of PR #53, finding I1)
 
 ## Context

@@ -5,9 +5,9 @@
 > here, and what LUI adds on top. The short form is ADR-0002; this file is the
 > long form, with the pointers.
 >
-> One quotation of the specification was translated into English (ADR-0057,
-> 2026-11-12, issue #121); the specification is German and stays German until
-> it is deleted in pull request 8.
+> One quotation of the German paper was translated into English (ADR-0057,
+> 2026-11-12, issue #121); that paper is deleted now, and the decisions it held
+> live in the ADRs.
 
 LUI is a **library**: a NuGet package that an application builds against. The
 question this file answers is not "which rules does LUI follow?" but "which
@@ -35,7 +35,7 @@ which describe *application shape* — and therefore do not".
 | The shape of an application | Why it does not apply to a library | Where it would have hurt |
 |---|---|---|
 | Domain aggregates, a command bus | LUI has no domain, no commands, no handlers. Its API is `LuiCatalog → ILuiIndex → Query`. | a source generator in every consumer's build, for no behaviour |
-| A persistence layer above the database | LUI *is* the persistence layer, over raw `Microsoft.Data.Sqlite`. The specification's ADR-0008 is explicit SQL. | a second ORM hiding the SQL the design depends on |
+| A persistence layer above the database | LUI *is* the persistence layer, over raw `Microsoft.Data.Sqlite`. ADR-0008 is explicit SQL. | a second ORM hiding the SQL the design depends on |
 | Events and a `BackgroundService` | LUI has no events and no process. | a queue for a library that has one long operation with a `CancellationToken` |
 | Its own identifier type | `TKey` is the *application's* key (`long` or `string`, ADR-0035). | imposing an ID type on consumers |
 | A logging stack of its own | A library must not force a logging stack on consumers. | a transitive logging dependency in every app |
@@ -48,8 +48,8 @@ which describe *application shape* — and therefore do not".
 | Rule | Why |
 |---|---|
 | The behaviour is written down in the repository | a reader who has only the repository knows everything a change needs to know: the decisions live in the ADRs, the budgets in one file (ADR-0056) |
-| Every decision of the specification's §3 (E1–E10) becomes an ADR here | the specification asks for it: *"Every decision becomes an ADR in the implementation."* |
-| The performance budgets are tests, not prose | Anhang A's numbers are measurements on a machine that is not the consumer's machine |
+| Every basic decision became an ADR here | one decision, one ADR — the table of them is in ADR-0061 |
+| The performance budgets are tests, not prose | the numbers of `docs/benchmarks.md` are measurements on a machine that is not the consumer's machine |
 | The dependency set is asserted | a library's dependency list is a public contract (ADR-0004) |
 | The SQL ↔ C# normalisation parity is a test over the whole word list | the rule exists twice (ADR-0005); a drift between the two sides is a silent search miss |
 | The public API grows only additively from `v0.1.0` on | a library's signatures are its contract with every application built against it; a break costs a minor version, a migration note and an ADR (ADR-0026) |

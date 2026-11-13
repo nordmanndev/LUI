@@ -1,12 +1,12 @@
 # The papers of the work
 
-> The internal documents of this repository: the decisions, the delivery plans and the specification. They are **not**
+> The internal documents of this repository: the decisions and the delivery plans. They are **not**
 > part of the documentation of the library — a consumer of the package has no business in them. They live here, under
 > `.agents/`, and the [contract](../AGENTS.md) of the repository points at them.
 
 | Paper | What it is |
 |---|---|
-| [The specification](./spec/.md) | the contract of the library: the kinds of index, the sources of the content, the query path, the ranking, the typo tolerance, the API. The implementation follows it; where the code and the specification disagree, the specification wins and the difference becomes an ADR. |
+| [The decisions](./adr/README.md) | one ADR per decision, with its reason. The index finds them by their topic. **The contract of the library is this set of decisions** (ADR-0002, ADR-0061): where the code and a decision disagree, the difference becomes a new ADR, and the ADR is the newer truth. |
 | [The decisions](./adr/README.md) | one ADR per decision, with its reason. The index finds them by their topic. |
 | [The delivery plans](./plan/README.md) | one plan per piece of work, with the steps and their acceptance criteria. The history of the repository. |
 | [The release](./release.md) | how a version reaches nuget.org: what the owner does once, and the four steps of every release (ADR-0048). |

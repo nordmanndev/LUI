@@ -7,7 +7,7 @@ namespace Nordmann.LUI.Integration.Tests.Querying;
 
 /// <summary>
 /// The <c>MultiWord</c> index: the schema, the candidates and the ranking of names and titles
-/// (ADR-0014, ADR-0006, ADR-0008, ADR-0008, Anhang B).
+/// (ADR-0014, ADR-0006, ADR-0008, ADR-0028).
 /// </summary>
 public sealed class MultiWordIndexTests
 {
@@ -111,7 +111,7 @@ public sealed class MultiWordIndexTests
         recipes.Query("apfelkuchen nummer").Take(100).Execute().Hits.Select(h => h.Key).ShouldNotContain(5L);
     }
 
-    // ---- Anhang B -----------------------------------------------------------------------------
+    // ---- ADR-0028 -----------------------------------------------------------------------------
 
     [Fact]
     public void apfelk_finds_the_apfelkuchen_family()
@@ -357,7 +357,7 @@ public sealed class MultiWordIndexTests
 
             var ours = Match(raw, prepared.Expression);
 
-            // the specification's set, computed on the folded texts
+            // the set of ADR-0008, computed on the folded texts
             var specification = Enumerable.Range(0, titles.Count)
                 .Where(t => longWords.All(w => searchForms[t].Contains(w, StringComparison.Ordinal))
                          || compactForms[t].Contains(prepared.Compact, StringComparison.Ordinal))

@@ -1,5 +1,10 @@
 # 0054 — The typo distance is an enumeration, and it belongs to the index
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-11
 - **Builds on:** [0012](./0012-typo-tolerance.md) (the typo tolerance),
@@ -110,7 +115,7 @@ measurement is comparable with the old one.
 - **The sample shows the distance** instead of a bool: the panel of the indexes names the distance of the index and the
   state of its dictionary.
 - **The specification is corrected in this pull request** — `AGENTS.md` requires it: an ADR is the newer truth, and the
-  specification is corrected in the same pull request. ADR-0006, ADR-0033, ADR-0012, ADR-0012, ADR-0012, docs/api.md, ADR-0035, ADR-0016, docs/api.md and ADR-0033
+  specification is corrected in the same pull request. ADR-0006, ADR-0033, ADR-0012, docs/api.md, ADR-0035, ADR-0016, docs/api.md and ADR-0033
   name the distance instead of the bool. The debt is named, not deferred: the rule stands in English in this ADR and in
   [`docs/typo-dictionary.md`](../../docs/typo-dictionary.md) from now on — the translation of the repository comes with
   pull request 4 of the series, the deletion of the specification with pull request 8 (review of pull request #126, I4).

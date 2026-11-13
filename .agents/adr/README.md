@@ -4,6 +4,11 @@ This directory is LUI's changelog. Every decision that changes the public API,
 the schema, the dependency set or the shape of the repository becomes an ADR
 here — in the **same pull request** as the change it describes.
 
+The records of before 2026-11-13 were written against a specification that is
+deleted ([ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md)). Every section of it
+has a home — the ADR or the page that carries the same rule; the mapping is in that record. A record that names the
+specification carries a note that says so.
+
 ## Format
 
 ```text
@@ -89,7 +94,7 @@ decided about the query path" without opening 36 files.
 | [0033](./0033-the-read-path-opens-an-index-without-writing.md) | The read path opens an index without writing: `Create()` and `Index()` in the catalog, the file that decides what may be written | API | Accepted |
 | [0034](./0034-the-hosting-package-carries-only-the-dependency-injection.md) | The hosting package carries only the dependency injection: the abstractions of the host are gone | Packages | Accepted |
 | [0035](./0035-the-index-knows-no-types.md) | The index knows no types: the serialiser belongs to the catalog, the type stands where the payload is used | API | Accepted |
-| [0036](./0036-the-readme-the-specification-and-the-tutorial.md) | The README is the entrance, the specification the contract, the tutorial the way | Documentation | Accepted (decisions 1 and 4 superseded 2026-11-06, ADR-0039; restated 2026-11-12, issue #121, ADR-0057) |
+| [0036](./0036-the-readme-the-specification-and-the-tutorial.md) | The README is the entrance, the specification the contract, the tutorial the way | Documentation | Accepted (decisions 1 and 4 superseded 2026-11-06, ADR-0039; decision 2 superseded 2026-11-13, ADR-0061; restated 2026-11-12, issue #121, ADR-0057) |
 | [0037](./0037-the-papers-of-the-work-live-under-agents.md) | The papers of the work live under `.agents/`, the documentation of the library under `docs/` | Documentation | Accepted |
 | [0038](./0038-the-public-api-has-a-page-of-its-own.md) | The public API has a page of its own, and a test holds it up | Documentation | Accepted |
 | [0039](./0039-the-entrance-shows-the-measurement.md) | The entrance shows the measurement, the bulk path, the kinds and the sources | Documentation | Accepted |
@@ -114,3 +119,4 @@ decided about the query path" without opening 36 files.
 | [0058](./0058-the-measurement-is-a-layer-of-its-own.md) | The measurement is a layer of its own: the measurements live in `tests/Nordmann.LUI.Performance.Tests`, and the scenario of a run is a file | Measurement | Accepted (restated 2026-11-12, issue #123, ADR-0059) |
 | [0059](./0059-the-corpora-are-four-fixed-files-in-the-repository.md) | The corpora are four fixed files in the repository, not generators: `tests/TestData/corpora/`, the file name is the identity, the budget names the corpus | Measurement | Accepted |
 | [0060](./0060-the-report-names-the-hits-and-the-place-of-the-measurement.md) | The report of a measurement names the hits of every line and the record of the run: the date, the measurements per case, the machine and the journal mode; the settings of a query are axes; the lane runs weekly | Measurement | Accepted |
+| [0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md) | The specification is deleted, and every one of its sections has a home: the section becomes the ADR or the page that carries the same rule | Documentation | Accepted |

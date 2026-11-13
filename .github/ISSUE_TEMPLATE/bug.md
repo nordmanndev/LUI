@@ -1,12 +1,13 @@
 ---
 name: Bug
-about: Something behaves differently from the specification
+about: Something behaves differently from the contract
 title: "[BUG] <what is wrong>"
 labels: ["type:bug", "status:queued"]
 ---
 
-> A bug is a difference between the code and the **specification**. If the
-> specification is the wrong one, that is not a bug — that is an ADR.
+> A bug is a difference between the code and the **contract**. The contract is
+> the set of the [ADRs](../../.agents/adr/README.md) (ADR-0061). If a decision is
+> the wrong one, that is not a bug — that is a new ADR.
 
 ## What happens
 
@@ -14,13 +15,13 @@ labels: ["type:bug", "status:queued"]
 The observed behaviour. Concrete: the input, the output, the error.
 -->
 
-## What the specification says
+## What the contract says
 
 <!--
-The section and the sentence. Quote it.
+The decision and the sentence. Quote it.
 -->
 
-**Section:** §<number>
+**ADR:** ADR-<number>
 
 ## Reproduction
 

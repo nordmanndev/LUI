@@ -4,10 +4,15 @@
 > sentences of the specification — was translated into English. The specification is German and stays German until it
 > is deleted in pull request 8; the decision stands as it was written; the text below is history.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted (owner's decision, 2026-11-04: "build it that way, and I would strike number 20")
 - **Date:** 2026-11-04
 - **Issue:** #20 (closed, not planned); found by PR-011 (#51)
-- **Amends:** spec ADR-0028 (now "falls away"), docs/api.md (the remark on the target API), docs/api.md (the listing of the query), the table of the steps;
+- **Amends:** ADR-0028 (now "falls away"), docs/api.md (the remark on the target API), docs/api.md (the listing of the query), the table of the steps;
   [0013](./0013-the-api-shape-before-the-first-release.md), [0017](./0017-dependency-injection-and-hosted-services.md) and
   [0008](./0008-the-query-path.md) (each says `Highlight` comes in a later version; they get a note)
 - **Builds on:** [0027](./0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md) (the sample), [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (additive-only)

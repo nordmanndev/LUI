@@ -29,7 +29,7 @@ public sealed record LuiQueryOptions
     /// <summary>
     /// How many candidates are ranked. Default: 500 — what is not among the
     /// candidates is not ranked, so the candidates are chosen by priority and
-    /// weight (E2, E10).
+    /// weight (ADR-0006, ADR-0013).
     /// </summary>
     public int Candidates
     {

@@ -4,6 +4,11 @@
 > specification is German and stays German until it is deleted in pull request 8; the decision stands as it was
 > written; the text below is history.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted — owner's decision of 2026-11-04: option 2 (the budget per input length) now, option 1 (a real
   stock) when there is one; option 3 only when a real stock asks for it
 - **Date:** 2026-11-02
@@ -49,8 +54,8 @@ It is not the library, and it is not the prefix path.
   ones here, and why a phrase with a rare trigram (`abendmah`) is fast.
 - The corpus makes it worse: 3 M compounds of two random words from the
   German word list are far denser in `sch`/`ung`/`ter`… than a stock of tags
-  or titles. ADR-0020's own numbers (Anhang A1, A5) were taken on a different
-  synthetic corpus, "as an order of magnitude" (Anhang A).
+  or titles. ADR-0020's own numbers (the record, A5) were taken on a different
+  synthetic corpus, "as an order of magnitude" (the record).
 
 ## Follow-up measurement (same day, after review)
 
@@ -69,12 +74,12 @@ the same texts in four FTS5 indexes (warm, best of 7 runs, `LIMIT 501`,
 - **The ordering and the indexes are right.** The plan is the specification's
   (`INDEX 64`, no `TEMP B-TREE`); the packed rowid costs about 20 % against a
   dense one when both are built the same way. Half of the weights being 0
-  (Anhang A1) changes the file by 11 % and the latency not at all.
+  (the record) changes the file by 11 % and the latency not at all.
 - **What differs is how the FTS5 index came to be.** Inserted row by row, in
   the random rowid order that the weight imposes, it ends in 24 segments
   (every committed write adds a small one; `automerge` only trims them) and
   is 3× slower to read and 8× slower to build than the same index loaded in
-  rowid order. The specification's build figures (Anhang A6) are not the
+  rowid order. The specification's build figures (the record) are not the
   figures of a row-by-row build either.
 - **SQLite settings do not move it.** Cold, single-shot, 2,000 inputs, 1 M
   entries, bulk-built and merged (`FtsLayoutExperiment`): memory map 2 GB or

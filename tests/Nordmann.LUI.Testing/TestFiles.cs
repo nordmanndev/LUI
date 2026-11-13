@@ -36,7 +36,7 @@ public static class TestFiles
             .Where(line => line.Length > 0)
             .ToArray();
 
-    /// <summary>The number of words the German word list has, as the specification names it.</summary>
+    /// <summary>The number of words the German word list has, as ADR-0019 names it.</summary>
     public const int FullWordListCount = 685_829;
 
     /// <summary>Formats a count the way the tests report it.</summary>

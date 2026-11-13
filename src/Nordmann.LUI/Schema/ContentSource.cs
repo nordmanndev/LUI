@@ -58,7 +58,7 @@ internal abstract class ContentSource
     internal abstract string CandidateSql { get; }
 
     /// <summary>
-    /// Key and payload of the hits (E7): <c>(doc_id, key, payload …)</c> for the doc_ids <paramref name="parameters"/>,
+    /// Key and payload of the hits (ADR-0036): <c>(doc_id, key, payload …)</c> for the doc_ids <paramref name="parameters"/>,
     /// the payload being <paramref name="payloadColumns"/> in their order.
     /// </summary>
     internal abstract string HitsSql(string parameters, IReadOnlyList<string> payloadColumns);

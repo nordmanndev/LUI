@@ -1,7 +1,7 @@
 namespace Nordmann.LUI.Testing;
 
 /// <summary>
-/// A corpus of the measurements (ADR-0020, Anhang A; ADR-0020; ADR-0059): the entries, their weights
+/// A corpus of the measurements (ADR-0020, docs/benchmarks.md; ADR-0020; ADR-0059): the entries, their weights
 /// and the kind of the index they live in. The entries come from a <b>fixed file</b> and not from a generator: a
 /// corpus that changes with the scaling parameter is a different corpus, and a measurement that runs on two corpora is
 /// no comparison. The key of an entry is its position, 1 … n.

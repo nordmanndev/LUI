@@ -72,7 +72,7 @@ public sealed class LuiCatalog : IDisposable
     /// <c>lui_meta</c> — the table has to be there, and if it is not, the catalog says so (ADR-0033).
     /// </para>
     /// </summary>
-    /// <param name="connectionString">The database: the one of the application, or a file of LUI's own (E9).</param>
+    /// <param name="connectionString">The database: the one of the application, or a file of LUI's own (ADR-0014).</param>
     /// <param name="options">The settings; <see langword="null"/> takes the defaults.</param>
     /// <returns>The catalog; dispose it when the application ends.</returns>
     /// <exception cref="LuiEnvironmentException">

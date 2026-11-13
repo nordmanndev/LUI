@@ -111,7 +111,7 @@ may still change until `0.1.0`, each change with an ADR and an entry here; the f
 `dotnet add package Nordmann.LUI --prerelease`.
 
 It ships the packages `Nordmann.LUI` and `Nordmann.LUI.Hosting` with the API of the
-specification ([](./)):
+decisions ([.agents/adr/](.agents/adr/README.md)):
 
 - `SingleWord` and `MultiWord` indices, `Embedded` and `Linked` content sources
 - FTS5 trigram search with priority-first candidates, word-start ranking and
@@ -289,7 +289,7 @@ The sections below are the changes made on the way to it.
   into words that are ANDed and also searched compactly, so `kuchen apfel` and `apfelkuch` both
   find „Apfel Kuchen"; the word start is decided on the compact form; the default similarity is
   N-gram Dice. A multi-word index has a compact column `s_compact`, and its search index holds
-  that column alone — the specification (ADR-0011, ADR-0008) is corrected accordingly. One and two letters
+  that column alone — ADR-0011 and ADR-0008 say so. One and two letters
   are read on the compact text (`a b` = `ab` = `a-b`); at most the eight longest words go into the
   expression.
 - `LuiSimilarity.NgramDice` no longer allocates: a query that compared 500 candidates allocated
@@ -337,9 +337,9 @@ The sections below are the changes made on the way to it.
 
 ### Removed
 
-- **`Highlight` is struck from the specification** ([ADR-0028](.agents/adr/0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md), #20
+- **`Highlight` is struck from the contract** ([ADR-0028](.agents/adr/0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md), #20
   closed): LUI delivers no found positions (`LuiHit.Highlight`, `.Highlight(…)`, a map from the search form to the original). It never
-  existed in the code; spec ADR-0028 now says "falls away". An application shows a correction with `LuiResult.CorrectedQuery`.
+  existed in the code; ADR-0028 says "falls away". An application shows a correction with `LuiResult.CorrectedQuery`.
 
 - **The freeze** ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md), #43). From the tag `v0.1.0` on, the
   public API of `Nordmann.LUI` and `Nordmann.LUI.Hosting` grows only additively. A breaking change — a removed or renamed
@@ -398,8 +398,8 @@ The sections below are the changes made on the way to it.
 - **The budget table of the README is the promise of ADR-0020, and a test holds it up**
   ([ADR-0040](.agents/adr/0040-the-budget-table-of-the-entrance-is-a-promise.md), #38). The limits of the table were
   copied by hand, and they had drifted: the allocation still promised the old target of ≤ 250 / ≤ 350 KB, while the
-  specification and the budget test have held ≤ 60 / ≤ 100 KB since ADR-0032.
-  - A new architecture test (`Readme_Budgets`) reads the target table of ADR-0020 out of the specification and compares it
+  budgets and the budget test have held ≤ 60 / ≤ 100 KB since ADR-0032.
+  - A new architecture test (`Readme_Budgets`) reads the target table of ADR-0020 out of the budgets and compares it
     with the budget table of the README, with the target table of the record and with its status table — in order, so
     a swapped limit is caught as well as a changed one.
   - The status table of the record stood apart from the contract twice: it promised the old limits, and it listed the
@@ -446,8 +446,8 @@ The sections below are the changes made on the way to it.
   the two content sources, the payload, `AddLui` in a host, reading only, the most important types, the sample and the
   map of the documentation.
   - The five concept sections (the kinds of index, the sources of the content, the query, the ranking and the
-    priority, the typo tolerance) leave the README: the [specification]() has them, in
-    full, and it is the contract.
+    priority, the typo tolerance) leave the README: the [decisions](.agents/adr/README.md) have them, in
+    full, and they are the contract.
   - The raw tables of a BenchmarkDotNet run move to [`docs/benchmarks.md`](docs/benchmarks.md) — with the machine, the
     corpus and the method. The guard follows them: `Readme_Benchmarks` renders the section there and fails when the
     file and the committed reports differ; the README keeps the budgets (target, measured value, limit) and links to
@@ -497,7 +497,7 @@ The sections below are the changes made on the way to it.
     - Two hits are equal when their values are, the payload compared by its content (as before, when the hit held the
       deserialised payload).
     - A definition with a key type this version does not know is a `LuiDefinitionMismatchException` when it is opened.
-  - **`Linked` is documented precisely** (spec ADR-0015): LUI keeps no copy of the row — the normalised text in the search
+  - **`Linked` is documented precisely** (ADR-0015): LUI keeps no copy of the row — the normalised text in the search
     index, the weight and the priority in the order of the candidates; the text and the payload of a hit are read from
     the table when the hit is read.
 

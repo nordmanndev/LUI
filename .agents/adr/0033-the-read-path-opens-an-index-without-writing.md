@@ -7,6 +7,11 @@
 > is gone" holds: the facade was a *second* way into the data beside the typed one; there is still one way, and it names
 > no type. The text below is history and stays as it was written.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-05
 - **Builds on:** [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (the public API grows and never shrinks),
@@ -18,7 +23,7 @@
   - `src/Nordmann.LUI/Schema/IndexDefinition.cs` (the payload type)
   - `src/Nordmann.LUI/LuiEmbeddedIndexBuilder.cs`, `src/Nordmann.LUI/LuiLinkedIndexBuilder.cs` (`Create()` instead of `Ensure()`)
   - `src/Nordmann.LUI.Hosting/LuiServicesBuilder.cs` (the container holds the catalog, nothing else)
-  - spec ADR-0006, ADR-0033, docs/api.md, ADR-0016, ADR-0046, ADR-0015, ADR-0046; `docs/testing.md`, CHANGELOG, README
+  - ADR-0006, ADR-0033, docs/api.md, ADR-0016, ADR-0046, ADR-0015, ADR-0046; `docs/testing.md`, CHANGELOG, README
 - **Issue:** #56
 
 ## Context

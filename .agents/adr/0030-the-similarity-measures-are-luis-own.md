@@ -23,7 +23,7 @@
     `tests/Nordmann.LUI.Unit.Tests/LevenshteinEquivalenceTests.cs` (new),
     `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs` (the dependencies),
     `tests/Nordmann.LUI.Unit.Tests/Nordmann.LUI.Unit.Tests.csproj` (the package as a test dependency)
-  - spec ADR-0030, spec ADR-0004, ADR-0004, ADR-0018, ADR-0032, `docs/testing.md`, CHANGELOG
+  - ADR-0030, ADR-0004, ADR-0018, ADR-0032, `docs/testing.md`, CHANGELOG
 - **Issue:** #30 (the owner's note on the issue)
 
 ## Context
@@ -61,7 +61,7 @@ The quirks of the definitions are part of them and are kept:
   order — the order decides where the rounding happens.
 
 **The runtime dependency ends.** `F23.StringSimilarity` is no longer a dependency of `Nordmann.LUI`: the runtime
-dependencies of the core are `Microsoft.Data.Sqlite` and `symspell` (spec ADR-0004). The package stays a **test**
+dependencies of the core are `Microsoft.Data.Sqlite` and `symspell` (ADR-0004). The package stays a **test**
 dependency — the tests compare against it, and the comparison is the proof. The architecture test
 `The_library_ships_only_the_documented_runtime_dependencies` names the two.
 

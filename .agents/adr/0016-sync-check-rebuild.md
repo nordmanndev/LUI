@@ -9,6 +9,11 @@
 > is `CandidateRead`, the linked overload of `AddIndex` is `AddLinkedIndex`, and `Check()`, `WarmUpTypoDictionary` and
 > `RebuildTypoDictionary` are on the write interfaces, not on `ILuiIndex`. The text below is history.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted. The owner's decisions of 2026-11-04 on the two open questions at the end: the default batch size
   **stays 10,000** (a first load is told to use 1,000,000, ADR-0020); the shadow build of a linked sync comes **after
   0.1.0** (#31); the bookkeeping by key is kept

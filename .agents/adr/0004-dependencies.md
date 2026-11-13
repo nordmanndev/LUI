@@ -16,6 +16,11 @@
 > library is closed, and a package outside the list needs an ADR that says why. The decision stands as it was
 > written; the text below is history.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
@@ -31,7 +36,7 @@ LUI needs two packages that no ADR of this repository named yet:
 
 | Package | Licence | Why LUI needs it |
 |---|---|---|
-| `symspell` 6.7.3 | MIT | The typo tolerance (ADR-0012) is SymSpell over the **word beginnings** of an index, with one edit and the three best corrections. The measurements in Anhang A are SymSpell measurements. |
+| `symspell` 6.7.3 | MIT | The typo tolerance (ADR-0012) is SymSpell over the **word beginnings** of an index, with one edit and the three best corrections. The measurements in the record are SymSpell measurements. |
 | `F23.StringSimilarity` 7.0.1 | MIT | The four similarity measures of ADR-0030 (Jaro-Winkler, N-gram Dice, Damerau-Levenshtein, Levenshtein). |
 
 `Microsoft.Data.Sqlite` 10.0.14 needs no exemption: it is the provider of the persistence layer.
@@ -51,7 +56,7 @@ measurements are about, and then measuring my version against the spec's
 numbers.
 
 The price: 676,000 word beginnings per index cost about 179 MB of RAM
-(Anhang A). That price is documented in the README and the dictionary is built
+(the record). That price is documented in the README and the dictionary is built
 lazily, on the first typo-tolerant query — not at `Ensure()`.
 
 ### Why `F23.StringSimilarity`

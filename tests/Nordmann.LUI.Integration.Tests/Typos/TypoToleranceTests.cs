@@ -3,7 +3,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Typos;
 
 /// <summary>
-/// Typo tolerance (ADR-0012, Anhang B): a typo must not lead nowhere. SymSpell over the word
+/// Typo tolerance (ADR-0012, ADR-0028): a typo must not lead nowhere. SymSpell over the word
 /// beginnings of an index; corrections when no candidate stands at a word start.
 /// </summary>
 public sealed class TypoToleranceTests

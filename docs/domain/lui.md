@@ -2,9 +2,8 @@
 
 > The design before the code. Anyone may edit this file; the agent typically
 > drafts the inventory, the domain expert refines the language. This file and
-> the specification are the two
-> artifacts: this one is the *context*, the specification is the *contract*.
-> Where they disagree, the specification wins and this file gets corrected.
+> the ADRs are the two artifacts: this one is the *context*, the ADRs are the
+> *contract*. Where they disagree, an ADR wins and this file gets corrected.
 
 ---
 
@@ -52,7 +51,7 @@ These never break. Each of them has a test.
 1. **The search index and the content table change in one transaction.**
    Triggers do it; a rollback rolls back both.
 2. **Priority before weight, always.** A `System` entry that matches is a
-   candidate *first*, even when 33 000 other entries match (Anhang A, A8).
+   candidate *first*, even when 33 000 other entries match (ADR-0006, ADR-0013).
 3. **The normalisation rule is the same on both sides.** The SQL columns and
    the C# normaliser produce the same search form — for every word of the
    German word list, not for a sample of it (ADR-0005, ADR-0019, docs/testing.md).
@@ -122,8 +121,8 @@ Each finding of a check names its repair.
 
 ## 7. Out of scope for 1.0
 
-Everything in ADR-0003 of the specification, with the reason and the revival
-condition in ADR-0003: multi-word
+Everything in ADR-0003, with the reason and the revival condition in
+ADR-0003: multi-word
 prefix matching (O1), virtual normalised columns (O2), hashtags as word
 beginnings (O3), weight expressions (O4), languages beyond German (O5),
 filters on linked indices (O6), soft ranking (O7), suggestions for an empty

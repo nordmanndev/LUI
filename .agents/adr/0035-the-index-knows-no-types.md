@@ -16,7 +16,7 @@
     `LuiEmbeddedIndexBuilderExtensions.cs` (gone)
   - `src/Nordmann.LUI/Schema/IndexDefinition.cs`, `Schema/KeyCodec.cs`, `Querying/*Payload*.cs`, `Querying/HitReader.cs`,
     `Querying/QueryRunner.cs`, `Indexes/Embedded*.cs`, `Indexes/LinkedIndex.cs`
-  - spec ADR-0006, ADR-0033, ADR-0015, ADR-0008, docs/api.md–ADR-0033; README, CHANGELOG, `docs/testing.md`, `tools/package-smoke-test.sh`, the sample
+  - ADR-0006, ADR-0033, ADR-0015, ADR-0008, docs/api.md–ADR-0033; README, CHANGELOG, `docs/testing.md`, `tools/package-smoke-test.sh`, the sample
 - **Issue:** #58 (follows #56)
 
 ## Context

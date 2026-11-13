@@ -18,7 +18,7 @@
 | Fact | Verified how |
 |---|---|
 | `nordmanndev/LUI` is **empty** — 0 KB, branch `main`, no commits, no other refs | `git clone` → "warning: You have cloned an empty repository"; `git ls-remote` → no refs |
-| The previous LUI (roaring-bitmaps, snapshot format v12, 57 ADRs, 433 tests) is **gone from the remote** | same as above — nothing to carry over except the *working method* (spec ADR-0004) |
+| The previous LUI (roaring-bitmaps, snapshot format v12, 57 ADRs, 433 tests) is **gone from the remote** | same as above — nothing to carry over except the *working method* (ADR-0004) |
 | The sample uses **`flexdatalist` 3.x** as *the* browser autocomplete library | the vendor's documentation |
 | Sandbox ships .NET **9.0.316**; .NET **10.0.403** was installed to `/workspace/dn10` for this work | `dotnet --list-sdks` |
 
@@ -51,7 +51,7 @@ These are locked. Each one is an ADR in `.agents/adr/`.
 
 ### D1 — One NuGet package: `Nordmann.LUI`
 
-The spec ADR-0001 proposes three packages (`Nordmann.LUI.Abstractions`, `Nordmann.LUI`, `Nordmann.LUI.DependencyInjection`). The delivery requirement is **one**. Resolution:
+ADR-0001 proposes three packages (`Nordmann.LUI.Abstractions`, `Nordmann.LUI`, `Nordmann.LUI.DependencyInjection`). The delivery requirement is **one**. Resolution:
 
 - **One assembly, one package id: `Nordmann.LUI`.**
 - The spec's **namespace layout survives intact** (ADR-0014) — that is what consumers actually see:
@@ -144,7 +144,7 @@ This is a **library**, not a product. The rules that target products would produ
 
 ### D4 — Dependencies, and the one closed-library deviation
 
-The spec ADR-0004 names three dependencies. The closed list of the dependencies does **not** name `symspell` or `F23.StringSimilarity`.
+ADR-0004 names three dependencies. The closed list of the dependencies does **not** name `symspell` or `F23.StringSimilarity`.
 
 → **ADR required**, naming both, with the licensing and the alternatives considered. `Microsoft.Data.Sqlite` is the provider of the stack itself, so it needs no exemption.
 
@@ -158,7 +158,7 @@ This keeps the API surface honest: nothing in the README is aspirational.
 
 ### D6 — The test corpus: curated in-repo, full list on demand
 
-The spec ADR-0019, docs/testing.md demands SQL ↔ C# parity over **all 685,829 words** of the German word list. That list is not in the repo, and a CI job that fails because an external URL moved is a test that measures the wrong thing.
+ADR-0019 and `docs/testing.md` demand SQL ↔ C# parity over **all 685,829 words** of the German word list. That list is not in the repo, and a CI job that fails because an external URL moved is a test that measures the wrong thing.
 
 - `tests/Nordmann.LUI.TestData/wordlist/` — a **checked-in curated corpus**: the spec's edge cases (ä/ö/ü/ß, `ẞ`, `İ`, `Ł`, `Łódź`, `Straße`, `Café Crème`, `Apfel-Zimt-Kuchen`, `#Hashtags`, `ß`/`ss` pairs) plus a few thousand common German words covering the letter combinations that stress the transliteration.
 - `tools/fetch-wordlist.sh` — pulls the **full** list for the complete parity run; documented in the README and in `docs/benchmarks.md`.
@@ -209,7 +209,7 @@ The sample seeds two indices so both index kinds are visible: `recipes` (**Multi
 
 ### D9 — Sync API (not async) — carried from the spec, and it is the right call
 
-The spec ADR-0016 makes the API synchronous because `Microsoft.Data.Sqlite` has no async I/O. That is true and worth keeping: a `Task`-returning API over a synchronous driver is a lie about latency. The sample's ASP.NET Core endpoints therefore call the library **directly in the request** (1–3 ms, CPU-bound), and only the long operations (`Sync`, `Rebuild`) take a `CancellationToken` and run behind a hosted service.
+ADR-0016 makes the API synchronous because `Microsoft.Data.Sqlite` has no async I/O. That is true and worth keeping: a `Task`-returning API over a synchronous driver is a lie about latency. The sample's ASP.NET Core endpoints therefore call the library **directly in the request** (1–3 ms, CPU-bound), and only the long operations (`Sync`, `Rebuild`) take a `CancellationToken` and run behind a hosted service.
 
 ---
 
@@ -236,7 +236,7 @@ All of docs/api.md's API, unchanged in shape — only the *packaging* is collaps
 
 ## 5. Delivery plan — one PR per issue, one issue per PR
 
-The spec the plan gives nine steps; I add a repo foundation and the sample, and split the "fluent polish" step so the README is not written against an API that still moves. **12 PRs**, each with ADR + tests + measurement.
+the plan gives nine steps; I add a repo foundation and the sample, and split the "fluent polish" step so the README is not written against an API that still moves. **12 PRs**, each with ADR + tests + measurement.
 
 | PR | Content | Done when |
 |---|---|---|
@@ -390,7 +390,7 @@ also changed three things the plan did not foresee:
 | Install | `dotnet add package Nordmann.LUI` |
 | Quick start | the 12-line version: open a catalog → define an index → upsert → query. **This exact code is the smoke test** |
 | The two index kinds | `SingleWord` vs `MultiWord`, with the difference in one table |
-| Owned vs Linked | the same table as the spec ADR-0014, ADR-0015, in consumer language |
+| Owned vs Linked | the same table as ADR-0014, ADR-0015, in consumer language |
 | The query API | every option of `LuiQueryOptions`, one line each, with the default |
 | Ranking & priority | the rules the user *feels* (ADR-0008 as a table), and why priority comes first (E10) |
 | Typo tolerance | when it triggers, what `CorrectedQuery` means |
@@ -407,7 +407,7 @@ also changed three things the plan did not foresee:
 | **SQL ↔ C# normalizer parity fails on exotic characters.** The SQL side is a `replace()` chain + the tokenizer's `remove_diacritics`; the C# side does Unicode decomposition. These are *not* the same function for `İ`, `Ł`, `ß`/`ss`, Turkish dotless i, or ligatures. | **High** — it is the spec's own duplication (ADR-0005), and it fails *silently* (search misses, no error) | **Measured and settled in PR-002**: SQLite folds with its own tables — 697 characters of the BMP differ from `char.ToLowerInvariant`, 681 from the precomposed-diacritic rule. The C# side uses a *measured table*, verified against the live tokenizer on every build (ADR-0005). |
 | **The application's SQLite may fold differently from the build's.** The table is measured from the SQLite that `Microsoft.Data.Sqlite` 10.0.14 bundles; an application that loads a system SQLite folds with other tables — and an index stored with the old folding becomes invisible to the query. | **High** — silent search misses in exactly the deployments that bring their own SQLite | **Decided in ADR-0005, implemented in PR-003**: `LuiCatalog.Open` probes the folding of the SQLite it talks to (a few dozen code points) and fails with a clear error on a mismatch; the fold-table version goes into `lui_meta`, so an index stored with an older table is detected and the application is told to `Rebuild()`. |
 | A **decomposed umlaut** (`Mu` + U+0308 + `ller`) was transliterated differently from the composed one — two spellings, one of them unfindable. | **High** — silent, and macOS file names and some clipboards deliver that form | **Fixed in PR-002**: both sides transliterate the letter plus the combining diaeresis; the edge cases carry the decomposed forms as assertions. |
-| The prefix SymSpell dictionary costs **179 MB / 676k prefixes per index** (ADR-0012, Anhang A) | Medium | Build it lazily on first typo-tolerant query, not at `Ensure()`; expose `RebuildTypoDictionary()`; document the RAM cost in the README |
+| The prefix SymSpell dictionary costs **179 MB / 676k prefixes per index** (ADR-0012, the record) | Medium | Build it lazily on first typo-tolerant query, not at `Ensure()`; expose `RebuildTypoDictionary()`; document the RAM cost in the README |
 | `Linked` mode writes to the **application's schema** (5 columns + 3 indexes + 3 triggers) | Medium | **Resolved by ADR-0015:** `Linked` never changes the application's table; triggers only on an explicit call or through the application's own migration (`TriggerScript()`) |
 | `symspell` + `F23.StringSimilarity` are **outside the closed library list** | Low (process) | ADR-0004 names both, with license and alternatives |
 | The spec's ADR-0020 targets were measured on a 4-core Xeon with the DB in the page cache — **this sandbox is smaller** | Medium | Measure and publish the *sandbox* numbers honestly; keep ADR-0020 as the target and report the delta, rather than lowering the target silently |

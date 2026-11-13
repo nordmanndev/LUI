@@ -1,5 +1,10 @@
 # 0029 — The sample fills its own bulk indexes on demand
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-05
 - **Requested by:** the owner, 2026-11-05: "the sample app needs to have way more data to show the motivation behind LUI — create

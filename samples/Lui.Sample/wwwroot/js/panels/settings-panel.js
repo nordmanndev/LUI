@@ -19,7 +19,7 @@ export function mountSettingsPanel({ root, meta, settings }) {
         type: 'number', min, max, value,
         on: { change: event => onChange(Math.min(max, Math.max(min, Number(event.target.value) || min))) },
     });
-    // The value of a select can be longer than the field that shows it (the names of the specification are long): the
+    // The value of a select can be longer than the field that shows it (the names of the options are long): the
     // tooltip of the field says what it is set to, so that nothing is cut off without a way to know it.
     const select = (value, options, onChange) => {
         const label = options.find(([optionValue]) => optionValue === value)?.[1] ?? value;

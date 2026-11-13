@@ -81,7 +81,7 @@ internal sealed class QueryRunner
             var corrections = ran ? Stopwatch.GetTimestamp() : read;
 
             // A one- or two-character input carries no similarity worth ranking by: the
-            // candidates all begin with it, and "the most popular first" is the answer (Anhang B).
+            // candidates all begin with it, and "the most popular first" is the answer (ADR-0028).
             var order = query.IsPrefixPath ? LuiRankingOrder.WeightOnly : options.Rank;
             ranked = Ranker.Rank(
                 candidates, count, queries, order, options.PriorityMode, similarity, _source.Normalization, options.MaxResults, cancellationToken);

@@ -4,7 +4,7 @@ import { number } from '../core/format.js';
 
 /**
  * The rest of the public surface of LUI, one index at a time: what an index is, what the application writes to it, and how it
- * is kept in order. The suggest route is the other panels; this is ADR-0016 – ADR-0017, ADR-0034 of the specification.
+ * is kept in order. The suggest route is the other panels; this is ADR-0016 – ADR-0017, ADR-0034 of the decisions.
  *
  *  - **embedded** (`recipes`, `names`): the entries are LUI's — `Upsert`, `UpdateWeight`, `UpdatePriority`, `Remove`, and
  *    `Sync` against the seed;

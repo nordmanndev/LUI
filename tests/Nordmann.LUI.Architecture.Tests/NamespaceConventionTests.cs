@@ -5,7 +5,7 @@ using Nordmann.LUI.Testing;
 namespace Nordmann.LUI.Architecture.Tests;
 
 /// <summary>
-/// Folder = namespace. The spec fixes the namespace layout (
+/// Folder = namespace. ADR-0014 fixes the namespace layout (
 /// ADR-0014); a file that lives in <c>Indexing/</c> and declares another namespace
 /// makes the public API's shape a matter of guesswork. The tests follow the same
 /// rule: their folders are their subjects (issue #77).

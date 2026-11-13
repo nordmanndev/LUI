@@ -10,7 +10,7 @@ namespace Nordmann.LUI.Sample.Api;
 /// </summary>
 internal sealed class FillJobs
 {
-    /// <summary>The most entries one fill may ask for — the scale of the measurements of the specification (ADR-0020).</summary>
+    /// <summary>The most entries one fill may ask for — the scale of the measurements of ADR-0020.</summary>
     internal const int Limit = 3_000_000;
 
     private readonly ConcurrentDictionary<string, FillJob> _jobs = new(StringComparer.Ordinal);

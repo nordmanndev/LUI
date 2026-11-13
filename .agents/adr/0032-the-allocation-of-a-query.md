@@ -22,7 +22,7 @@
     `src/Nordmann.LUI/Querying/TypoCorrection.cs`, `src/Nordmann.LUI/Normalization/Normalizer.cs` (the doc comment)
   - `tests/Nordmann.LUI.Unit.Tests/JaroWinklerEquivalenceTests.cs` (new),
     `tests/Nordmann.LUI.Unit.Tests/SearchFormParityTests.cs` (new)
-  - spec ADR-0020, ADR-0020, `docs/testing.md`, CHANGELOG
+  - ADR-0020, `docs/testing.md`, CHANGELOG
 - **Issue:** #30
 
 ## Context

@@ -14,7 +14,7 @@ public sealed record LuiCatalogOptions
 {
     /// <summary>
     /// The page cache of every connection, in megabytes; at least 1. It decides whether the index lives in
-    /// memory (Anhang A6). Default: <see langword="null"/>, SQLite's own.
+    /// memory (docs/benchmarks.md). Default: <see langword="null"/>, SQLite's own.
     /// </summary>
     public int? CacheSizeMegabytes
     {

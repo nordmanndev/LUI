@@ -17,6 +17,10 @@
 > restated in the terms of this repository, and the table is translated. The decisions stand as they are written;
 > the text below is history.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** decision 2 — "the specification is the contract" — falls with the
+> specification itself. The contract of the library is the set of the ADRs, and every section of the specification has a
+> home that is read. The decisions 3, 5, 6, 7, 8 and 9 stand as they are written; the text below is history.
+
 - **Status:** Accepted
 - **Date:** 2026-11-06
 - **Builds on:** [0022](./0022-the-benchmark-results-in-the-readme.md) (the benchmark tables and their guard),
@@ -61,7 +65,7 @@ one were wrong.
    NuGet, licence, .NET); what LUI is (three sentences); the problem (two sentences: 98 % of the input is a read, and
    the second store for the same data is the expensive part); the highlights (outcome-focused bullets); a linked table
    of contents; the two `dotnet add package` lines; **one** quick start with its output; the budget table of
-   [spec ADR-0020](./../spec/.md) with the machine and a link to the record; one table for the two index
+   [ADR-0020](./0020-the-performance-budgets-measured.md) with the machine and a link to the record; one table for the two index
    kinds and the two content sources; the payload; `AddLui` in an ASP.NET Core application; reading only
    (`Mode=ReadOnly`); the five most important types; the sample with its two screenshots; the map of the documentation;
    and at the end status, contributing and licence.

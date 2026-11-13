@@ -5,6 +5,31 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The specification is deleted, and every section of it has a home (#125, step 8 of #117)
+
+- **The specification is gone**: `.agents/spec/LUI-Spezifikation.md` (1429 lines, German) is deleted. It is **not**
+  translated — it was unlinked in step 3, and translating a document with a known end date is work without a purpose.
+- **The references are rehung, not dropped** (ADR-0061, the mapping table): every `§x` became the ADR or the page that
+  carries the same rule. The sweep was one mapping and one pass over 188 files. A reference that names the document it
+  belongs to was left alone: `docs/normalization.md` has a section 7 of its own, and the plan has sections of its own.
+- **The records stay history, the pointer moves**: 31 ADRs that were written against the specification carry a dated note
+  that says where the rule lives now — the precedent is ADR-0036, which carries three such notes.
+- **The contract of the library is the set of the ADRs** (ADR-0002, ADR-0061). `AGENTS.md` says so now, and the papers
+  of the work begin with the decisions and not with a specification.
+- **A guard holds the deletion**: `SpecificationIsGoneTests` — the file is gone, the tree around the papers names it
+  nowhere, and every section reference names a document that exists.
+- **The stale dependabot pull request #108 is closed**: it bumped `xunit.v3` alone and would have failed the restore
+  (NU1107) on today's tree, because `xunit.v3.extensibility.core` came in with PR #136 and pins `xunit.v3.common`.
+  The family moves together instead — PR #140, merged as `8c83bfa`.
+
+## 2026-11-13 — The reports name the hits and the place of the measurement (#124, PR #139 merged as `46f7c36`)
+
+- Every line of a committed report names the number of hits its query found, every report carries the record of its run,
+  the settings of a query are axes, and the lane runs weekly. The correction benchmark finds **no** hits in every line of
+  the report — a measurement that is committed as it stands, and an open point of the pull request.
+- The mutation of the report followed the report the writer writes: the report carries no bold, and a mutation that
+  nothing reacts to proves nothing (`tools/mutation-check.sh`).
+
 ## 2026-11-06 — The read path (#56, PR #57 merged as `73ef344`)
 
 - The catalog is the entry point (ADR-0033): `Create(name, builder)` writes, `Index(…)` opens without writing; a
@@ -204,7 +229,7 @@ the scratchpad here at the end of a session.
 - From the owner's DevEx/architecture review: staged builder (`Index(name).SingleWord().Owned<long>().WithPayload(…)`),
   `ILuiIndex` (read) / `ILuiOwnedIndex` (write), `LuiEntry` + `UpsertMany` (4.4× faster than a loop), named result
   properties, `Lui` prefix and one public namespace, `Normalizer` internal (owner's decision), options checked when set,
-  the three unused `Microsoft.Extensions.*` references out. ADR-0013; spec ADR-0008/ADR-0030/docs/api.md/ADR-0018 corrected.
+  the three unused `Microsoft.Extensions.*` references out. ADR-0013; ADR-0008/ADR-0030/docs/api.md/ADR-0018 corrected.
 - The smoke test runs every C# block of the README and checks what the quick start says it prints.
 - Not done, by decision: the internal seams (next PR, 005b), instance cache and hosted warm-up (PR-008), `Suggest`.
 
@@ -212,7 +237,7 @@ the scratchpad here at the end of a session.
 
 - `TypoDictionary` (SymSpell, beginnings 3 … 10, frequency `weight + 1`, lazy, `ReaderWriterLockSlim`), correction when no
   candidate stands at a word start, up to three corrections searched and united with the input's candidates, each candidate ranked
-  against the input it was found with. ADR-0012; spec ADR-0012.
+  against the input it was found with. ADR-0012; ADR-0012.
 - Off by default. Limits pinned by tests: nothing after the tenth letter, no deletion/insertion in a word of ten letters or more.
 - Measured on the whole word list: dictionary 4.2 s / 138 MB; corrected query p95 8.7 ms (target 10) at 685 k entries.
 - `TypoQualityTests` pins floors (4 letters 55 % … 8 letters 88 % of the right beginning); `TypoPerformance` is gated.

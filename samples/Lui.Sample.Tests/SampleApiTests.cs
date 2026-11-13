@@ -97,7 +97,7 @@ public sealed class SampleApiTests(SampleHost host) : IClassFixture<SampleHost>
 
         var first = result["results"]![0]!;
         first["text"]!.GetValue<string>().ShouldBe("vegan");
-        first["priority"]!.GetValue<string>().ShouldBe("System", "a row with rank 0 is a System entry (E10)");
+        first["priority"]!.GetValue<string>().ShouldBe("System", "a row with rank 0 is a System entry (ADR-0013)");
         first["payload"]!["kind"]!.GetValue<string>().ShouldBe("Ernährung");
         first["payload"]!["color"]!.GetValue<string>().ShouldStartWith("#");
         ShouldFind(Texts(result), "vegetarisch");

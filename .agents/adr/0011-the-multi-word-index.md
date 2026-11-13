@@ -4,6 +4,11 @@
 > `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
 > `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted — changes ADR-0011 and ADR-0008 of the specification (corrected in the same pull request). The file size
   target of ADR-0020 is stated anew by the owner (2026-11-04, ADR-0020): ≤ 500 MB for one million titles of 36 characters on
   average (measured 445–457 MB)

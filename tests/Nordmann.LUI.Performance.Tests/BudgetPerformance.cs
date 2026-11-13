@@ -3,8 +3,8 @@ using System.Diagnostics;
 namespace Nordmann.LUI.Performance.Tests;
 
 /// <summary>
-/// The performance targets of ADR-0020 as tests (PR-009, ADR-0020): each target in the scenario of the
-/// specification, measured on a corpus of <see cref="Corpus"/>, and either <b>met</b> — then it is asserted — or
+/// The performance targets of ADR-0020 as tests (PR-009, ADR-0020): each target in the scenario of ADR-0020,
+/// measured on a corpus of <see cref="Corpus"/>, and either <b>met</b> — then it is asserted — or
 /// <b>waived</b>, with a reason and the record that holds it. A target that is missed is never lowered quietly
 /// (<c>docs/benchmarks.md</c>, rule 5); a waiver that is met is reported, so it can go.
 /// <para>

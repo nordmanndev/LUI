@@ -8,7 +8,7 @@ namespace Nordmann.LUI.Typos;
 /// <para>
 /// Why beginnings: a user types the start of a word. SymSpell over whole words corrects a word that is not
 /// finished hardly at all (11 %); over the beginnings it reaches 40 % — most of what is possible without a
-/// typo (Anhang A4).
+/// typo (docs/benchmarks.md).
 /// </para>
 /// <para>
 /// It lives in memory, is built <b>on the request of the application</b> — <c>WarmUpTypoDictionary</c> (the word

@@ -13,6 +13,11 @@
 > is `CandidateRead`, the linked overload of `AddIndex` is `AddLinkedIndex`, and `Check()`, `WarmUpTypoDictionary` and
 > `RebuildTypoDictionary` are on the write interfaces, not on `ILuiIndex`. The text below is history.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-03
 - **Supersedes:** —
@@ -22,7 +27,7 @@
 
 ## Context
 
-Step 5 of the plan. ADR-0012 specifies the mechanism and Anhang A4 measures why: SymSpell over whole words corrects a
+Step 5 of the plan. ADR-0012 specifies the mechanism and the record measures why: SymSpell over whole words corrects a
 word that is not finished hardly at all (11 %); over the **beginnings** of the words it reaches 40 %, most of what is
 possible without a typo. ADR-0004 took the `symspell` dependency for this. What the specification leaves open is the
 places where the mechanism meets real input.
@@ -34,7 +39,7 @@ the normalised texts — a word is a run between separators — with the weights
 length 7 (its default), count threshold 1. Two details of the specification, made exact:
 
 - The frequency of a beginning is the sum of **`weight + 1`** of the texts it begins: SymSpell drops an entry whose
-  count is 0, and half of a tag stock has the weight 0 (Anhang A1). A word with the weight 0 is still a word.
+  count is 0, and half of a tag stock has the weight 0 (the record). A word with the weight 0 is still a word.
 - `Upsert` adds only the beginnings that are not in the dictionary yet (a lookup at distance 0 per beginning), so
   writing the same text again does not inflate a frequency. `Remove` and `UpdateWeight` leave the dictionary as it is;
   `RebuildTypoDictionary()` builds it anew.
@@ -67,7 +72,7 @@ search form (`apfelkuchen`, `mueller`); `null` when nothing was corrected.
 
 **Off by default.** `Builder.TypoTolerance(maxEdits)` takes 0 (off) or 1; a query overrides it with
 `.TypoTolerance(bool)` or `LuiQueryOptions.TypoTolerance`. The dictionary costs memory the application did not ask for, and
-Anhang B's rule „a typo does not lead nowhere" is for an application that decided on it. The setting is a property of the
+the rule of the golden queries „a typo does not lead nowhere" is for an application that decided on it. The setting is a property of the
 instance, like the similarity; it is not part of the stored definition.
 
 **Locking** (ADR-0015, ADR-0046) — and what a build does not do (review M1). SymSpell is not made for reading while writing: lookups share a
@@ -102,7 +107,7 @@ Whole German word list as a `SingleWord` index (685,739 words, weights random), 
 after the first letter, 400 cases per length, Hit@20 = the meant word among the best 20
 (`TypoPerformance`, the layer of the measurements):
 
-| Beginning typed | right | with one typo | Anhang A4 (3 M entries) right / typo |
+| Beginning typed | right | with one typo | the record (3 M entries) right / typo |
 |---:|---:|---:|---:|
 | 4 letters | 30 % | 8 % | 13 % / 9 % |
 | 5 letters | 53 % | 28 % | 42 % / 29 % |
@@ -110,7 +115,7 @@ after the first letter, 400 cases per length, Hit@20 = the meant word among the 
 | 7 letters | 86 % | 70 % | 75 % / 69 % |
 
 Absolute figures like the specification's; the ratios (26 / 52 / 69 / 82 %, against 69 / 69 / 86 / 92 %) are lower because the cases here
-are drawn uniformly from the list and Anhang A draws them by popularity — a popular word is found with and without a typo.
+are drawn uniformly from the list and the record draws them by popularity — a popular word is found with and without a typo.
 The floors in the test suite (`TypoQualityTests`, a stock of 7,071 words, where 64 / 82 / 93 / 96 / 98 % of the right beginning are found for 4 … 8 letters) keep a margin of
 about ten points: 55 / 70 / 80 / 85 / 88 %.
 

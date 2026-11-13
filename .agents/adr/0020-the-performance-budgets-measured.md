@@ -1,4 +1,4 @@
-# 0020 — The performance budgets of ADR-0020, measured: a corpus, a test per target, waivers with reasons
+# 0020 — The performance budgets, measured: a corpus, a test per target, waivers with reasons
 
 > **Name note (ADR-0023, 2026-11-04):** since this record was written, `Owned` is called `Embedded`: `ILuiOwnedIndex` is
 > `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
@@ -15,7 +15,7 @@
   - `tests/Nordmann.LUI.Testing/Corpus.cs` (+ `CorpusKind`), `CorpusFile.cs`, `TestDatabase.FileMegabytes()`
   - `tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs`
   - `benchmarks/Nordmann.LUI.Benchmarks/`
-  - `docs/benchmarks.md`, `docs/testing.md`, spec ADR-0020
+  - `docs/benchmarks.md`, `docs/testing.md`, ADR-0020
 
 ## Context
 

@@ -7,7 +7,7 @@ namespace Nordmann.LUI.Architecture.Tests;
 
 /// <summary>
 /// The test landscape (<c>docs/testing.md</c>) is a map of the test suite: which
-/// test holds which rule of the specification up. A map that rots is worse
+/// test holds which rule of the decisions up. A map that rots is worse
 /// than no map — it sends the reader to a test that no longer proves the
 /// rule.
 /// <para>

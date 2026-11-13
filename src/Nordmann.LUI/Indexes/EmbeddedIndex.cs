@@ -11,7 +11,7 @@ namespace Nordmann.LUI.Indexes;
 /// <summary>
 /// An index whose content lives in a table of the library (
 /// ADR-0014, ADR-0015). The writes are plain statements: the generated columns compute the
-/// forms, the triggers keep the search index in step (E3).
+/// forms, the triggers keep the search index in step (ADR-0015).
 /// <para>
 /// Whether it may write is decided by the file, not by the index (ADR-0033): an index of a catalog that was
 /// opened read-only refuses every write with a <see cref="LuiReadOnlyException"/>.

@@ -131,9 +131,9 @@ python3 tools/make-corpora.py /tmp/corpora-src tests/TestData/corpora --snapshot
 
 ## The measurement machine
 
-The reference measurements of the specification (Anhang A) were taken on
-2026-11-01 on an Intel Xeon 2.1 GHz, 4 cores, 16 GB RAM, Ubuntu 24.04,
-.NET 10.0.14, SQLite 3.53.3, with the database in the page cache.
+The reference measurements were taken on 2026-11-01 on an Intel Xeon
+2.1 GHz, 4 cores, 16 GB RAM, Ubuntu 24.04, .NET 10.0.14, SQLite 3.53.3, with
+the database in the page cache.
 
 The numbers this repository publishes come from the machine the CI ran on —
 which is a smaller one. The difference is stated, not hidden.
@@ -182,8 +182,8 @@ The `entries` of 3,000,000 of the single-word index also enlarged the titles sce
 Run on **2026-11-02**. Machine: Intel Xeon @ 2.80 GHz, **4 cores**, 15 GB RAM,
 Ubuntu 24.04, .NET 10.0.14 (SDK 10.0.114), SQLite 3.53.3
 (`Microsoft.Data.Sqlite` 10.0.14), the database on a local disk and in the
-page cache. This is a cloud VM; the reference machine of Anhang A is a
-2.1 GHz Xeon with the same core count, so the two are comparable.
+page cache. This is a cloud VM; the reference machine of the measurements
+above is a 2.1 GHz Xeon with the same core count, so the two are comparable.
 
 **Corpus.** The 685,829 words of the German word list (CC0,
 `tools/fetch-wordlist.sh`), then compounds of two random words — the first
@@ -247,7 +247,7 @@ measured alternatives (no join, `AND` of trigrams: no change).
 over. The allocation target holds at the median at every size.
 
 **What was checked afterwards** (ADR-0010, "Follow-up measurement"): the
-plan, the indexes and the ordering are the specification's. The same texts
+plan, the indexes and the ordering follow ADR-0008. The same texts
 loaded in rowid order are 3× faster to query (warm) and 8× faster to build than
 the row-by-row index measured above; whether that carries over to the cold p95
 is shown in ADR-0010: **bulk-built and merged, the 3 M index answers at p50
@@ -431,7 +431,7 @@ dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter TypoPerform
 | Corrected query p50 / p95 | 2.7 / **8.7 ms** | p95 ≤ 10 ms |
 | Corrected query allocation p50 / p95 | 91 / 408 KB | ≤ 250 KB (p50 holds) |
 
-| Beginning | Hit@20 right | Hit@20 with a typo | Anhang A4: right / typo |
+| Beginning | Hit@20 right | Hit@20 with a typo | the reference measurement: right / typo |
 |---:|---:|---:|---:|
 | 4 letters | 30 % | 8 % | 13 % / 9 % |
 | 5 letters | 53 % | 28 % | 42 % / 29 % |
@@ -439,8 +439,8 @@ dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter TypoPerform
 | 7 letters | 86 % | 70 % | 75 % / 69 % |
 
 - **Held:** the dictionary (time and memory), the p95 of a corrected query (8.7 ms against 10 ms, at 685 k entries built row by row; untested
-  at 3 M), the allocation at the median, the absolute quality (like Anhang A4).
-- **Missed, written down:** the allocation at p95 (408 KB: up to three more candidate lists and their unions) and the ratios of Anhang A4
+  at 3 M), the allocation at the median, the absolute quality (like the reference measurement).
+- **Missed, written down:** the allocation at p95 (408 KB: up to three more candidate lists and their unions) and the ratios of the reference measurement
   (69 / 69 / 86 / 92 %) which are not reached (25 / 53 / 69 / 82 %) because the cases are drawn uniformly here and by popularity there; the
   absolute figures agree. Details in ADR-0012.
 

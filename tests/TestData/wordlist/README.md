@@ -14,7 +14,7 @@ That is why this corpus exists.
 ## The source
 
 The word list is the **"Deutsche Wörterliste" with 685,829 entries** — the
-number the specification names (ADR-0019, docs/testing.md).
+number ADR-0019 names (docs/testing.md).
 
 | | |
 |---|---|

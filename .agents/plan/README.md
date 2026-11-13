@@ -4,6 +4,12 @@ A **plan** says what the repository will become and in which order. An **ADR** s
 live in this repository: the plans here, the decisions in [`../adr/`](../adr/README.md). A plan is written before the
 work and stays as it was written — even where a later decision changed the names it uses.
 
+The plans of before 2026-11-13 were written against a specification that is deleted (ADR-0061). Every section of it
+has a home — the ADR or the page that carries the same rule; the mapping is in
+[ADR-0061](../adr/0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The plans keep the
+sections they name: a plan says what was planned, and the plan that deletes the specification is the plan that names
+it.
+
 | Plan | Date | What it brought |
 |---|---|---|
 | [LUI — repo, package and sample plan](./2026-11-02-lui-repo-plan.md) | 2026-11-02 | the founding plan: the library, the package and the sample in twelve pull requests, one per issue, each with its ADR, its tests and its measurement. The sections "what actually happened" (§6a–§6g) record where the plan and the world differed — the measurement moved three decisions before the first line of the library was written. |

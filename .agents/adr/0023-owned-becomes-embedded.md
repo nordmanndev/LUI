@@ -4,6 +4,11 @@
 > description, "splitting them is #42" — held until #42. `AddIndex` is now two methods: `AddIndex` for an embedded index and
 > `AddLinkedIndex` for a linked one. The rest of this record stands as written.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted (owner's decision, 2026-11-04, after an independent architecture review)
 - **Date:** 2026-11-04
 - **Issue:** #41, step 2 of epic #39 (the public API before the freeze of 0.1.0)
@@ -16,11 +21,11 @@
   - `lui_meta.source`: `Owned` → `Embedded` (**stored**)
   - `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs`, `tools/mutation-check.sh`, the golden file
     `golden/owned-schema.txt` → `golden/embedded-schema.txt`
-  - spec ADR-0014, ADR-0015 and everything that names the source, README, CHANGELOG, `docs/domain/lui.md`, `docs/testing.md`
+  - ADR-0014, ADR-0015 and everything that names the source, README, CHANGELOG, `docs/domain/lui.md`, `docs/testing.md`
 
 ## Context
 
-LUI has two content sources (spec ADR-0014, ADR-0015):
+LUI has two content sources (ADR-0014, ADR-0015):
 
 - the one in a table **of the library**, `lui_<index>`, which the application writes through the index — called `Owned`,
   the default;
@@ -52,7 +57,7 @@ application, in a table of the library) and pairs with `Linked`, which names the
 | `LuiIndexBuilderExtensions` | `LuiEmbeddedIndexBuilderExtensions` |
 | `OwnedIndex`, `OwnedSource`, `OwnedSync`, `OwnedCheck` | `EmbeddedIndex`, `EmbeddedSource`, `EmbeddedSync`, `EmbeddedCheck` |
 | `lui_meta.source = 'Owned'` | `'Embedded'` |
-| spec ADR-0014, ADR-0015 "eigenständig" | "eingebettet" |
+| ADR-0014, ADR-0015 "eigenständig" | "eingebettet" |
 
 - **The builder is renamed with the index.** `LuiIndexBuilder` was the builder of the embedded route, and the name did not
   say so next to `LuiLinkedIndexBuilder`. `LinkTo` stays an extension of `LuiEmbeddedIndexBuilder<long, LuiNoPayload>` —
