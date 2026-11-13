@@ -347,9 +347,11 @@ expect_caught "a-benchmark-number-in-the-entrance-edited-by-hand" "${ARCHITECTUR
 # 18. A number in a committed BenchmarkDotNet report is edited by hand, and the
 #     tables are not rendered anew (review of pull request 37, M2): the two no
 #     longer agree, and the guard notices from the other side.
+#     The report carries no bold — the writer of the reports drops it (ADR-0060)
+#     — so the number is edited as it stands.
 expect_caught "a-benchmark-report-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~ReadmeBenchmarksTests" \
-  "sed -i '0,/ μs\*\* |/s// ms** |/' benchmarks/results/Nordmann.LUI.Benchmarks.QueryBenchmarks-report-github.md"
+  "sed -i '0,/ μs |/s// ms |/' benchmarks/results/Nordmann.LUI.Benchmarks.QueryBenchmarks-report-github.md"
 
 # 19. The retired word returns to the public surface (ADR-0023, issue #41): a
 #     public member is named "Owned…" again — renamed everywhere, so the tree
