@@ -5,6 +5,18 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The six dead paths of the records are repaired, and a guard holds them up (#137)
+
+- The six paths of ADR-0032, ADR-0041 and ADR-0056 that named files which moved with PR #77 and PR #136 now name the
+  files where they live. The class names stay as they were written — ADR-0049 is the key to them; only the paths were
+  broken.
+- The guard is a test of the architecture layer: every path of the list of the affected files of a *current* record
+  names a file that exists. The records before ADR-0049 keep the names of their day, and a path that a record marks as
+  `**deleted**` is a path on purpose (ADR-0061). The link check does not see these paths: a path in a list is not a
+  link.
+- The guard was seen red before it was seen green, and its mutation — `a-record-that-names-a-file-that-is-not-there` —
+  is caught.
+
 ## 2026-11-13 — The plan of the round after the release (`.agents/plan/2026-11-13-the-round-after-the-first-release.md`)
 
 - The plan names what the release left open and in which order: `0.1.1` carries the six dead paths of the records

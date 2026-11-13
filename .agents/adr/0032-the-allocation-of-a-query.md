@@ -158,5 +158,5 @@ The shares of the **before** (153.32 KB, single word) — measured as difference
 
 **Verified by:** `tests/Nordmann.LUI.Unit.Tests/JaroWinklerEquivalenceTests.cs` (the parity with F23 7.0.1),
 `tests/Nordmann.LUI.Unit.Tests/SearchFormParityTests.cs` (the parity of the two normalisation paths),
-`tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs` (the target of ADR-0020), and the probe of this record
+`tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs` (the target of ADR-0020), and the probe of this record
 (200,000 entries, 31 rounds, median).
