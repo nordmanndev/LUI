@@ -116,3 +116,10 @@ and a migration note (decision 2). The reasons are those of the owner, recorded 
 
 The first release is `0.1.0-alpha`, a prerelease ([ADR-0053](./0053-the-first-release-is-a-prerelease.md)). It does
 not start the freeze: decisions 1 and 2 apply from the tag `v0.1.0` without a suffix, as decision 7 says.
+
+## Note (2026-11-13, the release)
+
+The tag `v0.1.0` exists, and the freeze begins with it: from that tag on, decisions 1 and 2 apply to the public API of
+the two packages. The changes that stood between `0.1.0-alpha` and `0.1.0` are the ones the
+[CHANGELOG](../../CHANGELOG.md) lists under `0.1.0`; the three that break the API of the alpha say what to write
+instead.
