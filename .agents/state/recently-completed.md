@@ -5,6 +5,15 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The repository speaks one language, down to the comments (#142, PR #143 merged as `9d5ca7a`)
+
+- The pull requests of the series left nine files in German — the comment of the schedule of the lane, the XML
+  documentation of the corpus of the measurements, two comments of the report writer — and two quotations of names that
+  exist in English now. They are translated; ADR-0057 carries a dated note of it.
+- Nothing but comments and XML documentation changed. The sample data stays German on purpose: it shows what the
+  normalisation is for.
+- The guard that would keep it that way is not in the pull request — it belongs to the family of #128, #129 and #130.
+
 ## 2026-11-13 — The creation names the route: `Create` and `CreateLinked` (#145, ADR-0062)
 
 - The owner's decision of 2026-11-13 on point **A.3** of the review of 2026-11-04: the route is named in the call.
