@@ -5,6 +5,16 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — LUI 0.1.0 is released (PR #152 merged, tag `v0.1.0`)
+
+- The release pull request `dev` → `main` is merged (`e316c4b`), the tag `v0.1.0` is cut on that commit, and the freeze
+  of ADR-0026 begins with it: the public API of the two packages grows only additively from now on.
+- The pipeline refused nothing: the tag check read the version of `Directory.Build.props` (`0.1.0`, without a suffix) and
+  agreed with the tag; the gates of every pull request run on the tagged commit before the push is asked for.
+- The push to nuget.org waits for the owner in the environment `nuget` — a key of one hour, no key in the repository
+  (ADR-0048).
+- The epics #39, #64 and #72 are closed with the release, each with the proof of its steps.
+
 ## 2026-11-13 — The release of 0.1.0: the version line, the CHANGELOG section, the README status
 
 - `Directory.Build.props` has no `VersionSuffix` any more: the version of the repository is `0.1.0`, the tag is `v0.1.0`
