@@ -5,6 +5,23 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The C# blocks of the tutorial are compiled by a guard (#128)
+
+- `tools/tutorial-check.py` reads every page under `docs/tutorial/`, compiles the C# blocks of the page as one program, runs
+  it and compares what it prints with the text block of the page. It runs in the package lane of the CI, beside the smoke
+  test of the README.
+- The guard found a defect in the tutorial: the typed view of the payload (page 3) declared `chip` again — the name the
+  block above had already declared. A reader who pasted the two blocks into one scope got CS0128; the variable is `typed`
+  now.
+- The pages carry two conventions of their own, and the tool reads them: a block that continues the block above says so in
+  its first line (`// continues the block above`), and a block that declares no statement is a listing of the types of the
+  application — it is compiled on its own, because the program of the page has these types already.
+- The mutation check learned a third mechanism, `expect_command_caught`: the guard of this issue is a command and not a
+  test, so the mutation has to make the command fail — and to name what it found. Two mutations prove it:
+  `a-tutorial-block-that-does-not-compile` and `a-tutorial-page-that-says-something-else`.
+- Page 5 (`05-in-the-application.md`) is skipped, and the tool names it: its blocks need a host — a web application or a
+  container — and are not console programs.
+
 ## 2026-11-13 — The API page guards the members, not only the types (#130)
 
 - Every member that `docs/api.md` names for a type exists on that type. The page need not name every member — the

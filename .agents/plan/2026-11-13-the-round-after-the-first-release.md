@@ -4,7 +4,7 @@
 - **Base branch:** `dev`
 - **Decided by:** the owner, on 2026-11-13, after the release of `0.1.0`
 - **Issues:** #137, #130, #129, #128 (the first round) — #134, #32, #31, #44 (the second) — #117 (the epic they belong to)
-- **Status:** agreed — the first pull request of it is not written yet
+- **Status:** the first round is written — four pull requests (#137, #129, #130, #128); the release of `0.1.1` is next
 - **Why now:** the tag `v0.1.0` exists (2026-11-13), the freeze of ADR-0026 is in force, and what the release left open is
   the work of this plan
 
@@ -44,7 +44,7 @@ happened once, under load, and the name was lost with the output of that run.
 | D1 | **The next version is `0.1.1`, and it carries the four tasks of the first round.** No public API, no behaviour, no ADR. | ADR-0026 freezes the API from the tag: a change that breaks it costs a minor version, a migration note and an ADR. The four tasks break nothing, so they cost a patch. |
 | D2 | **The version after that is `0.2.0`, and it carries the measured work.** | The freeze is a promise about the API; the next version is where the promise is either kept or broken with a note. A new mode of `Sync` is additive and belongs there; a shadow build is internal; the dependency set is the contract of the package (ADR-0018) and needs an ADR of its own. |
 | D3 | **Every guard comes with the proof that it bites.** Each of the three new guards gets a mutation, and `tools/mutation-check.sh` has to catch it. | A guard that never fires is a line of code that costs a second to read and nothing else (ADR-0019). |
-| D4 | **The mutation check learns a third mechanism:** `expect_command_caught <name> <command>` — a mutation that a *command* has to catch, not a test. The tutorial check is a shell script (issue #128), and the framework knows only dotnet tests today. | The alternative is a proof that lives in the body of a pull request and dies with it. The mechanism is ~15 lines, and it is the tooling that grows, not the library. |
+| D4 | **The mutation check learns a third mechanism:** `expect_command_caught <name> <command>` — a mutation that a *command* has to catch, not a test. The tutorial check is a command and not a test (issue #128), and the framework knows only dotnet tests today. | The alternative is a proof that lives in the body of a pull request and dies with it. The mechanism is ~15 lines, and it is the tooling that grows, not the library. |
 | D5 | **The paths of the records are repaired, the names stay.** #137 changes six paths in four ADRs; the class names stay as they are written — ADR-0049 is the key to the old names. | A path has no such key: a path that names a file that does not exist is a broken promise, a class name is history. |
 | D6 | **The flake gets an issue with the two facts that are known and nothing else.** | An issue that says "it happened once, I do not know which test" is honest and actionable; an issue that guesses is neither. |
 | D7 | **The branch model does not change.** The pull requests target `dev`; `dev` → `main` is a release pull request with its own review; the tag `v0.1.1` follows it, and the owner approves the push to nuget.org. | The same road as `0.1.0` — the release machinery is proved a second time, at low cost. |
@@ -97,8 +97,9 @@ happened once, under load, and the name was lost with the output of that run.
 
 ### PR 4 — The code blocks of the tutorials are compiled (#128, D4)
 
-- **Files:** `tools/tutorial-check.sh`, next to `tools/package-smoke-test.sh`; the lane of the CI that runs it; the
-  mutation check gains `expect_command_caught`.
+- **Files:** `tools/tutorial-check.py`, next to `tools/package-smoke-test.sh` — the tool of the repository is Python
+  (`tools/link-check.py`), and the work of this one is to read markdown and to write a C# project; the lane of the CI that
+  runs it; the mutation check gains `expect_command_caught`.
 - **The rule:** every C# block of `docs/tutorial/*.md` is extracted, written into a program, built and run. The
   README's blocks are compiled by the package smoke test today; the tutorials' blocks are compiled by nothing.
 - **The trap:** the issue names the tutorials by their old names (`docs/tutorial/01-erster-index.md`); they are

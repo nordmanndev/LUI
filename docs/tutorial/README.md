@@ -12,7 +12,9 @@ and a stock of a hundred thousand entries you know the cost of.
 **Every code block in this tutorial compiles.** The examples are the ones of
 the [sample application](../../samples/Lui.Sample/), reduced to what a first
 hour needs — and they are built against the library before they are published
-here.
+here: the guard [`tools/tutorial-check.py`](../../tools/tutorial-check.py)
+compiles every block of every page, runs it and compares what it prints with
+the text block of the page.
 
 ## What you need
 

@@ -77,8 +77,8 @@ with a full dump that is uploaded with the results (ADR-0047, guarded by `Workfl
 | Format | `dotnet format --verify-no-changes` | on its own and first: a format error is reported in a minute, not after every test |
 | Build · Test | the three layers, the tests of the sample, the client of the sample | the whole tree, on every pull request |
 | The normalisation parity over the whole word list | the one test of `NormalizationParityTests` that needs the full list (685,829 words) | the rule of ADR-0005 exists twice — as SQL and as C#; the rest of the layer runs in *Build · Test*, nothing twice |
-| The guards bite | the mutation check, in four shards side by side (`--shard i/4`), and one job of that name that waits for all four | a green test proves nothing until it has been seen red (ADR-0019) — and every mutation says how it must be caught: by its test (`expect_caught`) or, where the toolchain is the guard on purpose, by the build with a named error (`expect_refused`). A mutation that the build refuses although a test was meant fails the check (issue #73) |
-| Package · Smoke test | the packed library in a throwaway application, beside the other jobs | the README's code is part of the test |
+| The guards bite | the mutation check, in four shards side by side (`--shard i/4`), and one job of that name that waits for all four | a green test proves nothing until it has been seen red (ADR-0019) — and every mutation says how it must be caught: by its test (`expect_caught`), by the build with a named error where the toolchain is the guard on purpose (`expect_refused`), or by the command itself where the guard is a command and not a test — the tutorial check (`expect_command_caught`, issue #128). A mutation that the build refuses although a test was meant fails the check (issue #73) |
+| Package · Smoke test | the packed library in a throwaway application, beside the other jobs, and the C# blocks of the tutorial compiled and run against the library | the README's code is part of the test — and so is the code of the tutorial: a block that names an API the library does not have fails the lane ([`tools/tutorial-check.py`](../tools/tutorial-check.py), issue #128) |
 | **Windows** | the three layers and the tests of the sample on `windows-2025` | the paths, the pragmas and the case of the file names — the platform where a path is a promise (issue #67) |
 | **Publish** (a tag `v*`) | the tag against `Directory.Build.props` and `main`, then **every lane above** (it calls `ci.yml`), then — after the owner's approval — the push with a key of one hour (Trusted Publishing) | a release passes exactly the gates of a pull request, and stores no key (ADR-0048) |
 | Performance (every night, by hand) | the budgets of the file — the targets of ADR-0020, in the file of ADR-0056 | a time belongs to the machine it was measured on; a size is the same everywhere (ADR-0041) |
@@ -342,6 +342,9 @@ dotnet test Lui.sln --filter "Category!=Timing"
 bash tools/mutation-check.sh
 bash tools/mutation-check.sh --shard 2/4
 bash tools/mutation-check.sh --only the-provider-retries-for-thirty-seconds
+
+# the C# blocks of the tutorial: compiled, run, and compared with the pages (issue #128)
+python tools/tutorial-check.py
 
 # a measurement, on purpose — the layer of the measurements, and the scenario
 # of the run in tests/Nordmann.LUI.Performance.Tests/performance.scenario.json

@@ -39,6 +39,10 @@ readonly ARCHITECTURE_PROJECT="tests/Nordmann.LUI.Architecture.Tests/Nordmann.LU
 readonly UNIT_PROJECT="tests/Nordmann.LUI.Unit.Tests/Nordmann.LUI.Unit.Tests.csproj"
 readonly INTEGRATION_PROJECT="tests/Nordmann.LUI.Integration.Tests/Nordmann.LUI.Integration.Tests.csproj"
 
+# The interpreter of the tools of the repository: Python (tools/link-check.py, tools/tutorial-check.py).
+# The name is python3 on Linux and python on Windows — the first one that is there is the one.
+readonly PYTHON="$(command -v python3 || command -v python || echo python3)"
+
 cleanup() { rm -rf "${WORK}"; }
 trap cleanup EXIT
 
@@ -161,6 +165,45 @@ expect_refused() {
     echo "FAIL  ${name}: the build accepted the mutation — the toolchain does not guard this rule"
     echo "${output}" | tail -6
     failures=$((failures + 1))
+  fi
+}
+
+# expect_command_caught <name> <command> <mutation-command> <text-the-output-has-to-name>
+#
+# The guard is a command and not a test (issue #128): the tutorial check compiles the C# blocks of the
+# documentation and compares what they print with the pages. The mutation is run in a copy of the
+# repository, and the command has to fail — and it has to name what it found, so that a command that
+# fails for another reason is not a proof.
+expect_command_caught() {
+  in_shard "$1" || return 0
+  local name="$1"
+  local command="$2"
+  local mutation="$3"
+  local expected="$4"
+  local copy
+  copy="$(prepare_copy "${name}")"
+
+  ( cd "${copy}" && eval "${mutation}" ) >/dev/null 2>&1
+
+  local output status
+  output="$( cd "${copy}" && eval "${command}" 2>&1 )"
+  status=$?
+
+  if [ "${status}" -eq 127 ]; then
+    # The command does not exist — a broken script reports a green that proves nothing.
+    echo "FAIL  ${name}: the command does not exist — the script is broken"
+    failures=$((failures + 1))
+  elif [ "${status}" -eq 0 ]; then
+    echo "FAIL  ${name}: the command accepted the mutation"
+    echo "${output}" | tail -8
+    failures=$((failures + 1))
+  elif ! grep -qF "${expected}" <<<"${output}"; then
+    # It failed, but it did not name what the mutation broke.
+    echo "FAIL  ${name}: the command failed, but it did not name '${expected}'"
+    echo "${output}" | tail -8
+    failures=$((failures + 1))
+  else
+    echo "PASS  ${name}: CAUGHT BY THE COMMAND"
   fi
 }
 
@@ -672,7 +715,22 @@ expect_caught "a-page-that-names-a-member-the-type-does-not-have" "${ARCHITECTUR
   "The_page_names_no_member_that_the_type_does_not_have" \
   "sed -i 's|LuiTypoDistance TypoDistance { get; }|LuiTypoDistance TypoTolerance { get; }|' docs/api.md"
 
-# 30. The clean trees stay green.
+# 30. A block of the tutorial that does not compile (issue #128): the guard compiles the blocks of the
+#      documentation and compares what they print with the pages — a block that names an API the
+#      library does not have has to fail the lane.
+expect_command_caught "a-tutorial-block-that-does-not-compile" \
+  "${PYTHON} tools/tutorial-check.py" \
+  "sed -i 's|index.SingleWord()|index.SingleWordTypo()|' docs/tutorial/01-first-index.md" \
+  "docs/tutorial/01-first-index.md"
+
+# 31. A page of the tutorial that says something else than the code does (issue #128): the text block
+#      of the page is the output of the block above it, and the guard compares the two.
+expect_command_caught "a-tutorial-page-that-says-something-else" \
+  "${PYTHON} tools/tutorial-check.py" \
+  "sed -i 's|^1: vegan (120)\$|1: vegan (999)|' docs/tutorial/01-first-index.md" \
+  "docs/tutorial/01-first-index.md"
+
+# 32. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

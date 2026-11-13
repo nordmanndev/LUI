@@ -77,7 +77,8 @@ payload — and a typo in it is an error at run time. If you want the compiler
 to check the type, ask for a **view** of the index:
 
 ```csharp
-var chip = tags.As<TagChip>().Search("veg").Hits[0].GetPayload();
+// continues the block above
+var typed = tags.As<TagChip>().Search("veg").Hits[0].GetPayload();
 
 // the fluent query ends in the same typed answer
 var first = tags.Query("veg").Take(5).Execute().As<TagChip>().Hits[0];
