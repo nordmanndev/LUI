@@ -1,14 +1,23 @@
-# 0010 — The query budget of §16 does not hold at three million entries on FTS5 alone
+# 0010 — The query budget of ADR-0020 does not hold at three million entries on FTS5 alone
+
+> **Note (ADR-0057, 2026-11-12, issue #121):** the German phrase of the record was translated into English. The
+> specification is German and stays German until it is deleted in pull request 8; the decision stands as it was
+> written; the text below is history.
+
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
 
 - **Status:** Accepted — owner's decision of 2026-11-04: option 2 (the budget per input length) now, option 1 (a real
   stock) when there is one; option 3 only when a real stock asks for it
 - **Date:** 2026-11-02
 - **Supersedes:** —
-- **Affects:** `docs/benchmarks.md`, `.agents/spec/LUI-Spezifikation.md` §16, the plan for PR-009
+- **Affects:** `docs/benchmarks.md`, ADR-0020, the plan for PR-009
 
 ## Context
 
-§16 sets the budget for a query without correction: **p50 ≤ 2 ms, p95 ≤ 5 ms
+ADR-0020 sets the budget for a query without correction: **p50 ≤ 2 ms, p95 ≤ 5 ms
 at 3,000,000 entries, inputs of 1–8 characters**; the build of 3,000,000
 entries in ≤ 3 minutes; a single write at p95 ≤ 1 ms. Step 3 of the plan lists
 the budget in its "done when".
@@ -45,8 +54,8 @@ It is not the library, and it is not the prefix path.
   ones here, and why a phrase with a rare trigram (`abendmah`) is fast.
 - The corpus makes it worse: 3 M compounds of two random words from the
   German word list are far denser in `sch`/`ung`/`ter`… than a stock of tags
-  or titles. §16's own numbers (Anhang A1, A5) were taken on a different
-  synthetic corpus, "als Größenordnung" (Anhang A).
+  or titles. ADR-0020's own numbers (the record, A5) were taken on a different
+  synthetic corpus, "as an order of magnitude" (the record).
 
 ## Follow-up measurement (same day, after review)
 
@@ -65,12 +74,12 @@ the same texts in four FTS5 indexes (warm, best of 7 runs, `LIMIT 501`,
 - **The ordering and the indexes are right.** The plan is the specification's
   (`INDEX 64`, no `TEMP B-TREE`); the packed rowid costs about 20 % against a
   dense one when both are built the same way. Half of the weights being 0
-  (Anhang A1) changes the file by 11 % and the latency not at all.
+  (the record) changes the file by 11 % and the latency not at all.
 - **What differs is how the FTS5 index came to be.** Inserted row by row, in
   the random rowid order that the weight imposes, it ends in 24 segments
   (every committed write adds a small one; `automerge` only trims them) and
   is 3× slower to read and 8× slower to build than the same index loaded in
-  rowid order. The specification's build figures (Anhang A6) are not the
+  rowid order. The specification's build figures (the record) are not the
   figures of a row-by-row build either.
 - **SQLite settings do not move it.** Cold, single-shot, 2,000 inputs, 1 M
   entries, bulk-built and merged (`FtsLayoutExperiment`): memory map 2 GB or
@@ -122,13 +131,13 @@ bulk path exists.
    inputs that follows the trigram density of the stock. *Cost: the
    specification changes; a promise gets smaller.*
 3. **Add a word-start structure for 3–8 characters.** The input is usually the
-   *start* of what the user wants (E5, §1). An index on a longer prefix of the
+   *start* of what the user wants (E5, ADR-0002). An index on a longer prefix of the
    normalised text, `s_p3 … s_p8` or one `s_p8` column with a range scan, answers
    the word-start candidates in `O(log n + k)` in rowid order — the same trick
    as the prefix path — and FTS5 is asked only for the rest. *Cost: up to six
    more indexes (size, write time) and a second candidate source with its own
    rules for the merge; it reaches the start of the **text**, not of every
-   word (§21 O1).*
+   word (ADR-0003 O1).*
 4. **Tune the build and the write.** Bulk-load in rowid order, merge the FTS5
    segments once at the end (`automerge`, `optimize`). That is the plan for
    `Sync`/`Rebuild` (PR-007) and the benchmarks (PR-009); it addresses the
@@ -171,7 +180,7 @@ know whether the synthetic corpus is the adversary. The corrected query (p95 29 
 
 **Decided by the owner on 2026-11-04, on the numbers of PR-009 (ADR-0020):**
 
-- **Option 2 — the budget per input length.** §16 now reads: p50 ≤ 2 ms; p95 ≤ 5 ms for inputs of 1–4 characters
+- **Option 2 — the budget per input length.** ADR-0020 now reads: p50 ≤ 2 ms; p95 ≤ 5 ms for inputs of 1–4 characters
   (measured ≤ 3.1 ms), ≤ 20 ms for 5–8 characters (measured 17.5 ms at eight); the corrected query p95 ≤ 35 ms (measured
   28–29 ms). For the long inputs and the correction this is a **loosening** of the target, written down as such. The
   reason: a search field waits 100–300 ms between two keys; 20 ms are not felt there, and the median meets the old

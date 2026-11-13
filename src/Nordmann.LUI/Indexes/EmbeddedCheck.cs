@@ -5,7 +5,7 @@ using Nordmann.LUI.Storage;
 namespace Nordmann.LUI.Indexes;
 
 /// <summary>
-/// The check and the repair of an <c>Embedded</c> index (LUI-Spezifikation §12.6, §14, ADR-0016): against a source, against
+/// The check and the repair of an <c>Embedded</c> index (ADR-0016, ADR-0016, ADR-0046, ADR-0016): against a source, against
 /// itself — definition, triggers, FTS5's integrity check against the content table —, and the rebuild of everything
 /// below the content table.
 /// </summary>

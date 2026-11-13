@@ -6,7 +6,7 @@ using Nordmann.LUI.Normalization;
 namespace Nordmann.LUI.Querying;
 
 /// <summary>
-/// The ranking (LUI-Spezifikation §9.2): priority → word start → similarity →
+/// The ranking (ADR-0013, ADR-0055): priority → word start → similarity →
 /// weight, in the order the caller chose.
 /// <para>
 /// The first two stages are cheap, the similarity is not (microseconds, and
@@ -149,7 +149,7 @@ internal static class Ranker
     /// <summary>
     /// The similarity of the input to the text of an entry, measured from the
     /// word where the match begins — or against the whole text when there is
-    /// no word start (§9.2).
+    /// no word start (ADR-0013, ADR-0055).
     /// <para>
     /// A measure of LUI is asked on the search form in <paramref name="buffer"/>: the form is written
     /// into the buffer and measured there, so neither the form nor the part of it the match begins at

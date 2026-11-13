@@ -70,7 +70,7 @@ public sealed class TypedIndexTests
         typed.Name.ShouldBe("titles");
         typed.Kind.ShouldBe(LuiIndexKind.MultiWord);
         typed.KeyKind.ShouldBe(LuiKeyKind.Text);
-        typed.TypoTolerance.ShouldBeTrue();
+        typed.TypoDistance.ShouldBe(LuiTypoDistance.OneError);
         typed.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
         typed.Count().ShouldBe(1);
     }

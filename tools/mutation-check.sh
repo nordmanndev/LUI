@@ -318,7 +318,7 @@ expect_caught "the-lazy-similarity-is-gone" "${UNIT_PROJECT}" \
   "A_group_that_cannot_reach_the_hits_never_has_its_similarity_computed" \
   "sed -i 's|for (var g = 0; g < GroupCount \&\& result.Count < take; g++)|for (var g = 0; g < GroupCount; g++)|' src/Nordmann.LUI/Querying/Ranker.cs"
 
-# 15. The German transliteration of §6.1 changes — "ä" becomes "a" instead of
+# 15. The German transliteration of ADR-0005 changes — "ä" becomes "a" instead of
 #     "ae" — and the unit layer is the one that has to notice.
 expect_caught "the-transliteration-is-gone" "${UNIT_PROJECT}" \
   "FullyQualifiedName~NormalizerTests" \
@@ -347,9 +347,11 @@ expect_caught "a-benchmark-number-in-the-entrance-edited-by-hand" "${ARCHITECTUR
 # 18. A number in a committed BenchmarkDotNet report is edited by hand, and the
 #     tables are not rendered anew (review of pull request 37, M2): the two no
 #     longer agree, and the guard notices from the other side.
+#     The report carries no bold — the writer of the reports drops it (ADR-0060)
+#     — so the number is edited as it stands.
 expect_caught "a-benchmark-report-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~ReadmeBenchmarksTests" \
-  "sed -i '0,/ μs\*\* |/s// ms** |/' benchmarks/results/Nordmann.LUI.Benchmarks.QueryBenchmarks-report-github.md"
+  "sed -i '0,/ μs |/s// ms |/' benchmarks/results/Nordmann.LUI.Benchmarks.QueryBenchmarks-report-github.md"
 
 # 19. The retired word returns to the public surface (ADR-0023, issue #41): a
 #     public member is named "Owned…" again — renamed everywhere, so the tree
@@ -428,18 +430,18 @@ expect_caught "the-json-payload-is-read-tolerantly" "${UNIT_PROJECT}" \
   "FullyQualifiedName~LuiPayloadSerializerTests" \
   "sed -i '/UnmappedMemberHandling = JsonUnmappedMemberHandling.Disallow,/d; /RespectRequiredConstructorParameters = true,/d' src/Nordmann.LUI/LuiPayloadSerializer.cs"
 
-# 24e. A limit of the budget table of the README is edited by hand (issue #38): the limits are the targets of
-#      §16, and a promise that drifts from the contract is a promise nobody checked. The guard reads the
-#      specification and compares.
+# 24e. A limit of the file of the budgets is edited by hand (issue #38, ADR-0056): the limit is the promise, and a
+#      promise that drifts from the tables of the entrance and of the record is a promise nobody checked. The guard
+#      reads the file and compares.
 expect_caught "a-budget-limit-in-the-readme-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~ReadmeBudgetsTests" \
-  "sed -i '0,/≤ 5 ms/s//≤ 6 ms/' README.md"
+  "sed -i '0,/\"limit\": 5,/s/\"limit\": 5,/\"limit\": 6,/' tests/Nordmann.LUI.Testing/Budgets/budgets.json"
 
-# 24f. A limit of the status table of the record is edited by hand (issue #38): the summary of the run promises
-#      what the contract does not. The guard reads the specification and compares.
+# 24f. Another limit of the file of the budgets is edited by hand (issue #38, ADR-0056): the summary of the run
+#      promises what the file does not. The guard reads the file and compares.
 expect_caught "a-budget-limit-in-the-record-edited-by-hand" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~ReadmeBudgetsTests" \
-  "sed -i '0,/≤ 20 ms/s//≤ 21 ms/' docs/benchmarks.md"
+  "sed -i '0,/\"limit\": 20,/s/\"limit\": 20,/\"limit\": 21,/' tests/Nordmann.LUI.Testing/Budgets/budgets.json"
 
 # 24g. A link of the documentation points at nothing (issue #66): the promise of the link check is that every
 #      relative link of every markdown file names a file that exists. A link that points at nothing is a broken
@@ -449,7 +451,7 @@ expect_caught "a-link-in-the-documentation-points-at-nothing" "${ARCHITECTURE_PR
   "echo '[a link that points at nothing](./this-file-does-not-exist.md)' >> docs/benchmarks.md"
 
 # 25. The concurrency of the round of issue #67: the write-ahead log is switched off. Without it a reader beside a
-#      writer waits for the lock and gives up with an error — the promise of §15 (many readers beside one writer)
+#      writer waits for the lock and gives up with an error — the promise of ADR-0015, ADR-0046 (many readers beside one writer)
 #      is gone, and the test with the second catalog has to notice.
 expect_caught "a-database-without-the-write-ahead-log" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~Two_catalogs_on_one_file_see_a_consistent_picture" \
@@ -568,11 +570,13 @@ expect_caught "a-linked-rebuild-that-builds-nothing" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~A_linked_index_rebuilds_its_typo_dictionary_from_the_table_as_it_is_now" \
   "sed -i 's|        _typos.Rebuild(cancellationToken);|        _typos.EnsureBuilt(cancellationToken);|' src/Nordmann.LUI/Indexes/LinkedIndex.cs"
 
-# 26s. The stop of the warm-up leaves the timer running (issue #106): the rounds would go on against a host that is
-#      shutting down.
+# 26s. The stop of the warm-up leaves the rounds running (issue #106, issue #148): the rounds would go on against a host
+#      that is shutting down. The stop has two parts — the timer stops, and a round that begins after the stop does not
+#      begin at all — and the mutation breaks both of them, so that the test sees a round that applies a row the
+#      application wrote after the stop.
 expect_caught "a-stop-that-keeps-the-rounds" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~After_the_host_stops_no_round_of_the_outbox_begins" \
-  "sed -i 's|        _timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);||' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
+  "sed -i -e 's|        _timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);||' -e 's|        _stopping = true;|        _stopping = false;|' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
 
 # 26t. The guard against overlapping rounds lets every tick in (issue #106): while the write lock is held, a round per
 #      tick would wait beside the others.
@@ -603,6 +607,46 @@ expect_caught "a-batch-lost-with-the-swap" "${INTEGRATION_PROJECT}" \
 expect_caught "a-null-read-as-null-for-every-type-refused" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~A_null_column_is_null_for_a_type_that_can_hold_null_and_refused_for_one_that_cannot" \
   "sed -i 's|        return default(T) is null \&\& reader.IsDBNull(ordinal)|        return false \&\& reader.IsDBNull(ordinal)|' src/Nordmann.LUI/LuiPayloadRow.cs"
+
+# 26x. The distance of the index is not the distance of its definition (ADR-0054): an opened index forgets how its
+#       dictionary was built, and a query has to ask for the correction again. The test that opens the catalog a
+#       second time has to notice.
+expect_caught "the-distance-does-not-survive-a-restart" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~An_opened_index_keeps_its_distance_and_corrects_without_the_query_asking_for_it" \
+  "sed -i 's|typoDistance: entry.Definition.TypoDistance);|typoDistance: LuiTypoDistance.None);|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 26y. The distance of the index never reaches its dictionary (ADR-0054): every index forgives one error, whatever
+#       its definition says. The index that forgives nothing would build a dictionary — and pay for it.
+expect_caught "the-distance-of-the-index-never-reaches-its-dictionary" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~An_index_that_forgives_nothing_builds_no_dictionary" \
+  "sed -i 's|Distance: distance));|Distance: LuiTypoDistance.OneError));|' src/Nordmann.LUI/Typos/TypoDictionaries.cs"
+
+# 26z. The correction always forgives one error (ADR-0054): the enumeration is a number again, and the index that
+#       forgives two errors forgives one. The typo of two errors has to stay uncorrected.
+expect_caught "the-correction-always-forgives-one-error" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_typo_of_two_errors_is_corrected_by_the_index_that_forgives_two_and_by_no_other" \
+  "sed -i 's|suggestions.Add(Suggest(symSpell, search.AsSpan(word.Start, word.Length), (int)_distance));|suggestions.Add(Suggest(symSpell, search.AsSpan(word.Start, word.Length), 1));|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
+
+# 26aa. The guard of the distance None sits in the caller that asks, not in the thing that builds
+#       (ADR-0054, review of pull request #126, I1): the guard fires only when the dictionary is already
+#       built — and it never is, while a build starts. A rebuild of an index that forgives nothing builds
+#       the dictionary: 138 MB for a correction that is never made.
+expect_caught "a-rebuild-that-forgives-nothing-builds-a-dictionary" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_rebuild_of_an_index_that_forgives_nothing_builds_no_dictionary" \
+  "sed -i 's|        if (_distance == LuiTypoDistance.None)|        if (IsBuilt \&\& _distance == LuiTypoDistance.None)|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
+# 26y. The query path drops a duplicate again (ADR-0055): the uniqueness of a text belongs to the data, so the
+#      library answers with one hit per entry — a candidate whose search form was seen is dropped again, and the
+#      four restated tests notice.
+expect_caught "a-duplicate-of-a-text-is-dropped-again" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~Two_spellings_of_one_text_are_two_hits|FullyQualifiedName~The_priority_leads_the_hits|FullyQualifiedName~The_correction_is_not_swallowed|FullyQualifiedName~The_input_and_its_correction_keep" \
+  "sed -i 's|        var read = 0;|        var seen = new HashSet<string>(StringComparer.Ordinal);\\n        var read = 0;|' src/Nordmann.LUI/Querying/CandidateReader.cs && sed -i 's|            candidates\\[count++\\] = new Scored { RowId = reader.GetInt64(0), Text = text, WordStart = start, Variant = variant };|            if (seen.Add(Normalizer.ToSearchForm(text, _normalization))) { candidates[count++] = new Scored { RowId = reader.GetInt64(0), Text = text, WordStart = start, Variant = variant }; }|' src/Nordmann.LUI/Querying/CandidateReader.cs"
+
+# 26ab. The stop of the warm-up does not wait for the round that runs (issue #148): the round holds the file of the
+#      application, and the host that stopped the service is gone while LUI still writes (ADR-0043). The test of the
+#      stop has to notice.
+expect_caught "a-stop-that-does-not-wait-for-the-round" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~The_host_waits_for_a_round_that_runs_when_it_is_disposed" \
+  "sed -i '/^        JoinRound();$/d' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
 
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"

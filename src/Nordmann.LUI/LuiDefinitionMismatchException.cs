@@ -2,7 +2,7 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// An index exists with a definition other than the one that was asked for.
-/// An index is never rebuilt silently (LUI-Spezifikation §7.1): the message
+/// An index is never rebuilt silently (ADR-0006, ADR-0033): the message
 /// names both definitions.
 /// <para>
 /// The read path (ADR-0033) throws it too: an index that is opened is never rebuilt, so a key type, a payload type,

@@ -10,7 +10,7 @@ namespace Nordmann.LUI.Unit.Tests.Payload;
 /// </summary>
 public sealed class LuiPayloadSerializerTests
 {
-    private static readonly ILuiPayloadSerializer Serializer = LuiPayloadSerializer.Json(ChipJsonContext.Default);
+    private static readonly ILuiPayloadSerializer Serializer = LuiPayloadSerializer.Json(PayloadJsonContext.Default);
 
     [Fact]
     public void A_payload_survives_the_round_trip()
@@ -62,7 +62,7 @@ public sealed class LuiPayloadSerializerTests
         var exception = Should.Throw<NotSupportedException>(() => Serializer.Serialize(new Uri("https://example.org")));
 
         exception.Message.ShouldContain("System.Uri");
-        exception.Message.ShouldContain(nameof(ChipJsonContext));
+        exception.Message.ShouldContain(nameof(PayloadJsonContext));
     }
 
     [Fact]
@@ -109,7 +109,7 @@ public sealed class LuiPayloadSerializerTests
         // serialiser says so instead of handing out a default value that the
         // caller would read as data.
         var exception = Should.Throw<JsonException>(
-            () => Serializer.Deserialize<Chip>(JsonSerializer.SerializeToUtf8Bytes<Chip?>(null, ChipJsonContext.Default.Chip)));
+            () => Serializer.Deserialize<Chip>(JsonSerializer.SerializeToUtf8Bytes<Chip?>(null, PayloadJsonContext.Default.Chip)));
 
         exception.Message.ShouldContain("null");
     }

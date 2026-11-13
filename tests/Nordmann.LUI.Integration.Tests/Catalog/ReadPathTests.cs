@@ -307,7 +307,7 @@ public sealed class ReadPathTests
         Run(database, TagTable);
         using var catalog = database.Open();
         catalog.Create("plain", index => index.SingleWord());
-        catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
 
         Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags")).IndexName.ShouldBe("tags");
         Should.Throw<LuiDefinitionMismatchException>(() => catalog.LinkedIndex("plain")).IndexName.ShouldBe("plain");
@@ -337,7 +337,7 @@ public sealed class ReadPathTests
         Run(database, TagTable);
         Insert(database, (1, "vegan", 5, "vegan", "green"));
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord()
+        catalog.CreateLinked("tags", index => index.SingleWord()
             .LinkTo("tag", "id", "name", weight: "usage_count")
             .WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.GetString("color"))))
             .Sync();
@@ -361,7 +361,7 @@ public sealed class ReadPathTests
         using var database = new TestDatabase();
         Run(database, TagTable);
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord()
+        catalog.CreateLinked("tags", index => index.SingleWord()
             .LinkTo("tag", "id", "name")
             .WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.GetString("color"))));
 
@@ -380,11 +380,11 @@ public sealed class ReadPathTests
         Run(database, TagTable);
         using var catalog = database.Open();
 
-        catalog.Create("tags", index => index.SingleWord()
+        catalog.CreateLinked("tags", index => index.SingleWord()
             .LinkTo("tag", "id", "name")
             .WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.GetString("color"))));
 
-        Should.NotThrow(() => catalog.Create("tags", index => index.SingleWord()
+        Should.NotThrow(() => catalog.CreateLinked("tags", index => index.SingleWord()
             .LinkTo("tag", "id", "name")
             .WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.GetString("color")))));
     }
@@ -411,7 +411,7 @@ public sealed class ReadPathTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance());
         tags.Upsert(1, "Apfelkuchen");
 
         // the application asks for the build (ADR-0042): a query never does. The read path writes nothing,
@@ -419,11 +419,11 @@ public sealed class ReadPathTests
         tags.WarmUpTypoDictionary();
 
         var index = catalog.Index("tags");
-        index.TypoTolerance.ShouldBeFalse("an opened index corrects no typo");
+        index.TypoDistance.ShouldBe(LuiTypoDistance.OneError, "the distance is part of the definition");
 
-        index.Search("apflekuchen").Hits.ShouldBeEmpty("nothing corrects the typo");
-        index.Search("apflekuchen", new LuiQueryOptions { TypoTolerance = true })
-            .Hits.ShouldHaveSingleItem("the query asks for the correction");
+        index.Search("apflekuchen").Hits.ShouldHaveSingleItem("the opened index forgives what its definition says");
+        index.Search("apflekuchen", new LuiQueryOptions { TypoTolerance = false })
+            .Hits.ShouldBeEmpty("the query asks for no correction");
 
         var constant = new Constant(0.25);
         index.Search("apfel", new LuiQueryOptions { Similarity = constant })

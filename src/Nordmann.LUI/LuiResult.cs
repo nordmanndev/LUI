@@ -1,6 +1,6 @@
 namespace Nordmann.LUI;
 
-/// <summary>The answer to a query (LUI-Spezifikation §8.3).</summary>
+/// <summary>The answer to a query (ADR-0008).</summary>
 public sealed record LuiResult
 {
     /// <summary>The input, as it was given.</summary>

@@ -1,21 +1,22 @@
-# The lane of the schedule for the targets of §16 (ADR-0041). The file stood at
+# The lane of the schedule for the targets of ADR-0020 (ADR-0041). The file stood at
 # tools/performance-lane.yml until the owner gave the agent a token: the connector may not write
 # into .github/workflows/, and a lane that lives outside of it never runs.
 #
 name: Performance
 
-# The targets of §16 run on a schedule of their own: the sizes are asserted on
+# The targets of ADR-0020 run on a schedule of their own: the sizes are asserted on
 # every runner, the times are reported with the machine they were measured on
 # (ADR-0041). The record of the numbers stays docs/benchmarks.md — a lane that
 # runs without writing down what it measured proves nothing.
 on:
   schedule:
-    # 03:17 UTC — a time when nobody waits for a runner.
-    - cron: '17 3 * * *'
+    # 03:17 UTC on Monday — one number of the week, not every night (issue #124): the schedule runs on the
+    # default branch, the number of the week is thereby the stable line of `main`; `dev` is measured by hand.
+    - cron: '17 3 * * 1'
   workflow_dispatch:
     inputs:
-      entries:
-        description: 'How many entries the scenario builds'
+      prefixLength:
+        description: 'How many entries of the corpus the scenario takes'
         required: false
         default: '3000000'
       machine:
@@ -32,25 +33,39 @@ concurrency:
 
 jobs:
   budgets:
-    name: The budgets of §16
+    name: The budgets of ADR-0020
     runs-on: ubuntu-24.04
     # sized by the first run (issue #99): the tests took 8.3 minutes on a hosted runner (4 cores, 15 GB, 85 GB of disk),
     # the whole job about 9 — thirty minutes are three times that
     timeout-minutes: 30
-    env:
-      LUI_PERF: '1'
-      LUI_PERF_ENTRIES: ${{ inputs.entries || '3000000' }}
-      LUI_PERF_MACHINE: ${{ inputs.machine || 'other' }}
-      LUI_REQUIRE_FULL_WORDLIST: '1'
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - uses: ./.github/actions/setup
 
-      # The whole word list, or the corpus of the scenario is not the corpus of
-      # the specification: the script fails if the list is short.
-      - name: Fetch the word list
-        run: bash tools/fetch-wordlist.sh
+      # The corpora are files in the repository (ADR-0059): the lane measures
+      # the files that are checked in, and needs no fetch. The word list of the
+      # parity is a different thing — the lane of the CI fetches it.
+
+      # The scenario of the run is a file, not a variable (ADR-0058): the lane
+      # writes it, the run reads it, and the diff of the file is the diff of
+      # the scenario. The copy in the repository is the default.
+      - name: The scenario of this run
+        run: |
+          set -euo pipefail
+          cat > tests/Nordmann.LUI.Performance.Tests/performance.scenario.json <<'JSON'
+          {
+            "note": "The scenario of a measurement run (ADR-0058): the settings of the run. It replaces the variables of the environment — a variable is invisible in the code and in the report, a file is a thing one can read, check in and diff. The lane of the schedule writes this file before it measures; the copy that is checked in is the default, and a run without the lane works with it. The corpus itself is not here: the budgets name their corpus (ADR-0056), and the corpus file carries the entries, their weights and their kind (ADR-0059).",
+            "scenario": {
+              "prefixLength": ${{ inputs.prefixLength || '3000000' }},
+              "batch": 10000,
+              "minimumWeight": 0,
+              "optimize": false,
+              "machine": "${{ inputs.machine || 'other' }}",
+              "database": ""
+            }
+          }
+          JSON
 
       - name: Build
         run: dotnet build Lui.sln --configuration Release --no-restore
@@ -68,13 +83,13 @@ jobs:
 
       # The pipe needs pipefail: without it a failing test would look green,
       # because tee was the last command of the line.
-      - name: The budgets of §16
+      - name: The budgets of ADR-0020
         run: |
           set -euo pipefail
           mkdir -p artifacts/test-results
-          dotnet test tests/Nordmann.LUI.Integration.Tests \
+          dotnet test tests/Nordmann.LUI.Performance.Tests \
             --configuration Release --no-build \
-            --filter 'BudgetPerformance|NormalizationParityTests' \
+            --filter 'BudgetPerformance' \
             --logger "console;verbosity=detailed" --blame-hang-timeout 20m --blame-hang-dump-type full \
             --results-directory artifacts/test-results 2>&1 | tee artifacts/test-results/budgets.log
 
@@ -93,7 +108,7 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo '### The budgets of §16'
+            echo '### The budgets of ADR-0020'
             echo ''
             echo '```text'
             grep -F '[perf]' artifacts/test-results/budgets.log || true

@@ -3,7 +3,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Embedded;
 
 /// <summary>
-/// The payload of an <c>Embedded</c> index (LUI-Spezifikation §12.8, ADR-0035): stored as bytes by the serialiser of the
+/// The payload of an <c>Embedded</c> index (ADR-0046, ADR-0035): stored as bytes by the serialiser of the
 /// catalog, read when it is asked for and not before, and refused on the write when nobody can serialise it.
 /// </summary>
 public sealed class EmbeddedPayloadTests

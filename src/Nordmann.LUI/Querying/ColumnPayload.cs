@@ -3,7 +3,7 @@ using Microsoft.Data.Sqlite;
 namespace Nordmann.LUI.Querying;
 
 /// <summary>
-/// A payload built from columns of the application's table (<c>Linked</c>, LUI-Spezifikation §12.3): the columns
+/// A payload built from columns of the application's table (<c>Linked</c>, ADR-0035): the columns
 /// are selected with the hits, in this order, and the mapping turns them into the payload.
 /// </summary>
 internal sealed class ColumnPayload : PayloadReader

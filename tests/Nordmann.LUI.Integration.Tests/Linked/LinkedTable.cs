@@ -19,7 +19,7 @@ internal static class LinkedTable
         """;
 
     internal static ILuiLinkedIndex Tags(LuiCatalog catalog) =>
-        catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
+        catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
 
     internal static void Insert(TestDatabase database, params (long Id, string? Name, int Weight)[] rows)
     {

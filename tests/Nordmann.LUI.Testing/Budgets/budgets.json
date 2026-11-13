@@ -1,0 +1,137 @@
+{
+  "note": "The budgets of LUI — one source, two readers (ADR-0056). A budget names its scenario (the corpus file, the prefix length, the condition), its limit, its unit and its kind: a time belongs to the machine it was measured on, a size belongs to nobody (ADR-0041). The measured value does not belong here: it belongs in the report, beside the machine it was measured on.",
+  "budgets": [
+    {
+      "id": "query-p50",
+      "scenario": {
+        "corpus": "words.txt",
+        "prefixLength": 3000000,
+        "condition": "inputs of 1–8 characters, no correction"
+      },
+      "limit": 2,
+      "unit": "ms",
+      "kind": "time"
+    },
+    {
+      "id": "query-p95-short",
+      "scenario": {
+        "corpus": "words.txt",
+        "prefixLength": 3000000,
+        "condition": "inputs of 1–4 characters, no correction"
+      },
+      "limit": 5,
+      "unit": "ms",
+      "kind": "time"
+    },
+    {
+      "id": "query-p95-long",
+      "scenario": {
+        "corpus": "words.txt",
+        "prefixLength": 3000000,
+        "condition": "inputs of 5–8 characters, no correction"
+      },
+      "limit": 20,
+      "unit": "ms",
+      "kind": "time"
+    },
+    {
+      "id": "query-corrected-p95",
+      "scenario": {
+        "corpus": "words.txt",
+        "prefixLength": 3000000,
+        "condition": "a beginning of 5–9 letters with one typo"
+      },
+      "limit": 35,
+      "unit": "ms",
+      "kind": "time"
+    },
+    {
+      "id": "allocation-p50",
+      "scenario": {
+        "corpus": "words.txt",
+        "prefixLength": 3000000,
+        "condition": "the same inputs, the candidate budget of 500"
+      },
+      "limit": 60,
+      "unit": "KB",
+      "kind": "size"
+    },
+    {
+      "id": "allocation-p95",
+      "scenario": {
+        "corpus": "words.txt",
+        "prefixLength": 3000000,
+        "condition": "the same inputs, the candidate budget of 500"
+      },
+      "limit": 100,
+      "unit": "KB",
+      "kind": "size"
+    },
+    {
+      "id": "write-p95",
+      "scenario": {
+        "corpus": "words.txt",
+        "prefixLength": 3000000,
+        "condition": "Upsert / UpdateWeight / Remove, in a transaction of its own"
+      },
+      "limit": 1,
+      "unit": "ms",
+      "kind": "time"
+    },
+    {
+      "id": "build-3m",
+      "scenario": {
+        "corpus": "words.txt",
+        "prefixLength": 3000000,
+        "condition": "Embedded, a first load by Sync"
+      },
+      "limit": 4,
+      "unit": "min",
+      "kind": "time"
+    },
+    {
+      "id": "typo-dictionary-size",
+      "scenario": {
+        "corpus": "words.txt",
+        "prefixLength": 685739,
+        "condition": "the whole German word list, the distance OneError"
+      },
+      "limit": 200,
+      "unit": "MB",
+      "kind": "size"
+    },
+    {
+      "id": "typo-dictionary-build",
+      "scenario": {
+        "corpus": "words.txt",
+        "prefixLength": 685739,
+        "condition": "the build of the dictionary of the distance OneError"
+      },
+      "limit": 10,
+      "unit": "s",
+      "kind": "time"
+    },
+    {
+      "id": "typo-dictionary-two-errors-size",
+      "scenario": {
+        "corpus": "words.txt",
+        "prefixLength": 685739,
+        "condition": "the whole German word list, the distance TwoErrors"
+      },
+      "limit": 240,
+      "unit": "MB",
+      "kind": "size"
+    },
+    {
+      "id": "file-size-1m",
+      "scenario": {
+        "corpus": "wiki-titles.tsv",
+        "prefixLength": 1000000,
+        "condition": "titles of 36 characters on average, MultiWord, the content table included"
+      },
+      "limit": 500,
+      "unit": "MB",
+      "kind": "size"
+    }
+  ]
+}

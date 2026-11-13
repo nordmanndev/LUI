@@ -4,9 +4,11 @@ name: CI
 # gate of its own (issue #75).
 on:
   push:
-    branches: [main]
+    # The pull requests of the series branch from `dev` and target `dev`; `dev` → `main` is the release pull request.
+    # Without `dev` here, not one pull request of the series is checked at all.
+    branches: [main, dev]
   pull_request:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
   workflow_call:
 
@@ -78,8 +80,9 @@ jobs:
       # The three lanes of the pyramid (ADR-0019). The unit lane is the fast
       # one — the rules of the library, without a database. The architecture
       # tests read the repository from disk — they are the mechanical half of
-      # the standards' rules (ADR-0002) and the guard of the map of the tests.
-      # A test that hangs for ten minutes is stopped, and its dump is uploaded.
+      # the rules of the repository (ADR-0002) and the guard of the map of the
+      # tests. A test that hangs for ten minutes is stopped, and its dump is
+      # uploaded.
       - name: Test · unit
         run: >
           dotnet test tests/Nordmann.LUI.Unit.Tests
@@ -144,19 +147,18 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      # The rule of §6.2 exists twice — as SQL and as C# — and the parity test
+      # The rule of ADR-0005 exists twice — as SQL and as C# — and the parity test
       # compares them over every word of the German word list. Without the
       # list the test is skipped and says so; this job fetches the list and
       # demands it, so that the parity is proved here and not only in the
-      # release gate (ADR-0019). The rest of the integration layer — the other
-      # tests of the parity too — runs in the job "Build · Test": this one runs
-      # the test of the whole list, and nothing twice.
+      # release gate (ADR-0019). The fetch is the guard: it checks the 685,829
+      # lines and fails loudly (ADR-0058, D19). The rest of the integration layer —
+      # the other tests of the parity too — runs in the job "Build · Test": this
+      # one runs the test of the whole list, and nothing twice.
       - name: Fetch the word list
         run: bash tools/fetch-wordlist.sh
 
       - name: Build and test
-        env:
-          LUI_REQUIRE_FULL_WORDLIST: '1'
         run: |
           dotnet build tests/Nordmann.LUI.Integration.Tests --configuration Release --no-restore
           dotnet test tests/Nordmann.LUI.Integration.Tests --configuration Release --no-build \

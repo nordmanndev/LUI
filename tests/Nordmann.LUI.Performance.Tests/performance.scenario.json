@@ -1,0 +1,11 @@
+{
+  "note": "The scenario of a measurement run (ADR-0058): the settings of the run. It replaces the variables of the environment — a variable is invisible in the code and in the report, a file is a thing one can read, check in and diff. The lane of the schedule writes this file before it measures; the copy that is checked in is the default, and a run without the lane works with it. The corpus itself is not here: the budgets name their corpus (ADR-0056), and the corpus file carries the entries, their weights and their kind (ADR-0059).",
+  "scenario": {
+    "prefixLength": 200000,
+    "batch": 10000,
+    "minimumWeight": 0,
+    "optimize": false,
+    "machine": "measurement",
+    "database": ""
+  }
+}

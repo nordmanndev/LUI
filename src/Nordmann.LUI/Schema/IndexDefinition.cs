@@ -22,13 +22,20 @@ namespace Nordmann.LUI.Schema;
 /// <param name="GermanTransliteration">Whether the text was stored with the German transliteration.</param>
 /// <param name="FoldTable">The fold table the text was folded with.</param>
 /// <param name="Link">The table of the application a linked index searches; <see langword="null"/> for an embedded one.</param>
+/// <param name="TypoDistance">
+/// How many errors a query of this index forgives (ADR-0012). It is part of the definition, because the
+/// dictionary of the word beginnings is built with it and a reopened index has to know how.
+/// A definition written before this field carries <see cref="LuiTypoDistance.None"/> — an index that
+/// corrected nothing.
+/// </param>
 internal sealed record IndexDefinition(
     LuiIndexKind Kind,
     string Source,
     string KeyType,
     bool GermanTransliteration,
     string FoldTable,
-    LinkDefinition? Link = null)
+    LinkDefinition? Link = null,
+    LuiTypoDistance TypoDistance = LuiTypoDistance.None)
 {
     internal string ToJson() => JsonSerializer.Serialize(this, LuiJsonContext.Default.IndexDefinition);
 

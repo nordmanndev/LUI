@@ -1,9 +1,9 @@
 <Project>
 
   <!--
-    Central package management — mandatory (standards: architecture/layering.md
-    §"Directory.Packages.props"). Versions are pinned in exactly one place;
-    no .csproj may carry a Version on a PackageReference (NetArchTest rule).
+    Central package management — mandatory. Versions are pinned in exactly one
+    place; no .csproj may carry a Version on a PackageReference (NetArchTest
+    rule).
   -->
   <PropertyGroup>
     <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
@@ -38,7 +38,13 @@
   <ItemGroup Label="Test">
     <PackageVersion Include="Microsoft.NET.Test.Sdk" Version="18.11.0" />
     <!-- xUnit.net v3 (ADR-0051); the test projects are executables, run by VSTest through the adapter -->
-    <PackageVersion Include="xunit.v3" Version="4.0.2" />
+    <PackageVersion Include="xunit.v3" Version="4.0.3" />
+    <!--
+      The attributes of the tests without the runner: the shared infrastructure
+      carries the attribute of the whole word list (ADR-0058) and is no test
+      project itself.
+    -->
+    <PackageVersion Include="xunit.v3.extensibility.core" Version="4.0.3" />
     <PackageVersion Include="xunit.runner.visualstudio" Version="4.0.1" />
     <PackageVersion Include="Shouldly" Version="4.3.0" />
     <PackageVersion Include="NetArchTest.Rules" Version="1.3.2" />

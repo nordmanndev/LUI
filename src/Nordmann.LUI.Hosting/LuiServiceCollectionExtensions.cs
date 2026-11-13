@@ -7,7 +7,7 @@ using Nordmann.LUI.Hosting;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// LUI in a container of <c>Microsoft.Extensions.DependencyInjection</c> (LUI-Spezifikation §12.7, ADR-0017, package
+/// LUI in a container of <c>Microsoft.Extensions.DependencyInjection</c> (ADR-0017, ADR-0034, ADR-0017, package
 /// <c>Nordmann.LUI.Hosting</c>, ADR-0018): <b>one catalog as a singleton, and nothing else</b>.
 /// <para>
 /// The container does not describe indexes (ADR-0033): an index is not registered and not injected. The application asks
@@ -71,7 +71,7 @@ public static class LuiServiceCollectionExtensions
     /// </para>
     /// <para>
     /// The start of the host waits for the dictionaries — so that the first query already corrects a typo. A dictionary
-    /// costs seconds and memory (138 MB for 685,829 words, ADR-0021): name the indexes that correct typos in
+    /// costs seconds and memory (138 MB for 685,739 words, ADR-0021): name the indexes that correct typos in
     /// <see cref="LuiWarmupOptions.TypoDictionaryIndexes"/>, or none, and every index gets one.
     /// </para>
     /// </summary>

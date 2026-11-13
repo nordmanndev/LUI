@@ -9,9 +9,9 @@ using Nordmann.LUI.Writing;
 namespace Nordmann.LUI.Indexes;
 
 /// <summary>
-/// An index whose content lives in a table of the library (LUI-Spezifikation
-/// §5). The writes are plain statements: the generated columns compute the
-/// forms, the triggers keep the search index in step (E3).
+/// An index whose content lives in a table of the library (
+/// ADR-0014, ADR-0015). The writes are plain statements: the generated columns compute the
+/// forms, the triggers keep the search index in step (ADR-0015).
 /// <para>
 /// Whether it may write is decided by the file, not by the index (ADR-0033): an index of a catalog that was
 /// opened read-only refuses every write with a <see cref="LuiReadOnlyException"/>.
@@ -46,7 +46,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         EmbeddedSource source,
         ILuiPayloadSerializer? payload,
         ILuiSimilarity similarity,
-        bool typoTolerance)
+        LuiTypoDistance typoDistance)
     {
         _database = database;
         _payload = payload;
@@ -54,9 +54,9 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         Name = source.IndexName;
         Kind = source.Rules.Kind;
         KeyKind = KeyCodec.KindOf(source.Definition.KeyType);
-        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql));
+        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance);
         _runner = new QueryRunner(
-            database, source, new SerializedPayload(Name, payload), similarity, _typos, typoTolerance);
+            database, source, new SerializedPayload(Name, payload), similarity, _typos, typoDistance);
         _sync = new EmbeddedSync(database, source, KeyText, PayloadBytes, _typos);
         _check = new EmbeddedCheck(database, source, KeyText, PayloadBytes);
     }
@@ -67,7 +67,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
 
     public LuiKeyKind KeyKind { get; }
 
-    public bool TypoTolerance => _runner.TypoTolerance;
+    public LuiTypoDistance TypoDistance => _runner.TypoDistance;
 
     public LuiTypoDictionaryState TypoDictionaryState => _typos.State;
 
@@ -88,7 +88,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
             throw DocIdsExhausted(exception);
         }
 
-        // the new word beginnings join the typo dictionary, if it is built (§10.1)
+        // the new word beginnings join the typo dictionary, if it is built (ADR-0012)
         _typos.Add(entry.Text, entry.Weight);
     }
 
@@ -134,7 +134,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
     /// <summary>
     /// A batch in a transaction of LUI's own, on the catalog's writer: the writer's lock is held for the whole
     /// batch, so no single write of another index slips into the transaction (there is one writer per file
-    /// anyway, §15).
+    /// anyway, ADR-0015, ADR-0046).
     /// </summary>
     private void WriteOwnBatch(
         IEnumerable<LuiEntry> entries,
@@ -224,7 +224,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
     {
         ArgumentNullException.ThrowIfNull(entries);
 
-        // the source may be asynchronous, the writes to SQLite are not (§13): the entries are awaited one by one
+        // the source may be asynchronous, the writes to SQLite are not (ADR-0016): the entries are awaited one by one
         return Sync(entries.ToBlockingEnumerable(cancellationToken), options, cancellationToken);
     }
 
@@ -306,7 +306,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
     /// <summary>
     /// The statements for a write: those of the application's connection when
     /// it brought a transaction, otherwise those of the catalog's own writer
-    /// (one writer per file anyway, §15).
+    /// (one writer per file anyway, ADR-0015, ADR-0046).
     /// </summary>
     private WriteStatements StatementsFor(SqliteTransaction? transaction)
     {

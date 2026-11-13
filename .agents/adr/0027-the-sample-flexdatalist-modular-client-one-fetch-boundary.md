@@ -1,5 +1,16 @@
 # 0027 — The sample: flexdatalist against the whole API, a modular client, one fetch boundary
 
+> **Note (ADR-0055, 2026-11-12):** the `distinct` parameter of the sample is gone with the option — the query string
+> maps one to one onto `LuiQueryOptions` without it. The text below is history. See
+> [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md).
+> **Contract note (ADR-0056, 2026-11-12):** this record was written against a contract outside the repository — a
+> private one, that no reader of LUI can know and does not have to. The repository states its own rules since: the
+> rules that contract carried for LUI stand in [`AGENTS.md`](../../AGENTS.md) and in the documents of
+> [`docs/`](../../docs/README.md). The text below is history and stays as it was written.
+> **Note (ADR-0057, 2026-11-12, issue #121):** this record named an external contract that a reader of a public
+> library cannot know. The one sentence that named it is restated in the terms of this repository. The decision
+> stands as it was written; the text below is history.
+
 - **Status:** Accepted (owner's requirements of 2026-11-04: built with flexdatalist, a clean modular client, the whole of LUI, a payload, highlighting and the abort of a fast typeahead "professionally"; highlighting was then dropped on the owner's decision, decision 4 and ADR-0028)
 - **Date:** 2026-11-04
 - **Issue:** #51 (PR-011 of the plan)
@@ -152,7 +163,7 @@ from the props file and a guard wants every central version referenced.
 - **The browser check is not in CI.** The node tests, the .NET tests and the guards cover what can be covered without a browser;
   what only a browser shows (the CSS the library expects, the policy, the list under the input) was seen once, and a regression there
   would be seen by the next person who runs the sample.
-- **Rejected:** a framework (Alpine, as the standards' baseline, ADR-0002: it would teach nothing about LUI); a bundler; the
+- **Rejected:** a framework (Alpine — it would teach nothing about LUI, ADR-0002); a bundler; the
   library's own CSS (plan D7); letting flexdatalist filter (it would drop what the server corrected); a patch of the vendored
   file for aborting (the page owns that behaviour; the file stays verifiable); `unsafe-inline` for the colour dots (the CSSOM does it); a
   page-made highlight (built, measured, and dropped: 0028).

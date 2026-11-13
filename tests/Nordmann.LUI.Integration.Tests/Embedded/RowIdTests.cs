@@ -4,7 +4,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Embedded;
 
 /// <summary>
-/// The rowid carries priority and weight (LUI-Spezifikation §7.2): the round
+/// The rowid carries priority and weight (ADR-0006): the round
 /// trip, and the order that <c>ORDER BY rowid</c> relies on.
 /// </summary>
 public sealed class RowIdTests

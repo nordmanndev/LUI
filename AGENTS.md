@@ -1,62 +1,55 @@
 # AGENTS.md — LUI
 
-> **The working contract for this repository.** It inherits the
-> [`nordmanndev/standards`](https://github.com/nordmanndev/standards) contract
-> at commit `c63d696` (v2.5.5); this file states only the delta.
-> Where the two disagree, **the standards win** — unless the delta below says
-> otherwise, explicitly.
-
-LUI is a **NuGet library**. It is not an application, it has no domain, no
-tenants and no HTTP surface. The standards were written for applications, so
-this repository follows them where they fit a library and states the
-difference where they do not.
+> **The working rules of this repository.** They stand here, in full: a reader of
+> the repository needs nothing outside it to work on it.
+>
+> LUI is a **NuGet library**. It is not an application, it has no domain, no
+> tenants and no HTTP surface. The rules below are the rules of *this*
+> repository — of a library, and of this one.
 
 ## Read these next, in order
 
 1. [`README.md`](./README.md) — what LUI is, and what it is not
 2. [`.agents/README.md`](./.agents/README.md) — the index of the **papers of the
-   work**: the specification, the decisions, the plans, the state
-3. [`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md) — **the
-   contract**. The implementation follows it; when code and spec disagree, the
-   spec wins and the difference becomes an ADR
-4. [`.agents/plan/2026-11-02-lui-repo-plan.md`](./.agents/plan/2026-11-02-lui-repo-plan.md)
-   — the delivery plan, one pull request per step
-5. [`docs/normalization.md`](./docs/normalization.md) — the normalisation
-   rule, and what was *measured* about the half of it that lives inside SQLite
-6. [`docs/architecture/alignment.md`](./docs/architecture/alignment.md) — which
-   standards rules apply here, and which do not
-7. [`.agents/adr/`](./.agents/adr/) — the decisions, and why
-8. [`docs/api.md`](./docs/api.md) — the public API, described member by member;
+   work**: the decisions, the plans, the state
+3. [`.agents/adr/`](./.agents/adr/) — the decisions, and why. **They are the
+   contract of the library** (ADR-0061): where the code and a decision disagree,
+   the difference becomes a new ADR
+4. [`docs/api.md`](./docs/api.md) — the public API, described member by member;
    a test holds it up against the assemblies
-
-## Project-level deltas
-
-The standards' five non-negotiable rules, and how they read here:
-
-| Standards rule | In LUI |
-|---|---|
-| DDD + CQS + multi-tenant + SQLite | **SQLite yes.** DDD, CQS and multi-tenancy do not apply — a library has no aggregates and no tenants. LUI opens *one* database per catalog; the application owns its tenancy. |
-| Test pyramid: unit + architecture + integration | **Applies in full.** xUnit + Shouldly + NetArchTest, three test projects (`Nordmann.LUI.Unit.Tests`, `Nordmann.LUI.Architecture.Tests`, `Nordmann.LUI.Integration.Tests`) plus the shared `Nordmann.LUI.Testing`; the sample has its own `samples/Lui.Sample.Tests`, beside it. The map of the tests is [`docs/testing.md`](./docs/testing.md) — and it is a guard, not a document (ADR-0019). |
-| Optimistic concurrency on every aggregate | **Does not apply.** LUI has no aggregates. The concurrency that matters here is SQLite's: one writer per file, WAL for parallel readers. |
-| Outbox dispatch atomicity | **Does not apply.** LUI has no events. Its one atomicity rule is the opposite direction: content and search index change in **one SQLite transaction** (external content + triggers). |
-| Static types for tag/header names | **Does not apply.** LUI speaks no protocol tags; it speaks SQLite column names, and those are validated against a pattern before they reach SQL. |
-| Browser HTTP boundary is single-direction | **Does not apply.** LUI ships no browser code. The sample's page is plain ES modules with one fetch boundary. |
-| `Alpine.start()` lives in exactly one file | **Does not apply** to the library. The sample uses no framework at all — see ADR-0002. |
+5. [`.agents/plan/2026-11-02-lui-repo-plan.md`](./.agents/plan/2026-11-02-lui-repo-plan.md)
+   — the delivery plan, one pull request per step
+6. [`docs/normalization.md`](./docs/normalization.md) — the normalisation
+   rule, and what was *measured* about the half of it that lives inside SQLite
+7. [`docs/architecture/alignment.md`](./docs/architecture/alignment.md) — what
+   applies to a library, and what does not
+8. [`docs/testing.md`](./docs/testing.md) — the map of the tests: which test
+   holds which rule up. It is a guard, not a document (ADR-0019)
 
 ## Always / Never / Ask
 
 - ✅ Always keep `.agents/adr/` current: a decision that changes the public API,
   the schema or the dependency set gets an ADR **in the same pull request**.
-- ✅ Always update `CHANGELOG.md` when the public API changes.
+  Where the code and a decision disagree, the difference becomes an ADR, and
+  the ADR is the newer truth (ADR-0061).
+- ✅ Always update `CHANGELOG.md` when the public API changes — with a
+  **migration note**, not a line of prose.
 - ✅ Always update [`docs/api.md`](./docs/api.md) when the public API changes: a
   public type that is not on the page fails the build
   (`PublicApiDocumentationTests`).
-- ✅ Always measure: a performance claim without a measurement is a rumour.
-  The budgets live in [`docs/benchmarks.md`](./docs/benchmarks.md).
+- ✅ Always measure: a performance claim without a measurement is a rumour. The
+  **budgets live in one file** —
+  [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
+  (ADR-0056) — and the measured values live in the record,
+  [`docs/benchmarks.md`](./docs/benchmarks.md), beside the machine they were
+  measured on.
 - ✅ Always run `dotnet test` **and** `dotnet pack` before opening a pull request.
+- ✅ Always write a test **red first**: a test that was never seen failing
+  proves nothing. The guards of the repository are no exception —
+  `tools/mutation-check.sh` mutates them and expects them to bite.
 - ❌ Never edit `Directory.Build.props` or `Directory.Packages.props` without an
-  ADR (the standards' rule; here it bites hardest, because the dependency set
-  *is* the package's contract).
+  ADR — here it bites hardest, because the dependency set *is* the package's
+  contract.
 - ❌ Never let the README show an API the code does not have. Every C# block
   in the README is compiled and executed by the package smoke test.
 - ❌ Never break the public API from the tag `v0.1.0` on without a new minor version, a migration note in `CHANGELOG.md`
@@ -73,31 +66,52 @@ The standards' five non-negotiable rules, and how they read here:
 - ❌ Never let the library change the schema of a `Linked` index's host table on
   its own: no column, no index, no trigger unless the application calls for one
   (owner's decision, ADR-0015).
+- ❌ Never lower a promise quietly. A budget that is missed is measured again and
+  decided again, with an ADR and a record — it is not lowered in passing
+  (ADR-0020, ADR-0040).
+- ❌ Never leave a test file out of the map of the tests
+  ([`docs/testing.md`](./docs/testing.md)): an unlisted test file fails the
+  build (`TestLandscapeTests`).
+- ❌ Never point at a document that is gone. The specification was deleted
+  (ADR-0061): every reference to one of its sections points at the ADR or the
+  page that carries the same rule, and a reference to a deleted document fails
+  the build (`SpecificationIsGoneTests`).
+- ❌ Never commit anonymously: every commit carries the identity of its author —
+  `Mavis <noreply@minimax.io>` for the work of the agent, the owner's own
+  identity for the owner's commits.
 - ❓ Ask before: changing the schema of a `Linked` index's host table, raising
   the candidate budget above 500, changing the normalisation rule, or
   publishing a release.
 
 ## The workflow
 
-Work is **issue-driven**, one pull request per issue, the standards' way.
-The steps of the delivery plan are the first issues; each one carries its own
-acceptance criteria and its own ADR(s).
+Work is **issue-driven**, one pull request per issue.
 
 Every pull request has:
 
 1. a **Verification** section with the *test output*, not the words "I ran the
    tests";
 2. the tests that changed — a new rule without a new test does not exist;
-3. a `CHANGELOG.md` entry if the public API moved.
+3. a `CHANGELOG.md` entry if the public API moved;
+4. a commit whose subject says what the change is, and whose body says **why**:
+   `<type>(<scope>): <subject> (#<issue>, ADR-<number>)`.
+
+The branches of the series target `dev`; `dev` → `main` is a release pull
+request with its own review.
 
 ## The one rule that is specific to this repository
 
-**The specification is the contract, and the specification is in this
-repository.** [`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md)
-is the source of truth for behaviour, schema and API shape. Code that
-contradicts it is a bug in the code — unless an ADR says the spec is wrong,
-in which case the ADR is the newer truth and the spec gets corrected in the
-same pull request.
+**The truth of this repository is in this repository.** The decisions live in
+[`.agents/adr/`](./.agents/adr/) with their reason, the behaviour of the library
+is written down in the ADR that carries it and on the
+[API page](./docs/api.md), and the budgets live in one file
+([`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json),
+ADR-0056). No document outside the repository is part of it — a reader who has
+only the repository knows everything a change needs to know.
+
+Where the code and a decision disagree, the difference becomes an ADR, and the
+ADR is the newer truth. A decision that changes gets a new ADR: the old record
+stays and says that it was superseded.
 
 ## Session start
 

@@ -1,22 +1,31 @@
 # 0005 — The normalisation rule is measured, not derived
 
+> **Note (ADR-0057, 2026-11-12, issue #121):** the quotation of ADR-0005 of the specification was
+> translated into English. The specification is German and stays German until it is deleted in pull request 8; the
+> decision stands as it was written; the text below is history.
+
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
 - **Affects:** `src/Nordmann.LUI/Normalization/`, `docs/normalization.md`,
-  `.agents/spec/LUI-Spezifikation.md` §6.1 and §6.2, `tools/FoldTableGenerator/`,
+  ADR-0005 and ADR-0005, `tools/FoldTableGenerator/`,
   `.agents/plan/2026-11-02-lui-repo-plan.md`
 
 ## Context
 
 The normalisation rule exists **twice**: as SQL expressions in the index
-columns and as the C# `Normalizer`. The specification (§6.2) says so and
+columns and as the C# `Normalizer`. The specification (ADR-0005) says so and
 demands a test:
 
-> Die Regel existiert damit zweimal. Ein Test muss für eine große Stichprobe
-> … zeigen, dass SQL und C# dieselbe Suchform liefern.
+> The rule therefore exists twice. A test must show over a large sample
+> … that SQL and C# deliver the same search form.
 
-The rule itself (§6.1) is written in three steps:
+The rule itself (ADR-0005) is written in three steps:
 
 1. lower case,
 2. German transliteration (`ä→ae`, `ö→oe`, `ü→ue`, `ß→ss`),
@@ -96,7 +105,7 @@ sides work from the **same explicit list**: the ASCII punctuation, the
 control characters that separate words, and the Unicode spaces, dashes,
 quotes, the middle dot, the bullet and the guillemets.
 
-**This is a deviation from §6.1's wording**, and it is deliberate: the two
+**This is a deviation from ADR-0005's wording**, and it is deliberate: the two
 sides have to agree *exactly*, or the C# compact form (which strips after
 the folding) and the SQL compact column (which strips before it) would
 differ, and a query would stop finding what it should.
@@ -117,7 +126,7 @@ older table is detected and the application is told to `Rebuild()`.
 
 ## Consequences
 
-- **The spec's §6.1 is superseded on two points**: the accent removal is not
+- **The spec's ADR-0005 is superseded on two points**: the accent removal is not
   "Unicode decomposition" but SQLite's own table, and the compact form
   removes an explicit list rather than "everything except letters and
   digits". Both differences are recorded here and in

@@ -2,7 +2,7 @@
 
   <!--
     The unit tests: the rules of the library on their own, without a database.
-    They read the source of the library and the tables of the specification —
+    They read the source of the library and the tables of the ADRs —
     a change to the normalisation rule or to the ranking is visible here in
     seconds, without a file, a connection or a schema.
   -->
@@ -29,6 +29,12 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Nordmann.LUI/Nordmann.LUI.csproj" />
+    <!--
+      The shared infrastructure, for the rules of the budget (ADR-0058): the logic of a
+      target belongs to the rules, and a rule is tested here. The layer opens no
+      database — the guard of TestLandscapeTests reads this source and says so.
+    -->
+    <ProjectReference Include="../Nordmann.LUI.Testing/Nordmann.LUI.Testing.csproj" />
   </ItemGroup>
 
   <ItemGroup>

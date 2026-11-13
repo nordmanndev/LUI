@@ -1,7 +1,7 @@
 namespace Nordmann.LUI.Schema;
 
 /// <summary>
-/// The table of the application a <c>Linked</c> index searches, and its columns (LUI-Spezifikation §7.3,
+/// The table of the application a <c>Linked</c> index searches, and its columns (ADR-0015,
 /// ADR-0015). Part of the definition: a link to another table or another column is another index.
 /// <para>
 /// The columns of the payload are part of it too (ADR-0033): a linked index with a payload can only be opened

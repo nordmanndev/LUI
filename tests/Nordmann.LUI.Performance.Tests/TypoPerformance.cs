@@ -1,0 +1,189 @@
+using System.Diagnostics;
+
+namespace Nordmann.LUI.Performance.Tests;
+
+/// <summary>
+/// What the typo tolerance costs and how good it is on a large stock (ADR-0020: dictionary of
+/// 700,000 words ≤ 200 MB and ≤ 10 s, corrected query p95 ≤ 10 ms; docs/benchmarks.md).
+/// <code>dotnet test tests/Nordmann.LUI.Performance.Tests --filter TypoPerformance --logger "console;verbosity=detailed"</code>
+/// Needs <c>tools/fetch-wordlist.sh</c>.
+/// </summary>
+[Trait("Category", "Timing")]
+public sealed class TypoPerformance(ITestOutputHelper output)
+{
+    /// <summary>The scenario of this run (ADR-0058): the corpus, the prefix length and the settings.</summary>
+    private static PerformanceScenario Scenario => PerformanceScenario.Current;
+    [Fact]
+    public void The_dictionary_of_the_whole_word_list_and_the_corrected_queries()
+    {
+        var corpus = CorpusOf("query-corrected-p95");
+        List<string> words = [.. corpus.Texts.Where(w => w.Length >= 3 && w.All(char.IsLetter)).Distinct(StringComparer.Ordinal)];
+        if (Scenario.PrefixLength is { } limit)
+        {
+            words = [.. words.Take(limit)];
+        }
+
+        Report($"  {words.Count:N0} words of the corpus");
+
+        using var database = new TestDatabase();
+        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
+        var wordIndex = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+
+        var random = new Random(5);
+        using (var connection = catalog.Database.OpenConnection())
+        {
+            using var transaction = connection.BeginTransaction();
+            for (var i = 0; i < words.Count; i++)
+            {
+                wordIndex.Upsert(i + 1, words[i], random.Next(0, 1_000_000), transaction: transaction);
+            }
+
+            transaction.Commit();
+        }
+
+        Report($"index: {words.Count:N0} words");
+
+        // the warm-up builds the dictionary (ADR-0042): a query never does
+        GC.Collect();
+        var before = GC.GetTotalMemory(forceFullCollection: true);
+        var build = Stopwatch.StartNew();
+        wordIndex.WarmUpTypoDictionary();
+        build.Stop();
+        GC.Collect();
+        var after = GC.GetTotalMemory(forceFullCollection: true);
+        Report($"dictionary: built in {build.Elapsed.TotalSeconds:F1} s, {(after - before) / 1_048_576.0:F0} MB");
+
+        Quality(wordIndex, words, random);
+        Latency(wordIndex, words, random);
+    }
+
+    /// <summary>
+    /// What every distance costs (ADR-0054): the dictionary of the word beginnings keeps the <i>delete variants</i> of
+    /// SymSpell, and their number grows with the distance — so the distances are the ones that were measured, and the
+    /// numbers stand in <c>docs/typo-dictionary.md</c>.
+    /// <para>
+    /// One index and one database per distance, the three distances in <b>one run of the process</b>: the heap is read
+    /// with a forced collection before and after the build, so the dictionary of the previous distance is reclaimed
+    /// before the next one is measured. The memory is the machine-independent number; the time belongs to the machine
+    /// of the run (ADR-0041).
+    /// </para>
+    /// </summary>
+    [FullWordListFact]
+    public void What_every_distance_costs()
+    {
+        var corpus = CorpusOf("query-corrected-p95");
+        List<string> words = [.. corpus.Texts.Where(w => w.Length >= 3 && w.All(char.IsLetter)).Distinct(StringComparer.Ordinal)];
+        if (Scenario.PrefixLength is { } limit)
+        {
+            words = [.. words.Take(limit)];
+        }
+
+        Report($"  {words.Count:N0} words of the corpus");
+
+        foreach (var distance in new[] { LuiTypoDistance.None, LuiTypoDistance.OneError, LuiTypoDistance.TwoErrors })
+        {
+            using var database = new TestDatabase();
+            using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
+            var wordIndex = catalog.Create("words", index => index.SingleWord().TypoTolerance(distance));
+
+            var random = new Random(5);
+            using (var connection = catalog.Database.OpenConnection())
+            {
+                using var transaction = connection.BeginTransaction();
+                for (var i = 0; i < words.Count; i++)
+                {
+                    wordIndex.Upsert(i + 1, words[i], random.Next(0, 1_000_000), transaction: transaction);
+                }
+
+                transaction.Commit();
+            }
+
+            // the warm-up builds the dictionary (ADR-0042): a query never does
+            GC.Collect();
+            var before = GC.GetTotalMemory(forceFullCollection: true);
+            var build = Stopwatch.StartNew();
+            wordIndex.WarmUpTypoDictionary();
+            build.Stop();
+            GC.Collect();
+            var after = GC.GetTotalMemory(forceFullCollection: true);
+
+            Report($"distance {distance,-9}: dictionary {wordIndex.TypoDictionaryState,-9}, built in {build.Elapsed.TotalSeconds:F1} s, {(after - before) / 1_048_576.0:F0} MB");
+        }
+    }
+
+    private void Quality(ILuiEmbeddedIndex index, List<string> words, Random random)
+    {
+        foreach (var length in new[] { 4, 5, 6, 7 })
+        {
+            var cases = words.Where(w => w.Length >= length).OrderBy(_ => random.Next()).Take(400).ToList();
+            int clean = 0, typo = 0;
+            foreach (var word in cases)
+            {
+                var beginning = word[..length].ToLowerInvariant();
+                clean += Found(index, beginning, word, false) ? 1 : 0;
+                typo += Found(index, TypoMaker.WithOneTypo(beginning, random), word, true) ? 1 : 0;
+            }
+
+            Report($"  {length} letters: right {100.0 * clean / cases.Count:F0} %, with a typo {100.0 * typo / cases.Count:F0} % of {cases.Count} (Hit@20), ratio {100.0 * typo / Math.Max(1, clean):F0} %");
+        }
+    }
+
+    private void Latency(ILuiEmbeddedIndex index, List<string> words, Random random)
+    {
+        var inputs = Enumerable.Range(0, 1_000).Select(_ =>
+        {
+            var word = words[random.Next(words.Count)];
+            var length = Math.Min(word.Length, random.Next(5, 10));
+            return TypoMaker.WithOneTypo(word[..length].ToLowerInvariant(), random);
+        }).ToList();
+
+        foreach (var input in inputs.Take(200))
+        {
+            index.Query(input).Execute();
+        }
+
+        var latencies = new List<double>();
+        var allocations = new List<double>();
+        var corrected = 0;
+        foreach (var input in inputs)
+        {
+            var allocated = GC.GetAllocatedBytesForCurrentThread();
+            var started = Stopwatch.GetTimestamp();
+            var result = index.Query(input).Execute();
+            latencies.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            allocations.Add(GC.GetAllocatedBytesForCurrentThread() - allocated);
+            corrected += result.CorrectedQuery is null ? 0 : 1;
+        }
+
+        latencies.Sort();
+        allocations.Sort();
+        Report($"corrected queries: p50 {latencies[latencies.Count / 2]:F2} ms, p95 {latencies[(int)(latencies.Count * 0.95)]:F2} ms, max {latencies[^1]:F1} ms; "
+            + $"alloc p50 {allocations[allocations.Count / 2] / 1024:F0} KB, p95 {allocations[(int)(allocations.Count * 0.95)] / 1024:F0} KB; corrected {corrected} of {inputs.Count}");
+    }
+
+    private static bool Found(ILuiEmbeddedIndex index, string typed, string word, bool typoTolerance) =>
+        index.Query(typed).Take(20).TypoTolerance(typoTolerance).Execute().Hits
+            .Any(h => string.Equals(h.Text, word, StringComparison.Ordinal));
+
+    /// <summary>
+    /// The corpus of the measurement: the file that the budget of its target names (ADR-0056). The
+    /// slice that the measurement takes is the one of the budget, cut to the number of entries of the
+    /// run. Which corpus it was stands in the report — two measurements on two corpora are no
+    /// comparison.
+    /// </summary>
+    /// <param name="budgetId">The id of the budget whose target is measured.</param>
+    /// <returns>The corpus of the run.</returns>
+    private Corpus CorpusOf(string budgetId)
+    {
+        var corpus = Scenario.CorpusOf(budgetId, out var name);
+        Report(Scenario.Describe(name, corpus.Count, LuiBudgets.By(budgetId).Scenario.PrefixLength));
+        Report($"  {Environment.ProcessorCount} cores, .NET {Environment.Version}");
+        return corpus;
+    }
+
+    private void Report(string line)
+    {
+        output.WriteLine(line);
+        Console.Error.WriteLine("[perf] " + line);
+    }
+}

@@ -4,7 +4,7 @@ using Nordmann.LUI.Normalization;
 namespace Nordmann.LUI.Schema;
 
 /// <summary>
-/// The rules of a multi-word index (LUI-Spezifikation §4): names and titles. A multi-word index is read
+/// The rules of a multi-word index (ADR-0014): names and titles. A multi-word index is read
 /// compactly everywhere — the words are the runs between separators, the search index holds
 /// <c>s_compact</c> alone (ADR-0011), and the prefix columns hold the first letters of the compact text:
 /// spaces and punctuation do not count (review of pull request 8).
@@ -16,7 +16,7 @@ internal sealed class MultiWordRules : IndexKindRules
     /// <summary>
     /// The most words that go into the expression: the longest ones. Every word is a phrase with posting
     /// lists of its own, and a hundred words must not be a hundred lists to walk; the others count in the
-    /// ranking through the compact form (§8.2).
+    /// ranking through the compact form (ADR-0008).
     /// </summary>
     private const int MaxExpressionWords = 8;
 
@@ -32,10 +32,10 @@ internal sealed class MultiWordRules : IndexKindRules
     // title a second time (ADR-0011)
     internal override string IndexedColumn => "s_compact";
 
-    // no spaces, no punctuation, no '#' (§4: „spaces do not matter")
+    // no spaces, no punctuation, no '#' (ADR-0014: „spaces do not matter")
     internal override string PrefixSource => "s_compact";
 
-    // the separators stripped from the transliterated text (§6.1); the tokenizer folds it, as it folds s_norm
+    // the separators stripped from the transliterated text (ADR-0005); the tokenizer folds it, as it folds s_norm
     internal override string? CompactColumnDefinition =>
         $"s_compact TEXT GENERATED ALWAYS AS ({SqlNormalizer.Compact("s_norm")}) STORED";
 
@@ -83,9 +83,9 @@ internal sealed class MultiWordRules : IndexKindRules
     /// <summary>
     /// The words of three or more characters, each a phrase, ANDed in <c>s_compact</c> — the only column of
     /// the search index (ADR-0011). Shorter words stay out of the expression, they count in the ranking
-    /// (§8.2). With no word of three characters the whole input is one compact phrase.
+    /// (ADR-0008). With no word of three characters the whole input is one compact phrase.
     /// <para>
-    /// §8.2 asked for <c>(s_norm : (w1 AND w2)) OR (s_compact : "w1w2")</c>. A title that holds a word in
+    /// ADR-0008 asked for <c>(s_norm : (w1 AND w2)) OR (s_compact : "w1w2")</c>. A title that holds a word in
     /// <c>s_norm</c> holds it in <c>s_compact</c> too (the separators are taken out between the letters,
     /// never inside a word), and a title that holds <c>w1w2</c> holds both words — so the one phrase
     /// per word finds all of it. The only titles it adds are those whose words run across a boundary of

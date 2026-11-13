@@ -11,14 +11,13 @@ labels: ["type:task", "status:queued"]
 ## Context
 
 <!--
-Why is this task needed now? Link the parent issue. Name the part of the
-specification (.agents/spec/LUI-Spezifikation.md) it implements, and the ADRs it
-touches.
+Why is this task needed now? Link the parent issue. Name the decisions
+(ADRs) it implements, and the ones it touches.
 -->
 
 **Parent issue:** #<number> (or "none — standalone task")
 
-**Specification section:** §<number> (or "none")
+**ADRs:** ADR-<number>, ADR-<number> (or "none")
 
 **Affected area(s):**
 - [ ] `src/Nordmann.LUI/`

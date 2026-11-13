@@ -1,7 +1,7 @@
 namespace Nordmann.LUI;
 
 /// <summary>
-/// What the keys of an index are (LUI-Spezifikation §12.3, ADR-0035): numbers or texts. The file stores both as text; the
+/// What the keys of an index are (ADR-0035, ADR-0035): numbers or texts. The file stores both as text; the
 /// kind is part of the definition, and a key of the other kind is refused on the write.
 /// </summary>
 public enum LuiKeyKind

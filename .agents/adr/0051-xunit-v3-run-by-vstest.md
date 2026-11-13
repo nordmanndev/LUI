@@ -9,7 +9,7 @@
   - `Directory.Packages.props`: `xunit` 2.9.3 → `xunit.v3` 4.0.2; `xunit.runner.visualstudio` 3.1.5 → 4.0.1
   - the four test projects: `OutputType` `Exe`, `IsTestingPlatformApplication` `false`
   - `.editorconfig` (xUnit1051 in the tests)
-  - `SampleHost`, the two gate attributes, `TestGates` (new)
+  - `SampleHost`, the gate attribute of the whole word list, `WordListGate` (new)
   - the waits of the tests (the token of the test)
   - `docs/testing.md`
 - **Issue:** #79 (epic #72). The owner's decision of 2026-11-09: the CI stays on VSTest for now.
@@ -43,11 +43,12 @@ Moving the CI to MTP would change a lot at once:
 - Moving to MTP is a step of its own, when there is a reason for it.
 
 **The gates are dynamic skips.**
-- `[PerformanceFact]` and `[FullWordListFact]` set `Skip` together with `SkipType = typeof(TestGates)` and `SkipUnless = nameof(…)`.
-- v3 asks `TestGates.MeasurementsRun` and `TestGates.FullWordListRuns` when the test is about to run. The reason stands in the report.
+- `[FullWordListFact]` sets `Skip` together with `SkipType = typeof(WordListGate)` and `SkipUnless = nameof(…)`.
+- v3 asks `WordListGate.FullWordListRuns` when the test is about to run. The reason stands in the report.
 - The rule of ADR-0019 holds:
-  - with `LUI_REQUIRE_FULL_WORDLIST=1` and no list, the parity runs and fails with the reason;
-  - without the variable and without the list, it is skipped and says why.
+  - the lane of the parity fetches the whole word list first, and the fetch fails loudly when it is not the list of
+    685,829 lines (ADR-0058);
+  - without the list, the test is skipped and says why.
 - The attributes pass the source position to the base (`[CallerFilePath]`, `[CallerLineNumber]`; analyzer xUnit3003).
 
 **The shapes of v3.**
@@ -70,15 +71,16 @@ Moving the CI to MTP would change a lot at once:
 
 - **The same tests.** The names, listed before and after, are the same in every project. Three lines differ only in the display of the arguments of a theory, which v3 shortens at another length (`"s_compact : (\"near\" AND \"apfel\" AND \"kuchen\""···` against the whole string).
 - **The gates, at run time:**
-  - without `LUI_PERF` the measurement is skipped, and the report says `Measurement: set LUI_PERF=1 …`;
-  - with `LUI_PERF=1 LUI_PERF_ENTRIES=2000` it runs and passes;
+  - the measurement of the tree lives in its own layer (ADR-0058); the report of a skipped test says why;
+  - a run of the measurement layer with a scenario of 2,000 entries runs and passes (measured on 2026-11-12: 8 passed,
+    2 skipped — the two that need the whole word list);
   - `LUI_WORDLIST=/nonexistent/…` alone skips the parity with `The full word list is not present (…)`;
-  - with `LUI_REQUIRE_FULL_WORDLIST=1` added, the parity fails.
+  - the lane of the parity fetches the list, and the fetch fails the lane when the list is not the right one.
 - **The hang dump still reaches the test.** v3 runs the test in a process of its own. A probe test that sleeps for ever, run with the flags of the CI (`--blame-hang-timeout 20s --blame-hang-dump-type full`), aborted with "Collecting hang dumps from testhost and its child processes". It left two dumps: one of `dotnet`, the test host, and one of `Nordmann.LUI.Unit.Tests`, the process where the test hung.
 
 ## Consequences
 
-- A gate is a property of `TestGates`. A new gate is a new property, read when the test runs.
+- A gate is a property of a gate class. A new gate is a new property, read when the test runs.
 - The test projects can also be started on their own (`dotnet run --project tests/Nordmann.LUI.Unit.Tests`). The CI does not do that.
 - `xunit.v3` brings MTP 2.5.1 with it, including its telemetry extension, as a dependency of the tests only. Nothing of it reaches the packages (`RepositoryLayoutTests`).
 - Dependabot's group `xunit*` covers `xunit.v3`.
@@ -88,3 +90,14 @@ Moving the CI to MTP would change a lot at once:
 - **MTP now** (the issue's "the CI on the new runner"). Not now, by the owner's decision. The cost is in the context above, and it would take several CI rounds. It is a step of its own.
 - **`Assert.Skip` in the body of every gated test.** Rejected: the gate belongs to the attribute that names it. The body of a measurement would carry a line that is not the measurement.
 - **The token of the test in every call (xUnit1051 as an error).** Rejected: about 475 tokens in tests that are not about cancellation. The token goes where a test waits.
+
+## Note (2026-11-12, issue #122)
+
+ADR-0058 takes the gate of the measurements away — the measurement has a layer of its own, and the layer is the gate.
+The gate of the whole word list stays a dynamic skip, and its guard is the fetch of the list. The class that held both
+gates is now `WordListGate`; it lost the property of the measurements, and `TestGates` is the name it had before.
+
+The decision stands; the sentences above that named a variable of the environment that died, the name of a gate that
+is gone (`PerformanceFact`, `TestGates`) or a path of the file of the measurements (`PerformanceBudgets.cs`,
+`BudgetPerformance.cs`) are rewritten — each of them because the variable died with ADR-0058 and took the gate of the
+measurements with it, or because that file moved into the layer of the measurements.

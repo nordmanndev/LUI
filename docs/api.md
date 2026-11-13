@@ -28,19 +28,20 @@ using var catalog = LuiCatalog.Open("Data Source=app.db");
 |---|---|
 | `static LuiCatalog Open(string connectionString, LuiCatalogOptions? options = null)` | opens the catalog. It probes the SQLite it found (version, folding) and refuses a database it cannot search correctly. |
 | `ILuiEmbeddedIndex Create(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)` | creates an **embedded** index — the content lives in the library's own table. It is the write path and belongs in the migration of the application. |
-| `ILuiLinkedIndex Create(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)` | creates a **linked** index — the content stays in the table of the application. |
+| `ILuiLinkedIndex CreateLinked(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)` | creates a **linked** index — the content stays in the table of the application. The route is named in the call, as it is on the side of opening (`Index` / `LinkedIndex`). |
 | `ILuiEmbeddedIndex Index(string name)` | opens an embedded index that exists, and **writes nothing**: the definition is read out of the file, no table, no write lock. |
 | `ILuiLinkedIndex LinkedIndex(string name)` | opens a linked index without payload columns. |
 | `ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)` | opens a linked index with payload columns; the map builds the payload from the row of the table. |
 | `void WarmUpTypoDictionaries(CancellationToken cancellationToken = default)` | builds the typo dictionary of **every** index of the catalog — the warm-up of a host in one call (ADR-0043). The dictionary belongs to the index of the catalog: an index you open later sees it and reports it as built. |
-| `void WarmUpTypoDictionaries(IEnumerable<string> names, CancellationToken cancellationToken = default)` | the same for the **named** indexes — a dictionary costs memory (138 MB for 685,829 words), and an index whose queries correct no typos needs none. Every name is checked before the first build: an unknown one is a `LuiIndexNotFoundException`. |
+| `void WarmUpTypoDictionaries(IEnumerable<string> names, CancellationToken cancellationToken = default)` | the same for the **named** indexes — a dictionary costs memory (138 MB for 685,739 words), and an index whose queries correct no typos needs none. Every name is checked before the first build: an unknown one is a `LuiIndexNotFoundException`. |
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the outbox of **every** linked index: the rows the triggers noted come into the index. The table of the application is not touched. Returns the number of rows brought in. |
 | `bool DropIndex(string name, bool dropTriggers = false)` | drops the index. The triggers of a linked index are dropped with it only if you say so. |
 | `string ConnectionString { get; }` | the connection string the catalog was opened with. |
 | `void Dispose()` | closes the catalog. It holds the connection pool; the indexes hold no resource of their own. |
 
-`Create` is **idempotent**: it creates the index if it is missing, and compares the stored definition with the one that
-was described if it is there. A difference is a `LuiDefinitionMismatchException` — never a silent change.
+`Create` and `CreateLinked` are **idempotent**: they create the index if it is missing, and compare the stored
+definition with the one that was described if it is there. A difference is a `LuiDefinitionMismatchException` — never a
+silent change.
 
 `Index` and `LinkedIndex` are the read path. They never write, whatever the file allows afterwards: the file decides
 what may happen.
@@ -65,8 +66,8 @@ write throws a `LuiReadOnlyException`.
 
 ## Creating an index — the description
 
-The builder chain is a **parameter** of `Create`, not the way in: the catalog takes a description and does the creating
-itself. Every builder method returns the builder, so the chain reads as one sentence.
+The builder chain is a **parameter** of `Create` and of `CreateLinked`, not the way in: the catalog takes a description
+and does the creating itself. Every builder method returns the builder, so the chain reads as one sentence.
 
 ### `LuiIndexKindBuilder` — the kind of the index
 
@@ -83,7 +84,7 @@ itself. Every builder method returns the builder, so the chain reads as one sent
 | `LuiLinkedIndexBuilder LinkTo(string table, string key, string text, string? weight = null, string? priority = null)` | turns the description into a linked one: the table of the application, its `INTEGER PRIMARY KEY`, the column with the text, and — optional — the columns with the weight and the priority |
 | `LuiEmbeddedIndexBuilder Similarity(ILuiSimilarity similarity)` | the measure of the ranking. The default of the kind is used when it is left out. |
 | `LuiEmbeddedIndexBuilder GermanTransliteration(bool enabled)` | `ä` → `ae`, `ü` → `ue`, `ß` → `ss`. On by default. |
-| `LuiEmbeddedIndexBuilder TypoTolerance(bool enabled = true)` | one typo forgiven. Off by default — the dictionary costs 138 MB for 685,829 words. |
+| `LuiEmbeddedIndexBuilder TypoTolerance(LuiTypoDistance distance = LuiTypoDistance.OneError)` | how many errors are forgiven: `None`, `OneError` or `TwoErrors`. Off by default — the dictionary of the word beginnings costs 138 MB for 685,739 words with one error (the list of the repository has 685,829 words; the measurement uses the ones of three letters or more, without a digit), and more with two ([`docs/typo-dictionary.md`](./typo-dictionary.md)). The distance is part of the stored definition: an index that is opened again forgives what it forgave before. |
 | `ILuiEmbeddedIndex Create()` | creates the index. The catalog calls this; an application does not. |
 
 ### `LuiLinkedIndexBuilder`
@@ -108,7 +109,7 @@ operation borrows a connection from the pool of the catalog for the time it take
 | `string Name { get; }` | the name of the index |
 | `LuiIndexKind Kind { get; }` | `SingleWord` or `MultiWord` |
 | `LuiKeyKind KeyKind { get; }` | `Number` or `Text` |
-| `bool TypoTolerance { get; }` | whether the index forgives a typo |
+| `LuiTypoDistance TypoDistance { get; }` | how many errors the index forgives: `None`, `OneError` or `TwoErrors`. It belongs to the index, not to the query — a query switches the correction on or off (`Query(text).TypoTolerance(…)`), but it cannot widen the distance. |
 | `LuiTypoDictionaryState TypoDictionaryState { get; }` | `NotBuilt`, `Building` or `Current` |
 | `long Count()` | the number of the entries |
 | `LuiQuery Query(string text)` | a query that is configured step by step and then executed |
@@ -206,9 +207,8 @@ The query that is configured step by step. Every method returns the query, and `
 | `LuiQuery Candidates(int candidates)` | how many candidates the query looks at. 1 to 100,000, the default 500. |
 | `LuiQuery Rank(LuiRankingOrder order)` | the order of the hits |
 | `LuiQuery PriorityMode(LuiPriorityMode mode)` | `First` (the default) puts the priority before everything; `CandidatesOnly` uses it while the candidates are collected |
-| `LuiQuery DistinctText(bool distinct = true)` | the same text only once in the hits |
 | `LuiQuery Similarity(ILuiSimilarity similarity)` | the measure of the ranking, for this query |
-| `LuiQuery TypoTolerance(bool enabled = true)` | forgives a typo in this query — over the setting of the index |
+| `LuiQuery TypoTolerance(bool enabled = true)` | forgives a typo in this query — but only within the distance of the index: a query cannot widen it, and a distance of `None` forgives nothing |
 | `LuiQuery TrackTimings(bool track = true)` | measures the phases of the query |
 | `LuiResult Execute(CancellationToken cancellationToken = default)` | runs the query |
 
@@ -223,13 +223,28 @@ The same settings as a record — for the configuration of an application, for a
 | `int Candidates` | 500 (1 to 100,000, `LuiQueryOptions.CandidatesLimit`) |
 | `LuiRankingOrder Rank` | `WordStartThenSimilarity` |
 | `LuiPriorityMode PriorityMode` | `First` |
-| `bool DistinctText` | `false` |
 | `ILuiSimilarity? Similarity` | the default of the kind of the index |
-| `bool? TypoTolerance` | `null` — the setting of the index |
+| `bool? TypoTolerance` | `null` — the distance of the index |
 | `bool TrackTimings` | `false` |
 
 Every value checks itself: a `MaxResults` of 0 or a `Rank` that is not defined throws `ArgumentOutOfRangeException`
 before the query runs.
+
+**One hit per entry — the uniqueness of a text belongs to the data.** Two entries that hold the same text in two
+spellings — "vegan" and "Vegan" — are two hits: the library does not hide the second one, because it cannot know
+which of them the application means. Where the uniqueness is stated depends on the kind of the index (ADR-0055):
+
+- **`Embedded`** — the entries live in the table of the library, and that table holds the **transliterated** text in
+  the generated column `s_norm` — case and diacritics untouched. The **folded** text, the one the tokenizer compares,
+  lives inside the search index, and the **search form** of the C# side is computed by an internal helper: the fold is
+  not part of the public API. A constraint over `s_norm` does not catch "vegan" and "Vegan", and `lower(s_norm)` is an
+  ASCII approximation of the fold, not the fold — see [the normalisation](normalization.md).
+- **`Linked`** — the table is the application's own, and so is the constraint: over the application's own column, with
+  the application's own rule. The same caveat holds, because the library builds its search index over the raw column
+  of the table.
+
+In both cases the rule is the application's own: **the application keeps its own text unique, in its own data, over
+its own column, with its own rule** — a rule that is not the fold of the library.
 
 ### `LuiResult`
 
@@ -289,7 +304,7 @@ var first = catalog.Index("tags").Query("veg").Take(5).Execute().As<TagChip>().H
 | Type | What it is |
 |---|---|
 | `LuiIndexExtensions` | the class that holds `As<TPayload>()` — an extension method, so the type stays out of the index |
-| `LuiTypedIndex<TPayload>` | the view of an index: `Name`, `Kind`, `KeyKind`, `TypoTolerance`, `TypoDictionaryState`, `Count()` and `Search(...)` |
+| `LuiTypedIndex<TPayload>` | the view of an index: `Name`, `Kind`, `KeyKind`, `TypoDistance`, `TypoDictionaryState`, `Count()` and `Search(...)` |
 | `LuiTypedResult<TPayload>` | the answer: `Query`, `Hits`, `CandidatesConsidered`, `Truncated`, `CorrectedQuery`, `CorrectionSkipped`, `Timings` |
 | `LuiTypedHit<TPayload>` | the hit: `Key`, `Text`, `Weight`, `Priority`, `Similarity`, `AtWordStart`, `HasPayload`, `GetPayload()` and `TryGetPayload(out TPayload payload)` |
 
@@ -408,6 +423,7 @@ The four measures of the library — all of them its own, without a dictionary p
 | `LuiRankingOrder` | `WordStartThenSimilarity`, `WordStartThenWeight`, `SimilarityOnly`, `WeightOnly` | the order of the hits |
 | `LuiTriggerState` | `None`, `Current`, `Stale` | the state of the triggers of a linked index |
 | `LuiTypoDictionaryState` | `NotBuilt`, `Building`, `Current` | the state of the dictionary of the typos |
+| `LuiTypoDistance` | `None`, `OneError`, `TwoErrors` | how many errors an index forgives. An enumeration and not a number: the dictionary of the word beginnings grows with every additional error, so the distances are the ones that were measured ([`docs/typo-dictionary.md`](./typo-dictionary.md)) |
 
 ---
 
@@ -475,7 +491,7 @@ The warm-up is a service of the host, not a thread of the library: the host star
 
 ## The whole surface
 
-Forty-two public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing else is public.
+Forty-three public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|
@@ -514,6 +530,7 @@ Forty-two public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing
 | `LuiRankingOrder` | enum | [the enumerations](#the-enumerations) |
 | `LuiTriggerState` | enum | [the enumerations](#the-enumerations) |
 | `LuiTypoDictionaryState` | enum | [the enumerations](#the-enumerations) |
+| `LuiTypoDistance` | enum | [the enumerations](#the-enumerations) |
 | `LuiException` | class | [the exceptions](#the-exceptions) |
 | `LuiEnvironmentException` | class | [the exceptions](#the-exceptions) |
 | `LuiDefinitionMismatchException` | class | [the exceptions](#the-exceptions) |

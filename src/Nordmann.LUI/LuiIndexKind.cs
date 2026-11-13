@@ -3,7 +3,7 @@ namespace Nordmann.LUI;
 /// <summary>
 /// How an index is searched. The kind is fixed when the index is created and
 /// steers the query intrinsically: the caller does not have to know how the
-/// search is done (LUI-Spezifikation §4).
+/// search is done (ADR-0014).
 /// </summary>
 public enum LuiIndexKind
 {

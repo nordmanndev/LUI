@@ -4,7 +4,7 @@ using Nordmann.LUI.Testing;
 namespace Nordmann.LUI.Benchmarks;
 
 /// <summary>
-/// A single write in a transaction of its own (§16: p95 ≤ 1 ms): the weight of an entry, an upsert of an entry as it is
+/// A single write in a transaction of its own (ADR-0020: p95 ≤ 1 ms): the weight of an entry, an upsert of an entry as it is
 /// — which leaves the search index alone —, and an upsert with another text — which writes it.
 /// </summary>
 [MemoryDiagnoser]
@@ -18,26 +18,26 @@ public class WriteBenchmarks
     public int Entries { get; set; }
 
     [GlobalSetup]
-    public void Setup() => _fixture = new IndexFixture(CorpusKind.SingleWord, Entries);
+    public void Setup() => _fixture = new IndexFixture(QuerySettings.CorpusWords, Entries);
 
     [GlobalCleanup]
     public void Cleanup() => _fixture?.Dispose();
 
     [Benchmark]
-    public bool UpdateWeight() => _fixture!.Index.UpdateWeight(Key(), _next & 0xFFFF);
+    public bool UpdateWeight() => _fixture!.Embedded.UpdateWeight(Key(), _next & 0xFFFF);
 
     [Benchmark]
     public void UpsertTheSame()
     {
         var key = Key();
-        _fixture!.Index.Upsert(key, _fixture.Corpus.Texts[(int)key - 1], _fixture.Corpus.Weights[(int)key - 1]);
+        _fixture!.Embedded.Upsert(key, _fixture.Corpus.Texts[(int)key - 1], _fixture.Corpus.Weights[(int)key - 1]);
     }
 
     [Benchmark]
     public void UpsertAnotherText()
     {
         var key = Key();
-        _fixture!.Index.Upsert(key, _fixture.Corpus.Texts[(int)(key % _fixture.Corpus.Count)], _fixture.Corpus.Weights[(int)key - 1]);
+        _fixture!.Embedded.Upsert(key, _fixture.Corpus.Texts[(int)(key % _fixture.Corpus.Count)], _fixture.Corpus.Weights[(int)key - 1]);
     }
 
     /// <summary>The keys in a stride through the corpus: every write meets another entry.</summary>

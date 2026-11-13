@@ -1,5 +1,10 @@
 # 0029 — The sample fills its own bulk indexes on demand
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-05
 - **Requested by:** the owner, 2026-11-05: "the sample app needs to have way more data to show the motivation behind LUI — create
@@ -104,7 +109,7 @@ half a million words has nothing to do with the demonstration of a payload colum
 
 8. **The number of entries is the user's, where it makes sense.** The panel offers a number field per bulk index: for `words`
    the ceiling is the size of the list (685,829 words), for the two Bogus indexes there is none — 3,000,000 is the largest fill
-   the sample offers, the scale of the measurements of the specification (§16). The default is 10,000 entries — or the whole
+   the sample offers, the scale of the measurements of the specification (ADR-0020). The default is 10,000 entries — or the whole
    list when it is shorter — about a second, enough to see the difference against 25 entries. The user who wants to see the why
    of LUI asks for a million: the fill takes a minute, the query stays in the milliseconds.
 
@@ -128,7 +133,7 @@ half a million words has nothing to do with the demonstration of a payload colum
     silent; and the route of the indexes describes every index separately, so one broken index does not empty the panel. An
     empty panel looks like data that was lost — the failure must be visible, and it must be local.
 
-12. **The catalog of the sample is configured the way §16 measures it**, and the fill uses the batch of ADR-0016: a page cache of
+12. **The catalog of the sample is configured the way ADR-0020 measures it**, and the fill uses the batch of ADR-0016: a page cache of
     512 MB, a memory-mapped file, and 100,000 entries per batch — a first load into a file that no one else writes is about 30 %
     faster with that batch than with the default of 10,000. The sample is not a benchmark: it is the demonstration of a big load,
     and it is configured like one.

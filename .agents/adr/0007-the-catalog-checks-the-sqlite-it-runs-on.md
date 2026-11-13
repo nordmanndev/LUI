@@ -21,7 +21,7 @@ that disagrees with the table.** Three checks, in this order:
 
 1. **The version** — checked first, on a connection of its own, so that an old
    SQLite gets this precise message and not the probe's. `sqlite_version()` must be 3.45 or newer (the trigram
-   tokenizer's `remove_diacritics`, §17.3). Older: `LuiEnvironmentException`
+   tokenizer's `remove_diacritics`, ADR-0004). Older: `LuiEnvironmentException`
    with both versions.
 2. **The folding** (`FoldProbe`). An in-memory FTS5 table with the trigram
    tokenizer is filled with one text per code point (`xx<c>xx`), and the
@@ -41,7 +41,7 @@ that disagrees with the table.** Three checks, in this order:
    `LuiDefinitionMismatchException`, which names both. The answer is `Drop()`
    and ensure again — an index is derived data.
 
-**An index is never rebuilt silently** (§7.1). `Ensure()` compares *everything*
+**An index is never rebuilt silently** (ADR-0006, ADR-0033). `Ensure()` compares *everything*
 that decides what the tables hold: kind, source, key type, the German
 transliteration, whether there is a payload, the fold table. The similarity
 measure is not part of it: it is a default of the query and changes no table.
@@ -66,7 +66,7 @@ human with `sqlite3`.
 
 ## Update (review of pull request 6)
 
-- `Open` switches the database to WAL (§7.5) — a persistent property of the
+- `Open` switches the database to WAL (ADR-0046) — a persistent property of the
   *file*. `LuiCatalogOptions.UseWriteAheadLog(false)` keeps the mode the
   application chose; the default and the reason are in the XML documentation of
   `Open`.

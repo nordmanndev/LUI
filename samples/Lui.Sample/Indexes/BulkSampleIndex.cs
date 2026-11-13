@@ -40,7 +40,7 @@ internal sealed class BulkSampleIndex(LuiCatalog catalog, IBulkSource source) : 
         Index.Name,
         Index.Kind.ToString(),
         "Embedded",
-        Index.TypoTolerance,
+        Index.TypoDistance.ToString(),
         Index.TypoDictionaryState.ToString(),
         Index.Count(),
         Payload: "none",
@@ -91,7 +91,7 @@ internal sealed class BulkSampleIndex(LuiCatalog catalog, IBulkSource source) : 
         if (source.Kind == LuiIndexKind.MultiWord)
         {
             return source.TypoTolerance
-                ? catalog.Create(source.Name, index => index.MultiWord().TypoTolerance())
+                ? catalog.Create(source.Name, index => index.MultiWord().TypoTolerance(LuiTypoDistance.OneError))
                 : catalog.Create(source.Name, index => index.MultiWord());
         }
 

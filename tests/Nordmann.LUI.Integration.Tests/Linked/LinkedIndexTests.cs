@@ -4,7 +4,7 @@ using static Nordmann.LUI.Integration.Tests.Linked.LinkedTable;
 namespace Nordmann.LUI.Integration.Tests.Linked;
 
 /// <summary>
-/// A <c>Linked</c> index over a table of the application (LUI-Spezifikation §5, §7.3, ADR-0015): loosely coupled —
+/// A <c>Linked</c> index over a table of the application (ADR-0014, ADR-0015, ADR-0015, ADR-0015): loosely coupled —
 /// LUI reads the table and never changes it on its own. The definition, the names, the lifetime of the index.
 /// </summary>
 public sealed class LinkedIndexTests
@@ -68,8 +68,8 @@ public sealed class LinkedIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.Throw<ArgumentException>(() => catalog.Create("tags", index => index.SingleWord().LinkTo(name, "id", "name")));
-        Should.Throw<ArgumentException>(() => catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", name)));
+        Should.Throw<ArgumentException>(() => catalog.CreateLinked("tags", index => index.SingleWord().LinkTo(name, "id", "name")));
+        Should.Throw<ArgumentException>(() => catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", name)));
     }
 
     // ---- the lifetime of the index -----------------------------------------------------------------------------------
@@ -99,7 +99,7 @@ public sealed class LinkedIndexTests
         using var catalog = database.Open();
         Tags(catalog);
 
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "slug")));
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "slug")));
         Should.NotThrow(() => Tags(catalog));
     }
 
@@ -124,7 +124,7 @@ public sealed class LinkedIndexTests
         Run(database, "CREATE TABLE \"Tags\" (\"Id\" INTEGER PRIMARY KEY, \"Name\" TEXT NOT NULL, \"UsageCount\" INTEGER NOT NULL);");
         Run(database, "INSERT INTO \"Tags\" VALUES (1, 'vegan', 5);");
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("Tags", "Id", "Name", weight: "UsageCount"));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("Tags", "Id", "Name", weight: "UsageCount"));
 
         tags.Sync().Indexed.ShouldBe(1);
         tags.Search("veg").Hits.ShouldHaveSingleItem().Weight.ShouldBe(5);
@@ -160,7 +160,7 @@ public sealed class LinkedIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.Throw<ArgumentException>(() => catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name")
+        Should.Throw<ArgumentException>(() => catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name")
             .WithPayload(["slug", "Slug"], row => row.GetString("slug"))));
     }
 
@@ -175,7 +175,7 @@ public sealed class LinkedIndexTests
         using var catalog = database.Open();
         Tags(catalog);
 
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "slug")))
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "slug")))
             .Message.ShouldContain("dropTriggers: true");
         Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create("embedded", index => index.SingleWord()).Count() + catalog.Create("embedded", index => index.MultiWord()).Count())
             .Message.ShouldNotContain("dropTriggers");
@@ -189,7 +189,7 @@ public sealed class LinkedIndexTests
         using var catalog = database.Open();
 
         Should.Throw<InvalidOperationException>(
-            () => catalog.Create("tags", index => index.SingleWord().WithKey(LuiKeyKind.Text).LinkTo("tag", "id", "name")))
+            () => catalog.CreateLinked("tags", index => index.SingleWord().WithKey(LuiKeyKind.Text).LinkTo("tag", "id", "name")))
             .Message.ShouldContain("INTEGER PRIMARY KEY");
 
         // issue #105: KeyKind of a linked index was read in no test

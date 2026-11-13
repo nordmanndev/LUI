@@ -1,5 +1,15 @@
 # 0026 — The public API from 0.1.0 on grows only additively
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+>
+> **Note (ADR-0063, 2026-11-13, issue #144):** the row of A.2 in the table below names a type that is gone — the builder
+> of the indexes went with the entry point ([0033](./0033-the-read-path-opens-an-index-without-writing.md)). The decision
+> of the owner stands: there is no `LuiIndexRegistrations` either. The surface of 0.1.0, written against the review of
+> 2026-11-04, is in [ADR-0063](./0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied.md).
+
 - **Status:** Accepted (owner's decision, 2026-11-04, epic #39 step G)
 - **Date:** 2026-11-04
 - **Issue:** #43, the last step of epic #39 (the public API before the freeze of 0.1.0)
@@ -106,3 +116,10 @@ and a migration note (decision 2). The reasons are those of the owner, recorded 
 
 The first release is `0.1.0-alpha`, a prerelease ([ADR-0053](./0053-the-first-release-is-a-prerelease.md)). It does
 not start the freeze: decisions 1 and 2 apply from the tag `v0.1.0` without a suffix, as decision 7 says.
+
+## Note (2026-11-13, the release)
+
+The tag `v0.1.0` exists, and the freeze begins with it: from that tag on, decisions 1 and 2 apply to the public API of
+the two packages. The changes that stood between `0.1.0-alpha` and `0.1.0` are the ones the
+[CHANGELOG](../../CHANGELOG.md) lists under `0.1.0`; the three that break the API of the alpha say what to write
+instead.

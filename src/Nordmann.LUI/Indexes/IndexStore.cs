@@ -6,8 +6,8 @@ using Nordmann.LUI.Storage;
 namespace Nordmann.LUI.Indexes;
 
 /// <summary>
-/// The stored indexes of a database: <c>lui_meta</c> and the statements that create and remove an index (LUI-Spezifikation
-/// §7.1, §12.2). The builders describe an index; creating it, checking the stored definition and dropping it happens
+/// The stored indexes of a database: <c>lui_meta</c> and the statements that create and remove an index (
+/// ADR-0006, ADR-0033, docs/api.md). The builders describe an index; creating it, checking the stored definition and dropping it happens
 /// here, in one transaction each (review DevEx D6: the DDL out of the builder).
 /// </summary>
 internal static class IndexStore

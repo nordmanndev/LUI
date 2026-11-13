@@ -1,6 +1,6 @@
 namespace Nordmann.LUI.Schema;
 
-/// <summary>The catalog table of the library, <c>lui_meta</c> (LUI-Spezifikation §7.1): one row per index.</summary>
+/// <summary>The catalog table of the library, <c>lui_meta</c> (ADR-0006, ADR-0033): one row per index.</summary>
 internal static class Meta
 {
     /// <summary>The version of the schema an index was created with.</summary>

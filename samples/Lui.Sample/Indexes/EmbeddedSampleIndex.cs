@@ -4,7 +4,7 @@ using Nordmann.LUI.Sample.Api;
 namespace Nordmann.LUI.Sample.Indexes;
 
 /// <summary>
-/// An <c>Embedded</c> index (LUI-Spezifikation §5): the entries live in LUI's own table and the page writes through the
+/// An <c>Embedded</c> index (ADR-0014, ADR-0015): the entries live in LUI's own table and the page writes through the
 /// library. The seed is the "source of truth" the sample syncs from; it stands for the table of another database, or a
 /// file, that an application would sync from (<c>Sync(entries)</c>, ADR-0016).
 /// </summary>
@@ -21,7 +21,7 @@ internal sealed class EmbeddedSampleIndex(
         index.Name,
         index.Kind.ToString(),
         "Embedded",
-        index.TypoTolerance,
+        index.TypoDistance.ToString(),
         index.TypoDictionaryState.ToString(),
         index.Count(),
         payloadDescription,

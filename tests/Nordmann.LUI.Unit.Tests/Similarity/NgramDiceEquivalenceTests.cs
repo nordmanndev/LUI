@@ -5,8 +5,8 @@ namespace Nordmann.LUI.Unit.Tests.Similarity;
 
 /// <summary>
 /// LUI's own N-gram Dice allocates nothing; it must give the same number as the library it replaces
-/// (<c>F23.StringSimilarity.SorensenDice(2)</c>) — the measurements of the specification are measurements
-/// of that definition (§11).
+/// (<c>F23.StringSimilarity.SorensenDice(2)</c>) — the measurements of ADR-0020 are measurements
+/// of that definition (ADR-0030).
 /// </summary>
 public sealed class NgramDiceEquivalenceTests
 {
@@ -61,7 +61,16 @@ public sealed class NgramDiceEquivalenceTests
     public void A_comparison_allocates_nothing()
     {
         var measure = LuiSimilarity.NgramDice;
-        measure.Similarity("apfelkuch", "gedeckter apfelkuchen mit sahne");
+
+        // the warm-up repeats and uses its result: the type initialisation, the first call and the
+        // tiering of the measure belong to the start of the run, not to the measured window. A call
+        // whose result is discarded may be removed by an optimising JIT, and a one-off cost then
+        // lands inside the window (issue #132: 1912 bytes on a runner).
+        var warm = 0d;
+        for (var i = 0; i < 100; i++)
+        {
+            warm += measure.Similarity("apfelkuch", "gedeckter apfelkuchen mit sahne");
+        }
 
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 1_000; i++)
@@ -69,6 +78,7 @@ public sealed class NgramDiceEquivalenceTests
             measure.Similarity("apfelkuch", "gedeckter apfelkuchen mit sahne");
         }
 
+        warm.ShouldBeGreaterThan(0d, "the warm-up has to run, otherwise the window measures the start of the run");
         (GC.GetAllocatedBytesForCurrentThread() - before).ShouldBeLessThan(1_000, "less than a byte per call");
     }
 

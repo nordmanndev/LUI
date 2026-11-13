@@ -1,10 +1,25 @@
 # 0036 — The README is the entrance, the specification the contract, the tutorial the way
 
+> **Contract note (ADR-0056, 2026-11-12):** this record was written against a contract outside the repository — a
+> private one, that no reader of LUI can know and does not have to. The repository states its own rules since: the
+> rules that contract carried for LUI stand in [`AGENTS.md`](../../AGENTS.md) and in the documents of
+> [`docs/`](../../docs/README.md). The entrance, the record and the tutorial keep their places. The text below is
+> history and stays as it was written.
+
 > **Note (ADR-0039, 2026-11-06, issue #61):** the entrance grows. Decision 1 — "at most 250 lines" — and decision 4 —
 > "the raw tables move to the record" — are superseded: the entrance of the release carries the tables of the
 > BenchmarkDotNet measurement, the example of the bulk path, the matrix of the kinds and the decision guide of the
 > sources. The rule that stays is the one that mattered: the entrance may not say what the specification says. The
 > decisions 2, 3, 5, 6, 7, 8 and 9 stand as they are written.
+
+> **Note (ADR-0057, 2026-11-12, issue #121):** this record named an external contract that a reader of a public
+> library cannot know, and its table of the diagnosis was in German. The sentences that named the contract are
+> restated in the terms of this repository, and the table is translated. The decisions stand as they are written;
+> the text below is history.
+
+> **Note (ADR-0061, 2026-11-13, issue #125):** decision 2 — "the specification is the contract" — falls with the
+> specification itself. The contract of the library is the set of the ADRs, and every section of the specification has a
+> home that is read. The decisions 3, 5, 6, 7, 8 and 9 stand as they are written; the text below is history.
 
 - **Status:** Accepted
 - **Date:** 2026-11-06
@@ -23,14 +38,14 @@
 The README of this repository grew into an architecture document. On `main` (111eefb) it had 571 lines and 18
 sections, and it said the same things in two places:
 
-| | Befund |
+| | Finding |
 |---|---|
-| Umfang | 571 lines, 18 sections |
-| Die fünf Konzeptabschnitte (182–311) | ein Duplikat von `.agents/spec/LUI-Spezifikation.md` — zwei Orte für eine Wahrheit |
-| Performance (ab 387) | das Vertrauensargument steht nach zwei Dritteln der Datei |
-| BenchmarkDotNet-Tabellen (414–494) | 80 Zeilen Rohdaten im falschen Dokument |
-| Inhaltsverzeichnis, Abzeichen | keine |
-| `normalization.md`, `architecture/alignment.md`, `domain/lui.md` | **null** Verweise aus der README — verwaist |
+| Scope | 571 lines, 18 sections |
+| The five concept sections (182–311) | a duplicate of — two places for one truth |
+| Performance (from 387) | the argument for trust stands after two thirds of the file |
+| BenchmarkDotNet tables (414–494) | 80 lines of raw data in the wrong document |
+| Table of contents, badges | none |
+| `normalization.md`, `architecture/alignment.md`, `domain/lui.md` | **null** references from the README — orphaned |
 
 Two things were missing besides. A reader who wanted to use LUI found a contract, not a way: the specification
 defines the kinds of index, the query path, the ranking and the typo tolerance, but it does not take anybody by the
@@ -50,7 +65,7 @@ one were wrong.
    NuGet, licence, .NET); what LUI is (three sentences); the problem (two sentences: 98 % of the input is a read, and
    the second store for the same data is the expensive part); the highlights (outcome-focused bullets); a linked table
    of contents; the two `dotnet add package` lines; **one** quick start with its output; the budget table of
-   [spec §16](./../spec/LUI-Spezifikation.md) with the machine and a link to the record; one table for the two index
+   [ADR-0020](./0020-the-performance-budgets-measured.md) with the machine and a link to the record; one table for the two index
    kinds and the two content sources; the payload; `AddLui` in an ASP.NET Core application; reading only
    (`Mode=ReadOnly`); the five most important types; the sample with its two screenshots; the map of the documentation;
    and at the end status, contributing and licence.
@@ -72,7 +87,8 @@ one were wrong.
    packed `.nupkg` (AGENTS.md). The blocks are few on purpose — one quick start, the payload, the host, reading only —
    and every one of them is a promise that can be checked.
 7. **The map of the documentation is in the README**, near its end: the tutorial, the specification, the record, the
-   normalisation, the ADRs, the test map — and the corners that are read less often, the alignment with the standards
+   normalisation, the ADRs, the test map — and the corners that are read less often, the alignment with the rules
+   of the repository
    and the domain of the library.
 8. **A document nobody links to is a document nobody reads.** `docs/normalization.md`, `docs/architecture/alignment.md`
    and `docs/domain/lui.md` had no link from anywhere; the README links all three.
@@ -107,7 +123,7 @@ one were wrong.
 - **The map of the documentation is a list of links**, and it grows with the documents: `docs/README.md` (the map of
   the documents themselves) is written by the same issue.
 - **The documents of the corners are reachable** from the entrance: the normalisation, the alignment with the
-  standards, the domain of the library.
+  rules of the repository, the domain of the library.
 - **A rule for the next README**: it may not grow past the length of a sitting, and it may not say what the
   specification says.
 

@@ -3,8 +3,8 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Querying;
 
 /// <summary>
-/// The golden queries of a single-word index — Anhang B of the specification
-/// as fixed expectations (§19), and the system tag of E10.
+/// The golden queries of a single-word index — ADR-0028
+/// as fixed expectations (ADR-0019, docs/testing.md), and the system tag of ADR-0013.
 /// </summary>
 public sealed class GoldenQueryTests
 {
@@ -111,13 +111,13 @@ public sealed class GoldenQueryTests
         wide.CandidatesConsidered.ShouldBe(500);
         database.Scalar<long>("SELECT count(*) FROM lui_tags WHERE s_norm LIKE '%gan%'").ShouldBeGreaterThan(30_000);
 
-        // the same entry as an ordinary tag is not among the five hundred candidates — that is why the priority sits in the rowid (E10)
+        // the same entry as an ordinary tag is not among the five hundred candidates — that is why the priority sits in the rowid (ADR-0013)
         tags.UpdatePriority(1, LuiPriority.Normal);
         tags.Query("gan").Execute().Hits.Select(h => h.Key).ShouldNotContain(1L);
     }
 
     [Fact]
-    public void An_ordinary_tag_with_the_same_text_is_a_duplicate_the_caller_can_hide()
+    public void Two_spellings_of_one_text_are_two_hits_and_the_data_makes_them_one()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
@@ -126,8 +126,15 @@ public sealed class GoldenQueryTests
         tags.Upsert(2, "Vegan", 800_000);
         tags.Upsert(3, "vegane torte", 700_000);
 
-        tags.Query("veg").Execute().Hits.Select(h => h.Key).ShouldBe([1, 2, 3]);
-        tags.Query("veg").DistinctText().Execute().Hits.Select(h => h.Key).ShouldBe([1, 3]);
+        // the library does not hide the second spelling: one hit per entry, and the uniqueness of a text
+        // belongs to the data (ADR-0055)
+        var hits = tags.Query("veg").Execute().Hits;
+        hits.Select(h => h.Key).ShouldBe([1, 2, 3]);
+        hits.Select(h => h.Text).ShouldBe(["vegan", "Vegan", "vegane torte"]);
+
+        // the data decides: the entry that holds the second spelling is gone, and the text is one again
+        tags.Remove(2);
+        tags.Query("veg").Execute().Hits.Select(h => h.Key).ShouldBe([1, 3]);
     }
 
     private static void LoadTagCorpus(TestDatabase database, ILuiEmbeddedIndex index)

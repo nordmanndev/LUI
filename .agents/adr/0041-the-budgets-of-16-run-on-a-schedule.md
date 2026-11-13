@@ -1,4 +1,9 @@
-# 0041 — The budgets of §16 run on a schedule: the bytes are asserted, the times are reported
+# 0041 — The budgets of ADR-0020 run on a schedule: the bytes are asserted, the times are reported
+
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
 
 - **Status:** Accepted
 - **Date:** 2026-11-07
@@ -13,9 +18,9 @@
 
 ## Context
 
-The targets of §16 are asserted by the test `PerformanceBudgets` — and that test runs only when `LUI_PERF=1`. No job of
-the CI sets it, so the seven targets of §16 are asserted **never**: they are a ritual, and the numbers of the record come
-from a run on the machine of the owner.
+The targets of ADR-0020 are asserted by the test `PerformanceBudgets` — and that test lives in the layer of the
+measurements, which no job of the CI runs. So the seven targets of ADR-0020 are asserted **never**: they are a ritual, and
+the numbers of the record come from a run on the machine of the owner.
 
 The table of the targets holds two kinds of target at once:
 
@@ -34,18 +39,18 @@ the one of the record?
 
 ## Decision
 
-1. **A lane of its own.** `.github/workflows/performance.yml` runs the targets of §16 on a schedule (nightly) and can be
+1. **A lane of its own.** `.github/workflows/performance.yml` runs the targets of ADR-0020 on a schedule (nightly) and can be
    dispatched by hand. A file of its own, because a job cannot have a schedule of its own.
 2. **Two kinds of target, two kinds of verdict.** A target whose unit is a **time** belongs to the machine it was measured
    on: on the machine of the record it is asserted, as before; on any other machine it is **reported** — the number stands
    in the log with the machine named, and it never fails the run. A target whose unit is a **size** is asserted
    everywhere: the bytes are the bytes.
-3. **The default does not weaken.** Without `LUI_PERF_MACHINE` the run is on the machine of the record and asserts
-   everything, as before. The lane sets `LUI_PERF_MACHINE=other` on purpose and says so in the summary of the run. A run
-   loses no target it had before, and no target is quietly lowered.
-4. **The corpus is checked, not hoped for.** The lane fetches the whole word list (685,829 words) and runs the parity
-   with the gate `LUI_REQUIRE_FULL_WORDLIST=1`: a missing list makes the lane fail instead of measuring a sample and
-   calling it the scenario.
+3. **The default does not weaken.** Without a machine in the scenario of the run, the run is on the machine of the
+   record and asserts everything, as before. The lane writes the machine `other` into the scenario file on purpose and
+   says so in the summary of the run. A run loses no target it had before, and no target is quietly lowered.
+4. **The corpus is checked, not hoped for.** The lane fetches the whole word list (685,829 words) — and the fetch is
+   the guard: it checks the number of lines and fails loudly. A missing list makes the lane fail instead of measuring
+   a sample and calling it the scenario.
 5. **The machine belongs to the number.** The lane writes its machine (cores, memory, disk) into the summary of the run,
    and the numbers that go into `docs/benchmarks.md` carry the machine they were measured on — the rule of the record.
 
@@ -60,7 +65,7 @@ the one of the record?
 
 ## Consequences
 
-- **The targets of §16 are checked every night.** The four that are sizes — the allocation of a query, the memory of the
+- **The targets of ADR-0020 are checked every night.** The four that are sizes — the allocation of a query, the memory of the
   dictionary, the file — fail the lane when they are missed.
 - **The times stay the owner's.** The lane reports them with the machine named; the run on the machine of the record
   decides them, as it always did.
@@ -71,3 +76,18 @@ the one of the record?
 **Verified by:** `PerformanceBudget_Machine` (six tests: a time belongs to its machine, a size belongs to no machine,
 another machine reports a missed time and fails a missed size, the machine of the record fails a missed time, a run that
 is not the scenario reports everything), the lane `performance.yml` and the summary of its run.
+
+## Note (2026-11-12, issue #122)
+
+[ADR-0058](./0058-the-measurement-is-a-layer-of-its-own.md) takes the variables of the environment away: the scenario
+of a run lives in `performance.scenario.json`, and the lane writes that file before it measures.
+
+The decision stands; the sentences above that named a variable of the environment that died, the name of a gate that
+is gone (`PerformanceFact`, `TestGates`) or a path of the file of the measurements (`PerformanceBudgets.cs`,
+`BudgetPerformance.cs`) are rewritten — each of them because the variable died with ADR-0058 and took the gate of the
+measurements with it, or because that file moved into the layer of the measurements.
+
+- **The machine of a run is a member of the scenario file** (`"machine": "measurement"` or `"other"`), not a variable of
+  the environment. The default does not weaken: without a machine the run is on the machine of the record.
+- **The gate of the whole word list is the fetch.** The lane fetches the list first, and the fetch fails loudly when the
+  list is not the one of 685,829 lines.

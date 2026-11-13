@@ -7,6 +7,146 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-11-13
+
+The release of **0.1.0**. The public API freezes with it
+([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)): from this version on it grows only
+additively, and a breaking change needs a new minor version, a migration note here and an ADR. The changes below stand
+between `0.1.0-alpha` and `0.1.0` — three of them break the API of the alpha, and each says what to write instead.
+
+### Added
+
+- **The chapter that says why the tests are built the way they are**
+  ([the testing strategy](docs/testing-strategy.md), #81). The layers, the techniques and their reason — real SQLite and no
+  mocks, a file and not `:memory:`, the names as sentences, the three kinds of oracle, a measurement that is not a test,
+  the guards that read the documentation, the mutation check — what is deliberately not done, and what a new test brings
+  with it. The drift of the prose is gone: the durations of the map are orders of magnitude now, and the soak of the
+  concurrency tests says six readers over four thousand entries, as the code does. **No change to the public API.**
+- **The surface of 0.1.0, written against the review of 2026-11-04**
+  ([ADR-0063](.agents/adr/0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied.md), #144). Every point of the
+  independent review of 2026-11-04 — the ones that were decided and the ones that were declined — and the type or the
+  member that carries it today; the two changes that came after the review; and the points that later decisions took
+  away, with the record that took them. The member-by-member list stays where it was: in
+  [`docs/api.md`](docs/api.md). **No change to the public API.**
+
+### Changed
+
+- **The creation names the route**
+  ([ADR-0062](.agents/adr/0062-the-creation-names-the-route-create-and-createlinked.md), #145). `LuiCatalog.Create`
+  creates an **embedded** index, `LuiCatalog.CreateLinked` a **linked** one — the route is named in the call, as it is on
+  the side of opening (`Index` / `LinkedIndex`). **A breaking change** — and still free: the freeze of
+  [ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) begins with the tag `v0.1.0`, and
+  there is no such tag yet.
+  - **Migration**: `catalog.Create(name, index => index.…LinkTo(…))` → `catalog.CreateLinked(name, index => index.…LinkTo(…))`.
+    An embedded index is created with `Create` as before — the compiler does not choose the route any more.
+- **The typo distance is an enumeration, and it belongs to the index**
+  ([ADR-0054](.agents/adr/0054-the-typo-distance-is-an-enumeration.md), #118). **A breaking change** — and still
+  free: the freeze of
+  [ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) begins with the tag `v0.1.0`,
+  and there is no such tag yet.
+  - **`LuiTypoDistance`** (`None`, `OneError`, `TwoErrors`) is the new public type. The distance is an enumeration and
+    not a number: the dictionary of the word beginnings keeps the delete variants of SymSpell, and their number grows
+    with the distance — so the distances are the ones that were measured, and a caller cannot ask for a tenth. What the
+    distances cost is measured in [`docs/typo-dictionary.md`](docs/typo-dictionary.md).
+  - **The builder takes the distance**: `TypoTolerance(LuiTypoDistance distance = LuiTypoDistance.OneError)`. The bool
+    overload is gone — `TypoTolerance(false)` was "no correction", which is `LuiTypoDistance.None` now, and
+    `TypoTolerance(true)` is `LuiTypoDistance.OneError`.
+  - **The query keeps the bool**: `Query(text).TypoTolerance(bool)` and `LuiQueryOptions.TypoTolerance` are unchanged. A
+    query switches the correction on or off; the distance belongs to the index, because the dictionary is built with it.
+    **A query cannot exceed the distance of the index**: `TypoTolerance(true)` asks for the correction, but a distance of
+    `None` forgives nothing at all — the query asks, the index does not correct, and the query says so
+    (`CorrectionSkipped`).
+  - **The distance is part of the stored definition.** An index that is opened again knows how its dictionary was
+    built, and its queries correct — unless the query says otherwise. Before this change an opened index never
+    corrected, and only a query that asked for it did.
+  - **A distance of `None` builds no dictionary at all.** The state of the dictionary stays `NotBuilt`, and the memory
+    of one is not taken.
+  - **Migration.**
+    - `TypoTolerance()` and `TypoTolerance(true)` → `TypoTolerance(LuiTypoDistance.OneError)` (or `TypoTolerance()`
+      without an argument — its parameter default is `OneError`; **not calling it at all means `None`**, an index that
+      forgives nothing).
+    - `TypoTolerance(false)` → `TypoTolerance(LuiTypoDistance.None)`. **The difference is the query:** the old `false`
+      meant "the index corrects nothing by itself, a query may still ask for it", and `None` means "nothing is
+      corrected at all" — a query cannot widen the distance of its index. An application that used the builder's `false`
+      together with a query's `true` loses its correction; it wants `OneError` on the builder now.
+    - `index.TypoTolerance` (a bool) → `index.TypoDistance` (a `LuiTypoDistance`).
+    - An application that reads `ILuiIndex` itself (an own implementation of the interface) has to implement
+      `TypoDistance` instead of `TypoTolerance`.
+    - **An index of the old library has no distance in its stored definition** — it reads back as `None`, an index that
+      corrected nothing. The step that decides whether the application comes up after the upgrade is its `Create`:
+      - An index that is created again **with** a distance is a `LuiDefinitionMismatchException` (the stored
+        definition says `None`, the new one says `OneError`): **the application does not come up.**
+      - An index that is created again **without** a distance (the default of the builder) matches the stored one: the
+        application comes up, but the index corrects nothing at all — not even what it corrected before.
+      - The way out is `DropIndex(name)` and a new `Create` — **and for an embedded index that empties the index**: its
+        entries live in the content table of the library, and the drop takes them with it, so the application has to
+        load its data again. For a linked index the content lives in the table of the application and survives; the
+        index is empty after the drop, and `Sync()` fills it again.
+    - An application that creates its indexes in its migration **describes an index the same way every time** — also
+      after the upgrade, because the distance is part of the definition: a change of the distance wants a
+      `DropIndex(name)` and a new index.
+- **The budgets live in one file**
+  ([ADR-0056](.agents/adr/0056-the-budgets-live-in-a-file.md), #120). The budgets of ADR-0020 were written down three
+  times — in the specification, in the tables of the entrance and of the record, and as a number at the call site of
+  the measurement. They live in one file now
+  ([`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)), an
+  embedded resource of the shared test infrastructure. Every budget carries its scenario (the corpus file, the prefix
+  length, the condition), its limit, its unit and its kind — a time or a size. The measured value does not belong in
+  the file: it stays in the record, beside the machine it was measured on.
+  - The table of the entrance and the two tables of the record are checked against the file; a limit that drifts fails
+    the build. The mutation check has two mutations for it: a limit of the file edited by hand turns the build red.
+  - A new row: the typo dictionary of the distance `TwoErrors` — 685,739 words, 240 MB, measured 2026-11-12. It has
+    no time limit: a build time is a property of the machine it was measured on, and it is measured in the record, not
+    promised.
+  - **No change to the public API** — the file and its reader live in a test project, and the package ships neither.
+
+- **The repository states its own rules** ([ADR-0056](.agents/adr/0056-the-budgets-live-in-a-file.md), #120).
+  `AGENTS.md` does not inherit a contract from outside the repository any more: it states the rules of this
+  repository, and the references to that contract are out of the documentation, of the build files and of the CI. The
+  specification keeps its number and its paragraph references, and points at the file of the budgets.
+  - **No change to the public API.**
+- **The repository is English, and its decisions speak in its own terms**
+  ([ADR-0057](.agents/adr/0057-the-repository-of-a-public-library-is-english.md), #121). The working papers under
+  `.agents/plan/` are translated, the five tutorials carry English file names, and the six ADRs that named the external
+  contract of the time are restated in the terms of this repository — each with a dated note, so that the history of the
+  work stays visible. **No change to the public API.**
+### Removed
+
+- **`DistinctText` is gone** ([ADR-0055](.agents/adr/0055-the-uniqueness-of-a-text-belongs-to-the-data.md), #119).
+  The option showed one hit per normalised text — the system tag "vegan" and the ordinary tag "Vegan" were one hit
+  instead of two. It was the most expensive option in the library: it kept the folded text of every candidate (**+28 KB**
+  per query with one word, **+84 KB** with several, ADR-0032), and a duplicate used up a place of the candidate budget,
+  so the option made the search shallower, not only the answer shorter.
+  - **Gone**: `LuiQueryOptions.DistinctText` and `LuiQuery.DistinctText(bool)`. The option was **off by default**, so a
+    query that did not ask for it behaves exactly as before — only an application that asked for it sees a difference.
+  - **Migration**: an application that used the option takes the uniqueness of a text into its own data — **the
+    application keeps its own text unique, in its own data, over its own column, with its own rule**, and that rule is
+    not the fold of the library. The table of the library holds the **transliterated** text in the generated column
+    `s_norm` (case and diacritics untouched); the **folded** text, the one the tokenizer compares, lives inside the
+    search index, and the **search form** of the C# side is computed by an internal helper — the fold is not part of the
+    public API. A constraint over `s_norm` therefore does not catch "vegan" and "Vegan", and `lower(s_norm)` is an ASCII
+    approximation of the fold, not the fold (see [the normalisation](docs/normalization.md)). In the `Linked` case the
+    table is the application's own, and the constraint is the application's own over its own column, with the same
+    caveat. Without a rule of its own, an application gets two hits for a text in two spellings — the library does not
+    hide the second one, because it cannot know which of them the application means.
+  - The sample's checkbox and its `distinct` parameter are gone; the tutorial, the README and
+    [`docs/api.md`](docs/api.md) follow.
+
+### Fixed
+
+- **The host waits for a round of the outbox that runs when it stops**
+  ([ADR-0043](.agents/adr/0043-the-warm-up-is-a-service-of-the-host.md), #148). The warm-up is a service of the host:
+  the host runs it, the host stops it, the host disposes it. What was missing is the round that **runs** when the host
+  stops — the timer died, the round went on, it held the file of the application, and the host that stopped the service
+  was gone while LUI still wrote. The stop and the disposal wait for that round now, and a round that begins after the
+  stop does not begin at all. **No change to the public API.**
+- **The repository speaks one language, down to the comments**
+  ([ADR-0057](.agents/adr/0057-the-repository-of-a-public-library-is-english.md), #142). The pull requests of the
+  series left nine files in German — the comment of the schedule of the lane, the documentation of the corpus of
+  the measurements, two comments of the report writer — and two quotations of names that exist in English now.
+  They are translated. The sample data stays German on purpose: it shows what the normalisation is for.
+  **No change to the public API.**
+
 ## [0.1.0-alpha] — 2026-11-11
 
 The first release, and a **prerelease** of 0.1.0
@@ -16,7 +156,7 @@ may still change until `0.1.0`, each change with an ADR and an entry here; the f
 `dotnet add package Nordmann.LUI --prerelease`.
 
 It ships the packages `Nordmann.LUI` and `Nordmann.LUI.Hosting` with the API of the
-specification ([`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md)):
+decisions ([.agents/adr/](.agents/adr/README.md)):
 
 - `SingleWord` and `MultiWord` indices, `Embedded` and `Linked` content sources
 - FTS5 trigram search with priority-first candidates, word-start ranking and
@@ -103,7 +243,7 @@ The sections below are the changes made on the way to it.
   No change to the public API.
 
 - **The README of the first release** ([ADR-0022](.agents/adr/0022-the-benchmark-results-in-the-readme.md), #36): the
-  query options with their defaults, the ranking and the priority, the typo tolerance, the §16 budgets and the results
+  query options with their defaults, the ranking and the priority, the typo tolerance, the ADR-0020 budgets and the results
   of BenchmarkDotNet. The benchmark tables are rendered from BenchmarkDotNet's reports in `benchmarks/results/` by the
   architecture test `Readme_Benchmarks`, which fails when the README and the reports differ; `tools/benchmarks.sh`
   makes a new run.
@@ -123,10 +263,10 @@ The sections below are the changes made on the way to it.
   `WarmUpTypoDictionary` and `RebuildTypoDictionary` now end their wait for a build another thread runs when their token
   is cancelled.
 
-- **The performance budgets of §16, measured** ([ADR-0020](.agents/adr/0020-the-performance-budgets-measured.md)): a test per
+- **The performance budgets of ADR-0020, measured** ([ADR-0020](.agents/adr/0020-the-performance-budgets-measured.md)): a test per
   target in its scenario (`PerformanceBudgets`, gated), a generated corpus for the measurements, and the benchmark
   project (`benchmarks/Nordmann.LUI.Benchmarks`, BenchmarkDotNet). At three million entries the query median (1.6 ms),
-  the single write (p95 0.5–0.8 ms) and the typo dictionary are met. Four targets of §16 are
+  the single write (p95 0.5–0.8 ms) and the typo dictionary are met. Four targets of ADR-0020 are
   stated anew by the owner after the measurement: the query p95 per input length (≤ 5 ms for 1–4 characters, ≤ 20 ms
   for 5–8), the corrected query (p95 ≤ 35 ms), the allocation (p50 ≤ 250 KB, p95 ≤ 350 KB — too much, bug #30) and the
   file of a million titles (≤ 500 MB) and the build (≤ 4 min — it follows the disk, 172–206 s on two machines; a faster
@@ -194,7 +334,7 @@ The sections below are the changes made on the way to it.
   into words that are ANDed and also searched compactly, so `kuchen apfel` and `apfelkuch` both
   find „Apfel Kuchen"; the word start is decided on the compact form; the default similarity is
   N-gram Dice. A multi-word index has a compact column `s_compact`, and its search index holds
-  that column alone — the specification (§7.4, §8.2) is corrected accordingly. One and two letters
+  that column alone — ADR-0011 and ADR-0008 say so. One and two letters
   are read on the compact text (`a b` = `ab` = `a-b`); at most the eight longest words go into the
   expression.
 - `LuiSimilarity.NgramDice` no longer allocates: a query that compared 500 candidates allocated
@@ -242,9 +382,9 @@ The sections below are the changes made on the way to it.
 
 ### Removed
 
-- **`Highlight` is struck from the specification** ([ADR-0028](.agents/adr/0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md), #20
+- **`Highlight` is struck from the contract** ([ADR-0028](.agents/adr/0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md), #20
   closed): LUI delivers no found positions (`LuiHit.Highlight`, `.Highlight(…)`, a map from the search form to the original). It never
-  existed in the code; spec §9.3 now says "entfällt". An application shows a correction with `LuiResult.CorrectedQuery`.
+  existed in the code; ADR-0028 says "falls away". An application shows a correction with `LuiResult.CorrectedQuery`.
 
 - **The freeze** ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md), #43). From the tag `v0.1.0` on, the
   public API of `Nordmann.LUI` and `Nordmann.LUI.Hosting` grows only additively. A breaking change — a removed or renamed
@@ -300,16 +440,16 @@ The sections below are the changes made on the way to it.
   gave `DBNull.Value`; it gives `null`. A `T` that cannot hold null (`Get<long>`) still throws, and `GetString`,
   `GetInt64` and `GetDouble` are unchanged.
 
-- **The budget table of the README is the promise of §16, and a test holds it up**
+- **The budget table of the README is the promise of ADR-0020, and a test holds it up**
   ([ADR-0040](.agents/adr/0040-the-budget-table-of-the-entrance-is-a-promise.md), #38). The limits of the table were
   copied by hand, and they had drifted: the allocation still promised the old target of ≤ 250 / ≤ 350 KB, while the
-  specification and the budget test have held ≤ 60 / ≤ 100 KB since ADR-0032.
-  - A new architecture test (`Readme_Budgets`) reads the target table of §16 out of the specification and compares it
+  budgets and the budget test have held ≤ 60 / ≤ 100 KB since ADR-0032.
+  - A new architecture test (`Readme_Budgets`) reads the target table of ADR-0020 out of the budgets and compares it
     with the budget table of the README, with the target table of the record and with its status table — in order, so
     a swapped limit is caught as well as a changed one.
   - The status table of the record stood apart from the contract twice: it promised the old limits, and it listed the
     allocation before the correction. Its rows follow the order of the contract now.
-  - The allocation row of both tables carries the limits of §16 and the measured values of the run of 2026-11-06
+  - The allocation row of both tables carries the limits of ADR-0020 and the measured values of the run of 2026-11-06
     (46 / 51 KB — bytes, so the machine does not matter).
   - The mutation check has two mutations for it: a limit of the README and a limit of the record edited by hand turn
     the build red.
@@ -347,12 +487,12 @@ The sections below are the changes made on the way to it.
 - **The documentation has an entrance, a contract and a way** ([ADR-0036](.agents/adr/0036-the-readme-the-specification-and-the-tutorial.md),
   [ADR-0022](.agents/adr/0022-the-benchmark-results-in-the-readme.md), #61). The README is rewritten: 571 lines with two
   truths for one rule become 241 lines — what LUI is, what it is **not**, the problem, the highlights, a linked table
-  of contents, the install, one quick start with its output, the budgets of §16, one table for the two index kinds and
+  of contents, the install, one quick start with its output, the budgets of ADR-0020, one table for the two index kinds and
   the two content sources, the payload, `AddLui` in a host, reading only, the most important types, the sample and the
   map of the documentation.
   - The five concept sections (the kinds of index, the sources of the content, the query, the ranking and the
-    priority, the typo tolerance) leave the README: the [specification](.agents/spec/LUI-Spezifikation.md) has them, in
-    full, and it is the contract.
+    priority, the typo tolerance) leave the README: the [decisions](.agents/adr/README.md) have them, in
+    full, and they are the contract.
   - The raw tables of a BenchmarkDotNet run move to [`docs/benchmarks.md`](docs/benchmarks.md) — with the machine, the
     corpus and the method. The guard follows them: `Readme_Benchmarks` renders the section there and fails when the
     file and the committed reports differ; the README keeps the budgets (target, measured value, limit) and links to
@@ -402,7 +542,7 @@ The sections below are the changes made on the way to it.
     - Two hits are equal when their values are, the payload compared by its content (as before, when the hit held the
       deserialised payload).
     - A definition with a key type this version does not know is a `LuiDefinitionMismatchException` when it is opened.
-  - **`Linked` is documented precisely** (spec §7.3): LUI keeps no copy of the row — the normalised text in the search
+  - **`Linked` is documented precisely** (ADR-0015): LUI keeps no copy of the row — the normalised text in the search
     index, the weight and the priority in the order of the candidates; the text and the payload of a hit are read from
     the table when the hit is read.
 
@@ -440,7 +580,7 @@ The sections below are the changes made on the way to it.
   - **The buffers of the candidates are reused** per thread: the arrays of the candidates, of the groups and of the hits
     are kept instead of being thrown away after every query (−40 KB per query).
   The public API is unchanged — `ISpanSimilarity` is internal, and the exported types against the base of the branch are
-  byte-identical. §16 carries the new target (p50 ≤ 60 KB, p95 ≤ 100 KB; measured p50 42 KB, p95 60 KB).
+  byte-identical. ADR-0020 carries the new target (p50 ≤ 60 KB, p95 ≤ 100 KB; measured p50 42 KB, p95 60 KB).
 
 - **The four similarity measures are LUI's own** ([ADR-0030](.agents/adr/0030-the-similarity-measures-are-luis-own.md), #30). With
   the Jaro-Winkler of the entry above, the **Damerau-Levenshtein** and the **Levenshtein** move into the library too, and
@@ -550,5 +690,6 @@ The sections below are the changes made on the way to it.
   - The package no longer depends on `Microsoft.Extensions.DependencyInjection.Abstractions`,
     `Microsoft.Extensions.Hosting.Abstractions` and `Microsoft.Extensions.Logging.Abstractions`: no code used them.
 
-[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.1.0-alpha...HEAD
+[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/nordmanndev/LUI/compare/v0.1.0-alpha...v0.1.0
 [0.1.0-alpha]: https://github.com/nordmanndev/LUI/releases/tag/v0.1.0-alpha

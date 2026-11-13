@@ -4,7 +4,7 @@ namespace Nordmann.LUI.Integration.Tests.Catalog;
 
 /// <summary>
 /// <c>LuiCatalog</c>: opening, the meta table, and the lifetime
-/// (LUI-Spezifikation §7.1, §7.5, §15).
+/// (ADR-0006, ADR-0033, ADR-0046, ADR-0015, ADR-0046).
 /// </summary>
 public sealed class CatalogTests
 {

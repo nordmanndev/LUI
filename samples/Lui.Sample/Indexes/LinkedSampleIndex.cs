@@ -5,7 +5,7 @@ using Nordmann.LUI.Sample.Data;
 namespace Nordmann.LUI.Sample.Indexes;
 
 /// <summary>
-/// A <c>Linked</c> index (LUI-Spezifikation §5, ADR-0015): the text lives in the application's own table, and LUI only
+/// A <c>Linked</c> index (ADR-0014, ADR-0015, ADR-0015): the text lives in the application's own table, and LUI only
 /// reads it. The page writes to that table, as the application would; the index follows through the triggers the
 /// application created on purpose (they note the key in LUI's outbox) and the hosted service that applies the outbox,
 /// or by <c>Refresh</c> when the application tells it.
@@ -23,7 +23,7 @@ internal sealed class LinkedSampleIndex(
         index.Name,
         index.Kind.ToString(),
         "Linked",
-        index.TypoTolerance,
+        index.TypoDistance.ToString(),
         index.TypoDictionaryState.ToString(),
         index.Count(),
         payloadDescription,

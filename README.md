@@ -2,7 +2,7 @@
 
 > **Autocomplete suggestions for .NET, straight out of your own SQLite database.** The suggestions of a search field: the best 5–20 entries out of a stock of up to a few million short texts.
 
-[![Build](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml/badge.svg)](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/vpre/Nordmann.LUI.svg)](https://www.nuget.org/packages/Nordmann.LUI) ![Version](https://img.shields.io/badge/version-0.1.0--alpha-8A2BE2) [![Licence](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE) [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
+[![Build](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml/badge.svg)](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/Nordmann.LUI.svg)](https://www.nuget.org/packages/Nordmann.LUI) ![Version](https://img.shields.io/badge/version-0.1.0-8A2BE2) [![Licence](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE) [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 
 ## What LUI is
 
@@ -34,12 +34,12 @@ use Lucene, SeekStorm or FTS5 directly. Not a key–value store. Not a server wi
 ## Install
 
 ```text
-dotnet add package Nordmann.LUI --prerelease            # the library — all a console application needs
-dotnet add package Nordmann.LUI.Hosting --prerelease    # AddLui and the catalog, for ASP.NET Core or a worker
+dotnet add package Nordmann.LUI            # the library — all a console application needs
+dotnet add package Nordmann.LUI.Hosting    # AddLui and the catalog, for ASP.NET Core or a worker
 ```
 
 The two packages are released together, with one version; the core starts no thread of its own. The version is
-`0.1.0-alpha`, a prerelease: the API may still change until `0.1.0` (see [Status](#status)).
+`0.1.0`, and the public API is frozen from here on: it grows only additively (see [Status](#status)).
 
 ## Quick start
 
@@ -109,10 +109,12 @@ application asks for.
 
 Two measurements, two machines — and both name the machine they stand on.
 
-**The budgets** below are the targets of the specification, measured in their scenario — three million single words of the
-German word list and one million titles — on the CI machine: Intel Xeon 2.10 GHz, 4 cores, 15 GB, Ubuntu 24.04,
-.NET 10.0.14. Every target is asserted by a test in its scenario; the method and the corpus are in
-[`docs/benchmarks.md`](./docs/benchmarks.md).
+**The budgets** below are the promises of the repository: they live in one file
+([`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json), ADR-0056), and
+each of them carries its scenario, its limit, its unit and its kind. They are measured in their scenario — three
+million single words of the German word list and one million titles — on the CI machine: Intel Xeon 2.10 GHz, 4 cores,
+15 GB, Ubuntu 24.04, .NET 10.0.14. Every target is asserted by a test in its scenario; the method and the corpus are
+in [`docs/benchmarks.md`](./docs/benchmarks.md).
 
 | Target | Measured | Limit |
 |---|---:|---:|
@@ -123,81 +125,131 @@ German word list and one million titles — on the CI machine: Intel Xeon 2.10 G
 | allocation per query, p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms | ≤ 1 ms |
 | first load of 3 M entries (`Sync`) | 172.5–205.9 s | ≤ 4 min (#32) |
-| typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of two errors, 685,739 words | 240 MB | ≤ 240 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
+The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
+(ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
+values** are the numbers of the last measurement of each row: the latencies, the build and the size of the file from
+the CI machine (2026-11-05, before the allocation was lowered — so they are an upper bound); the allocation in bytes,
+and therefore independent of the machine (2026-11-06, the current code). A measured value does **not** live in the
+file: it belongs to a run and to its machine, and a file that carried it would be a second truth beside the promise.
 
-The **limits** are the targets of the specification — a test reads them out of the contract and fails when this table
-drifts from it (issue #38). The **measured values** are the numbers of the last measurement of each row: the latencies,
-the build and the size of the file from the CI machine (2026-11-05, before the allocation was lowered — so they are an
-upper bound); the allocation in bytes, and therefore independent of the machine (2026-11-06, the current code).
+The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
+(ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
+values** are the numbers of the last measurement of each row: the latencies, the build and the size of the file from
+the CI machine (2026-11-05, before the allocation was lowered — so they are an upper bound); the allocation in bytes,
+and therefore independent of the machine (2026-11-06, the current code); the typo dictionary in bytes and in seconds
+(2026-11-06, the machine of the record — a time belongs to the machine it was measured on,
+[ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured again on
+2026-11-12 — **4.3 s** for the same **138 MB** ([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)): a time belongs
+to the machine and the date it was measured on (ADR-0041), the memory is the claim that does not depend on the machine.
+A measured value does **not** live in the file: it belongs to a run and to its machine, and a file that carried it would
+be a second truth beside the promise.
 
 **The tables** below are the output of [BenchmarkDotNet](https://benchmarkdotnet.org/) — the code on the corpus of the
 measurement, not the scenario of the budgets. They are rendered from the reports of the run in
 [`benchmarks/results/`](./benchmarks/results/) by a test, so they cannot drift from them; the machine of the run stands
-above them.
+above them. **Every line names the number of hits its query found** — a line without it can measure nothing and look
+healthy (the input `ka` found nothing in the report of the day), and a line that measures no query says so with a dash
+(issue #124).
 
 <!-- benchmarks:begin -->
 <!-- generated by ReadmeBenchmarksTests from benchmarks/results/ — do not edit by hand -->
 
 ```text
 BenchmarkDotNet v0.15.8, Linux Debian GNU/Linux 12 (bookworm)
-Intel Xeon 6982P-C 3.80GHz, 1 CPU, 2 logical and 2 physical cores
+Intel Xeon Platinum 2.50GHz, 1 CPU, 2 logical and 2 physical cores
 .NET SDK 10.0.403
   [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
   DefaultJob : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
+  [Run]      : 2026-11-13, the measurements per case: 23–95
+  [Machine]  : Intel Xeon Platinum 2.50GHz, 1 CPU, 2 logical and 2 physical cores
+  [Journal]  : wal
 ```
 
 #### A query
 
-One query through the whole pipeline: the prefix path for one and two characters, FTS5 from three — Entries = 200000. `QueryBenchmarks`.
+One query through the whole pipeline: the prefix path for one and two characters, FTS5 from three — Entries = 200000, Candidates = 500, Order = Start/Sim, Similarity = JaroWinkler, Correction = False. `QueryBenchmarks`.
 
-| Method | Kind | Input | Mean | Error | Allocated |
-|---|---|---|---:|---:|---:|
-| Search | SingleWord | apfelkuc | 89.42 μs | 1.719 μs | 6.73 KB |
-| Search | SingleWord | b | 375.32 μs | 6.873 μs | 36.4 KB |
-| Search | SingleWord | haus | 504.50 μs | 9.855 μs | 27.04 KB |
-| Search | SingleWord | ka | 16.46 μs | 0.275 μs | 4.94 KB |
-| Search | MultiWord | apfelkuc | 238.05 μs | 48.295 μs | 5.44 KB |
-| Search | MultiWord | b | 463.08 μs | 8.753 μs | 60.54 KB |
-| Search | MultiWord | haus | 867.40 μs | 17.324 μs | 65.67 KB |
-| Search | MultiWord | ka | 507.16 μs | 10.049 μs | 61.78 KB |
+| Method | Corpus | Input | Source | Mean | Error | Allocated | Hits |
+|---|---|---|---|---:|---:|---:|---:|
+| Search | titles | apfelkuc | Embedded | 131.5 μs | 2.61 μs | 5.78 KB | 0 |
+| Search | titles | apfelkuc | Linked | 133.5 μs | 2.65 μs | 5.83 KB | 0 |
+| Search | titles | b | Embedded | 495.0 μs | 9.86 μs | 43.62 KB | 500 |
+| Search | titles | b | Linked | 540.3 μs | 10.79 μs | 43.76 KB | 500 |
+| Search | titles | haus | Embedded | 736.8 μs | 14.45 μs | 51.57 KB | 500 |
+| Search | titles | haus | Linked | 842.5 μs | 16.80 μs | 114.3 KB | 500 |
+| Search | titles | ka | Embedded | 525.9 μs | 10.45 μs | 43.04 KB | 500 |
+| Search | titles | ka | Linked | 565.3 μs | 11.22 μs | 43.18 KB | 500 |
+| Search | words | apfelkuc | Embedded | 191.2 μs | 3.78 μs | 7.07 KB | 1 |
+| Search | words | apfelkuc | Linked | 184.7 μs | 3.69 μs | 7.11 KB | 1 |
+| Search | words | b | Embedded | 476.4 μs | 9.48 μs | 40.02 KB | 500 |
+| Search | words | b | Linked | 490.5 μs | 9.52 μs | 40.16 KB | 500 |
+| Search | words | haus | Embedded | 809.7 μs | 15.95 μs | 42.03 KB | 500 |
+| Search | words | haus | Linked | 808.9 μs | 15.86 μs | 42.13 KB | 500 |
+| Search | words | ka | Embedded | 517.5 μs | 10.29 μs | 40.09 KB | 500 |
+| Search | words | ka | Linked | 519.4 μs | 10.36 μs | 40.22 KB | 500 |
+
+#### The settings of a query
+
+The budget of the candidates, the order of the ranking, the measure of the similarity and the correction on and off — each of them is measured, not described — Corpus = words, Entries = 200000, Input = haus, Source = Embedded. `SettingsBenchmarks`.
+
+| Method | Candidates | Order | Similarity | Correction | Mean | Error | Allocated | Hits |
+|---|---|---|---|---|---:|---:|---:|---:|
+| Search | 500 | Start/Sim | JaroWinkler | False | 811.6 μs | 16.10 μs | 42.03 KB | 500 |
+| Search | 500 | Start/Sim | JaroWinkler | True | 827.9 μs | 16.45 μs | 42.03 KB | 500 |
+| Search | 500 | Start/Sim | Levenshtein | False | 847.7 μs | 16.89 μs | 42.03 KB | 500 |
+| Search | 500 | Start/Sim | Levenshtein | True | 840.5 μs | 16.72 μs | 42.03 KB | 500 |
+| Search | 500 | WeightOnly | JaroWinkler | False | 773.0 μs | 14.11 μs | 41.29 KB | 500 |
+| Search | 500 | WeightOnly | JaroWinkler | True | 757.3 μs | 15.07 μs | 41.29 KB | 500 |
+| Search | 500 | WeightOnly | Levenshtein | False | 767.1 μs | 15.31 μs | 41.29 KB | 500 |
+| Search | 500 | WeightOnly | Levenshtein | True | 765.1 μs | 15.30 μs | 41.29 KB | 500 |
+| Search | 2000 | Start/Sim | JaroWinkler | False | 1,712.7 μs | 33.40 μs | 185.22 KB | 1090 |
+| Search | 2000 | Start/Sim | JaroWinkler | True | 1,686.9 μs | 33.40 μs | 185.22 KB | 1090 |
+| Search | 2000 | Start/Sim | Levenshtein | False | 1,807.9 μs | 35.87 μs | 185.22 KB | 1090 |
+| Search | 2000 | Start/Sim | Levenshtein | True | 1,810.0 μs | 36.14 μs | 185.22 KB | 1090 |
+| Search | 2000 | WeightOnly | JaroWinkler | False | 1,587.5 μs | 31.42 μs | 184.36 KB | 1090 |
+| Search | 2000 | WeightOnly | JaroWinkler | True | 1,594.7 μs | 31.51 μs | 184.36 KB | 1090 |
+| Search | 2000 | WeightOnly | Levenshtein | False | 1,581.9 μs | 31.31 μs | 184.36 KB | 1090 |
+| Search | 2000 | WeightOnly | Levenshtein | True | 1,602.5 μs | 31.76 μs | 184.36 KB | 1090 |
 
 #### A query with a typo correction
 
-A single-word index with typo tolerance, the dictionary built; the input has one typo — Entries = 200000. `CorrectionBenchmarks`.
+A single-word index with typo tolerance, the dictionary built; the input has one typo — Corpus = words, Entries = 200000, Candidates = 500, Order = Start/Sim, Similarity = JaroWinkler, Correction = True, Source = Embedded. `CorrectionBenchmarks`.
 
-| Method | Input | Mean | Error | Allocated |
-|---|---|---:|---:|---:|
-| Search | bahmhof | 201.66 μs | 3.842 μs | 23.61 KB |
-| Search | fusbal | 371.00 μs | 7.259 μs | 21.33 KB |
-| Search | kartofel | 85.87 μs | 1.370 μs | 7.22 KB |
-| Search | strasee | 94.57 μs | 1.089 μs | 7.17 KB |
+| Method | Input | Mean | Error | Allocated | Hits |
+|---|---|---:|---:|---:|---:|
+| Search | bahmhof | 57.91 μs | 1.156 μs | 5.52 KB | 0 |
+| Search | fusbal | 125.30 μs | 2.447 μs | 5.52 KB | 0 |
+| Search | kartofel | 281.90 μs | 5.553 μs | 5.53 KB | 0 |
+| Search | strasee | 329.98 μs | 6.509 μs | 5.52 KB | 0 |
 
 #### A single write
 
 One write in a transaction of its own — Entries = 200000. `WriteBenchmarks`.
 
-| Method | Mean | Error | Allocated |
-|---|---:|---:|---:|
-| UpdateWeight | 1,868.1 μs | 36.99 μs | 436 B |
-| UpsertTheSame | 688.0 μs | 3.93 μs | 820 B |
-| UpsertAnotherText | 1,496.3 μs | 29.42 μs | 820 B |
+| Method | Mean | Error | Allocated | Hits |
+|---|---:|---:|---:|---:|
+| UpdateWeight | 2,037.0 μs | 40.30 μs | 436 B | — |
+| UpsertTheSame | 699.1 μs | 10.20 μs | 820 B | — |
+| UpsertAnotherText | 2,148.9 μs | 42.38 μs | 820 B | — |
 
 #### The search form and the similarity
 
-Per text, no database: the normalisation of §6 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln", `Größe(...)nahme [23]` „Größenänderungsmaßnahme". `TextBenchmarks`.
+Per text, no database: the normalisation of ADR-0005 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln", `Größe(...)nahme [23]` „Größenänderungsmaßnahme". `TextBenchmarks`.
 
-| Method | Text | Mean | Error | Allocated |
-|---|---|---:|---:|---:|
-| SearchForm | Apfelkuchen | 43.72 ns | 0.408 ns | 144 B |
-| JaroWinkler | Apfelkuchen | 41.64 ns | 0.861 ns | - |
-| NgramDice | Apfelkuchen | 95.53 ns | 1.229 ns | - |
-| SearchForm | Gedec(...)useln [35] | 97.19 ns | 1.462 ns | 240 B |
-| JaroWinkler | Gedec(...)useln [35] | 78.58 ns | 1.509 ns | - |
-| NgramDice | Gedec(...)useln [35] | 251.99 ns | 5.046 ns | - |
-| SearchForm | Größe(...)nahme [23] | 100.69 ns | 2.073 ns | 320 B |
-| JaroWinkler | Größe(...)nahme [23] | 70.50 ns | 1.447 ns | - |
-| NgramDice | Größe(...)nahme [23] | 182.70 ns | 3.655 ns | - |
+| Method | Text | Mean | Error | Allocated | Hits |
+|---|---|---:|---:|---:|---:|
+| SearchForm | Apfelkuchen | 50.28 ns | 1.072 ns | 144 B | — |
+| JaroWinkler | Apfelkuchen | 56.23 ns | 1.155 ns | - | — |
+| NgramDice | Apfelkuchen | 140.19 ns | 2.634 ns | - | — |
+| SearchForm | Gedec(...)useln [35] | 113.71 ns | 2.311 ns | 240 B | — |
+| JaroWinkler | Gedec(...)useln [35] | 92.13 ns | 1.582 ns | - | — |
+| NgramDice | Gedec(...)useln [35] | 330.39 ns | 6.620 ns | - | — |
+| SearchForm | Größe(...)nahme [23] | 113.51 ns | 2.237 ns | 320 B | — |
+| JaroWinkler | Größe(...)nahme [23] | 93.69 ns | 1.479 ns | - | — |
+| NgramDice | Größe(...)nahme [23] | 227.96 ns | 4.578 ns | - | — |
 
 <!-- benchmarks:end -->
 
@@ -217,7 +269,7 @@ not have to know it.
 
 ### The four combinations
 
-The typo tolerance is a decision of the application: the dictionary of the words of an index costs 138 MB for 685,829
+The typo tolerance is a decision of the application: the dictionary of the words of an index costs 138 MB for 685,739
 words, so it is **off by default** and switched on with `TypoTolerance()`.
 
 | | **Typo tolerance off** (the default) | **Typo tolerance on** |
@@ -354,10 +406,10 @@ decides what may happen.
 
 | Type | What it is |
 |---|---|
-| `LuiCatalog` | the entry point: `Open`, `Create`, `Index`, `LinkedIndex`, `DropIndex` |
+| `LuiCatalog` | the entry point: `Open`, `Create`, `CreateLinked`, `Index`, `LinkedIndex`, `DropIndex` |
 | `LuiEntry` | what is written: a key, a text, a weight, a priority, a payload |
 | `LuiKey` | the key of the application: a number or a text — `1` and `"1"` are different keys |
-| `LuiQuery` | a query that is configured step by step: `Take`, `Candidates`, `Rank`, `PriorityMode`, `DistinctText`, `Similarity`, `TypoTolerance`, `TrackTimings` |
+| `LuiQuery` | a query that is configured step by step: `Take`, `Candidates`, `Rank`, `PriorityMode`, `Similarity`, `TypoTolerance`, `TrackTimings` |
 | `LuiQueryOptions` | the same settings as a record, for the configuration of an application |
 | `LuiResult` | the answer of a query: the hits, the candidates it considered, the query it corrected |
 | `LuiHit` | one hit: the key, the text, the weight, the priority, the similarity — and `GetPayload<T>()` |
@@ -393,23 +445,25 @@ are **created on demand** — the page fills them when you ask for it, and shows
 | **[The benchmarks](./docs/benchmarks.md)** | every measured number, with the machine, the corpus and the method |
 | **[The normalisation](./docs/normalization.md)** | the rule that turns a text into a searchable form — and what was measured about it |
 | **[The test map](./docs/testing.md)** | which test proves which rule |
-| **[The alignment](./docs/architecture/alignment.md)** and **[the domain](./docs/domain/lui.md)** | which rules of the standards apply to a library — and the terms the library speaks |
+| **[The testing strategy](./docs/testing-strategy.md)** | why the tests are built the way they are — the layers, the techniques and their reason |
+| **[What applies to a library](./docs/architecture/alignment.md)** and **[the domain](./docs/domain/lui.md)** | the engineering hygiene of a library — and the terms the library speaks |
 
 ## Status
 
-LUI is **feature-complete for 0.1.0**, and its first release is the prerelease **`0.1.0-alpha`**
-([ADR-0053](.agents/adr/0053-the-first-release-is-a-prerelease.md)). The design is specified, and the implementation
-follows it; every decision of the repository is written down and dated.
+LUI is **released as `0.1.0`**, and the public API is frozen with it
+([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)). The design is specified, and the
+implementation follows it; every decision of the repository is written down and dated.
 
 Two packages, one version: `Nordmann.LUI` (the library) and `Nordmann.LUI.Hosting` (the dependency injection). The core
-takes `Microsoft.Data.Sqlite` and `symspell` and nothing else; the target framework is `net10.0`, the licence is MIT,
-and the public API grows only additively from `0.1.0` on. The alpha is to try out: until `0.1.0` an API may still
-change, each change with an ADR and an entry in the [CHANGELOG](./CHANGELOG.md).
+takes `Microsoft.Data.Sqlite` and `symspell` and nothing else; the target framework is `net10.0`, the licence is MIT.
+From `0.1.0` on the public API grows only additively: a new type, a new method, a new overload, a new `init` property.
+A breaking change — a removed or renamed member, a changed signature — needs a new minor version, a migration note in
+the [CHANGELOG](./CHANGELOG.md) and an ADR. Before `0.1.0` such a change was free; now it is a promise.
 
 ## Working on LUI
 
-Read [`AGENTS.md`](./AGENTS.md) first — it is the contract for this repository, and it inherits
-[`nordmanndev/standards`](https://github.com/nordmanndev/standards).
+Read [`AGENTS.md`](./AGENTS.md) first — it states the rules of this repository: one issue, one pull request, an ADR
+with every decision that changes the public API, and a test with every rule.
 
 - **One issue, one pull request**, each with its tests, its measurement and — for a decision that changes the public
   API, the schema or the dependencies — its record.

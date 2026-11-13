@@ -4,16 +4,21 @@
 > `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
 > `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
 - **Amended by:** [0013](./0013-the-api-shape-before-the-first-release.md) — the namespace layout below; [0014](./0014-seams-for-the-second-content-source.md) — the internal namespaces; [0018](./0018-two-packages-core-and-hosting.md) — the dependency injection is a second package, `Nordmann.LUI.Hosting`, released with the core
 - **Affects:** `src/Nordmann.LUI/Nordmann.LUI.csproj`, `Directory.Packages.props`,
-  `.agents/spec/LUI-Spezifikation.md` §17.1, `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs`
+  ADR-0001, `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs`
 
 ## Context
 
-The specification (§17.1) proposes three packages:
+The specification (ADR-0001) proposes three packages:
 
 | Package | Content | Dependencies |
 |---|---|---|

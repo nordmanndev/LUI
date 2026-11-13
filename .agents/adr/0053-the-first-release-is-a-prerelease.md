@@ -1,5 +1,18 @@
 # 0053 — The first release is a prerelease: 0.1.0-alpha
 
+> **Contract note (ADR-0056, 2026-11-12):** this record was written against a contract outside the repository — a
+> private one, that no reader of LUI can know and does not have to. The repository states its own rules since: the
+> rules that contract carried for LUI stand in [`AGENTS.md`](../../AGENTS.md) and in the documents of
+> [`docs/`](../../docs/README.md). The text below is history and stays as it was written.
+> **Note (ADR-0057, 2026-11-12, issue #121):** this record named an external contract that a reader of a public
+> library cannot know. The two sentences that named it are restated in the terms of this repository. The decision
+> stands as it was written; the text below is history.
+>
+> **Note (2026-11-13, the release):** the release came, and the line `VersionSuffix` is gone — the version of the
+> repository is `0.1.0`, the tag is `v0.1.0`, and the freeze of
+> [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) begins with it. The consequences below that
+> name the prerelease are the ones of the alpha; the README shows the install line without `--prerelease` now.
+
 - **Status:** Accepted
 - **Date:** 2026-11-11
 - **Builds on:** [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (the freeze begins with the tag),
@@ -13,8 +26,8 @@
 ## Context
 
 The epics before the first release are done: #39 (the public API), #64 (production readiness), and #72 (the tests and
-the pipelines), except its step #81. #81 and the alignment with the standards come together in one later pull request,
-once the standards are rebuilt.
+the pipelines), except its step #81. #81 and the alignment with the rules of this repository come together in one
+later pull request, once those rules are rebuilt.
 
 ADR-0026 makes the promise of a stable API with the tag `v0.1.0`, and ADR-0026 (7) says the first release stays `0.1.0`.
 The owner wants the packages on nuget.org to be tried out first, without that promise yet.

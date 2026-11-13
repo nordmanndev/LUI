@@ -1,5 +1,11 @@
 # 0043 — The warm-up is a service of the host
 
+> **Note (issue #148, 2026-11-13):** the decision below says that the host stops the service and disposes it, and that
+> the timer of the outbox belongs to the service and dies with it. What was missing is the round that **runs** when the
+> host stops: the timer died, the round went on — it held the file of the application, and the host that stopped the
+> service was gone while LUI still wrote. The stop and the disposal wait for that round now, and a round that begins
+> after the stop does not begin at all. The decision stands as it was written; this note says what it took.
+
 - **Status:** Accepted
 - **Date:** 2026-11-07
 - **Builds on:** [0017](./0017-dependency-injection-and-hosted-services.md) (the dependency injection and the hosted services),

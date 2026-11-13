@@ -1,9 +1,8 @@
 <Project>
 
   <!--
-    Baseline: nordmanndev/standards @ c63d696 — architecture/layering.md
-    §"Directory.Build.props (repo root)". Kept verbatim; the project-level
-    additions below are the delta recorded in ADR-0002.
+    The build settings of the repository: one place, every project inherits
+    them. The additions below are the delta of a library, recorded in ADR-0002.
   -->
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
@@ -39,8 +38,7 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/nordmanndev/LUI</PackageProjectUrl>
     <VersionPrefix>0.1.0</VersionPrefix>
-    <!-- a prerelease while it stands: 0.1.0-alpha (ADR-0053); the freeze of ADR-0026 begins with the version without it -->
-    <VersionSuffix>alpha</VersionSuffix>
+    <!-- no VersionSuffix: 0.1.0 is the release, and the tag v0.1.0 is the one the freeze of ADR-0026 begins with (ADR-0053) -->
   </PropertyGroup>
 
 </Project>

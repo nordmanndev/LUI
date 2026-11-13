@@ -10,7 +10,7 @@ namespace Nordmann.LUI.Sample.Data;
 /// </summary>
 internal sealed class GermanWordList
 {
-    /// <summary>The number of words of the list — the number the specification names, and the number the download checks.</summary>
+    /// <summary>The number of words of the list — the number ADR-0019 names, and the number the download checks.</summary>
     internal const long Size = 685_829;
 
     private const string EnvironmentVariable = "LUI_WORDLIST";

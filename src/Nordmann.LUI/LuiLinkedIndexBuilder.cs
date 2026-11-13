@@ -6,7 +6,7 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// Describes an index over a table of the application (<c>Linked</c>, LUI-Spezifikation §5, §7.3, ADR-0015). It is
+/// Describes an index over a table of the application (<c>Linked</c>, ADR-0014, ADR-0015, ADR-0015, ADR-0015). It is
 /// loosely coupled: <see cref="Create"/> creates LUI's own tables and only reads the application's table — no column,
 /// no index, no trigger is added to it. Every method is optional and returns a builder.
 /// <para>
@@ -18,7 +18,7 @@ namespace Nordmann.LUI;
 /// <c>Sync</c> or the triggers.
 /// </para>
 /// <para>
-/// The builder is reached through <c>LuiCatalog.Create(name, index =&gt; index.LinkTo(…))</c>: it is the description
+/// The builder is reached through <c>LuiCatalog.CreateLinked(name, index =&gt; index.LinkTo(…))</c>: it is the description
 /// of an index, not the way into it (ADR-0033).
 /// </para>
 /// </summary>
@@ -86,7 +86,7 @@ public sealed class LuiLinkedIndexBuilder
         return this;
     }
 
-    /// <summary>Turns the German transliteration on or off (§6.1); part of the definition.</summary>
+    /// <summary>Turns the German transliteration on or off (ADR-0005); part of the definition.</summary>
     /// <param name="enabled">Whether the transliteration is applied.</param>
     /// <returns>The builder.</returns>
     public LuiLinkedIndexBuilder GermanTransliteration(bool enabled)
@@ -96,15 +96,15 @@ public sealed class LuiLinkedIndexBuilder
     }
 
     /// <summary>
-    /// Typo tolerance (§10), as for an embedded index. The dictionary learns the words of <c>Refresh</c> and <c>Sync</c>;
+    /// Typo tolerance (ADR-0012), as for an embedded index. The dictionary learns the words of <c>Refresh</c> and <c>Sync</c>;
     /// a write to the table that LUI is not told of — without a refresh and without the triggers — reaches it with
     /// <c>RebuildTypoDictionary()</c>.
     /// </summary>
-    /// <param name="enabled">Whether an input without a word start is corrected.</param>
+    /// <param name="distance">How many errors are forgiven; <see cref="LuiTypoDistance.None"/> corrects nothing.</param>
     /// <returns>The builder.</returns>
-    public LuiLinkedIndexBuilder TypoTolerance(bool enabled = true)
+    public LuiLinkedIndexBuilder TypoTolerance(LuiTypoDistance distance = LuiTypoDistance.OneError)
     {
-        _options = _options with { TypoTolerance = enabled };
+        _options = _options with { TypoDistance = distance };
         return this;
     }
 
@@ -132,7 +132,8 @@ public sealed class LuiLinkedIndexBuilder
             KeyCodec.KeyType(LuiKeyKind.Number),
             _options.GermanTransliteration,
             TokenizerFold.Version,
-            Link: _link with { PayloadColumns = _payloadColumns.Count == 0 ? null : _payloadColumns });
+            Link: _link with { PayloadColumns = _payloadColumns.Count == 0 ? null : _payloadColumns },
+            TypoDistance: _options.TypoDistance);
 
         var source = new LinkedSource(_name, definition);
         IndexStore.Create(
@@ -151,6 +152,6 @@ public sealed class LuiLinkedIndexBuilder
             source,
             payload,
             _options.Similarity ?? source.Rules.DefaultSimilarity,
-            _options.TypoTolerance);
+            _options.TypoDistance);
     }
 }

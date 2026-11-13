@@ -1,21 +1,24 @@
 ```
 
 BenchmarkDotNet v0.15.8, Linux Debian GNU/Linux 12 (bookworm)
-Intel Xeon 6982P-C 3.80GHz, 1 CPU, 2 logical and 2 physical cores
+Intel Xeon Platinum 2.50GHz, 1 CPU, 2 logical and 2 physical cores
 .NET SDK 10.0.403
   [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
   DefaultJob : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
 
 
+  [Run]      : 2026-11-13, the measurements per case: 13–33
+  [Machine]  : Intel Xeon Platinum 2.50GHz, 1 CPU, 2 logical and 2 physical cores
+  [Journal]  : wal
 ```
-| Method      | Text                 | Mean      | Error    | StdDev   | Gen0   | Allocated |
-|------------ |--------------------- |----------:|---------:|---------:|-------:|----------:|
-| **SearchForm**  | **Apfelkuchen**          |  **43.72 ns** | **0.408 ns** | **0.318 ns** | **0.0005** |     **144 B** |
-| JaroWinkler | Apfelkuchen          |  41.64 ns | 0.861 ns | 1.719 ns |      - |         - |
-| NgramDice   | Apfelkuchen          |  95.53 ns | 1.229 ns | 1.416 ns |      - |         - |
-| **SearchForm**  | **Gedec(...)useln [35]** |  **97.19 ns** | **1.462 ns** | **1.564 ns** | **0.0008** |     **240 B** |
-| JaroWinkler | Gedec(...)useln [35] |  78.58 ns | 1.509 ns | 1.260 ns |      - |         - |
-| NgramDice   | Gedec(...)useln [35] | 251.99 ns | 5.046 ns | 4.720 ns |      - |         - |
-| **SearchForm**  | **Größe(...)nahme [23]** | **100.69 ns** | **2.073 ns** | **3.842 ns** | **0.0012** |     **320 B** |
-| JaroWinkler | Größe(...)nahme [23] |  70.50 ns | 1.447 ns | 1.931 ns |      - |         - |
-| NgramDice   | Größe(...)nahme [23] | 182.70 ns | 3.655 ns | 6.005 ns |      - |         - |
+| Method | Text | Mean | Error | StdDev | Gen0 | Allocated | Hits |
+|------------ |--------------------- |----------:|---------:|---------:|-------:|----------:|---:|
+| SearchForm | Apfelkuchen | 50.28 ns | 1.072 ns | 1.571 ns | 0.0083 | 144 B | — |
+| JaroWinkler | Apfelkuchen | 56.23 ns | 1.155 ns | 1.832 ns | - | - | — |
+| NgramDice | Apfelkuchen | 140.19 ns | 2.634 ns | 4.177 ns | - | - | — |
+| SearchForm | Gedec(...)useln [35] | 113.71 ns | 2.311 ns | 3.163 ns | 0.0138 | 240 B | — |
+| JaroWinkler | Gedec(...)useln [35] | 92.13 ns | 1.582 ns | 1.480 ns | - | - | — |
+| NgramDice | Gedec(...)useln [35] | 330.39 ns | 6.620 ns | 8.608 ns | - | - | — |
+| SearchForm | Größe(...)nahme [23] | 113.51 ns | 2.237 ns | 3.061 ns | 0.0185 | 320 B | — |
+| JaroWinkler | Größe(...)nahme [23] | 93.69 ns | 1.479 ns | 1.235 ns | - | - | — |
+| NgramDice | Größe(...)nahme [23] | 227.96 ns | 4.578 ns | 6.566 ns | - | - | — |

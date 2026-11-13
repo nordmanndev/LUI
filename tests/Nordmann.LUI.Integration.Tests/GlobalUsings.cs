@@ -1,6 +1,4 @@
-// The shared test infrastructure — the database, the corpora, the fixtures.
+// The shared test infrastructure — the database, the corpora, the fixtures, the budgets.
+// It also holds the attribute that gates a test on its input: the whole word list.
 global using Nordmann.LUI.Testing;
 global using Xunit;
-
-// The attributes that gate a test on its input: the measurements, the whole word list.
-global using Nordmann.LUI.Integration.Tests.Support;

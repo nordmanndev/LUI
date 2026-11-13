@@ -1,13 +1,18 @@
 # 0003 — The nine open questions of the specification are deferred
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
-- **Affects:** `.agents/spec/LUI-Spezifikation.md` §21, the public API surface
+- **Affects:** ADR-0003, the public API surface
 
 ## Context
 
-The specification ends with nine open questions (§21). Each of them describes
+The specification ends with nine open questions (ADR-0003). Each of them describes
 a *feature* that is plausible and, in some cases, cheap — and each of them
 changes the public API, the schema, or the sample.
 
@@ -28,7 +33,7 @@ an archaeology.
 | O4 | Does `Linked` need a weight *expression* (`clicks + 10 * favorites`) rather than a column? | Deferred | A consumer whose weight is computed. The escape hatch exists already: a generated column on the application's side. |
 | O5 | Is "German transliteration on/off" enough for multiple languages? | Deferred | A consumer with a corpus the German rules mangle. The flag exists (`.GermanTransliteration(false)`); a general rule set is a bigger change. |
 | O6 | Filters on `Linked` (`published = 1` only) | Deferred | A consumer with rows that must not be searchable. The implementation is a `WHERE` clause in the triggers — but a filter that is wrong hides entries silently, so it deserves its own tests first. |
-| O7 | Blend word-start and weight softly instead of in stages | Deferred | Real click data. The staged ranking (§9.2) is what the measurements in Anhang A actually support; a soft blend decided without data would be a guess dressed as a feature. |
+| O7 | Blend word-start and weight softly instead of in stages | Deferred | Real click data. The staged ranking (ADR-0013, ADR-0055) is what the measurements in the record actually support; a soft blend decided without data would be a guess dressed as a feature. |
 | O8 | Should an empty input suggest the `System`-priority entries ("what do you suggest?")? | Deferred | A product decision, not a technical one — it belongs to whoever owns the search field. The mechanism (a query without a term) exists. |
 | O9 | Are four priority classes enough? | Deferred | A consumer that needs a fifth. More classes cost bits of the weight field in the `rowid`, so the change is not free — and four covers system, high, elevated, normal. |
 | O10 | Should the beginnings of several *short* words find a title in a `MultiWord` index (`an mü` → „Anna Müller")? (added with [ADR-0011](./0011-the-multi-word-index.md)) | Deferred | A consumer with names that people type as two- and three-letter beginnings. Today a word under three characters only counts in the ranking and `an mü` is searched compactly (`anmu`); finding word beginnings needs a table of them per entry, the same design as O1. |

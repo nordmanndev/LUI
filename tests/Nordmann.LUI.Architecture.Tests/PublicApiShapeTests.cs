@@ -11,7 +11,7 @@ namespace Nordmann.LUI.Architecture.Tests;
 /// <summary>
 /// The shape of the public API is a promise: a library that talks to the web
 /// stack or hands out <c>Task</c>s the caller never had to await is a library
-/// that misleads its consumers (LUI-Spezifikation §13).
+/// that misleads its consumers (ADR-0016).
 /// </summary>
 public sealed class PublicApiShapeTests
 {
@@ -39,7 +39,7 @@ public sealed class PublicApiShapeTests
     public void The_public_api_is_synchronous()
     {
         // Microsoft.Data.Sqlite has no async I/O; a Task-returning API would be
-        // a lie about latency (LUI-Spezifikation §13).
+        // a lie about latency (ADR-0016).
         var offenders = PackageAssemblies
             .SelectMany(assembly => assembly.GetExportedTypes())
             .SelectMany(type => type.GetMethods(
@@ -156,7 +156,7 @@ public sealed class PublicApiShapeTests
     public void The_read_interface_only_reads_and_the_write_interfaces_carry_the_maintenance()
     {
         // What keeps an index in order is not part of the interface that a suggest endpoint gets injected (review of
-        // 2026-11-04, B.3). TypoTolerance and TypoDictionaryState stay: the hosting package sees the public API only.
+        // 2026-11-04, B.3). TypoDistance and TypoDictionaryState stay: the hosting package sees the public API only.
         const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
         static string[] Members(Type type) =>
         [
@@ -166,7 +166,7 @@ public sealed class PublicApiShapeTests
         ];
 
         Members(typeof(ILuiIndex)).Order(StringComparer.Ordinal)
-            .ShouldBe(["Count", "KeyKind", "Kind", "Name", "Query", "Search", "TypoDictionaryState", "TypoTolerance"]);
+            .ShouldBe(["Count", "KeyKind", "Kind", "Name", "Query", "Search", "TypoDictionaryState", "TypoDistance"]);
 
         foreach (var write in new[] { typeof(ILuiEmbeddedIndex), typeof(ILuiLinkedIndex) })
         {
@@ -201,15 +201,21 @@ public sealed class PublicApiShapeTests
         // ADR-0033: `Create` is the write path — it was called `Ensure`, and that name is gone (ADR-0026 allows a change of
         // a name before 0.1.0). `Index` and `LinkedIndex` are the read path: they open an index that is there and write
         // nothing. ADR-0035: none of them names a type of the application — the map of a linked index is the one type
-        // argument, and the compiler infers it from the lambda.
+        // argument, and the compiler infers it from the lambda. ADR-0062: the route is named in the call — `Create`
+        // creates an embedded index, `CreateLinked` a linked one; the compiler does not choose it.
         const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
         MethodInfo[] Named(string name) =>
             [.. typeof(LuiCatalog).GetMethods(declared).Where(method => string.Equals(method.Name, name, StringComparison.Ordinal))];
 
         var created = Named("Create");
-        created.Length.ShouldBe(2, "one Create per content source");
+        created.Length.ShouldBe(1, "the route is named in the call: `Create` creates an embedded index");
         created.ShouldAllBe(method => !method.IsGenericMethodDefinition);
-        created.Select(method => method.ReturnType).ShouldBe([typeof(ILuiEmbeddedIndex), typeof(ILuiLinkedIndex)], ignoreOrder: true);
+        created[0].ReturnType.ShouldBe(typeof(ILuiEmbeddedIndex));
+
+        var createdLinked = Named("CreateLinked");
+        createdLinked.Length.ShouldBe(1, "`CreateLinked` creates a linked index");
+        createdLinked.ShouldAllBe(method => !method.IsGenericMethodDefinition);
+        createdLinked[0].ReturnType.ShouldBe(typeof(ILuiLinkedIndex));
 
         var embedded = Named("Index").ShouldHaveSingleItem("an embedded index is opened by its name, and by nothing else");
         embedded.IsGenericMethodDefinition.ShouldBeFalse();

@@ -11,11 +11,11 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// The entry point: knows the connection string and all indexes of a
-/// database (LUI-Spezifikation §2, §12.1). A catalog and its indexes are
+/// database (docs/api.md, docs/api.md). A catalog and its indexes are
 /// meant to be singletons; they are safe to use from many threads.
 /// <para>
 /// Every operation opens its own connection from the pool of
-/// <c>Microsoft.Data.Sqlite</c>, so reads run in parallel (§15).
+/// <c>Microsoft.Data.Sqlite</c>, so reads run in parallel (ADR-0015, ADR-0046).
 /// <see cref="Dispose"/> waits for the operations that are running.
 /// </para>
 /// <para>
@@ -72,7 +72,7 @@ public sealed class LuiCatalog : IDisposable
     /// <c>lui_meta</c> — the table has to be there, and if it is not, the catalog says so (ADR-0033).
     /// </para>
     /// </summary>
-    /// <param name="connectionString">The database: the one of the application, or a file of LUI's own (E9).</param>
+    /// <param name="connectionString">The database: the one of the application, or a file of LUI's own (ADR-0014).</param>
     /// <param name="options">The settings; <see langword="null"/> takes the defaults.</param>
     /// <returns>The catalog; dispose it when the application ends.</returns>
     /// <exception cref="LuiEnvironmentException">
@@ -104,9 +104,9 @@ public sealed class LuiCatalog : IDisposable
     }
 
     /// <summary>
-    /// Creates an index: <c>catalog.Create("tags", index =&gt; index.SingleWord())</c>. It is the write path, and it belongs
-    /// in the migration of the application: the index is created if it is missing, and the stored definition is compared
-    /// with the one that was described if it is there.
+    /// Creates an <c>Embedded</c> index: <c>catalog.Create("tags", index =&gt; index.SingleWord())</c>. It is the write
+    /// path, and it belongs in the migration of the application: the index is created if it is missing, and the stored
+    /// definition is compared with the one that was described if it is there.
     /// <para>
     /// The builder chain is the <b>parameter</b>, not the way in: the catalog takes a description and does the
     /// creating itself. The builder is not reachable from the catalog otherwise — the runtime path cannot create an
@@ -128,8 +128,12 @@ public sealed class LuiCatalog : IDisposable
     }
 
     /// <summary>
-    /// Creates an index over a table of the application (<c>Linked</c>): the description starts with
+    /// Creates a <c>Linked</c> index — over a table of the application: the description starts with
     /// <c>LinkTo(…)</c>, and the index reads the table of the application instead of a table of the library.
+    /// <para>
+    /// The route is named in the call, as it is on the side of opening: <c>Create</c> creates an embedded index,
+    /// <c>CreateLinked</c> a linked one (ADR-0062). The compiler does not choose the route.
+    /// </para>
     /// <para>
     /// The index starts empty: fill it with <c>Sync()</c>. That holds after a <c>DropIndex</c> too — a new linked
     /// index is empty and has no triggers until <c>Sync()</c> and, if wanted, <c>CreateTriggers()</c>.
@@ -141,7 +145,7 @@ public sealed class LuiCatalog : IDisposable
     /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
     /// <exception cref="LuiLinkedTableException">The table or a column is missing, or the key is not the table's INTEGER PRIMARY KEY.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
-    public ILuiLinkedIndex Create(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)
+    public ILuiLinkedIndex CreateLinked(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)
     {
         ArgumentNullException.ThrowIfNull(index);
 
@@ -182,7 +186,7 @@ public sealed class LuiCatalog : IDisposable
     /// opens later sees the same dictionary and reports it as built (ADR-0025).
     /// </para>
     /// <para>
-    /// The build takes seconds and needs memory — 138 MB for 685,829 words (ADR-0021). A host that wants corrections
+    /// The build takes seconds and needs memory — 138 MB for 685,739 words (ADR-0021). A host that wants corrections
     /// from its first query warms the catalog at the start; the registration <c>AddLuiWarmup()</c> of the hosting
     /// package does it for the host (ADR-0043).
     /// </para>
@@ -196,7 +200,7 @@ public sealed class LuiCatalog : IDisposable
 
     /// <summary>
     /// Builds the typo dictionary of the named indexes (ADR-0043) — for a catalog whose indexes do not all correct typos:
-    /// a dictionary costs memory, 138 MB for 685,829 words (ADR-0021), and an index whose queries correct nothing needs
+    /// a dictionary costs memory, 138 MB for 685,739 words (ADR-0021), and an index whose queries correct nothing needs
     /// none.
     /// </summary>
     /// <param name="names">The names of the indexes, embedded or linked.</param>
@@ -283,15 +287,16 @@ public sealed class LuiCatalog : IDisposable
     {
         var source = new EmbeddedSource(name, entry.Definition);
 
-        // an opened index takes the default of its kind and no typo tolerance: a query asks for a correction
-        // (LuiQueryOptions.TypoTolerance)
+        // An opened index takes the default of its kind and the distance of its stored definition: the
+        // dictionary is built with it, and the queries of the instance correct unless they say otherwise
+        // (LuiQueryOptions.TypoTolerance).
         return new EmbeddedIndex(
             Database,
             TypoDictionaries,
             source,
             PayloadSerializer,
             source.Rules.DefaultSimilarity,
-            typoTolerance: false);
+            typoDistance: entry.Definition.TypoDistance);
     }
 
     /// <summary>
@@ -412,7 +417,7 @@ public sealed class LuiCatalog : IDisposable
             source,
             payload,
             source.Rules.DefaultSimilarity,
-            typoTolerance: false);
+            typoDistance: definition.TypoDistance);
     }
 
     private static void EnsureEmbedded(string name, IndexDefinition definition)

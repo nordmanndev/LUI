@@ -1,7 +1,7 @@
 namespace Nordmann.LUI;
 
 /// <summary>
-/// What the priority of an entry does in the ranking (LUI-Spezifikation §9.2).
+/// What the priority of an entry does in the ranking (ADR-0013, ADR-0055).
 /// </summary>
 public enum LuiPriorityMode
 {

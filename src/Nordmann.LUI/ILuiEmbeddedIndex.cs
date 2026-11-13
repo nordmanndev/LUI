@@ -4,7 +4,7 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// An index whose content lives in a table of the library and is written through
-/// it (<c>Embedded</c>, LUI-Spezifikation §5, §12.4). Inside a transaction of the
+/// it (<c>Embedded</c>, ADR-0014, ADR-0015, ADR-0016). Inside a transaction of the
 /// application, its rows and the entries change atomically.
 /// </summary>
 public interface ILuiEmbeddedIndex : ILuiIndex
@@ -77,7 +77,7 @@ public interface ILuiEmbeddedIndex : ILuiIndex
     bool UpdatePriority(LuiKey key, LuiPriority priority, SqliteTransaction? transaction = null);
 
     /// <summary>
-    /// Brings the index in step with a source (§12.4, §14, ADR-0016): adds what is missing, changes what differs, leaves
+    /// Brings the index in step with a source (ADR-0016, ADR-0016, ADR-0046, ADR-0016): adds what is missing, changes what differs, leaves
     /// alone what is the same, and at the end removes the keys the source does not have — <b>the keys that were in the
     /// index when the sync began</b>: one the application adds while the sync runs stays.
     /// <para>
@@ -106,7 +106,7 @@ public interface ILuiEmbeddedIndex : ILuiIndex
 
     /// <summary>
     /// <see cref="Sync(IEnumerable{LuiEntry}, LuiSyncOptions?, CancellationToken)"/> with a source that is
-    /// asynchronous — an EF Core query against another database, a stream of a service (§13). The writes to SQLite stay
+    /// asynchronous — an EF Core query against another database, a stream of a service (ADR-0016). The writes to SQLite stay
     /// synchronous: the call blocks until the sync is done. Run it on a thread that may block (a background service).
     /// </summary>
     /// <param name="entries">The entries.</param>
@@ -119,7 +119,7 @@ public interface ILuiEmbeddedIndex : ILuiIndex
         CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Checks the index against itself (§12.6, §14) and changes nothing: the stored definition is the one of this instance,
+    /// Checks the index against itself (ADR-0016, ADR-0016, ADR-0046) and changes nothing: the stored definition is the one of this instance,
     /// the search index passes FTS5's integrity check, and the three triggers that keep it in step with the content table
     /// are in place. The integrity check reads the whole search index under SQLite's write lock (about 2 s for a million
     /// entries). <see cref="Check(IEnumerable{LuiEntry}, CancellationToken)"/> compares it with a source.
@@ -136,7 +136,7 @@ public interface ILuiEmbeddedIndex : ILuiIndex
     void WarmUpTypoDictionary(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Builds the typo dictionary anew from the entries (§10.1). The dictionary is built on first use and
+    /// Builds the typo dictionary anew from the entries (ADR-0012). The dictionary is built on first use and
     /// grows with every write through LUI: only new word beginnings, so the frequencies of the old ones stay as
     /// they were; a removal does not shrink it, because SymSpell cannot forget — a correction towards a removed
     /// word finds nothing. A rebuild gives the sums of the weights as they are now and forgets the removed
@@ -148,7 +148,7 @@ public interface ILuiEmbeddedIndex : ILuiIndex
     void RebuildTypoDictionary(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Compares the index with a source and changes nothing (§12.6): the entries of the source that are missing, those the
+    /// Compares the index with a source and changes nothing (ADR-0016): the entries of the source that are missing, those the
     /// source does not have, and those with another text, weight, priority or payload. A sync with the same source repairs
     /// what it finds. It reads in a snapshot of its own, beside the writers.
     /// </summary>
@@ -158,7 +158,7 @@ public interface ILuiEmbeddedIndex : ILuiIndex
     LuiIntegrityReport Check(IEnumerable<LuiEntry> entries, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Builds what is derived from the content table anew (§12.6): the three triggers, and the search index — FTS5 reads
+    /// Builds what is derived from the content table anew (ADR-0016): the three triggers, and the search index — FTS5 reads
     /// the content table in the order of the rowid —, then merges it. The repair for every finding of <see cref="Check()"/>
     /// below the content table. One transaction: other writers wait until it is done.
     /// </summary>

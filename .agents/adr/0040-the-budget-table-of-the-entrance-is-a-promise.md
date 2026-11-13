@@ -1,4 +1,9 @@
-# 0040 — The budget table of the entrance is the promise of §16, and a test holds it up
+# 0040 — The budget table of the entrance is the promise of ADR-0020, and a test holds it up
+
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
 
 - **Status:** Accepted
 - **Date:** 2026-11-06
@@ -10,7 +15,7 @@
   - `tests/Nordmann.LUI.Architecture.Tests/Readme_Budgets.cs` (new), `tools/mutation-check.sh` (a mutation),
     `docs/testing.md`
   - `README.md` (the budget table), `docs/benchmarks.md` (the status table and the target table)
-  - `.agents/spec/LUI-Spezifikation.md` §16 (the contract that is read)
+  - ADR-0020 (the contract that is read)
 - **Issue:** #38
 
 ## Context
@@ -19,7 +24,7 @@ The budget table of the README is the promise a reader checks: nine rows, the ta
 is **copied by hand** — the budget test `PerformanceBudgets` takes about ten minutes and is not part of the CI, so
 nothing checks either column:
 
-- the **limits** can drift from the target table of §16;
+- the **limits** can drift from the target table of ADR-0020;
 - the **measured values** can drift from the run they came from.
 
 The drift had already happened. ADR-0032 lowered the target of the allocation from p50 ≤ 250 KB / p95 ≤ 350 KB to
@@ -31,7 +36,7 @@ A promise that nobody checks is a wish.
 
 ## Decision
 
-1. **The contract is the source.** A new architecture test, `Readme_Budgets`, reads the target table of §16 out of the
+1. **The contract is the source.** A new architecture test, `Readme_Budgets`, reads the target table of ADR-0020 out of the
    specification and compares its limits with the **three** tables that show them: the budget table of the README, the
    target table of the record and the status table of the record (the summary at the top). The limits are compared
    **in order** — the sequence of "≤ number unit" of the contract against the sequence of the table — so a swapped
@@ -41,7 +46,7 @@ A promise that nobody checks is a wish.
    are the numbers of a run: they belong to a machine and a day, and a test cannot know them. They stand in the record
    with the machine they were measured on, and the entrance says where its numbers come from.
 3. **The drift that the guard found is fixed.** The allocation row of the README and of the record carries the limits
-   of §16 (≤ 60 / ≤ 100 KB) and the measured values of the run of 2026-11-06 (46 / 51 KB — measured in bytes, so the
+   of ADR-0020 (≤ 60 / ≤ 100 KB) and the measured values of the run of 2026-11-06 (46 / 51 KB — measured in bytes, so the
    machine does not matter). The status table of the record stood apart from the contract twice: it promised the old
    limits, and it listed the allocation before the correction. Its rows follow the order of the contract now.
 4. **The mutation check proves the teeth.** Two mutations change one limit — "≤ 5 ms" becomes "≤ 6 ms" in the README,
@@ -63,7 +68,7 @@ A promise that nobody checks is a wish.
 ## Consequences
 
 - **The public API does not change.** Nothing in this decision touches a type, a member or a signature.
-- **The entrance and the record follow the contract.** A limit that changes in §16 fails the build until both tables
+- **The entrance and the record follow the contract.** A limit that changes in ADR-0020 fails the build until both tables
   follow it.
 - **The allocation row is honest now.** It carries the target of ADR-0032 and the measured values of a run of the
   current code — and the entrance says which machine the other numbers come from.

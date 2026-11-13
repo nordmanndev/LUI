@@ -1,20 +1,24 @@
 # The plan of the production readiness
 
+> **Note (ADR-0057, 2026-11-12, issue #121):** the German parts of this paper have been translated into English.
+> The translation keeps what the paper said at its time — the decisions, the numbers, the names, the branches, the issue
+> numbers and the dates. The text below is the paper of its time.
+
 > An independent architecture review of 2026-11-06 asked the question "is LUI production-ready for Nordmann-Dev?" —
 > performance, concurrency, test behaviour and the work of a developer who adopts it. Its verdict: the library is
-> **architekturally reif** and **not yet delivered**. It named three gaps that no single commit can close — no
-> release, no automatic gate for the budgets of §16, and a typo dictionary that is built inside the read transaction
+> **architecturally mature** and **not yet delivered**. It named three gaps that no single commit can close — no
+> release, no automatic gate for the budgets of ADR-0020, and a typo dictionary that is built inside the read transaction
 > of the query — plus one stale number that stands in two documents. This plan is what this round does about the parts
 > that belong together: one issue, one pull request, seven tasks, one commit each.
 
-**Issue:** #64 (the epic — one issue, one pull request, the standards' way)
+**Issue:** #64 (the epic — one issue, one pull request)
 **Branch:** `feat/production-readiness`
 
 ## The decisions of the owner (2026-11-06)
 
 1. **The query does not build the typo dictionary any more** — direction 2 of #35. The query answers with
    `CorrectionSkipped` while there is no dictionary; the build belongs to the warm-up, to the writes and to the
-   service of task 6. A documented behaviour changes ⇒ ADR-0042, a note in the CHANGELOG, §10 of the specification
+   service of task 6. A documented behaviour changes ⇒ ADR-0042, a note in the CHANGELOG, ADR-0012 of the specification
    and the README in the same commit.
 2. **The scope of the round is the six tasks** — the three heavy performance points of the review (the memory of the
    dictionary, the path of 5–8 characters, the floor of the allocation) are each a change of the query path and get
@@ -28,8 +32,8 @@
 | | The task | The issue | The decision | The test delta |
 |---|---|---|---|---|
 | 0 | **The house:** the epic issue, the four sub-issues, the branch, the pull request, this plan, the state of the session | #64 | — | 0 (no code) |
-| 1 | **The §16 table of the README and of the benchmarks agrees with the specification — and a guard keeps it there** | #38 | ADR-0040 (the owner's round) | **taken over** — see "What actually happened" |
-| 2 | **A lane of the CI checks the budgets of §16** (the allocations are asserted, the times are reported) | #65 | ADR-0041 (Measurement) | +6 integration tests, +1 lane, +1 ADR |
+| 1 | **The ADR-0020 table of the README and of the benchmarks agrees with the specification — and a guard keeps it there** | #38 | ADR-0040 (the owner's round) | **taken over** — see "What actually happened" |
+| 2 | **A lane of the CI checks the budgets of ADR-0020** (the allocations are asserted, the times are reported) | #65 | ADR-0041 (Measurement) | +6 integration tests, +1 lane, +1 ADR |
 | 3 | **The link check runs in the CI** | #66 | — | 0 new tests, +1 step |
 | 4 | **A query does not build the typo dictionary any more** | #35 | ADR-0042 (Typo tolerance) | **+2** integration tests (9 test files), 1 ADR, spec + CHANGELOG |
 | 5 | **The concurrency is hardened:** a soak, a second connection on one file, a dispose during a build, a Windows lane | #67 | — | **+3** integration tests, +1 CI lane |
@@ -51,8 +55,8 @@
         request against a dead tree.
   - **Test delta:** 0. **Proof:** the pull request exists and its first CI run is green.
 
-- [x] **Task 1 — The §16 table agrees with the specification (#38)** — **taken over by the owner's pull request #63**
-      (`feature/budget-table-guard`, green on 2026-11-06): the guard `Readme_Budgets` reads the target table of §16 out
+- [x] **Task 1 — The ADR-0020 table agrees with the specification (#38)** — **taken over by the owner's pull request #63**
+      (`feature/budget-table-guard`, green on 2026-11-06): the guard `Readme_Budgets` reads the target table of ADR-0020 out
       of the specification and compares it with the budget table of the README and with the target table of the record;
       it found the real drift (≤ 250 / ≤ 350 KB against the contract's ≤ 60 / ≤ 100 KB) and both tables carry the limits
       of the contract now, with the measured values of the run of 2026-11-06 (46 / 51 KB). The mutation
@@ -61,7 +65,7 @@
       proof of the head of #63 (run #111, `60eda3e0`) and of the merge into `main` (run #114, `e30ba166`) stands in it.
       **Nothing of this round touches it** — the issue, the tables, the guard and the ADR belong to that round.
 
-- [x] **Task 2 — A lane of the CI checks the budgets of §16 (#65)**
+- [x] **Task 2 — A lane of the CI checks the budgets of ADR-0020 (#65)**
   - [x] The decision written down: **ADR-0041** — what runs, when, what is asserted against what is only reported.
   - [x] **The rule of the measurement:** the *allocations* are machine-independent and are asserted; the *times* belong
         to the machine they were measured on and are only reported, with the machine named. The rule is one method and
@@ -71,7 +75,7 @@
         *The file stood at `tools/performance-lane.yml` until the owner gave the agent a token — the connector may not
         write into `.github/workflows/`, and a lane outside of it never runs. It stands at
         `.github/workflows/performance.yml` now.*
-  - [x] The lane runs the budget test with `LUI_PERF=1` in the scenario of §16 (three million entries, the corpus of the
+  - [x] The lane runs the budget test with `LUI_PERF=1` in the scenario of ADR-0020 (three million entries, the corpus of the
         specification), and the parity with the gate `LUI_REQUIRE_FULL_WORDLIST=1` — a missing word list makes the lane
         fail instead of measuring a sample and calling it the scenario.
   - [ ] **The measurement of the lane itself:** the first run is triggered by hand and read — how long the build of
@@ -88,7 +92,7 @@
         (2 cores, 3 GB) are not the measurement of a runner, they only prove that the lane works.*
   - [x] The gates table in `docs/testing.md` names the lane, and `docs/benchmarks.md` says what a target means on a
         shared runner.
-  - **Test delta:** +6 integration tests (`PerformanceBudget_Machine`); the seven targets of §16 move from *never* to
+  - **Test delta:** +6 integration tests (`PerformanceBudget_Machine`); the seven targets of ADR-0020 move from *never* to
         *nightly*. **Proof:** the red run #117 (exactly one test failed, with the assertion of the missing rule), the
         green run #125 (263 unit, 81 architecture, 436 integration, 43 client, mutation 0 failures), and the first run of
         the lane — **pending** (the file is in place; the run waits for the merge). *The SHAs of the runs name the
@@ -120,7 +124,7 @@
         sets `CorrectionSkipped` — the query does not build.
   - [x] The build path leaves the query (`TypoCorrection.IsReady`, `TypoDictionary.TryEnsureBuilt`); the build stays
         where it belongs: `WarmUpTypoDictionary`, `RebuildTypoDictionary`, the writes.
-  - [x] The specification (§10.1) and the README are updated in the same commit; the CHANGELOG says what changes.
+  - [x] The specification (ADR-0012) and the README are updated in the same commit; the CHANGELOG says what changes.
   - [x] **ADR-0042** — why the query does not build, and what replaces it.
   - [x] `docs/api.md` if a public member disappears — the guard `Public_API_Documentation` says so.
   - **Test delta:** +2 integration tests (the two new ones in `TypoDictionaryLifecycleTests`), **9** test files touched
@@ -181,20 +185,19 @@
   - [x] `docs/api.md` carries the two new methods of the catalog and the new registration.
   - [x] The CHANGELOG (additive), the README (the ASP.NET section), the tutorial (chapter 5).
   - **Test delta:** +4 integration tests, +2 public methods (`WarmUpTypoDictionaries`, `ApplyPending`), +1 registration.
-    **Proof:** the red commit `7029503` (2 of 3 cases red, frisch im Worktree nachgeprüft) ⇒ the green run **#154**
-    (`988b670`): Unit 263, Architektur 82, Integration 445 + 14 übersprungen, Client 43, `package-smoke-test: OK`,
-    Mutations-Check 0 failure(s) — alle fünf Jobs grün.
+    **Proof:** the red commit `7029503` (2 of 3 cases red, checked again fresh in the worktree) ⇒ the green run **#154**
+    (`988b670`): unit 263, architecture 82, integration 445 + 14 skipped, client 43, `package-smoke-test: OK`,
+    mutation check 0 failure(s) — all five jobs green.
 
-  **Was die Runde fand:** der **Package-Smoke-Test** erwischte das README — er führt alle C#-Blöcke als **ein Programm**
-  aus, und mein zweiter Block registrierte den Katalog ein zweites Mal (`AddLui` wirft). Der Wärmer wanderte in den
-  Block des Hosts, wo der Katalog einmal registriert wird.
+  **What the round found:** the **package smoke test** caught the README — it runs all C# blocks as **one program**,
+  and my second block registered the catalog a second time (`AddLui` throws). The warm-up wandered into the block of
+  the host, where the catalog is registered once.
 
-  Und die **Windows-Lane** fand ein Rennen, das Task 5 offen gelassen hatte (#67): der Dispose-Test wartete auf den
-  Zustand des Wörterbuchs mit `await Task.Delay(10)` — und die Fortsetzung des `await` braucht einen freien Thread des
-  Pools. Unter der Last der Suite kam sie so spät, dass der Build fertig war (`Current` statt `Building`) und der
-  Dispose den Katalog unter dem Warm-up schloss. Die Warteschleife schläft jetzt auf dem Thread des Tests, und die
-  Behauptung „der Dispose kommt während des Warm-ups" wird über die **Zeitstempel** der beiden Worker bewiesen statt
-  gehofft.
+  And the **Windows lane** found a race that task 5 had left open (#67): the dispose test waited for the state of
+  the dictionary with `await Task.Delay(10)` — and the continuation of the `await` needs a free thread of the pool.
+  Under the load of the suite it came so late that the build was done (`Current` instead of `Building`) and the
+  dispose closed the catalog under the warm-up. The waiting loop now sleeps on the thread of the test, and the claim
+  "the dispose comes during the warm-up" is proven over the **timestamps** of the two workers instead of hoped for.
 
 - [x] **Task 7 — A typed view over the untyped index (#59)**
   - [x] `index.As<T>()` — a thin, allocation-free view that delegates to the one index and calls `GetPayload<T>()` for
@@ -206,21 +209,20 @@
   - [x] The CHANGELOG (additive — allowed by ADR-0026), the README, the tutorial.
   - **Test delta:** +2 integration tests. **Proof:** the CI run; #59 gets the comment and is closed.
 
-  **Der rote Zustand zuerst:** Commit `36ec435` — die Sicht ist die Form ohne die Arbeit ⇒ Lauf **42393907837**:
-  genau die zwei neuen Tests sind rot, alles andere ist grün (Unit 263, Architektur 82, Integration 445 + 14
-  übersprungen; die Windows-Lane meldet dieselben zwei roten Tests). Der grüne Commit `c7260ce` ⇒ Lauf **42394766341**:
-  alle fünf Jobs grün — Unit 263, Architektur 82, Integration 447 + 14 übersprungen, Windows-Lane, Parität,
-  Mutations-Check `=== 0 failure(s) ===`, `package-smoke-test: OK`. **#59 ist kommentiert und geschlossen.**
+  **The red state first:** commit `36ec435` — the view is the form without the work ⇒ run **42393907837**:
+  exactly the two new tests are red, everything else is green (unit 263, architecture 82, integration 445 + 14
+  skipped; the Windows lane reports the same two red tests). The green commit `c7260ce` ⇒ run **42394766341**:
+  all five jobs green — unit 263, architecture 82, integration 447 + 14 skipped, Windows lane, parity,
+  mutation check `=== 0 failure(s) ===`, `package-smoke-test: OK`. **#59 is commented and closed.**
 
-  **Was die Runde fand:** die drei neuen Typen sind die **ersten generischen Typen** der öffentlichen Oberfläche. Die
-  Laufzeit hängt die Aritätät an den Namen eines generischen Typs — und die Wächter, die die Seite mit den Assemblies
-  vergleichen, stellten die Frage auf beiden Seiten verschieden: die Seite schrieb `LuiTypedHit`, der Namensvergleich
-  suchte die Arität. Ein kleiner Helfer (`Type_Names`) fragt jetzt auf beiden Seiten gleich — und die beiden Wächter,
-  die die Typen mit benannten Eigenschaften und die API-Dokumentation prüfen, decken die generischen Typen jetzt
-  überhaupt erst ab.
+  **What the round found:** the three new types are the **first generic types** of the public surface. The runtime
+  hangs the arity on the name of a generic type — and the guards that compare the page with the assemblies asked the
+  question differently on the two sides: the page wrote `LuiTypedHit`, the name comparison looked for the arity. A
+  small helper (`Type_Names`) asks it the same way on both sides now — and the two guards that check the types with
+  named properties and the API documentation cover the generic types at all now.
 
-  Und eine Regel des Hauses, die auch hier galt: **eine Datei, ein Typ** (MA0048) — die Antwort, der Treffer und die
-  Sicht liegen in drei Dateien, nicht in einer.
+  And a rule of the house that held here too: **one file, one type** (MA0048) — the answer, the hit and the view
+  lie in three files, not in one.
 
 ## What actually happened
 
@@ -267,8 +269,8 @@ the same branch, before the merge:
 
 | | The finding | The change |
 |---|---|---|
-| B1 | a second copy of the specification in the root (`LUI-Spezifikation.md`, commit `f0f9262`) — and two corrections of §10.3 stood only in the copy, so the contract still said that the query builds the dictionary | the corrections in `.agents/spec/`, the copy gone |
-| B2 | §12.7 and §17 said "no hosted service, no timer, no warm-up" and named one dependency of the hosting package; §12 knew neither `As<T>()` nor the two methods of the catalog | §12.3, §12.5, §12.7, §17.1, §17.3 and §20 say what the code does |
+| B1 | a second copy of the specification in the root (`.md`, commit `f0f9262`) — and two corrections of ADR-0012 stood only in the copy, so the contract still said that the query builds the dictionary | the corrections in `.agents/spec/`, the copy gone |
+| B2 | ADR-0017, ADR-0034 and ADR-0018 said "no hosted service, no timer, no warm-up" and named one dependency of the hosting package; docs/api.md knew neither `As<T>()` nor the two methods of the catalog | ADR-0035, docs/api.md, ADR-0017, ADR-0034, ADR-0001, ADR-0004 and the plan say what the code does |
 | B3 | tutorial 01 and 04 said "the dictionary is built when the first input needs it"; the new section of tutorial 03 was German in an English tutorial | the tutorials say what ADR-0042 says, in English |
 | A1 | `LuiTypedHit<T>.Payload` was a property that deserialises and can throw — ADR-0035 refused the same on `LuiHit` | `GetPayload()` and `TryGetPayload(out …)`; the guard asks the typed hit too; a mutation |
 | A2 | the fluent query had no typed end | `LuiResult.As<TPayload>()` |
@@ -307,7 +309,7 @@ The same eight steps, every time — the order is part of the contract:
 5. **`main` moves during the round.** Before every push the head of `main` is read; a file that changed there is
    re-read and carried over, never overwritten — a pull request against a dead tree is more dangerous than no pull
    request.
-6. **The budgets of §16 stay as they are.** This round does not move a target: it makes the targets *automatic*
+6. **The budgets of ADR-0020 stay as they are.** This round does not move a target: it makes the targets *automatic*
    (task 2) and *consistent* (task 1).
 
 ## What is deliberately not in this pull request

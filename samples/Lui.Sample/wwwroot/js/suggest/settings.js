@@ -8,7 +8,7 @@
  * of the library cannot drift from the page.
  */
 
-/** @typedef {{ take: number, candidates: number, rank: string, priorityMode: string, distinct: boolean, similarity: string, typo: 'default'|'on'|'off', timings: boolean }} QuerySettings */
+/** @typedef {{ take: number, candidates: number, rank: string, priorityMode: string, similarity: string, typo: 'default'|'on'|'off', timings: boolean }} QuerySettings */
 /** @typedef {{ minLength: number, searchDelay: number, maxShown: number, grouped: boolean, delayMs: number }} UiSettings */
 /** @typedef {{ query: QuerySettings, ui: UiSettings }} Settings */
 
@@ -25,7 +25,6 @@ export function defaultSettings(libraryDefaults) {
             candidates: libraryDefaults.candidates,
             rank: libraryDefaults.rank,
             priorityMode: libraryDefaults.priorityMode,
-            distinct: Boolean(libraryDefaults.distinctText),
             similarity: libraryDefaults.similarity ?? '',
             typo: 'default',
             timings: true, // not the library's default (off): the envelope panel is what this page is for
@@ -52,7 +51,6 @@ export function toParams(settings, defaults) {
     if (query.candidates !== base.candidates) params.candidates = String(query.candidates);
     if (query.rank !== base.rank) params.rank = query.rank;
     if (query.priorityMode !== base.priorityMode) params.priorityMode = query.priorityMode;
-    if (query.distinct !== base.distinct) params.distinct = String(query.distinct);
     if (query.similarity !== base.similarity) params.similarity = query.similarity;
     if (query.typo !== 'default') params.typo = String(query.typo === 'on');
     if (query.timings) params.timings = 'true';

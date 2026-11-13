@@ -60,7 +60,7 @@ public sealed class TestDatabase : IDisposable
 
     /// <summary>
     /// The size of the database file in megabytes, after a checkpoint has moved the write-ahead log into it — what an
-    /// application has on its disk (LUI-Spezifikation §16, "Dateigröße").
+    /// application has on its disk (ADR-0020, "Dateigröße").
     /// </summary>
     public double FileMegabytes()
     {
@@ -101,7 +101,31 @@ public sealed class TestDatabase : IDisposable
 
         foreach (var suffix in new[] { string.Empty, "-wal", "-shm" })
         {
-            File.Delete(_path + suffix);
+            DeleteWhenTheFileIsFree(_path + suffix);
+        }
+    }
+
+    /// <summary>
+    /// Deletes a file of the database — and waits for the file to be free. A file that is still open cannot be deleted,
+    /// and the handle of the operating system is released a moment after the last connection is closed: the teardown of
+    /// a test waits for the event it needs, not for a fixed window, and the deadline only stops a hang (ADR-0050).
+    /// </summary>
+    /// <param name="path">The file to delete.</param>
+    private static void DeleteWhenTheFileIsFree(string path)
+    {
+        var deadline = DateTime.UtcNow.AddSeconds(10);
+
+        while (true)
+        {
+            try
+            {
+                File.Delete(path);
+                return;
+            }
+            catch (IOException) when (DateTime.UtcNow < deadline)
+            {
+                Thread.Sleep(25);
+            }
         }
     }
 }

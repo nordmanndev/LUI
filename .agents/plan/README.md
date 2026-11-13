@@ -4,12 +4,19 @@ A **plan** says what the repository will become and in which order. An **ADR** s
 live in this repository: the plans here, the decisions in [`../adr/`](../adr/README.md). A plan is written before the
 work and stays as it was written — even where a later decision changed the names it uses.
 
+The plans of before 2026-11-13 were written against a specification that is deleted (ADR-0061). Every section of it
+has a home — the ADR or the page that carries the same rule; the mapping is in
+[ADR-0061](../adr/0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The plans keep the
+sections they name: a plan says what was planned, and the plan that deletes the specification is the plan that names
+it.
+
 | Plan | Date | What it brought |
 |---|---|---|
 | [LUI — repo, package and sample plan](./2026-11-02-lui-repo-plan.md) | 2026-11-02 | the founding plan: the library, the package and the sample in twelve pull requests, one per issue, each with its ADR, its tests and its measurement. The sections "what actually happened" (§6a–§6g) record where the plan and the world differed — the measurement moved three decisions before the first line of the library was written. |
 | [Issue #56 — the read path and the catalog as the entry point](./2026-11-05-issue-56-the-catalog-is-the-entry-point.md) | 2026-11-05 | the shape of the API as it is now: the catalog is the entry point, `Create` writes and `Index` does not, one interface per capability, and the file decides what may be written. |
 | [Issue #61 — the README for developers](./2026-11-06-issue-61-the-readme-for-developers.md) | 2026-11-06 | the entrance: the README for developers, the tutorial in five steps, and the map of the documentation. The public API does not change. |
 | [Issue #64 — the production readiness](./2026-11-06-issue-64-production-readiness.md) | 2026-11-06 | the round of the review of 2026-11-06: the guards that run by themselves, the numbers that agree with the specification, the query that does not build the dictionary, the hardened concurrency and the typed view. |
+| [The public surface and the measurement](./2026-11-11-the-public-surface-and-the-measurement.md) | 2026-11-11 | the public API before the freeze of 0.1.0 and the measurement that goes with it: the typo distance as an enumeration, `DistinctText` removed, the budgets in a file, the corpora as three fixed files, the measurement as a layer of its own without environment variables, the specification unlinked and then deleted — eight pull requests on the branch `dev`. |
 
 ## The difference
 
@@ -32,5 +39,8 @@ A plan points at the ADRs it produced; an ADR rarely names the plan that led to 
   after the move.
 - **The fourth plan** is the history of the round of the review: what the review found, what was decided by the owner,
   and the seven tasks with their acceptance bar.
+- **The fifth plan** is the history of the public surface and the measurement: what the API looks like before the freeze
+  of 0.1.0, what the corpora and the budgets of the measurement are, how the measurement becomes a layer of its own,
+  and in which order the eight pull requests come.
 
 Every decision the plans produced is an ADR in [`../adr/`](../adr/README.md) — indexed there by its topic.

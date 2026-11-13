@@ -6,7 +6,7 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// Describes an index whose content lives in a table of the library, <c>lui_&lt;name&gt;</c> — <c>Embedded</c>, the
-/// default (LUI-Spezifikation §5, §12.2): the application writes through the index. Every method is optional and
+/// default (ADR-0014, ADR-0015, docs/api.md): the application writes through the index. Every method is optional and
 /// returns a builder; <see cref="Create"/> finishes it. An index over a table of the application starts here too,
 /// with <see cref="LinkTo"/>.
 /// <para>
@@ -110,7 +110,7 @@ public sealed class LuiEmbeddedIndexBuilder
 
     /// <summary>
     /// Turns the German transliteration (<c>ä → ae</c>, <c>ß → ss</c>) on or off. On by default; turn it off for
-    /// corpora without German text (§6.1). Part of the definition: it decides the stored search form.
+    /// corpora without German text (ADR-0005). Part of the definition: it decides the stored search form.
     /// </summary>
     /// <param name="enabled">Whether the transliteration is applied.</param>
     /// <returns>The builder.</returns>
@@ -121,11 +121,13 @@ public sealed class LuiEmbeddedIndexBuilder
     }
 
     /// <summary>
-    /// Typo tolerance (§10): an input without a word start is corrected by one edit, with a dictionary of the
-    /// word beginnings of the index. Off unless it is asked for — the dictionary costs memory (about 140 MB for
-    /// 685,000 words) and is built when the first input needs it (or by <c>WarmUpTypoDictionary</c>). A property
-    /// of <b>this instance</b>, not of the stored index; a query can override it. The dictionary itself belongs
-    /// to the index of the catalog and is shared by all its instances.
+    /// Typo tolerance (ADR-0012): an input without a word start is corrected, with a dictionary of the word
+    /// beginnings of the index. The distance says <b>how many errors</b> are forgiven — an enumeration, not a
+    /// number, because the dictionary grows with every additional error (138 MB for one error and 685,739 words,
+    /// 240 MB for two; <c>docs/typo-dictionary.md</c>). Off unless it is asked for, and built when the
+    /// first input needs it (or by <c>WarmUpTypoDictionary()</c>). The distance belongs to the <b>index</b> and
+    /// is part of its stored definition; a query can only switch the correction on or off. The dictionary
+    /// itself belongs to the index of the catalog and is shared by all its instances.
     /// <para>
     /// The dictionary learns the words that are written through the library (<c>Upsert</c>, <c>UpsertMany</c>)
     /// when they are written. Writes past it — another process, direct SQL, a transaction that commits after the
@@ -134,11 +136,11 @@ public sealed class LuiEmbeddedIndexBuilder
     /// that is exactly the beginning of such a word is not corrected.
     /// </para>
     /// </summary>
-    /// <param name="enabled">Whether an input without a word start is corrected.</param>
+    /// <param name="distance">How many errors are forgiven; <see cref="LuiTypoDistance.None"/> corrects nothing.</param>
     /// <returns>The builder.</returns>
-    public LuiEmbeddedIndexBuilder TypoTolerance(bool enabled = true)
+    public LuiEmbeddedIndexBuilder TypoTolerance(LuiTypoDistance distance = LuiTypoDistance.OneError)
     {
-        _options = _options with { TypoTolerance = enabled };
+        _options = _options with { TypoDistance = distance };
         return this;
     }
 
@@ -160,7 +162,8 @@ public sealed class LuiEmbeddedIndexBuilder
             EmbeddedSource.SourceName,
             KeyCodec.KeyType(_keyKind),
             _options.GermanTransliteration,
-            TokenizerFold.Version);
+            TokenizerFold.Version,
+            TypoDistance: _options.TypoDistance);
 
         var source = new EmbeddedSource(_name, definition);
         IndexStore.Create(_catalog.Database, source, _catalog.TimeProvider.GetUtcNow());
@@ -171,6 +174,6 @@ public sealed class LuiEmbeddedIndexBuilder
             source,
             _catalog.PayloadSerializer,
             _options.Similarity ?? source.Rules.DefaultSimilarity,
-            _options.TypoTolerance);
+            _options.TypoDistance);
     }
 }

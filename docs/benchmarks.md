@@ -1,12 +1,17 @@
 # Benchmarks
 
-> The measured numbers behind the performance targets of the specification
-> (§16). Every number here comes from a run on a stated machine; a number
-> without a machine is a rumour.
+> The measured numbers behind the performance targets of the repository. Every
+> number here comes from a run on a stated machine; a number without a machine
+> is a rumour.
+>
+> The **targets** live in one file —
+> [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](../tests/Nordmann.LUI.Testing/Budgets/budgets.json)
+> (ADR-0056). The tables below show them beside the numbers that were measured
+> against them; a test holds the two together.
 
 ## Status
 
-**Every target of §16 is measured in its scenario and met** (PR-009,
+**Every target of ADR-0020 is measured in its scenario and met** (PR-009,
 ADR-0020) — three of them as draft 2 set them, five as the owner
 stated them anew after the measurement (2026-11-04, ADR-0010, ADR-0020). The table is the output of
 `BudgetPerformance`, which asserts every row. The allocation was lowered to its target (ADR-0032) and measured again
@@ -22,13 +27,27 @@ corpus.
 | allocation p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | single write p95 | 0.51–0.78 ms | ≤ 1 ms |
 | build of 3 M | 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 240 s (#32) |
-| typo dictionary of 685,829 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s (the machine of the record), 4.3 s (the run of 2026-11-12) | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of two errors, 685,739 words | 240 MB (2026-11-12) | ≤ 240 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
+
+**The numbers below were measured on the corpus that was generated.** Since ADR-0059 the corpus is a file in the
+repository, and the corpora have their own sizes: the words corpus has 1,908,798 entries, so the **scenario of three
+million entries does not exist** in it. A budget below its scenario is **reported, not asserted** — the numbers of the
+table are the ones of the runs of 2026-11-04 to 2026-11-12, and **the counts of the budgets of ADR-0020 are re-decided
+against the measured corpora in the next round**. Nothing here is quietly lowered: the file of the budgets still names
+3,000,000 entries, and the run says that it did not reach them.
+
+The dictionary of two errors is the one the **distance `TwoErrors`** builds (ADR-0054): the promise of 200 MB belongs to
+the dictionary of one error, and the two-error dictionary measured **240 MB** — 40 MB more than the target of ADR-0020 allows
+(≤ 200 MB). That is a **miss of the old promise** — it is written down as one, in the ADR of the typo distance and in
+[`docs/typo-dictionary.md`](typo-dictionary.md), and no limit is lowered quietly here: the file states 240 MB, the number
+that was measured.
 
 ## The targets
 
-These are the goals from §16. They are written down here first, so that the
-measurement has something to contradict.
+These are the goals of the file of the budgets, in the order of the file. They are written down here as well, so that
+the measurement has something to contradict.
 
 | Measurement | Scenario | Target |
 |---|---|---|
@@ -37,7 +56,8 @@ measurement has something to contradict.
 | Allocation per query | 3 M entries, inputs of 1–8 characters, the candidate budget of 500 | p50 ≤ 60 KB, p95 ≤ 100 KB |
 | `Upsert` / `UpdateWeight` / `Remove` | one at a time, own transaction | p95 ≤ 1 ms |
 | Build-up | 3 M entries, `Embedded`, a first load by `Sync` | ≤ 4 min |
-| Typo dictionary | 700 000 distinct words | ≤ 200 MB, build ≤ 10 s |
+| Typo dictionary | 685,739 distinct words | ≤ 200 MB, build ≤ 10 s |
+| Typo dictionary, two errors | 685,739 distinct words | ≤ 240 MB |
 | File size | 1 M titles of 36 characters on average, `MultiWord` | ≤ 500 MB including the content table |
 
 The query p95, the correction, the allocation, the file size and the build were stated anew by the owner on 2026-11-04
@@ -47,8 +67,10 @@ after they were measured (ADR-0010, ADR-0020): a **loosening**, written down as 
 ## The rules for a number in this file
 
 1. **The machine is named.** CPU, cores, RAM, OS, .NET version, SQLite version.
-2. **The corpus is named.** How it was generated, how many entries, what
-   distribution.
+2. **The corpus is named — and it names itself.** The corpus is a file in the
+   repository (ADR-0059); its header names the source, the licence, the snapshot
+   date, the number of entries, the format and the kind. A corpus that is
+   generated is not named: it is a different one on every run.
 3. **Old and new are measured alternately**, and the **median** is taken. One
    machine, one load budget — a single run tells you more about the weather
    than about the code.
@@ -58,21 +80,75 @@ after they were measured (ADR-0010, ADR-0020): a **loosening**, written down as 
 5. **A target that is missed gets written down as missed**, with the reason.
    The target is not quietly lowered.
 
+## The corpora
+
+The corpus of a measurement is a **file in the repository** (ADR-0059), not something that is generated at the
+start of a run. The file name is the identity; there is no manifest. Four files, gzip-compressed, in
+[`tests/TestData/corpora/`](../tests/TestData/corpora):
+
+| File | Entries | Format | Kind | Source | Licence | Snapshot |
+|---|---:|---|---|---|---|---|
+| [`words.txt.gz`](../tests/TestData/corpora/words.txt.gz) | 1,908,798 | `text⇥weight` | single words | [`kkrypt0nn/wordlists`](https://github.com/kkrypt0nn/wordlists), `wordlists/languages/german.txt` | none stated by the repository for the lists it gathers itself — the owner accepted that | 2026-11-12 |
+| [`places.tsv.gz`](../tests/TestData/corpora/places.tsv.gz) | 5,779,011 | `text⇥weight⇥context` | titles | [`download.geonames.org/export/dump/`](https://download.geonames.org/export/dump/) — `allCountries.txt`, `countryInfo.txt`, `admin1CodesASCII.txt`, `admin2Codes.txt` | **CC BY 4.0** | 2026-11-12 |
+| [`movies.tsv.gz`](../tests/TestData/corpora/movies.tsv.gz) | 652,001 | `text⇥weight` | titles | [`datasets.imdbws.com`](https://datasets.imdbws.com/#help) — `title.basics.tsv`, `title.ratings.tsv` | the **non-commercial** IMDb datasets | 2026-11-12 |
+| [`wiki-titles.tsv.gz`](../tests/TestData/corpora/wiki-titles.tsv.gz) | 5,167,623 | `text⇥weight` | titles | [`dumps.wikimedia.org`](https://dumps.wikimedia.org/dewiki/latest/dewiki-latest-all-titles.gz) | **CC BY-SA 4.0** + GFDL | 2026-11-12 |
+
+Three rules hold for every corpus:
+
+- **The header is a block of comment lines at the top of the file, ended by an empty line.** It names the source, the
+  licence, the snapshot date, the number of entries, the format and the kind. **A `#` inside an entry is data**: a film
+  title that begins with `#` is a title. The **format** is machine-readable — the list of the columns of an entry, the
+  meaning of the weight stands in a `note:` — and **the reader checks it**: a file whose header names a format that does
+  not fit its entries, or a format nobody knows, is refused.
+- **The order of the entries is the SHA-256 of their text.** A **prefix is therefore always a representative sample**,
+  never the alphabetically first *n* — that was the bug of the old generator, whose prefix of 200,000 entries held
+  nothing but the letters a to f.
+- **The weight belongs to the file.** The places carry their population, the films their votes; the words and the
+  Wikipedia titles carry the derived weight of their text, `1 + floor(9999 · (1 − u)³)` with `u` the first four bytes
+  of the SHA-256, computed in exact integer arithmetic.
+
+The **budgets** name the corpus of each target
+([`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](../tests/Nordmann.LUI.Testing/Budgets/budgets.json),
+ADR-0056), and a measurement takes the corpus of the budget whose target it measures. The scenario of the run
+(`tests/Nordmann.LUI.Performance.Tests/performance.scenario.json`) carries the prefix length, the batch, the minimum
+weight, the optimization, the machine and the database — and no corpus: the corpus is not named twice.
+
+**What is not in the repository, and why.** The books of the Amazon scrape (1,601 titles), the German names (27,273)
+and the Cologne first names (9,620): below the floor of 100,000 entries. The street addresses (5,858,056 measured): a
+street address is a *lookup*, not a string somebody types into an autocomplete — a corpus is made of search strings. The
+list of all `.de` domains: DENIC hands out no zone files to third parties. The raw rows of the names dataset
+(6,040,701 German rows, one per person): personal data of identifiable people (C-413/23). **The line is the name
+level:** *Müller is rank 1 in Germany* says nothing about a person and is published; *Sven Liebscher, M, DE* is a person
+and is not.
+
+**Rebuild them.** [`tools/make-corpora.py`](../tools/make-corpora.py) writes the four files: it fetches the sources
+if they are missing, sorts the entries by the hash of their text, and writes the header of each file. The count in the
+header is the count of the file — the builder counts the entries while it streams them.
+
+```bash
+python3 tools/make-corpora.py /tmp/corpora-src tests/TestData/corpora --snapshot 2026-11-12
+```
+
 ## The measurement machine
 
-The reference measurements of the specification (Anhang A) were taken on
-2026-11-01 on an Intel Xeon 2.1 GHz, 4 cores, 16 GB RAM, Ubuntu 24.04,
-.NET 10.0.14, SQLite 3.53.3, with the database in the page cache.
+The reference measurements were taken on 2026-11-01 on an Intel Xeon
+2.1 GHz, 4 cores, 16 GB RAM, Ubuntu 24.04, .NET 10.0.14, SQLite 3.53.3, with
+the database in the page cache.
 
 The numbers this repository publishes come from the machine the CI ran on —
 which is a smaller one. The difference is stated, not hidden.
 
 ## The lane
 
-The targets of §16 run on a schedule of their own
-(`.github/workflows/performance.yml`, ADR-0041): every night, and by hand when
-somebody wants to see it. The lane fetches the whole word list, runs the parity with the gate
-(`LUI_REQUIRE_FULL_WORDLIST=1`) and then the budgets.
+The targets of ADR-0020 run on a schedule of their own
+(`.github/workflows/performance.yml`, ADR-0041): **every week** — Monday at 03:17 UTC — and by hand when
+somebody wants to see it. A number that changes every night is a number nobody reads twice; the schedule runs on the
+default branch, so the number of the week is the stable line of `main`, and `dev` is measured by hand (issue #124,
+ADR-0060). The lane writes the scenario of the run into
+`tests/Nordmann.LUI.Performance.Tests/performance.scenario.json` and then runs the budgets of the
+measurement layer (ADR-0058). It fetches nothing: the corpora are files in the repository (ADR-0059), so the lane
+measures the files that are checked in. The word list of the parity is a different thing — the lane of the CI fetches
+it, and the fetch is the guard that fails loudly when the list is not the one of 685,829 lines.
 
 The lane runs on a shared runner — not on the machine of the record. That changes what a target means there:
 
@@ -81,9 +157,10 @@ The lane runs on a shared runner — not on the machine of the record. That chan
 | a **size** — bytes: the allocation, the memory of the dictionary, the file | asserted | **asserted** — the bytes are the bytes |
 | a **time** — the query, the write, the build | asserted | **reported** — a time belongs to the machine it was measured on |
 
-A run without `LUI_PERF_MACHINE` is on the machine of the record and asserts everything, as before. The lane sets
-`LUI_PERF_MACHINE=other` on purpose, and the summary of its run says which machine it was. A size that is missed fails
-the lane; a time that is missed in the lane stands in the log with the machine named.
+The machine of a run is a member of the scenario file: `"machine": "measurement"` is the machine of the record and
+asserts everything, as before, `"machine": "other"` is another one. The lane writes `"other"` on purpose, and the
+summary of its run says which machine it was. A size that is missed fails the lane; a time that is missed in the
+lane stands in the log with the machine named.
 
 The numbers of the lane are **not** the numbers of this file: a runner is smaller and louder than the machine of the
 record. What the lane decides is whether the sizes still hold.
@@ -95,7 +172,7 @@ entries took 148.5 s, and the typo dictionary of the whole list took 1.95 s and 
 the lane is sized by that: a timeout of 30 minutes, a hang timeout of 20.
 
 The one red was the lane's, not the library's. The target of one million titles built three million, because
-`LUI_PERF_ENTRIES=3000000` of the single-word index also enlarged the titles scenario. Its file of 1,309 MB is
+The `entries` of 3,000,000 of the single-word index also enlarged the titles scenario. Its file of 1,309 MB is
 ≈ 436 MB per million, under the 500 MB of the target. A run now never builds more than the scenario of its target.
 
 ---
@@ -105,8 +182,8 @@ The one red was the lane's, not the library's. The target of one million titles 
 Run on **2026-11-02**. Machine: Intel Xeon @ 2.80 GHz, **4 cores**, 15 GB RAM,
 Ubuntu 24.04, .NET 10.0.14 (SDK 10.0.114), SQLite 3.53.3
 (`Microsoft.Data.Sqlite` 10.0.14), the database on a local disk and in the
-page cache. This is a cloud VM; the reference machine of Anhang A is a
-2.1 GHz Xeon with the same core count, so the two are comparable.
+page cache. This is a cloud VM; the reference machine of the measurements
+above is a 2.1 GHz Xeon with the same core count, so the two are comparable.
 
 **Corpus.** The 685,829 words of the German word list (CC0,
 `tools/fetch-wordlist.sh`), then compounds of two random words — the first
@@ -123,11 +200,11 @@ candidates, `WordStartThenSimilarity`, Jaro-Winkler. One query is
 **Reproduce.**
 
 ```bash
-tools/fetch-wordlist.sh
-LUI_PERF=1 LUI_PERF_ENTRIES=3000000 \
-  dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter QueryPerformance \
+# the corpus is in the repository (ADR-0059): there is nothing to fetch
+# the scenario of the run is a file: set "prefixLength" to 3000000 in it, then
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter QueryPerformance \
   --logger "console;verbosity=detailed"
-# LUI_PERF_DB=<path> keeps the database, so that the next run skips the build
+# the member "database" keeps the database, so that the next run skips the build
 ```
 
 ### The query
@@ -137,7 +214,7 @@ LUI_PERF=1 LUI_PERF_ENTRIES=3000000 \
 | 200,000 | **0.86 ms** | **2.2 ms** | 4.0 ms | 58 KB / 235 KB |
 | 1,000,000 | 2.02 ms | 7.4 ms | 25 ms | 63 KB / 267 KB |
 | 3,000,000 | 3.57 ms | 26.5 ms | 120 ms | 79 KB / 290 KB |
-| *target (§16), 3,000,000* | *≤ 2 ms* | *≤ 5 ms* | | *≤ 250 KB* |
+| *target (ADR-0020), 3,000,000* | *≤ 2 ms* | *≤ 5 ms* | | *≤ 250 KB* |
 
 **After the join was moved to the primary key** (`doc_id = f.rowid & 4294967295`
 instead of a seek on `s_rowid`, ADR-0006),
@@ -170,7 +247,7 @@ measured alternatives (no join, `AND` of trigrams: no change).
 over. The allocation target holds at the median at every size.
 
 **What was checked afterwards** (ADR-0010, "Follow-up measurement"): the
-plan, the indexes and the ordering are the specification's. The same texts
+plan, the indexes and the ordering follow ADR-0008. The same texts
 loaded in rowid order are 3× faster to query (warm) and 8× faster to build than
 the row-by-row index measured above; whether that carries over to the cold p95
 is shown in ADR-0010: **bulk-built and merged, the 3 M index answers at p50
@@ -213,7 +290,7 @@ difference is the bulk path of ADR-0010, not the source. Many single refreshes l
 after 3,000 changes at 200,000 rows, 0.82 ms after `Optimize()`.
 
 ```text
-LUI_PERF=1 dotnet test -c Release --filter LinkedPerformance --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter LinkedPerformance --logger "console;verbosity=detailed"
 ```
 
 The spike of the layout (`LinkedLayoutExperiment`) is gone from the tree (issue #76); its numbers are in ADR-0015, its
@@ -230,7 +307,7 @@ each in a transaction of its own, 100,000 single-word entries:
 | one `UpsertMany` | **3.8 s** | 26,052/s — **4.4×** |
 
 ```text
-LUI_PERF=1 LUI_PERF_ENTRIES=100000 dotnet test -c Release --filter BatchPerformance --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter BatchPerformance --logger "console;verbosity=detailed"
 ```
 
 ### The build
@@ -277,7 +354,7 @@ implementation (`SyncPerformance`):
 | `UpsertMany` of the same entries, one transaction | 52.5 s | 53.8 s |
 | query p50 / p95 after `Sync` · after `UpsertMany` | 1.22 / 3.86 · 1.68 / 5.39 ms | 1.11 / 3.36 · 1.73 / 5.55 ms |
 
-The §16 build target (3 M in ≤ 3 min) is measured with the benchmarks (PR-009).
+The ADR-0020 build target (3 M in ≤ 3 min) is measured with the benchmarks (PR-009).
 
 **A delta sync beside a built typo dictionary** (ADR-0021,
 `SyncPerformance.A_delta_sync_with_a_built_typo_dictionary`, 300,000 words of the German list, two runs): a sync of 100
@@ -285,9 +362,9 @@ changes and 100 removals took **4.4 / 4.8 s** while it rebuilt the dictionary at
 that it marks it stale; the rebuild on its own is 2.0 / 2.3 s.
 
 ```text
-LUI_PERF=1 LUI_PERF_ENTRIES=1000000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"
-LUI_PERF=1 LUI_PERF_ENTRIES=1000000 LUI_PERF_BATCH=100000 dotnet test --filter SyncPerformance --logger "console;verbosity=detailed"
-LUI_PERF=1 LUI_PERF_ENTRIES=300000 dotnet test --filter A_delta_sync_with_a_built_typo_dictionary --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests --filter SyncPerformance --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests --filter SyncPerformance --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests --filter A_delta_sync_with_a_built_typo_dictionary --logger "console;verbosity=detailed"
 ```
 
 ### Opening a catalog
@@ -307,10 +384,16 @@ beginning of a title or a piece of it, 1–8 characters; one third the first two
 each, in either order. Row-by-row build through the triggers.
 
 ```bash
-LUI_PERF=1 LUI_PERF_KIND=multi LUI_PERF_ENTRIES=1000000 \
-  dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter QueryPerformance \
+# the corpus of the budget is the titles (wiki-titles.tsv, ADR-0059);
+# the scenario file names the prefix length, then
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter BudgetPerformance \
   --logger "console;verbosity=detailed"
 ```
+
+**The query over the multi-word index is not measured any more.** The corpus of the titles exists
+([`wiki-titles.tsv.gz`](../tests/TestData/corpora/wiki-titles.tsv.gz)), but no budget names it, and a measurement that
+asserts nothing is a measurement that cannot fail. The file of the titles is still measured — by the file size of the
+budget `file-size-1m` — and the promise that measures the query over it is decided in the ADR-0020 round.
 
 | Entries | index | build | file | query p50 / p95 | alloc p50 / p95 | write p50 / p95 |
 |---:|---|---:|---:|---:|---:|---:|
@@ -318,7 +401,7 @@ LUI_PERF=1 LUI_PERF_KIND=multi LUI_PERF_ENTRIES=1000000 \
 | 1,000,000 | `s_compact` only, `s_norm` virtual (this PR) | 157 s | 445 MB | 3.16 / 14.1 ms | 83 / 273 KB | 0.32 / 5.7 ms |
 | 200,000 | two columns (first version) | 33 s | 126 MB | 1.64 / 4.9 ms | 46 / 263 KB | 0.31 / 1.9 ms |
 | 1,000,000 | two columns (first version) | 180 s | 619 MB | 4.16 / 21.0 ms | 83 / 273 KB | 0.35 / 4.8 ms |
-| *target (§16)* | | *3 M ≤ 3 min* | *1 M ≤ 300 MB* | *3 M ≤ 2 / 5 ms* | *≤ 250 KB* | *≤ 1 ms p95* |
+| *target (ADR-0020)* | | *3 M ≤ 3 min* | *1 M ≤ 300 MB* | *3 M ≤ 2 / 5 ms* | *≤ 250 KB* | *≤ 1 ms p95* |
 
 - **Allocation.** With `F23`'s Dice the 95th percentile was **3,651 KB** (a dictionary per comparison, 500
   comparisons); with the allocation-free Dice of this PR it is 263 KB (ADR-0011).
@@ -338,18 +421,17 @@ random, built row by row. **Cases:** 400 words per length; the beginning of the 
 kinds (a letter left out, one too many, one wrong, two swapped) after the first letter. Hit@20 = the meant word is among the best 20.
 
 ```bash
-tools/fetch-wordlist.sh
-LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter TypoPerformance --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter TypoPerformance --logger "console;verbosity=detailed"
 ```
 
-| | Result | Target (§16) |
+| | Result | Target (ADR-0020) |
 |---|---:|---:|
 | Dictionary build (first correction) | **4.2 s** | ≤ 10 s |
 | Dictionary memory | **138 MB** | ≤ 200 MB |
 | Corrected query p50 / p95 | 2.7 / **8.7 ms** | p95 ≤ 10 ms |
 | Corrected query allocation p50 / p95 | 91 / 408 KB | ≤ 250 KB (p50 holds) |
 
-| Beginning | Hit@20 right | Hit@20 with a typo | Anhang A4: right / typo |
+| Beginning | Hit@20 right | Hit@20 with a typo | the reference measurement: right / typo |
 |---:|---:|---:|---:|
 | 4 letters | 30 % | 8 % | 13 % / 9 % |
 | 5 letters | 53 % | 28 % | 42 % / 29 % |
@@ -357,14 +439,14 @@ LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests -c Release --filter 
 | 7 letters | 86 % | 70 % | 75 % / 69 % |
 
 - **Held:** the dictionary (time and memory), the p95 of a corrected query (8.7 ms against 10 ms, at 685 k entries built row by row; untested
-  at 3 M), the allocation at the median, the absolute quality (like Anhang A4).
-- **Missed, written down:** the allocation at p95 (408 KB: up to three more candidate lists and their unions) and the ratios of Anhang A4
+  at 3 M), the allocation at the median, the absolute quality (like the reference measurement).
+- **Missed, written down:** the allocation at p95 (408 KB: up to three more candidate lists and their unions) and the ratios of the reference measurement
   (69 / 69 / 86 / 92 %) which are not reached (25 / 53 / 69 / 82 %) because the cases are drawn uniformly here and by popularity there; the
   absolute figures agree. Details in ADR-0012.
 
 ---
 
-## Results: the budgets of §16 (PR-009)
+## Results: the budgets of ADR-0020 (PR-009)
 
 ADR-0020. The measurement machine above; the whole German word list;
 the corpus of `Corpus` (`Nordmann.LUI.Testing`, seed 42): the 685,829 words, then compounds of two of them up to three
@@ -372,7 +454,7 @@ million, weights with a long tail; 2,000 inputs of 1–8 characters, 1,000 begin
 other load; two runs, a third for the batch size of the build.
 
 ```text
-LUI_PERF=1 dotnet test tests/Nordmann.LUI.Integration.Tests --filter BudgetPerformance --logger "console;verbosity=detailed"
+dotnet test tests/Nordmann.LUI.Performance.Tests --filter BudgetPerformance --logger "console;verbosity=detailed"
 ```
 
 | Target | Run 1 | Run 2 | Run 3 (batches of 1,000,000) | Run 4 (as committed) | Limit |
@@ -399,7 +481,7 @@ The two scenarios of their own:
 
 | Target | Measured | Limit |
 |---|---:|---:|
-| typo dictionary of 685,829 distinct words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of 685,739 distinct words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
 | file of 1,000,000 titles, `MultiWord`, built by `Sync` in 88.1 s | 457 MB | ≤ 300 MB |
 
 ### The benchmarks
@@ -454,6 +536,35 @@ between them, and the queries without a correction take no path that #19 changed
 tables show, because its interval (2–8 %) is narrow enough to compare two rows of one run — and a later run against
 this one.
 
+### The report of the run (issue #124, ADR-0060)
+
+Every line of a report names **the number of hits its query found** — the candidates that were ranked, not the entries
+the answer carries (the answer is capped at twenty). A line that measures no query — a write, a text — says so with a
+dash: **zero is a measurement, a dash is not**.
+
+Every report carries the record of its run: the date, the number of measurements per case, the machine and the
+`journal_mode` of the database. A write in `DELETE` is a different measurement from a write in `WAL`, and the report
+says which one it was.
+
+The settings of a query are axes, and so is the source of the index — the linked fixture joins the embedded one, one
+fixture and one report:
+
+| The axis | Its values |
+|---|---|
+| `Corpus` | `words` (`words.txt.gz`), `titles` (`wiki-titles.tsv.gz`) |
+| `Order` | `Start/Sim`, `Start/Weight`, `SimOnly`, `WeightOnly` |
+| `Similarity` | `JaroWinkler`, `NgramDice`, `DamerauLev`, `Levenshtein` |
+| `Correction` | `False`, `True` |
+| `Source` | `Embedded`, `Linked` |
+
+The names are short on purpose: BenchmarkDotNet cuts a long value in the table of its report, and a cut value cannot be
+read back — the report would name a setting that nothing can resolve. The mapping lives in the code, next to the setting
+it names (`QuerySettings`).
+
+The run of the day measured **two values of every axis that has more than one** — every further value doubles the number
+of the cases of the class, and the run takes 42 minutes. The vocabulary above is the one of the code; the report of the
+run says which of it was measured.
+
 ## The tables of the run
 
 The tables of the BenchmarkDotNet run are **generated** from BenchmarkDotNet's own reports in
@@ -465,7 +576,7 @@ number there always has a run behind it. Run them again with `tools/benchmarks.s
 <!-- the tables of the run are rendered into the README of the release (ADR-0039) -->
 <!-- benchmarks:end -->
 
-**Reading.** These are 200,000 entries on one thread, in the page cache — the code, not the scenario of §16. A query
+**Reading.** These are 200,000 entries on one thread, in the page cache — the code, not the scenario of ADR-0020. A query
 takes 24 µs (two letters, the prefix path of a single-word index) to 1.1 ms (`haus` in titles: many candidates to
 rank); its allocation follows the candidates it reads (#30). A correction costs one more search per correction tried.
 A single write is a commit of its own; load a stock with `UpsertMany` or `Sync` instead.

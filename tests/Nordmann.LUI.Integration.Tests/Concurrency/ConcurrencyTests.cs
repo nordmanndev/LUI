@@ -4,13 +4,13 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Concurrency;
 
 /// <summary>
-/// Reads run in parallel, writes are serial (LUI-Spezifikation §15): queries
+/// Reads run in parallel, writes are serial (ADR-0015, ADR-0046): queries
 /// and writes at the same time neither fail nor return nonsense.
 /// <para>
 /// The round of issue #67 asks for three more cases around that rule:
 /// </para>
 /// <list type="bullet">
-/// <item>the <b>soak</b>: eight readers and one writer over a corpus of five thousand entries — no exception, and the count stays the number the writer wrote minus the number it removed;</item>
+/// <item>the <b>soak</b>: six readers and one writer over a corpus of four thousand entries — no exception, and the count stays the number the writer wrote minus the number it removed;</item>
 /// <item><b>two catalogs on one file</b>: a second connection sees a picture that exists — the text of a hit belongs to its key — and never more rows than were written;</item>
 /// <item>the <b>dispose during a warm-up</b>: it ends, it does not hang.</item>
 /// </list>

@@ -6,8 +6,8 @@ namespace Nordmann.LUI.Unit.Tests.Similarity;
 
 /// <summary>
 /// LUI's own Damerau-Levenshtein allocates nothing; it must give the same number as the library it replaces
-/// (<c>F23.StringSimilarity.Damerau</c>) — the measurements of the specification are measurements of that
-/// definition (§11). The parity is the proof; the allocation is the reason (issue #30).
+/// (<c>F23.StringSimilarity.Damerau</c>) — the measurements of ADR-0020 are measurements of that
+/// definition (ADR-0030). The parity is the proof; the allocation is the reason (issue #30).
 /// </summary>
 public sealed class DamerauEquivalenceTests
 {
@@ -91,7 +91,16 @@ public sealed class DamerauEquivalenceTests
     public void The_measure_allocates_nothing()
     {
         // the reason for the own implementation: a query compares up to 500 candidates
-        LuiSimilarity.DamerauLevenshtein.Similarity("apfelkuch", "gedeckter apfelkuchen mit streuseln");
+
+        // the warm-up repeats and uses its result: the type initialisation, the first call and the
+        // tiering of the measure belong to the start of the run, not to the measured window. A call
+        // whose result is discarded may be removed by an optimising JIT, and a one-off cost then
+        // lands inside the window (issue #132: 1912 bytes on a runner).
+        var warm = 0d;
+        for (var i = 0; i < 100; i++)
+        {
+            warm += LuiSimilarity.DamerauLevenshtein.Similarity("apfelkuch", "gedeckter apfelkuchen mit streuseln");
+        }
 
         var before = GC.GetAllocatedBytesForCurrentThread();
         for (var i = 0; i < 100; i++)
@@ -100,6 +109,7 @@ public sealed class DamerauEquivalenceTests
         }
 
         var allocated = GC.GetAllocatedBytesForCurrentThread() - before;
+        warm.ShouldBeGreaterThan(0d, "the warm-up has to run, otherwise the window measures the start of the run");
         allocated.ShouldBe(0, "the similarity of a query must not allocate");
     }
 

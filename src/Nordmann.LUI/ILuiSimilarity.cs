@@ -1,7 +1,7 @@
 namespace Nordmann.LUI;
 
 /// <summary>
-/// How alike an input and a text are (LUI-Spezifikation §11). It is computed
+/// How alike an input and a text are (ADR-0030). It is computed
 /// for the candidates only, and only for the stage of the ranking that needs it.
 /// </summary>
 public interface ILuiSimilarity

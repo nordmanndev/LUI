@@ -1,19 +1,23 @@
 using BenchmarkDotNet.Attributes;
-using Nordmann.LUI.Testing;
 
 namespace Nordmann.LUI.Benchmarks;
 
 /// <summary>
-/// A query that needs a correction (§10, §16: p95 ≤ 10 ms): no candidate starts a word, so the typo dictionary gives
+/// A query that needs a correction (ADR-0012, ADR-0020: p95 ≤ 10 ms): no candidate starts a word, so the typo dictionary gives
 /// the corrections and the candidates of each are read. The dictionary is built in the setup, as a warmed-up
 /// application has it.
 /// </summary>
 [MemoryDiagnoser]
-#pragma warning disable CA1001 // BenchmarkDotNet owns the lifetime: [GlobalCleanup] disposes the fixture
+#pragma warning disable CA1001 // BenchmarkDotNet owns the lifetime: the fixture is shared by the cases of the class
 public class CorrectionBenchmarks
 {
     private IndexFixture? _fixture;
 
+    /// <summary>The corpus the index is built from.</summary>
+    [Params(QuerySettings.CorpusWords)]
+    public string Corpus { get; set; } = string.Empty;
+
+    /// <summary>The entries of the index.</summary>
     [Params(200_000)]
     public int Entries { get; set; }
 
@@ -21,17 +25,47 @@ public class CorrectionBenchmarks
     [Params("kartofel", "bahmhof", "fusbal", "strasee")]
     public string Input { get; set; } = string.Empty;
 
+    /// <summary>How many candidates are ranked.</summary>
+    [Params(500)]
+    public int Candidates { get; set; }
+
+    /// <summary>The order of the ranking.</summary>
+    [Params(QuerySettings.OrderStartSimilarity)]
+    public string Order { get; set; } = string.Empty;
+
+    /// <summary>The measure of the similarity.</summary>
+    [Params(nameof(LuiSimilarity.JaroWinkler))]
+    public string Similarity { get; set; } = string.Empty;
+
+    /// <summary>Whether an input without a word start is corrected.</summary>
+    [Params(true)]
+    public bool Correction { get; set; }
+
+    /// <summary>Where the content of the index lives.</summary>
+    [Params(QuerySettings.Embedded)]
+    public string Source { get; set; } = string.Empty;
+
     [GlobalSetup]
     public void Setup()
     {
-        _fixture = new IndexFixture(CorpusKind.SingleWord, Entries, typoTolerance: true);
-        _fixture.Index.WarmUpTypoDictionary();
+        _fixture = IndexFixture.Of(Corpus, Entries, Source);
+        _fixture.WarmUp(Correction);
     }
 
-    [GlobalCleanup]
-    public void Cleanup() => _fixture?.Dispose();
-
     [Benchmark]
-    public int Search() => _fixture!.Index.Search(Input).Hits.Count;
+    public int Search() => Settings.Run(_fixture!.Index).Hits.Count;
+
+    /// <summary>The settings of this case — the query the report names.</summary>
+    private QuerySettings Settings => new()
+    {
+        Corpus = Corpus,
+        Entries = Entries,
+        Input = Input,
+        Candidates = Candidates,
+        Order = Order,
+        Similarity = Similarity,
+        Correction = Correction,
+        Source = Source
+    };
 }
 #pragma warning restore CA1001

@@ -19,7 +19,7 @@ export function mountSettingsPanel({ root, meta, settings }) {
         type: 'number', min, max, value,
         on: { change: event => onChange(Math.min(max, Math.max(min, Number(event.target.value) || min))) },
     });
-    // The value of a select can be longer than the field that shows it (the names of the specification are long): the
+    // The value of a select can be longer than the field that shows it (the names of the options are long): the
     // tooltip of the field says what it is set to, so that nothing is cut off without a way to know it.
     const select = (value, options, onChange) => {
         const label = options.find(([optionValue]) => optionValue === value)?.[1] ?? value;
@@ -73,7 +73,6 @@ export function mountSettingsPanel({ root, meta, settings }) {
         row('Candidates', number(current.query.candidates, 1, 500, value => query({ candidates: value })), 'How many candidates are ranked; 500 is the budget (this page stops there).'),
         row('Rank', select(current.query.rank, names(meta.rank), value => query({ rank: value })), 'The order of the ranking.'),
         row('PriorityMode', select(current.query.priorityMode, names(meta.priorityMode), value => query({ priorityMode: value })), 'First: a higher priority wins before anything else. CandidatesOnly: it only makes an entry a certain candidate.'),
-        row('DistinctText', check(current.query.distinct, value => query({ distinct: value })), 'One hit per normalised text.'),
         row('Similarity', select(current.query.similarity, [['', '(index default)'], ...names([...meta.similarity])], value => query({ similarity: value })), 'The measure that orders the hits.'),
         row('TypoTolerance', select(current.query.typo, [['default', '(index default)'], ['on', 'on'], ['off', 'off']], value => query({ typo: value })), 'Correct an input that has no word start.'),
         row('TrackTimings', check(current.query.timings, value => query({ timings: value })), 'Where the time of the query goes (the envelope panel).'),

@@ -4,6 +4,11 @@
 > `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
 > `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
@@ -14,7 +19,7 @@
 
 Step 3 of the plan is the first index that answers a query: `SingleWord` over
 an `Owned` content table. The specification fixes the mechanism
-(§3 E1–E3, E10; §7.2, §7.4) and the measurements in Anhang A back it. What it
+(§3 E1–E3, E10; ADR-0006, ADR-0011) and the measurements in the record back it. What it
 leaves to the implementation is the places where the mechanism meets a real
 SQLite and a real API.
 
@@ -24,7 +29,7 @@ SQLite and a real API.
 table `lui_<name>` with the generated columns `s_norm`, `s_p1`, `s_p2` and
 `s_rowid`; the unique index on `s_rowid` and the two prefix indexes; one
 external-content FTS5 table `lui_<name>_fts` with `tokenize = 'trigram
-remove_diacritics 1'`; the three triggers. There is no `s_compact` (§7.2) —
+remove_diacritics 1'`; the three triggers. There is no `s_compact` (ADR-0006) —
 it arrives with `MultiWord`.
 
 **Priority and weight live in the rowid, and the query reads them from it.**
@@ -44,7 +49,7 @@ the C# encoder with the SQL expression row by row.
 | the join from the search index to the content table | `c.s_rowid = f.rowid` | `c.doc_id = (f.rowid & 4294967295)` | The text of a candidate is fetched by the primary key, in the table itself: one seek, where the join on `s_rowid` seeks in an index first and then in the table. A **covering** index `(s_rowid, text)` would save the same hop, but SQLite does not treat an index that contains a generated column as covering (measured: `USING INDEX`, never `USING COVERING INDEX`). |
 | the update trigger | `AFTER UPDATE OF text, weight, priority` | the same, with `WHEN old.s_rowid IS NOT new.s_rowid OR old.s_norm IS NOT new.s_norm` | `ON CONFLICT … DO UPDATE SET text = excluded.text` names `text`, so the trigger fired for an upsert that changed nothing — a search-index delete and insert, and a new small segment (reproduced in review: 50 identical upserts grew `fts_data` from 3 to 8 rows). Now an identical upsert and a change of the payload alone leave the search index untouched. |
 
-**The write API is the one of §12.4**, synchronous, with the application's
+**The write API is the one of ADR-0016**, synchronous, with the application's
 `SqliteTransaction` as an optional last parameter. `UpdateWeight`,
 `UpdatePriority` and `Remove` return whether the entry existed. **`Upsert`
 replaces the whole entry**, the payload included: an upsert without a payload
@@ -61,7 +66,7 @@ create it. `Drop()` lives on the builder, because the way out of a
 ## Consequences
 
 - **Known limitation: the prefix path folds ASCII only.** `s_p1` and `s_p2`
-  are built with SQLite's `lower()` (§6.2), which knows ASCII. German needs
+  are built with SQLite's `lower()` (ADR-0005), which knows ASCII. German needs
   nothing more — the transliteration has already turned `Ä` into `ae`. But a
   text that begins with another accented capital (`Éclair`, `Çay`) is found by
   `ecl` (the trigram path folds with the tokenizer) and **not** by `e`. A test
@@ -69,7 +74,7 @@ create it. `Drop()` lives on the builder, because the way out of a
   needs it, is a longer replace chain in the two columns — measured before it
   is taken, because it is paid on every write.
 - `UpdateWeight` and `UpdatePriority` are a delete and an insert in the
-  search index (§18). A heavy re-ranking job pays for that; a click counter
+  search index (ADR-0002). A heavy re-ranking job pays for that; a click counter
   that updates once an hour does not.
 - **The ids are not reused by design, but they are not remembered either.** A
   new entry gets `max(doc_id) + 1`, so removing the highest entry frees its id
@@ -77,4 +82,4 @@ create it. `Drop()` lives on the builder, because the way out of a
   exactly that reason (ADR-0008). When the ids run out the write fails with an
   `InvalidOperationException` that says what to do, not with a bare `CHECK`.
 - The rowid caps the stock at 2³² − 1 entries per index and the weight at
-  2²⁹ − 1 (§18). Both are checked before they reach SQL.
+  2²⁹ − 1 (ADR-0002). Both are checked before they reach SQL.

@@ -38,7 +38,7 @@ internal static class SampleSeed
 
             // The typo tolerance needs its dictionary, and a query never builds it (ADR-0042): the application asks
             // for the build, here — after the entries are there.
-            if (index.Describe().TypoTolerance)
+            if (!string.Equals(index.Describe().TypoDistance, nameof(LuiTypoDistance.None), StringComparison.Ordinal))
             {
                 index.WarmUpTypoDictionary(CancellationToken.None);
             }

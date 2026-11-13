@@ -2,7 +2,7 @@
 namespace Nordmann.LUI;
 
 /// <summary>
-/// A query being described (LUI-Spezifikation §12.5). Every method returns
+/// A query being described (docs/api.md). Every method returns
 /// the query and checks its value at once; <see cref="Execute"/> runs it.
 /// </summary>
 public sealed class LuiQuery
@@ -54,15 +54,6 @@ public sealed class LuiQuery
         return this;
     }
 
-    /// <summary>Shows one entry per normalised text.</summary>
-    /// <param name="distinct">Whether duplicates are dropped.</param>
-    /// <returns>The query.</returns>
-    public LuiQuery DistinctText(bool distinct = true)
-    {
-        _options = _options with { DistinctText = distinct };
-        return this;
-    }
-
     /// <summary>Overrides the default similarity measure of the index.</summary>
     /// <param name="similarity">The measure.</param>
     /// <returns>The query.</returns>
@@ -74,7 +65,7 @@ public sealed class LuiQuery
     }
 
     /// <summary>
-    /// Corrects an input without a word start by one edit (§10). Overrides the setting of the index; the
+    /// Corrects an input without a word start by one edit (ADR-0012). Overrides the setting of the index; the
     /// dictionary is built on the first use.
     /// </summary>
     /// <param name="enabled">Whether to correct.</param>

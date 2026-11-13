@@ -3,7 +3,7 @@ using Nordmann.LUI.Normalization;
 namespace Nordmann.LUI.Schema;
 
 /// <summary>
-/// The content source <c>Embedded</c> (LUI-Spezifikation §5, §7.2, §7.4): the content lives in a table of the
+/// The content source <c>Embedded</c> (ADR-0014, ADR-0015, ADR-0006, ADR-0011): the content lives in a table of the
 /// library, <c>lui_&lt;name&gt;</c>, with its generated columns, three indexes, an FTS5 table and three
 /// triggers; the application writes through the index.
 /// </summary>
@@ -38,7 +38,7 @@ internal sealed class EmbeddedSource : ContentSource
 
     internal override string TextsSql { get; }
 
-    // ---- the writes (§12.4) --------------------------------------------------------------------
+    // ---- the writes (ADR-0016) --------------------------------------------------------------------
 
     internal string Upsert =>
         $"INSERT INTO {ContentTable}(key, text, weight, priority, payload) "
@@ -52,7 +52,7 @@ internal sealed class EmbeddedSource : ContentSource
 
     internal string Remove => $"DELETE FROM {ContentTable} WHERE key = $key;";
 
-    // ---- the sync and the check (§12.4, §12.6, §14) -------------------------------------------------
+    // ---- the sync and the check (ADR-0016, ADR-0016, ADR-0016, ADR-0046) -------------------------------------------------
 
     /// <summary>
     /// The stored entry of <c>$key</c>: <c>(doc_id, same)</c>, <c>same</c> being 1 when text, weight, priority and payload
@@ -190,7 +190,7 @@ internal sealed class EmbeddedSource : ContentSource
 
     /// <summary>
     /// The content table. The prefix columns hold the first letters of the text a query is read against, the
-    /// columns of the kind decide which (<see cref="IndexKindRules"/>). lower() folds ASCII only (§6.2).
+    /// columns of the kind decide which (<see cref="IndexKindRules"/>). lower() folds ASCII only (ADR-0005).
     /// </summary>
     private string ContentTableStatement() =>
         $"""

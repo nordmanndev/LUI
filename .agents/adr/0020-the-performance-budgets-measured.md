@@ -1,43 +1,45 @@
-# 0020 — The performance budgets of §16, measured: a corpus, a test per target, waivers with reasons
+# 0020 — The performance budgets, measured: a corpus, a test per target, waivers with reasons
 
 > **Name note (ADR-0023, 2026-11-04):** since this record was written, `Owned` is called `Embedded`: `ILuiOwnedIndex` is
 > `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
-> `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
+> `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written —
+> except for the sentences that the note of 2026-11-12 below rewrites and names.
 
-- **Status:** Accepted. **Owner's decisions of 2026-11-04** on the four waivers: the targets are stated anew in §16 and
+- **Status:** Accepted. **Owner's decisions of 2026-11-04** on the four waivers: the targets are stated anew in ADR-0020 and
   asserted — see "The owner's decisions" at the end; the allocation with bug #30
 - **Date:** 2026-11-03
 - **Builds on:** [0010](./0010-the-query-budget-at-three-million-entries.md) (the query budget at 3 M, Proposed),
   [0011](./0011-the-multi-word-index.md) (the file size), [0012](./0012-typo-tolerance.md) (the correction),
   [0016](./0016-sync-check-rebuild.md) (the bulk path), [0019](./0019-the-test-tree-three-layers-one-map.md) (the test tree)
 - **Affects:**
-  - `tests/Nordmann.LUI.Testing/Corpus.cs` (+ `CorpusKind`, `WeightDistribution`), `TestDatabase.FileMegabytes()`
-  - `tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs`
+  - `tests/Nordmann.LUI.Testing/Corpus.cs` (+ `CorpusKind`), `CorpusFile.cs`, `TestDatabase.FileMegabytes()`
+  - `tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs`
   - `benchmarks/Nordmann.LUI.Benchmarks/`
-  - `docs/benchmarks.md`, `docs/testing.md`, spec §16
+  - `docs/benchmarks.md`, `docs/testing.md`, ADR-0020
 
 ## Context
 
-Step 9 of the plan: the targets of §16 as tests, a benchmark project, and the scenario of three million entries. Until
+Step 9 of the plan: the targets of ADR-0020 as tests, a benchmark project, and the scenario of three million entries. Until
 now the targets were measured piecemeal — `QueryPerformance` asserted its latency only at three million and was run
 with the row-by-row build of PR-003, `TypoPerformance` the dictionary, ADR-0011 the file size. The bulk path of PR-007
 (`Sync`: batches in the order of the search index, one merge) had not been measured at three million at all.
 
 ## Decision
 
-**One corpus for every measurement.** `Corpus.Generate(words, entries, kind, weights, seed)` in `Nordmann.LUI.Testing`:
+**One corpus for every measurement.** The corpus of a measurement is a file in the repository (ADR-0059):
+`tests/TestData/corpora/words.txt`, `places.tsv`, `movies.tsv`, `wiki-titles.tsv`:
 
-- **single words** — the German word list first (685,829 words), then compounds of two of them;
-- **titles** — two to four words of the list;
-- **weights** — a long tail (nearly every weight distinct, the harder case for the rowid) or sparse (half of them 0, as
-  in Anhang A1);
+- **single words** — the German words of `words.txt` (1,908,798 entries);
+- **titles** — the titles of `wiki-titles.tsv`, `movies.tsv` and `places.tsv`;
+- **weights** — out of the corpus file: the population of a place, the votes of a film, the derived weight of a word
+  (a long tail, nearly every weight distinct, the harder case for the rowid);
 - **inputs** of 1 … 8 characters as users type them — a beginning, a piece out of the middle, two words of a title;
 - **typos** — a beginning of 5 … 9 letters with one edit after the first letter.
 
-The same seed gives the same corpus, so the budget test and the benchmarks measure the same thing, and a run can be
+The same file gives the same corpus, so the budget test and the benchmarks measure the same thing, and a run can be
 repeated.
 
-**A test per target, in the scenario of §16** (`PerformanceBudgets`, gated behind `LUI_PERF=1`):
+**A test per target, in the scenario of ADR-0020** (`PerformanceBudgets`, in the layer of the measurements):
 
 - `The_single_word_index_at_three_million_entries` — the build by `Sync`, the query without and with a correction, the
   allocation, the single writes;
@@ -46,8 +48,8 @@ repeated.
 
 Each target is **met** — then it is asserted — or **waived**: a waiver names its reason and the record that holds it,
 and a waived target is still measured and printed. A target that is missed and not waived fails the test. A waiver
-that is met is printed as "the waiver can go". Below the scenario (`LUI_PERF_ENTRIES` smaller) nothing is asserted: a
-budget of three million is not a claim about 200,000.
+that is met is printed as "the waiver can go". Below the scenario (fewer entries in the scenario file) nothing is
+asserted: a budget of three million is not a claim about 200,000.
 
 **The build is the first load of a file no other process writes:** `Sync` with `BatchSize = 1_000_000` — the fewest
 commits, which ADR-0016 measured to matter more than the order of the rows.
@@ -62,7 +64,7 @@ The measurement machine of `docs/benchmarks.md` (Intel Xeon 2.1 GHz, 4 cores, 15
 whole German word list, no other load. Two runs of the single-word scenario, a third for the batch size of the build,
 a fourth with the test as it is committed (the waivers in place, batches of 1,000,000): it passes.
 
-| Target of §16 | Scenario | Measured | Limit | Verdict |
+| Target of ADR-0020 | Scenario | Measured | Limit | Verdict |
 |---|---|---:|---:|---|
 | query p50 | 3 M entries, inputs of 1–8 characters | 1.61 / 1.71 / 1.67 / 1.34 ms | ≤ 2 ms | **met** |
 | query p95 | the same | 9.64 / 10.25 / 9.93 / 10.22 ms | ≤ 5 ms | **waived** → ADR-0010 |
@@ -110,19 +112,20 @@ the p95 was 244–249 KB). It is not a leak of the scale but the budget: 500 tex
   3. **The file size** — ADR-0011: titles of 36 characters, the table holds the text and two generated forms.
 - The build meets its target only with the largest batch. With the default of 10,000 it does not (ADR-0016: 78 s for a
   million); a first load is told to use the large batch (`LuiSyncOptions.BatchSize`).
-- The budget test runs for about ten minutes; it is not part of CI — a budget on a shared runner is a coin toss
-  (`PerformanceFactAttribute`). It is run on purpose, on the measurement machine, and its output goes here.
+- The budget test runs for about ten minutes; it is not part of CI — a budget on a shared runner is a coin toss.
+  It lives in the layer of the measurements (ADR-0058) and is run on purpose, on the measurement machine, and its
+  output goes here.
 
-**Verified by:** `tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs` (gated; the table above is its output),
+**Verified by:** `tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs` (the table above is its output),
 `benchmarks/Nordmann.LUI.Benchmarks` (`dotnet run -c Release --project benchmarks/Nordmann.LUI.Benchmarks -- --filter '*'`),
 and the test map (`Test_Landscape`), which lists the budget test.
 
 ## The owner's decisions (2026-11-04)
 
-The four waivers are gone; the targets are stated anew in §16 and `PerformanceBudgets` asserts them. For the long inputs,
+The four waivers are gone; the targets are stated anew in ADR-0020 and `PerformanceBudgets` asserts them. For the long inputs,
 the correction and the file this is a **loosening** of the target, not its meeting — written down as such:
 
-| Target of §16 | Was | Now | Measured |
+| Target of ADR-0020 | Was | Now | Measured |
 |---|---|---|---:|
 | query p95 | ≤ 5 ms | ≤ 5 ms for 1–4 characters, ≤ 20 ms for 5–8 characters (ADR-0010, option 2) | ≤ 3.1 ms · 17.5 ms at eight |
 | query with correction p95 | ≤ 10 ms | ≤ 35 ms | 27.9–29.0 ms |
@@ -141,7 +144,40 @@ the correction and the file this is a **loosening** of the target, not its meeti
 the next day, with the same code: the build of three million entries took **194.9 s and 205.9 s** (the day before
 172.5 s and 174.2 s); the queries were as fast or faster (p50 1.45–1.48 ms, p95 of 5–8 characters 13.4–14.4 ms), the
 corrected query p95 30.5–32.5 ms, the single write p95 0.72–0.78 ms. The build writes a file of 925 MB and follows the
-speed of the disk; the 180 s of §16 are met on one machine and missed on the next. **Decided by the owner on the same
+speed of the disk; the 180 s of ADR-0020 are met on one machine and missed on the next. **Decided by the owner on the same
 day:** the target is **≤ 4 min** for the first load of three million entries, and a faster first load is issue #32,
-after 0.1.0. `PerformanceBudgets` asserts it; no target of §16 is waived any more.
+after 0.1.0. `PerformanceBudgets` asserts it; no target of ADR-0020 is waived any more.
 
+
+## Note (2026-11-12, issue #123, ADR-0059)
+
+The corpus of a measurement is a file in the repository (ADR-0059); the generator and the distribution of the weights
+of the scenario are gone with it.
+
+The decision stands; the sentences above that this note rewrites and names are rewritten — each of them because the
+generator died with ADR-0059 and the corpus file took its place:
+
+- **the list of affected files above** — `tests/Nordmann.LUI.Testing/Corpus.cs` (+ `CorpusKind`, `WeightDistribution`) —
+  is rewritten to `tests/Nordmann.LUI.Testing/Corpus.cs` (+ `CorpusKind`), `CorpusFile.cs`: the file
+  `WeightDistribution.cs` is gone, and the reader of the corpus files is new.
+- **the sentence "**One corpus for every measurement.** `Corpus.Generate(words, entries, kind, weights, seed)` in
+  `Nordmann.LUI.Testing`:"** and **the three bullets under it** — "**single words** — the German word list first
+  (685,829 words), then compounds of two of them;", "**titles** — two to four words of the list;" and "**weights** — a
+  long tail (nearly every weight distinct, the harder case for the rowid) or sparse (half of them 0, as in Anhang
+  A1);" — are rewritten to the corpora of the repository and to the weights out of the corpus file.
+- **the sentence "The same seed gives the same corpus, so the budget test and the benchmarks measure the same thing,
+  and a run can be repeated."** is rewritten to "The same file gives the same corpus, so the budget test and the
+  benchmarks measure the same thing, and a run can be repeated."
+
+The bullets of the inputs and of the typos are untouched: the corpus still knows what users type and what they mistype.
+
+## Note (2026-11-12, issue #122)
+
+The budget test lives in the layer of the measurements since ADR-0058, and the scenario of a run lives in
+`performance.scenario.json`.
+
+The decision stands; the sentences above that named a variable of the environment that died, the name of a gate that
+is gone (`PerformanceFact`, `TestGates`) or a path of the file of the measurements (`PerformanceBudgets.cs`,
+`BudgetPerformance.cs`) are rewritten — each of them because the variable died with ADR-0058 and took the gate of the
+measurements with it, or because that file moved into the layer of the measurements. The path in the list of affected
+files above now names the file where it lives; the name of the class stays, as ADR-0049 says.

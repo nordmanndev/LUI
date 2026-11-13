@@ -3,7 +3,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Embedded;
 
 /// <summary>
-/// The schema and the definition of an <c>Embedded</c> single-word index (LUI-Spezifikation §7.2, §7.4, §12.2): what
+/// The schema and the definition of an <c>Embedded</c> single-word index (ADR-0006, ADR-0011, docs/api.md): what
 /// <c>Ensure</c> creates, what the definition holds, and what refuses an index that is not the one asked for.
 /// </summary>
 public sealed class EmbeddedIndexTests

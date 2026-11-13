@@ -4,6 +4,11 @@ This directory is LUI's changelog. Every decision that changes the public API,
 the schema, the dependency set or the shape of the repository becomes an ADR
 here — in the **same pull request** as the change it describes.
 
+The records of before 2026-11-13 were written against a specification that is
+deleted ([ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md)). Every section of it
+has a home — the ADR or the page that carries the same rule; the mapping is in that record. A record that names the
+specification carries a note that says so.
+
 ## Format
 
 ```text
@@ -55,15 +60,15 @@ decided about the query path" without opening 36 files.
 | # | Title | Topic | Status |
 |---|---|---|---|
 | [0001](./0001-single-package.md) | One NuGet package instead of three | Packages | Accepted |
-| [0002](./0002-library-not-an-application.md) | LUI is a library, not an application — the standards delta | Architecture | Accepted |
+| [0002](./0002-library-not-an-application.md) | LUI is a library, not an application — and it stands on the rules of this repository | Architecture | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0003](./0003-defer-the-open-questions.md) | The nine open questions of the specification are deferred | Scope | Accepted |
-| [0004](./0004-dependencies.md) | The dependency set — and the deviation from the closed library list | Packages | Accepted |
+| [0004](./0004-dependencies.md) | The dependency set of the library, and the deviation from the closed list | Packages | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0005](./0005-measured-normalisation.md) | The normalisation rule is measured, not derived | Normalisation | Accepted |
 | [0006](./0006-the-single-word-index.md) | The single-word index: one rowid, three indexes, one external-content FTS5 table | Storage | Accepted |
 | [0007](./0007-the-catalog-checks-the-sqlite-it-runs-on.md) | The catalog checks the SQLite it runs on | Probe | Accepted |
 | [0008](./0008-the-query-path.md) | The query path: groups, a lazy similarity, and what the result reserves | Query path | Accepted |
 | [0009](./0009-writes-use-prepared-statements.md) | Writes use prepared statements on one writer connection | Storage | Accepted |
-| [0010](./0010-the-query-budget-at-three-million-entries.md) | The query budget of §16 does not hold at three million entries on FTS5 alone | Measurement | Accepted (owner, 2026-11-04: the budget per input length) |
+| [0010](./0010-the-query-budget-at-three-million-entries.md) | The query budget of ADR-0020 does not hold at three million entries on FTS5 alone | Measurement | Accepted (owner, 2026-11-04: the budget per input length) |
 | [0011](./0011-the-multi-word-index.md) | The multi-word index: one indexed column, one expression, a Dice that allocates nothing | Storage | Accepted |
 | [0012](./0012-typo-tolerance.md) | Typo tolerance: SymSpell over the word beginnings, corrected when nothing stands at a word start | Typo tolerance | Accepted |
 | [0013](./0013-the-api-shape-before-the-first-release.md) | The API shape before the first release: steps, one namespace, entries, named results | API | Accepted |
@@ -72,29 +77,29 @@ decided about the query path" without opening 36 files.
 | [0016](./0016-sync-check-rebuild.md) | Sync, check and rebuild: batches that can be run again, a merge at the end, a catalog taken apart | Storage | Accepted |
 | [0017](./0017-dependency-injection-and-hosted-services.md) | Dependency injection and hosted services, in the package; stale candidates past the budget | Runtime | Accepted |
 | [0018](./0018-two-packages-core-and-hosting.md) | Two packages: the core and the hosting, released together | Packages | Accepted |
-| [0019](./0019-the-test-tree-three-layers-one-map.md) | The test tree: three layers, one shared infrastructure, one map that is a guard | Testing | Accepted |
-| [0020](./0020-the-performance-budgets-measured.md) | The performance budgets of §16, measured: a corpus, a test per target, waivers with reasons | Measurement | Accepted |
+| [0019](./0019-the-test-tree-three-layers-one-map.md) | The test tree: three layers and the measurement layer, one shared infrastructure, one map that is a guard | Testing | Accepted (restated 2026-11-12, issue #122, ADR-0058) |
+| [0020](./0020-the-performance-budgets-measured.md) | The performance budgets of ADR-0020, measured: a corpus, a test per target, waivers with reasons | Measurement | Accepted (restated 2026-11-12, issue #122, ADR-0058) |
 | [0021](./0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md) | A stale typo dictionary, a query that does not wait, a rebuild in the background | Typo tolerance | Accepted |
 | [0022](./0022-the-benchmark-results-in-the-readme.md) | The BenchmarkDotNet results: the raw data in the record, the budgets in the README — committed reports, a rendered section, a guard | Documentation | Accepted (restated 2026-11-06, issue #61, ADR-0039) |
 | [0023](./0023-owned-becomes-embedded.md) | `Owned` becomes `Embedded`: the name of the content source in LUI's own table | API | Accepted |
 | [0024](./0024-the-api-polish-before-the-freeze.md) | The API polish before the freeze: `AddLinkedIndex`, `entries`, `CandidateRead`, `LuiPayloadRow`, `LuiException`, a read interface that only reads | API | Accepted |
 | [0025](./0025-the-typo-dictionary-only-grows.md) | The typo dictionary only grows: no `Stale`, no background rebuild, one dictionary per index | Typo tolerance | Accepted |
 | [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) | The public API from 0.1.0 on grows only additively: a breaking change needs a minor version, a migration note and an ADR | API | Accepted |
-| [0027](./0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md) | The sample: flexdatalist against the whole API, a modular client, one fetch boundary | Sample | Accepted |
+| [0027](./0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md) | The sample: flexdatalist against the whole API, a modular client, one fetch boundary | Sample | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0028](./0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md) | LUI has no Highlight: a correction is shown as a question (#20 struck) | API | Accepted |
 | [0029](./0029-the-sample-fills-its-own-bulk-indexes-on-demand.md) | The sample fills its own bulk indexes on demand: a word list, Bogus names and tags, behind a button | Sample | Accepted |
-| [0030](./0030-the-similarity-measures-are-luis-own.md) | The four similarity measures are LUI's own: the runtime dependency on F23 ends | Packages | Accepted |
+| [0030](./0030-the-similarity-measures-are-luis-own.md) | The four similarity measures are LUI's own: the runtime dependency on F23 ends | Packages | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0031](./0031-the-pool-displaces-instead-of-discarding.md) | The pool of the buffers displaces instead of discarding | Runtime | Accepted |
 | [0032](./0032-the-allocation-of-a-query.md) | The allocation of a query: what it costs, and what it may cost | Measurement | Accepted |
 | [0033](./0033-the-read-path-opens-an-index-without-writing.md) | The read path opens an index without writing: `Create()` and `Index()` in the catalog, the file that decides what may be written | API | Accepted |
 | [0034](./0034-the-hosting-package-carries-only-the-dependency-injection.md) | The hosting package carries only the dependency injection: the abstractions of the host are gone | Packages | Accepted |
 | [0035](./0035-the-index-knows-no-types.md) | The index knows no types: the serialiser belongs to the catalog, the type stands where the payload is used | API | Accepted |
-| [0036](./0036-the-readme-the-specification-and-the-tutorial.md) | The README is the entrance, the specification the contract, the tutorial the way | Documentation | Accepted (decisions 1 and 4 superseded 2026-11-06, ADR-0039) |
+| [0036](./0036-the-readme-the-specification-and-the-tutorial.md) | The README is the entrance, the specification the contract, the tutorial the way | Documentation | Accepted (decisions 1 and 4 superseded 2026-11-06, ADR-0039; decision 2 superseded 2026-11-13, ADR-0061; restated 2026-11-12, issue #121, ADR-0057) |
 | [0037](./0037-the-papers-of-the-work-live-under-agents.md) | The papers of the work live under `.agents/`, the documentation of the library under `docs/` | Documentation | Accepted |
 | [0038](./0038-the-public-api-has-a-page-of-its-own.md) | The public API has a page of its own, and a test holds it up | Documentation | Accepted |
 | [0039](./0039-the-entrance-shows-the-measurement.md) | The entrance shows the measurement, the bulk path, the kinds and the sources | Documentation | Accepted |
-| [0040](./0040-the-budget-table-of-the-entrance-is-a-promise.md) | The budget table of the entrance is the promise of §16, and a test holds it up | Measurement | Accepted |
-| [0041](./0041-the-budgets-of-16-run-on-a-schedule.md) | The budgets of §16 run on a schedule: the bytes are asserted, the times are reported | Measurement | Accepted |
+| [0040](./0040-the-budget-table-of-the-entrance-is-a-promise.md) | The budget table of the entrance is the promise of ADR-0020, and a test holds it up | Measurement | Accepted |
+| [0041](./0041-the-budgets-of-16-run-on-a-schedule.md) | The budgets of ADR-0020 run on a schedule: the bytes are asserted, the times are reported | Measurement | Accepted (restated 2026-11-12, issue #122, ADR-0058) |
 | [0042](./0042-the-query-does-not-build-the-typo-dictionary.md) | The query does not build the typo dictionary: the application asks for it | Typo tolerance | Accepted |
 | [0043](./0043-the-warm-up-is-a-service-of-the-host.md) | The warm-up is a service of the host: the host asks for it, the library starts nothing | Hosting | Accepted |
 | [0044](./0044-the-typed-view-over-the-untyped-index.md) | The typed view over the untyped index: `index.As<T>()` gives the payload in the type of the application | API | Accepted |
@@ -103,7 +108,17 @@ decided about the query path" without opening 36 files.
 | [0047](./0047-the-pipelines-change-only-with-the-repository.md) | The pipelines change only with the repository: the SDK of `global.json`, named images, actions pinned by commit, timeouts, Dependabot | Build | Accepted |
 | [0048](./0048-the-release-is-the-pull-request-gate-the-owner-and-a-key-of-one-hour.md) | The release: the gates of every pull request, the owner's approval, a key of one hour (Trusted Publishing) | Build | Accepted |
 | [0049](./0049-the-tests-are-sorted-by-subject-and-carry-one-suffix.md) | The tests are sorted by subject, a folder is a namespace, and every test class carries one suffix | Testing | Accepted |
-| [0050](./0050-the-tests-that-read-the-clock-carry-a-trait-and-argue-their-bounds.md) | The tests that read the clock carry a trait, and argue their bounds | Testing | Accepted |
-| [0051](./0051-xunit-v3-run-by-vstest.md) | xUnit.net v3, run by VSTest | Testing | Accepted |
+| [0050](./0050-the-tests-that-read-the-clock-carry-a-trait-and-argue-their-bounds.md) | The tests that read the clock carry a trait, and argue their bounds | Testing | Accepted (restated 2026-11-12, issue #122, ADR-0058) |
+| [0051](./0051-xunit-v3-run-by-vstest.md) | xUnit.net v3, run by VSTest | Testing | Accepted (restated 2026-11-12, issue #122, ADR-0058) |
 | [0052](./0052-a-null-column-is-null-for-a-type-that-can-hold-it.md) | A NULL column is null for a type that can hold it | API | Accepted |
-| [0053](./0053-the-first-release-is-a-prerelease.md) | The first release is a prerelease: 0.1.0-alpha | Packages | Accepted |
+| [0053](./0053-the-first-release-is-a-prerelease.md) | The first release is a prerelease: 0.1.0-alpha | Packages | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
+| [0054](./0054-the-typo-distance-is-an-enumeration.md) | The typo distance is an enumeration, and it belongs to the index | Typo tolerance | Accepted |
+| [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md) | The uniqueness of a text belongs to the data: `DistinctText` is removed | Query path | Accepted |
+| [0056](./0056-the-budgets-live-in-a-file.md) | The budgets live in a file: one source, two readers | Measurement | Accepted |
+| [0057](./0057-the-repository-of-a-public-library-is-english.md) | The repository of a public library is English | Documentation | Accepted |
+| [0058](./0058-the-measurement-is-a-layer-of-its-own.md) | The measurement is a layer of its own: the measurements live in `tests/Nordmann.LUI.Performance.Tests`, and the scenario of a run is a file | Measurement | Accepted (restated 2026-11-12, issue #123, ADR-0059) |
+| [0059](./0059-the-corpora-are-four-fixed-files-in-the-repository.md) | The corpora are four fixed files in the repository, not generators: `tests/TestData/corpora/`, the file name is the identity, the budget names the corpus | Measurement | Accepted |
+| [0060](./0060-the-report-names-the-hits-and-the-place-of-the-measurement.md) | The report of a measurement names the hits of every line and the record of the run: the date, the measurements per case, the machine and the journal mode; the settings of a query are axes; the lane runs weekly | Measurement | Accepted |
+| [0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md) | The specification is deleted, and every one of its sections has a home: the section becomes the ADR or the page that carries the same rule | Documentation | Accepted |
+| [0062](./0062-the-creation-names-the-route-create-and-createlinked.md) | The creation names the route: `Create` creates an embedded index, `CreateLinked` a linked one | API | Accepted |
+| [0063](./0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied.md) | The surface of 0.1.0 is the review of 2026-11-04, applied: every point of the review, and the type or the member that carries it today | API | Accepted |

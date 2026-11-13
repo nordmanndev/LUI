@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The measurement layer (ADR-0058): everything that reads the clock. It is a
+    project of its own because a measurement is not a test of behaviour — it
+    measures the numbers of docs/benchmarks.md, and it runs when somebody says
+    so, not with every build. The gate of the measurements is the layer: there
+    is no variable that switches them on.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <!-- an xUnit.net v3 test project is an executable; dotnet test runs it through VSTest, not through
+         Microsoft.Testing.Platform, which on the .NET 10 SDK refuses the VSTest target (ADR-0051) -->
+    <OutputType>Exe</OutputType>
+    <IsTestingPlatformApplication>false</IsTestingPlatformApplication>
+    <RootNamespace>Nordmann.LUI.Performance.Tests</RootNamespace>
+    <AssemblyName>Nordmann.LUI.Performance.Tests</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" />
+    <PackageReference Include="xunit.v3" />
+    <PackageReference Include="xunit.runner.visualstudio" />
+    <PackageReference Include="Shouldly" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Nordmann.LUI/Nordmann.LUI.csproj" />
+    <ProjectReference Include="../Nordmann.LUI.Testing/Nordmann.LUI.Testing.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Meziantou.Analyzer" PrivateAssets="all" />
+  </ItemGroup>
+
+</Project>

@@ -25,7 +25,7 @@
     `LuiSyncReport.TypoDictionaryStale` (new)
   - `LuiServicesBuilder.RebuildStaleTypoDictionariesEvery(TimeSpan?)` (new), the hosted service `LuiTypoRebuilder` (new)
   - `Typos/TypoDictionary.cs`, `Querying/QueryRunner.cs`, `Querying/TypoCorrection.cs`, `Indexes/OwnedSync.cs`
-  - spec §10.1, §10.3a, §12.4, §12.7
+  - ADR-0012, ADR-0016, ADR-0017, ADR-0034
 
 ## Context
 
@@ -105,7 +105,7 @@ dictionary built anew with it is in proportion to the work. The shadow build of 
 
 ## What was measured
 
-`SyncPerformance.A_delta_sync_with_a_built_typo_dictionary` (gated, `LUI_PERF=1 LUI_PERF_ENTRIES=300000`): 300,000
+`SyncPerformance.A_delta_sync_with_a_built_typo_dictionary` (in the layer of the measurements, 300,000 entries): 300,000
 single words of the German word list (`Corpus`, seed 42), first loaded by `Sync`, the dictionary warmed up, then a sync
 with 100 changes and 100 removals (default batch of 10,000). Two runs each, the measurement machine of
 `docs/benchmarks.md`. "Before" is the same test with the sync rebuilding the dictionary at its end, as on `main`.

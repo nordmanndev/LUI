@@ -4,7 +4,7 @@ using static Nordmann.LUI.Integration.Tests.Linked.LinkedTable;
 namespace Nordmann.LUI.Integration.Tests.Linked;
 
 /// <summary>
-/// The application keeps a <c>Linked</c> index current (LUI-Spezifikation §12.6, ADR-0015): the sync of the whole table,
+/// The application keeps a <c>Linked</c> index current (ADR-0016, ADR-0015): the sync of the whole table,
 /// the refresh of single rows, in a transaction of their own or in the one of the application.
 /// </summary>
 public sealed class LinkedSyncTests
@@ -29,7 +29,7 @@ public sealed class LinkedSyncTests
         result.WithoutText.ShouldBe(2);
         result.KeyOutOfRange.ShouldBe(0);
         tags.Count().ShouldBe(2);
-        // word start, then similarity, then weight (§9.2): „vegan" is nearer to „veg" than „vegetarisch"
+        // word start, then similarity, then weight (ADR-0013, ADR-0055): „vegan" is nearer to „veg" than „vegetarisch"
         tags.Search("veg").Hits.Select(hit => (hit.Key, hit.Text, hit.Weight)).ShouldBe([(1L, "vegan", 5), (2L, "vegetarisch", 9)]);
     }
 
@@ -148,7 +148,7 @@ public sealed class LinkedSyncTests
                 (4, 'veganismus',  999999999, 3);
             """);
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count", priority: "priority"));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count", priority: "priority"));
         tags.Sync();
 
         var hits = tags.Search("vegan").Hits;

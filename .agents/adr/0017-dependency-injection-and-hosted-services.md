@@ -22,11 +22,11 @@
 - **Affects:**
   - `src/Nordmann.LUI.Hosting/` (`LuiServiceCollectionExtensions`, `LuiServicesBuilder`, `Hosting/`)
   - `src/Nordmann.LUI/Querying/CandidateReader.cs`, `LuiResult.cs`
-  - spec §7.3, §9.3, §12.5, §12.7, §20; `README.md`
+  - ADR-0015, ADR-0028, docs/api.md, ADR-0017, ADR-0034, the plan; `README.md`
 
 ## Context
 
-Step 8 of the plan is the dependency injection of §12.7: `services.AddLui(…).AddIndex(…)`, keyed services, `Ensure()` on
+Step 8 of the plan is the dependency injection of ADR-0017, ADR-0034: `services.AddLui(…).AddIndex(…)`, keyed services, `Ensure()` on
 start as an `IHostedService` that can be switched off. Two hosted services were left to this step:
 
 - **ADR-0013:** one that warms the typo dictionary.
@@ -36,7 +36,7 @@ The review of pull request 16 added **F1**: a linked row that changed and is not
 old text, found not to match, and still counted against the candidate budget — many of them among the best crowd out an
 entry that does match.
 
-The step also named `Highlight` (§9.3). **By the owner's decision it is not part of it**: the JavaScript library of the
+The step also named `Highlight` (ADR-0028). **By the owner's decision it is not part of it**: the JavaScript library of the
 front end marks the match; highlighting moves to a later version (issue #20).
 
 ## Decision

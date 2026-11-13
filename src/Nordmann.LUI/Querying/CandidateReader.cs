@@ -7,8 +7,8 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI.Querying;
 
 /// <summary>
-/// The first stage of a query (LUI-Spezifikation §8.1, §8.2): the candidates of one input out of SQLite, in
-/// the order of the rowid, each with its word start (§9.1). The statements come from the content source.
+/// The first stage of a query (ADR-0008, ADR-0008): the candidates of one input out of SQLite, in
+/// the order of the rowid, each with its word start (ADR-0008). The statements come from the content source.
 /// </summary>
 internal sealed class CandidateReader
 {
@@ -33,8 +33,8 @@ internal sealed class CandidateReader
     }
 
     /// <summary>
-    /// The candidates of <paramref name="query"/>: at most <c>Candidates</c>, with <c>DistinctText</c> one per
-    /// normalised text. <paramref name="truncated"/> says whether there were more.
+    /// The candidates of <paramref name="query"/>: at most <c>Candidates</c>.
+    /// <paramref name="truncated"/> says whether there were more.
     /// <para>
     /// A row whose text changed under the index and no longer matches (<c>Linked</c>, a row not refreshed yet) is not a
     /// candidate and does not use up the budget: the read goes on past it — at most another <c>Candidates</c> such rows,
@@ -59,8 +59,6 @@ internal sealed class CandidateReader
         // the buffer of the candidates is reused between the queries of a thread (issue #30)
         var candidates = ScoredBuffer.Rent(Math.Min(limit, 512));
 
-        // one entry per text within this input; across the inputs it is decided after the union
-        var seen = options.DistinctText ? new HashSet<string>(StringComparer.Ordinal) : null;
         var read = 0;
         var rows = 0;
         var stale = 0;
@@ -83,7 +81,7 @@ internal sealed class CandidateReader
             }
 
             var text = reader.GetString(1);
-            var start = StartOf(text, query, seen, out var duplicate, out var outdated, out var key);
+            var start = StartOf(text, query, out var outdated);
 
             // an outdated row is not a candidate and does not count against the budget — up to a budget of them; and only
             // a row that is a candidate past the budget makes the answer truncated (review of main after #23, finding 4)
@@ -93,7 +91,7 @@ internal sealed class CandidateReader
                 break;
             }
 
-            if (outdated || duplicate)
+            if (outdated)
             {
                 continue;
             }
@@ -103,7 +101,7 @@ internal sealed class CandidateReader
                 Array.Resize(ref candidates, Math.Min(limit, candidates.Length * 2));
             }
 
-            candidates[count++] = new Scored { RowId = reader.GetInt64(0), Text = text, Key = key, WordStart = start, Variant = variant };
+            candidates[count++] = new Scored { RowId = reader.GetInt64(0), Text = text, WordStart = start, Variant = variant };
         }
 
         return candidates;
@@ -134,15 +132,11 @@ internal sealed class CandidateReader
     }
 
     /// <summary>
-    /// Normalises a text on the stack, finds the word start and — for
-    /// <c>DistinctText</c> — remembers the text. The candidates arrive in the
-    /// order of the rowid, so the first one of a text is the best one (§9.2).
+    /// Normalises a text on the stack and finds the word start.
     /// </summary>
-    private int StartOf(string text, PreparedQuery query, HashSet<string>? seen, out bool duplicate, out bool outdated, out string? key)
+    private int StartOf(string text, PreparedQuery query, out bool outdated)
     {
-        duplicate = false;
         outdated = false;
-        key = null;
 
         char[]? rented = null;
         var buffer = text.Length * 3 <= StackTextLength
@@ -164,16 +158,6 @@ internal sealed class CandidateReader
             {
                 outdated = true;
                 return -1;
-            }
-
-            if (seen is not null)
-            {
-                key = new string(searchForm);
-                if (!seen.Add(key))
-                {
-                    duplicate = true;
-                    return -1;
-                }
             }
 
             return WordStart.Find(searchForm, query.Compact);

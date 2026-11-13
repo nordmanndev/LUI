@@ -42,7 +42,7 @@ The first version of the guard named three forms: it measures, it waits until a 
 
 Two kinds of test are not timing tests:
 - A wait on a signal with a timeout of seconds (`Entered.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue(…)`) only stops a hang.
-- The measurements (`[PerformanceFact]`) run only on purpose.
+- The measurements live in a layer of their own and run only on purpose (ADR-0058).
 
 **A test asserts the order of magnitude of a time, never its milliseconds.**
 - A lower bound is strict: load only makes a wait longer.
@@ -86,3 +86,13 @@ Two kinds of test are not timing tests:
 - **A custom trait attribute (`[Timing]`).** Rejected: xUnit v2 needs a discoverer for it. The plain `[Trait]` is what the filter reads, by name and value, and the guard reads it the same way.
 - **Running the timing tests in a lane of their own.** Rejected: they are a dozen cases. A lane would cost a runner and a setup for seconds of tests. The trait already gives the developer the fast loop.
 - **A longer window for the sample test.** Rejected: measured, the window was not the cause. A cancel before the server has the request fails after any window.
+
+## Note (2026-11-12, issue #122)
+
+[ADR-0058](./0058-the-measurement-is-a-layer-of-its-own.md) gives the measurement a layer of its own: the measurements
+of the tree are in `tests/Nordmann.LUI.Performance.Tests`, and the gate of the measurements is the layer.
+
+The decision stands; the sentences above that named a variable of the environment that died, the name of a gate that
+is gone (`PerformanceFact`, `TestGates`) or a path of the file of the measurements (`PerformanceBudgets.cs`,
+`BudgetPerformance.cs`) are rewritten — each of them because the variable died with ADR-0058 and took the gate of the
+measurements with it, or because that file moved into the layer of the measurements.

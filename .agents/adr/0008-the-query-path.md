@@ -2,6 +2,16 @@
 
 > **Note (ADR-0028, 2026-11-04):** `Highlight` is not coming back: LUI delivers no found positions, and issue #20 is closed.
 > The text below is history.
+>
+> **Note (ADR-0055, 2026-11-12):** `DistinctText` is gone — the uniqueness of a text belongs to the data. The paragraph
+> about it below is history, and it was wrong about the budget: a duplicate did use up a place of the candidate budget,
+> so the option made the search shallower, not only the answer shorter. See
+> [0055](./0055-the-uniqueness-of-a-text-belongs-to-the-data.md).
+
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
 
 - **Status:** Accepted
 - **Date:** 2026-11-02
@@ -14,11 +24,11 @@
 
 ## Context
 
-§8 and §9 describe the query: normalise, read the candidates in the order of
+ADR-0008 and ADR-0008 describe the query: normalise, read the candidates in the order of
 the rowid, rank them, read key and payload of the hits. The specification
-measures the hit rates (Anhang A2) and the latency budget (§16: p50 ≤ 2 ms,
+measures the hit rates (the record) and the latency budget (ADR-0020: p50 ≤ 2 ms,
 p95 ≤ 5 ms, ≤ 250 KB per query). The similarity is the expensive stage —
-4.5 µs and 336 B per comparison for Jaro-Winkler (§11) — and 500 candidates
+4.5 µs and 336 B per comparison for Jaro-Winkler (ADR-0030) — and 500 candidates
 times 4.5 µs is 2.25 ms, more than the whole budget.
 
 ## Decision
@@ -32,19 +42,19 @@ similarity computed. `WeightOnly` with the priority first is the order the
 candidates arrive in, and computes no similarity at all.
 
 **A one- or two-character input is not ranked by similarity.** The prefix
-path (§8.1) returns the best entries whose text *begins* with the input; all of
+path (ADR-0008) returns the best entries whose text *begins* with the input; all of
 them satisfy the word-start rule, and the similarity of one letter to a word
-carries nothing. Anhang B says what the user should see — „the most popular
+carries nothing. the golden queries says what the user should see — „the most popular
 first" — so the order is the order of the rowid. The hits still carry their
 similarity (computed for the ≤ 20 of them), so a caller can show it.
 
-**The similarity is measured from the word where the match begins** (§9.2):
+**The similarity is measured from the word where the match begins** (ADR-0013, ADR-0055):
 the search form of the text from that word on, or the whole text when there is
 no word start. The measure compares the normalised input with that text.
 
 **`DistinctText` works on the candidates, in the order of the rowid.** The
 first candidate of a normalised text is the one with the highest priority and
-then the highest weight, so keeping the first is exactly §9.2 — and it costs
+then the highest weight, so keeping the first is exactly ADR-0013, ADR-0055 — and it costs
 no second pass. The consequence is that duplicates are dropped *before* the
 candidate budget is filled, which is what a caller who hides duplicates wants.
 
@@ -60,12 +70,12 @@ specification's; raising *the default* needs a decision (AGENTS.md), raising it
 for one query does not.
 
 **Two fields of the result are reserved.** `LuiResult.CorrectedQuery` (typo
-tolerance, PR-005) and `LuiHit.Highlight` (PR-008) are in the types of §8.3
+tolerance, PR-005) and `LuiHit.Highlight` (PR-008) are in the types of ADR-0008
 and are `null` until their steps land. Adding a positional member to a record
 later would break every deconstruction; a documented `null` breaks none.
 
 **The type is called `Similarity`, in the namespace `Nordmann.LUI.Similarity`.**
-The specification writes `.Similarity(Similarity.NgramDice)` (§11, §12.5), and
+The specification writes `.Similarity(Similarity.NgramDice)` (ADR-0030, docs/api.md), and
 the analyzer rule MA0049 forbids a type named like its namespace. The rule is
 suppressed on that one declaration, with the reason next to it; the API the
 specification promises is worth more than the rule.

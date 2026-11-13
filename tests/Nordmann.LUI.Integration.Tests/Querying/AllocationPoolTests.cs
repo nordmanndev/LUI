@@ -55,7 +55,7 @@ public sealed class AllocationPoolTests
 
         // 64 KB: the query allocates 39.8 KB in this state; before the correction (ADR-0031) it
         // allocated 95.4 KB — the pool had filled up with the lengths of the past and every query
-        // allocated the big buffers anew. The target of §16 is p95 ≤ 100 KB; this is the same claim
+        // allocated the big buffers anew. The target of ADR-0020 is p95 ≤ 100 KB; this is the same claim
         // for a single query, measured on the same machine.
         allocated.ShouldBeLessThan(
             64 * 1024,
