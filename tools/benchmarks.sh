@@ -9,6 +9,11 @@
 # docs/benchmarks.md are rendered from them by the architecture test ReadmeBenchmarksTests, which also fails when the two
 # differ. Run it on a quiet machine: nothing else compiling, nothing else measuring. It takes about forty minutes.
 #
+# The corpora are files in the repository (ADR-0059) — the script fetches nothing.
+#
+# On a network drive BenchmarkDotNet can lose the assembly it generated for the job in the middle of the run
+# ("Did not find ...-DefaultJob-1.dll"). Copy the tree to a local disk and run it there.
+#
 set -euo pipefail
 
 readonly ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -17,12 +22,6 @@ readonly RESULTS="${ROOT}/benchmarks/results"
 
 cleanup() { rm -rf "${ARTIFACTS}"; }
 trap cleanup EXIT
-
-if [ ! -f "${ROOT}/artifacts/wordlist/german-words.txt" ]; then
-  echo "benchmarks: the full German word list is missing — run tools/fetch-wordlist.sh first" >&2
-  echo "benchmarks: (the benchmarks would measure the small sample, not the corpus of the record)" >&2
-  exit 1
-fi
 
 dotnet run --configuration Release --project "${ROOT}/benchmarks/Nordmann.LUI.Benchmarks" -- \
   --filter '*' --exporters github --artifacts "${ARTIFACTS}" "$@"

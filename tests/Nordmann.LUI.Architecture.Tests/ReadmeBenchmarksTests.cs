@@ -34,13 +34,17 @@ public sealed class ReadmeBenchmarksTests
     private static readonly (string Class, string Heading, string Measures)[] Sections =
     [
         ("QueryBenchmarks", "A query", "one query through the whole pipeline: the prefix path for one and two characters, FTS5 from three"),
+        ("SettingsBenchmarks", "The settings of a query", "the budget of the candidates, the order of the ranking, the measure of the similarity and the correction on and off — each of them is measured, not described"),
         ("CorrectionBenchmarks", "A query with a typo correction", "a single-word index with typo tolerance, the dictionary built; the input has one typo"),
         ("WriteBenchmarks", "A single write", "one write in a transaction of its own"),
         ("TextBenchmarks", "The search form and the similarity", "per text, no database: the normalisation of §6 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln\", `Größe(...)nahme [23]` „Größenänderungsmaßnahme\""),
     ];
 
-    /// <summary>The columns of BenchmarkDotNet's table that the README shows besides the parameters.</summary>
-    private static readonly string[] Measured = ["Mean", "Error", "Allocated"];
+    /// <summary>
+    /// The columns of BenchmarkDotNet's table that the README shows besides the parameters: the statistics and the
+    /// number of hits the query found (issue #124) — a line without it can measure nothing and look healthy.
+    /// </summary>
+    private static readonly string[] Measured = ["Mean", "Error", "Allocated", "Hits"];
 
     /// <summary>The first column of every table.</summary>
     private static readonly string[] MethodColumn = ["Method"];
@@ -104,16 +108,87 @@ public sealed class ReadmeBenchmarksTests
     [Fact]
     public void The_reports_come_from_one_run_on_one_machine()
     {
-        var environments = Sections
+        // issue #124: jeder Bericht traegt seinen eigenen Lauf (Datum, Messungen je Fall) — der Vergleich laeuft
+        // ueber die MASCHINE und die Laufzeit, nicht ueber den ganzen Block: der Block ist je Klasse verschieden.
+        var machines = Sections
             .Select(section => (section.Class, Environment: Report.Read(ReportPath(section.Class)).Environment))
             .ToArray();
 
-        environments
+        machines
             .Select(item => item.Environment)
+            .Where(environment => environment.Contains("[Machine]", StringComparison.Ordinal))
+            .Select(environment => environment
+                .Split('\n')
+                .First(line => line.Contains("[Machine]", StringComparison.Ordinal))
+                .Trim())
             .Distinct(StringComparer.Ordinal)
             .Count()
             .ShouldBe(1, "the document compares the benchmarks with each other; they have to be measured on one machine, with one runtime: "
-                + string.Join("; ", environments.Select(item => $"{item.Class}: {item.Environment.Split('\n')[0]}")));
+                + string.Join("; ", machines.Select(item => $"{item.Class}: {item.Environment.Split('\n')[0]}")));
+    }
+
+    [Fact]
+    public void A_line_with_zero_hits_is_shown_as_zero_and_not_as_an_empty_cell()
+    {
+        // issue #124: a line without the number of hits can measure nothing and look healthy — the input "ka" found
+        // nothing in the report of the day. Zero is a measurement; a dash is "this line measures no query".
+        var report = new Report(
+            "the machine",
+            ["Input"],
+            [new Dictionary<string, string>(StringComparer.Ordinal)
+            {
+                ["Method"] = "Search",
+                ["Input"] = "ka",
+                ["Mean"] = "16.46 μs",
+                ["Error"] = "0.275 μs",
+                ["Allocated"] = "4.94 KB",
+                ["Hits"] = "0"
+            }]);
+
+        var rendered = RenderSection(report, "QueryBenchmarks", "A query", "a query through the whole pipeline");
+
+        rendered.Contains("| 0 |", StringComparison.Ordinal)
+            .ShouldBeTrue("the zero is a measurement, and the report shows it");
+        rendered.Contains("|  |", StringComparison.Ordinal)
+            .ShouldBeFalse("an empty cell is not a measurement");
+    }
+
+    [Fact]
+    public void Every_report_names_the_date_the_measurements_the_machine_and_the_journal_mode()
+    {
+        foreach (var (name, _, _) in Sections)
+        {
+            var path = ReportPath(name);
+            var environment = Report.Read(path).Environment;
+
+            environment.ShouldMatch("\\d{4}-\\d{2}-\\d{2}", $"the report of {name} names the date of the run");
+            environment.Contains("the measurements per case", StringComparison.Ordinal)
+                .ShouldBeTrue($"the report of {name} names the number of measurements");
+            environment.Contains("[Machine]", StringComparison.Ordinal)
+                .ShouldBeTrue($"the report of {name} names the machine it was measured on");
+            environment.Contains("[Journal]", StringComparison.Ordinal)
+                .ShouldBeTrue($"the report of {name} names the journal mode of the database");
+        }
+    }
+
+    [Fact]
+    public void Every_line_of_every_report_names_its_hits_or_says_that_it_measures_no_query()
+    {
+        foreach (var (name, _, _) in Sections)
+        {
+            var report = Report.Read(ReportPath(name));
+            report.Rows.ShouldNotBeEmpty();
+
+            foreach (var row in report.Rows)
+            {
+                row.ContainsKey("Hits").ShouldBeTrue($"the report of {name} has the column of the hits");
+                var hits = row["Hits"];
+                hits.ShouldNotBeNullOrWhiteSpace($"a line of the report of {name} without the number of hits");
+                (string.Equals(hits, BenchmarkHits.NoQuery, StringComparison.Ordinal)
+                    || int.TryParse(hits, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out _))
+                    .ShouldBeTrue($"the hits of a line are a number or the dash of a line that measures no query — not '{hits}'");
+            }
+        }
     }
 
     [Fact]
@@ -153,28 +228,46 @@ public sealed class ReadmeBenchmarksTests
 
         foreach (var (name, heading, measures) in Sections)
         {
-            var report = Report.Read(ReportPath(name));
-            text.Append('\n').Append("#### ").Append(heading).Append("\n\n");
-            text.Append(char.ToUpperInvariant(measures[0])).Append(measures[1..]);
-
-            var constant = report.Parameters.Where(parameter => report.Rows.Select(row => row[parameter]).Distinct(StringComparer.Ordinal).Count() == 1).ToArray();
-            if (constant.Length > 0)
-            {
-                text.Append(" — ").Append(string.Join(", ", constant.Select(parameter => $"{parameter} = {report.Rows[0][parameter]}")));
-            }
-
-            text.Append(". `").Append(name).Append("`.\n\n");
-
-            var columns = MethodColumn.Concat(report.Parameters.Except(constant, StringComparer.Ordinal)).Concat(Measured).ToArray();
-            text.Append("| ").Append(string.Join(" | ", columns)).Append(" |\n");
-            text.Append('|').Append(string.Join('|', columns.Select(column => Measured.Contains(column, StringComparer.Ordinal) ? "---:" : "---"))).Append("|\n");
-            foreach (var row in report.Rows)
-            {
-                text.Append("| ").Append(string.Join(" | ", columns.Select(column => row[column]))).Append(" |\n");
-            }
+            text.Append(RenderSection(Report.Read(ReportPath(name)), name, heading, measures));
         }
 
         return text.Append('\n').ToString();
+    }
+
+    /// <summary>
+    /// The section of one benchmark class: its heading, what it measures and its table. The table is rendered from the
+    /// committed report — never written by hand (ADR-0022).
+    /// </summary>
+    /// <param name="report">The report of the class.</param>
+    /// <param name="name">The name of the class.</param>
+    /// <param name="heading">The heading of the section.</param>
+    /// <param name="measures">What the class measures.</param>
+    /// <returns>The rendered section.</returns>
+    private static string RenderSection(Report report, string name, string heading, string measures)
+    {
+        var text = new StringBuilder();
+        text.Append('\n').Append("#### ").Append(heading).Append("\n\n");
+        text.Append(char.ToUpperInvariant(measures[0])).Append(measures[1..]);
+
+        var constant = report.Parameters
+            .Where(parameter => report.Rows.Select(row => row[parameter]).Distinct(StringComparer.Ordinal).Count() == 1)
+            .ToArray();
+        if (constant.Length > 0)
+        {
+            text.Append(" — ").Append(string.Join(", ", constant.Select(parameter => $"{parameter} = {report.Rows[0][parameter]}")));
+        }
+
+        text.Append(". `").Append(name).Append("`.\n\n");
+
+        var columns = MethodColumn.Concat(report.Parameters.Except(constant, StringComparer.Ordinal)).Concat(Measured).ToArray();
+        text.Append("| ").Append(string.Join(" | ", columns)).Append(" |\n");
+        text.Append('|').Append(string.Join('|', columns.Select(column => Measured.Contains(column, StringComparer.Ordinal) ? "---:" : "---"))).Append("|\n");
+        foreach (var row in report.Rows)
+        {
+            text.Append("| ").Append(string.Join(" | ", columns.Select(column => row[column]))).Append(" |\n");
+        }
+
+        return text.ToString();
     }
 
     private static string StripComments(string source) => Comment.Replace(source, string.Empty);
