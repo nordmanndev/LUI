@@ -18,7 +18,7 @@ namespace Nordmann.LUI;
 /// <c>Sync</c> or the triggers.
 /// </para>
 /// <para>
-/// The builder is reached through <c>LuiCatalog.Create(name, index =&gt; index.LinkTo(…))</c>: it is the description
+/// The builder is reached through <c>LuiCatalog.CreateLinked(name, index =&gt; index.LinkTo(…))</c>: it is the description
 /// of an index, not the way into it (ADR-0033).
 /// </para>
 /// </summary>

@@ -307,7 +307,7 @@ public sealed class ReadPathTests
         Run(database, TagTable);
         using var catalog = database.Open();
         catalog.Create("plain", index => index.SingleWord());
-        catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
 
         Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags")).IndexName.ShouldBe("tags");
         Should.Throw<LuiDefinitionMismatchException>(() => catalog.LinkedIndex("plain")).IndexName.ShouldBe("plain");
@@ -337,7 +337,7 @@ public sealed class ReadPathTests
         Run(database, TagTable);
         Insert(database, (1, "vegan", 5, "vegan", "green"));
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord()
+        catalog.CreateLinked("tags", index => index.SingleWord()
             .LinkTo("tag", "id", "name", weight: "usage_count")
             .WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.GetString("color"))))
             .Sync();
@@ -361,7 +361,7 @@ public sealed class ReadPathTests
         using var database = new TestDatabase();
         Run(database, TagTable);
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord()
+        catalog.CreateLinked("tags", index => index.SingleWord()
             .LinkTo("tag", "id", "name")
             .WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.GetString("color"))));
 
@@ -380,11 +380,11 @@ public sealed class ReadPathTests
         Run(database, TagTable);
         using var catalog = database.Open();
 
-        catalog.Create("tags", index => index.SingleWord()
+        catalog.CreateLinked("tags", index => index.SingleWord()
             .LinkTo("tag", "id", "name")
             .WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.GetString("color"))));
 
-        Should.NotThrow(() => catalog.Create("tags", index => index.SingleWord()
+        Should.NotThrow(() => catalog.CreateLinked("tags", index => index.SingleWord()
             .LinkTo("tag", "id", "name")
             .WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.GetString("color")))));
     }

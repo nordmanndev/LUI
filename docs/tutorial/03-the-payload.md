@@ -121,7 +121,7 @@ using (var connection = new SqliteConnection("Data Source=app.db"))
 using var catalog = LuiCatalog.Open("Data Source=app.db");
 
 // A linked index with a payload: the columns of the payload are named, the map builds it.
-var tags = catalog.Create(
+var tags = catalog.CreateLinked(
     "app_tags",
     index => index.SingleWord()
         .LinkTo(table: "tag", key: "id", text: "name")

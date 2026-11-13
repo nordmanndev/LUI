@@ -406,7 +406,7 @@ decides what may happen.
 
 | Type | What it is |
 |---|---|
-| `LuiCatalog` | the entry point: `Open`, `Create`, `Index`, `LinkedIndex`, `DropIndex` |
+| `LuiCatalog` | the entry point: `Open`, `Create`, `CreateLinked`, `Index`, `LinkedIndex`, `DropIndex` |
 | `LuiEntry` | what is written: a key, a text, a weight, a priority, a payload |
 | `LuiKey` | the key of the application: a number or a text — `1` and `"1"` are different keys |
 | `LuiQuery` | a query that is configured step by step: `Take`, `Candidates`, `Rank`, `PriorityMode`, `Similarity`, `TypoTolerance`, `TrackTimings` |

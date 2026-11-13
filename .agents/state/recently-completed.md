@@ -5,6 +5,15 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The creation names the route: `Create` and `CreateLinked` (#145, ADR-0062)
+
+- The owner's decision of 2026-11-13 on point **A.3** of the review of 2026-11-04: the route is named in the call.
+  `LuiCatalog.Create` creates an embedded index, `LuiCatalog.CreateLinked` a linked one — the compiler does not choose it
+  any more.
+- The point was carried by a later decision and lost on the way: the builder of the indexes went with the entry point
+  (ADR-0033), and the creation moved into the core with two overloads. ADR-0024 and ADR-0033 carry a dated note of it.
+- **Still free**: the freeze of ADR-0026 begins with the tag `v0.1.0`, and there is no such tag yet.
+
 ## 2026-11-13 — The specification is deleted, and every section of it has a home (#125, step 8 of #117)
 
 - **The specification is gone**: `.agents/spec/LUI-Spezifikation.md` (1429 lines, German) is deleted. It is **not**

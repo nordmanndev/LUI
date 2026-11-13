@@ -148,7 +148,7 @@ public sealed class LinkedSyncTests
                 (4, 'veganismus',  999999999, 3);
             """);
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count", priority: "priority"));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count", priority: "priority"));
         tags.Sync();
 
         var hits = tags.Search("vegan").Hits;

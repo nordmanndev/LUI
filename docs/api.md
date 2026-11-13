@@ -28,7 +28,7 @@ using var catalog = LuiCatalog.Open("Data Source=app.db");
 |---|---|
 | `static LuiCatalog Open(string connectionString, LuiCatalogOptions? options = null)` | opens the catalog. It probes the SQLite it found (version, folding) and refuses a database it cannot search correctly. |
 | `ILuiEmbeddedIndex Create(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)` | creates an **embedded** index — the content lives in the library's own table. It is the write path and belongs in the migration of the application. |
-| `ILuiLinkedIndex Create(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)` | creates a **linked** index — the content stays in the table of the application. |
+| `ILuiLinkedIndex CreateLinked(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)` | creates a **linked** index — the content stays in the table of the application. The route is named in the call, as it is on the side of opening (`Index` / `LinkedIndex`). |
 | `ILuiEmbeddedIndex Index(string name)` | opens an embedded index that exists, and **writes nothing**: the definition is read out of the file, no table, no write lock. |
 | `ILuiLinkedIndex LinkedIndex(string name)` | opens a linked index without payload columns. |
 | `ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)` | opens a linked index with payload columns; the map builds the payload from the row of the table. |
@@ -39,8 +39,9 @@ using var catalog = LuiCatalog.Open("Data Source=app.db");
 | `string ConnectionString { get; }` | the connection string the catalog was opened with. |
 | `void Dispose()` | closes the catalog. It holds the connection pool; the indexes hold no resource of their own. |
 
-`Create` is **idempotent**: it creates the index if it is missing, and compares the stored definition with the one that
-was described if it is there. A difference is a `LuiDefinitionMismatchException` — never a silent change.
+`Create` and `CreateLinked` are **idempotent**: they create the index if it is missing, and compare the stored
+definition with the one that was described if it is there. A difference is a `LuiDefinitionMismatchException` — never a
+silent change.
 
 `Index` and `LinkedIndex` are the read path. They never write, whatever the file allows afterwards: the file decides
 what may happen.
@@ -65,8 +66,8 @@ write throws a `LuiReadOnlyException`.
 
 ## Creating an index — the description
 
-The builder chain is a **parameter** of `Create`, not the way in: the catalog takes a description and does the creating
-itself. Every builder method returns the builder, so the chain reads as one sentence.
+The builder chain is a **parameter** of `Create` and of `CreateLinked`, not the way in: the catalog takes a description
+and does the creating itself. Every builder method returns the builder, so the chain reads as one sentence.
 
 ### `LuiIndexKindBuilder` — the kind of the index
 

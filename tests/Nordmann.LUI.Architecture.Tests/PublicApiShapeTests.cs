@@ -201,15 +201,21 @@ public sealed class PublicApiShapeTests
         // ADR-0033: `Create` is the write path — it was called `Ensure`, and that name is gone (ADR-0026 allows a change of
         // a name before 0.1.0). `Index` and `LinkedIndex` are the read path: they open an index that is there and write
         // nothing. ADR-0035: none of them names a type of the application — the map of a linked index is the one type
-        // argument, and the compiler infers it from the lambda.
+        // argument, and the compiler infers it from the lambda. ADR-0062: the route is named in the call — `Create`
+        // creates an embedded index, `CreateLinked` a linked one; the compiler does not choose it.
         const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
         MethodInfo[] Named(string name) =>
             [.. typeof(LuiCatalog).GetMethods(declared).Where(method => string.Equals(method.Name, name, StringComparison.Ordinal))];
 
         var created = Named("Create");
-        created.Length.ShouldBe(2, "one Create per content source");
+        created.Length.ShouldBe(1, "the route is named in the call: `Create` creates an embedded index");
         created.ShouldAllBe(method => !method.IsGenericMethodDefinition);
-        created.Select(method => method.ReturnType).ShouldBe([typeof(ILuiEmbeddedIndex), typeof(ILuiLinkedIndex)], ignoreOrder: true);
+        created[0].ReturnType.ShouldBe(typeof(ILuiEmbeddedIndex));
+
+        var createdLinked = Named("CreateLinked");
+        createdLinked.Length.ShouldBe(1, "`CreateLinked` creates a linked index");
+        createdLinked.ShouldAllBe(method => !method.IsGenericMethodDefinition);
+        createdLinked[0].ReturnType.ShouldBe(typeof(ILuiLinkedIndex));
 
         var embedded = Named("Index").ShouldHaveSingleItem("an embedded index is opened by its name, and by nothing else");
         embedded.IsGenericMethodDefinition.ShouldBeFalse();

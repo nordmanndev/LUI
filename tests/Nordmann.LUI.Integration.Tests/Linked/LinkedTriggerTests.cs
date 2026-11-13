@@ -181,7 +181,7 @@ public sealed class LinkedTriggerTests
         tags.Triggers().ShouldBe(LuiTriggerState.Current);
 
         // an index whose name begins like this one's has triggers of its own
-        catalog.Create("tags_all", index => index.SingleWord().LinkTo("tag", "id", "name")).CreateTriggers();
+        catalog.CreateLinked("tags_all", index => index.SingleWord().LinkTo("tag", "id", "name")).CreateTriggers();
         tags.Triggers().ShouldBe(LuiTriggerState.Current);
     }
 
