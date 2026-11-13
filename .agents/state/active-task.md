@@ -5,9 +5,9 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** #130 — the API page guards the members, not only the types. It is the third pull request of the round after
-the release.
-**Branch:** `fix/129-the-index-of-the-records` carries the second pull request of the round; `dev` is at `ad9111e`,
+**Issue:** #128 — the C# blocks of the tutorials are compiled by a guard. It is the fourth pull request of the round
+after the release.
+**Branch:** `fix/130-the-page-guards-the-members` carries the third pull request of the round; `dev` is at `4fc03cd`,
 `main` at `e316c4b` — the tag `v0.1.0` is on the commit of `main`.
 **Decision:** the plan
 ([the round after the first release](./../plan/2026-11-13-the-round-after-the-first-release.md)) — D1 to D7, on the
