@@ -5,6 +5,28 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The release of 0.1.0: the version line, the CHANGELOG section, the README status
+
+- `Directory.Build.props` has no `VersionSuffix` any more: the version of the repository is `0.1.0`, the tag is `v0.1.0`
+  (ADR-0053), and the tag check of `publish.yml` accepts it — it reads the suffix only when there is one.
+- The CHANGELOG has the section `## [0.1.0] — 2026-11-13`: everything that stood between `0.1.0-alpha` and `0.1.0`. Three of
+  those entries break the API of the alpha, and each carries its migration note.
+- The README shows the install line without `--prerelease`, the badge of the version without the suffix, and a Status
+  that says the promise: from `0.1.0` on the public API grows only additively (ADR-0026). ADR-0026 and ADR-0053 carry
+  dated notes of it.
+- **No new ADR**: the release itself is decided — ADR-0048 (the release is the pull-request gate), ADR-0053 (the
+  version of the first release) and ADR-0026 (the freeze begins with the tag).
+
+## 2026-11-13 — The chapter that says why the tests are built the way they are (#81, PR #150 merged as `3c45920`)
+
+- `docs/testing-strategy.md`: the layers, the techniques and their reason, the checklist for a new test, what is
+  deliberately not done, and the lanes of the CI. The map (`docs/testing.md`) says which test holds which rule up; the
+  chapter says why the tests are built this way.
+- The drift of the prose went with it: the durations of the map are orders of magnitude now, and the soak of the
+  concurrency tests says six readers over four thousand entries, as the code does.
+- The acceptance of the issue asks for the owner to have read the chapter; the chapter is linked from the README and
+  from the map, and it is still open for a change — the tag `v0.1.0` was not cut yet.
+
 ## 2026-11-13 — The host waits for a round of the outbox that runs when it stops (#148, ADR-0043)
 
 - The warm-up is a service of the host: the host runs it, the host stops it, the host disposes it. What was missing is

@@ -7,6 +7,11 @@
 > **Note (ADR-0057, 2026-11-12, issue #121):** this record named an external contract that a reader of a public
 > library cannot know. The two sentences that named it are restated in the terms of this repository. The decision
 > stands as it was written; the text below is history.
+>
+> **Note (2026-11-13, the release):** the release came, and the line `VersionSuffix` is gone — the version of the
+> repository is `0.1.0`, the tag is `v0.1.0`, and the freeze of
+> [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) begins with it. The consequences below that
+> name the prerelease are the ones of the alpha; the README shows the install line without `--prerelease` now.
 
 - **Status:** Accepted
 - **Date:** 2026-11-11

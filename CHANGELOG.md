@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.0] — 2026-11-13
+
+The release of **0.1.0**. The public API freezes with it
+([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)): from this version on it grows only
+additively, and a breaking change needs a new minor version, a migration note here and an ADR. The changes below stand
+between `0.1.0-alpha` and `0.1.0` — three of them break the API of the alpha, and each says what to write instead.
+
 ### Added
 
 - **The chapter that says why the tests are built the way they are**
@@ -683,5 +690,6 @@ The sections below are the changes made on the way to it.
   - The package no longer depends on `Microsoft.Extensions.DependencyInjection.Abstractions`,
     `Microsoft.Extensions.Hosting.Abstractions` and `Microsoft.Extensions.Logging.Abstractions`: no code used them.
 
-[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.1.0-alpha...HEAD
+[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.1.0...HEAD
+[0.1.0]: https://github.com/nordmanndev/LUI/compare/v0.1.0-alpha...v0.1.0
 [0.1.0-alpha]: https://github.com/nordmanndev/LUI/releases/tag/v0.1.0-alpha
