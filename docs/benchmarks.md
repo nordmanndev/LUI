@@ -141,8 +141,10 @@ which is a smaller one. The difference is stated, not hidden.
 ## The lane
 
 The targets of §16 run on a schedule of their own
-(`.github/workflows/performance.yml`, ADR-0041): every night, and by hand when
-somebody wants to see it. The lane writes the scenario of the run into
+(`.github/workflows/performance.yml`, ADR-0041): **every week** — Monday at 03:17 UTC — and by hand when
+somebody wants to see it. A number that changes every night is a number nobody reads twice; the schedule runs on the
+default branch, so the number of the week is the stable line of `main`, and `dev` is measured by hand (issue #124,
+ADR-0060). The lane writes the scenario of the run into
 `tests/Nordmann.LUI.Performance.Tests/performance.scenario.json` and then runs the budgets of the
 measurement layer (ADR-0058). It fetches nothing: the corpora are files in the repository (ADR-0059), so the lane
 measures the files that are checked in. The word list of the parity is a different thing — the lane of the CI fetches
@@ -533,6 +535,35 @@ iterations gave an interval of up to 260 % of the mean, so none of its means is 
 between them, and the queries without a correction take no path that #19 changed. The default job is the one the
 tables show, because its interval (2–8 %) is narrow enough to compare two rows of one run — and a later run against
 this one.
+
+### The report of the run (issue #124, ADR-0060)
+
+Every line of a report names **the number of hits its query found** — the candidates that were ranked, not the entries
+the answer carries (the answer is capped at twenty). A line that measures no query — a write, a text — says so with a
+dash: **zero is a measurement, a dash is not**.
+
+Every report carries the record of its run: the date, the number of measurements per case, the machine and the
+`journal_mode` of the database. A write in `DELETE` is a different measurement from a write in `WAL`, and the report
+says which one it was.
+
+The settings of a query are axes, and so is the source of the index — the linked fixture joins the embedded one, one
+fixture and one report:
+
+| The axis | Its values |
+|---|---|
+| `Corpus` | `words` (`words.txt.gz`), `titles` (`wiki-titles.tsv.gz`) |
+| `Order` | `Start/Sim`, `Start/Weight`, `SimOnly`, `WeightOnly` |
+| `Similarity` | `JaroWinkler`, `NgramDice`, `DamerauLev`, `Levenshtein` |
+| `Correction` | `False`, `True` |
+| `Source` | `Embedded`, `Linked` |
+
+The names are short on purpose: BenchmarkDotNet cuts a long value in the table of its report, and a cut value cannot be
+read back — the report would name a setting that nothing can resolve. The mapping lives in the code, next to the setting
+it names (`QuerySettings`).
+
+The run of the day measured **two values of every axis that has more than one** — every further value doubles the number
+of the cases of the class, and the run takes 42 minutes. The vocabulary above is the one of the code; the report of the
+run says which of it was measured.
 
 ## The tables of the run
 
