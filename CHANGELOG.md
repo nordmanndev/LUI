@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.1.1] — 2026-11-13
+
+The release of **0.1.1**: the guards of the repository and the dead paths of the records. The public API does not move —
+the freeze of [ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) holds, and nothing in this
+release needs a migration note.
+
+### Added
+
+- **The guards of the round** — four of them, and each of them comes with a mutation that proves it bites:
+  - the paths of the affected files of a record name files that exist (#137);
+  - the index of the records names the records that exist, and every record has a row (#129);
+  - the API page names only the members that the types have (#130);
+  - the C# blocks of the tutorial are compiled, run, and compared with the pages (#128).
+
+### Fixed
+
+- **The dead paths of the records**: six paths in ADR-0032, ADR-0041 and ADR-0056 named files that had moved with the
+  measurements of the repository (#137).
+- **The index of the records**: two rows carried a topic that the table of the index does not name (#129).
+- **The API page**: it wrote `TypoTolerance` on a type that has `TypoDistance` — the guard of the types did not see it,
+  because it compared types and not members (#130).
+- **The tutorial**: the typed view of the payload declared `chip` again, the name that the block above had already
+  declared — a reader who pasted the two blocks into one scope got CS0128 (#128).
+
 ## [0.1.0] — 2026-11-13
 
 The release of **0.1.0**. The public API freezes with it
@@ -690,6 +714,7 @@ The sections below are the changes made on the way to it.
   - The package no longer depends on `Microsoft.Extensions.DependencyInjection.Abstractions`,
     `Microsoft.Extensions.Hosting.Abstractions` and `Microsoft.Extensions.Logging.Abstractions`: no code used them.
 
-[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/nordmanndev/LUI/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nordmanndev/LUI/compare/v0.1.0-alpha...v0.1.0
 [0.1.0-alpha]: https://github.com/nordmanndev/LUI/releases/tag/v0.1.0-alpha

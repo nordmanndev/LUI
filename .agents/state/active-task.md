@@ -46,7 +46,6 @@ integration layer that failed once under load and did not reproduce.
 
 ## The next step
 
-**The release of `0.1.1`** — the patch of the round: the guards and the dead paths, no change of the public API, no ADR.
-The version line in `Directory.Build.props` (`0.1.0` → `0.1.1`, ADR-0053), a section of the CHANGELOG that names what the
-round brought, the status of the README, and the release pull request `dev` → `main` with its own review. The tag
-`v0.1.1` and the push to nuget.org wait for the owner (the environment `nuget`, ADR-0048).
+**The release pull request `dev` → `main`** — the release of `0.1.1` with its own review, as the road of `0.1.0` was
+(PR #152). Then the tag `v0.1.1` on the commit of `main`, and the push to nuget.org — the environment `nuget` asks the owner
+for the approval (ADR-0048).

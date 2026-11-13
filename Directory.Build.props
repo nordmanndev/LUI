@@ -37,8 +37,8 @@
     <RepositoryType>git</RepositoryType>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageProjectUrl>https://github.com/nordmanndev/LUI</PackageProjectUrl>
-    <VersionPrefix>0.1.0</VersionPrefix>
-    <!-- no VersionSuffix: 0.1.0 is the release, and the tag v0.1.0 is the one the freeze of ADR-0026 begins with (ADR-0053) -->
+    <VersionPrefix>0.1.1</VersionPrefix>
+    <!-- no VersionSuffix: 0.1.1 is the release, and the tag v0.1.1 follows the tag v0.1.0 that the freeze of ADR-0026 begins with (ADR-0053) -->
   </PropertyGroup>
 
 </Project>

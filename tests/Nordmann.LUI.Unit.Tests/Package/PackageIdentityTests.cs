@@ -25,7 +25,7 @@ public class PackageIdentityTests
             .FirstOrDefault();
 
         informational.ShouldNotBeNull();
-        informational!.InformationalVersion.ShouldStartWith("0.1.0");
+        informational!.InformationalVersion.ShouldStartWith("0.1.1");
     }
 
     [Fact]
