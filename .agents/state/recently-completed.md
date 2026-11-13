@@ -5,6 +5,18 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The plan of the round after the release (`.agents/plan/2026-11-13-the-round-after-the-first-release.md`)
+
+- The plan names what the release left open and in which order: `0.1.1` carries the six dead paths of the records
+  (#137) and the three missing guards (#129, #130, #128); `0.2.0` carries the measured work and the decisions (#134,
+  #32, #31, #44).
+- The decisions D1 to D7: the next version is a patch and the one after it a minor version (the freeze of ADR-0026);
+  every guard comes with a mutation; the mutation check learns a third mechanism (`expect_command_caught`) for the
+  tutorial check, which is a script and not a test; the paths of the records are repaired and the names stay (ADR-0049);
+  the flake gets an issue (#154) with the two facts that are known; the branch model does not change.
+- The four tasks change no public API, so they get no ADR — a decision about the work that changes no code of the
+  library is a plan, not a record of a decision.
+
 ## 2026-11-13 — LUI 0.1.0 is released (PR #152 merged, tag `v0.1.0`)
 
 - The release pull request `dev` → `main` is merged (`e316c4b`), the tag `v0.1.0` is cut on that commit, and the freeze
