@@ -46,6 +46,15 @@ integration layer that failed once under load and did not reproduce.
 
 ## The next step
 
-**The release pull request `dev` → `main`** — the release of `0.1.1` with its own review, as the road of `0.1.0` was
-(PR #152). Then the tag `v0.1.1` on the commit of `main`, and the push to nuget.org — the environment `nuget` asks the owner
-for the approval (ADR-0048).
+**The second round** — the measured work and the decisions, on the plan of the round
+([the round after the first release](./../plan/2026-11-13-the-round-after-the-first-release.md)):
+
+1. **#32** — a faster first load (the build of 3 M entries).
+2. **#31** — a shadow build for `Linked.Sync()`.
+3. **#44** — the dependency on `symspell`: keep it or implement SymSpell ourselves (an ADR, the dependency set is the
+   contract of the package).
+4. **#134** — the origin of the 1912 bytes inside the measured window.
+5. **#154** — the test of the integration layer that failed once under load and did not reproduce.
+
+They belong to `0.2.0` (D2), and they need a plan of their own before the first pull request — the round after the first
+release was planned and written before its first pull request, and so is this one.
