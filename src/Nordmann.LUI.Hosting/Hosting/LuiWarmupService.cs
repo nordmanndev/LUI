@@ -19,8 +19,10 @@ internal sealed partial class LuiWarmupService : IHostedService, IDisposable
     private readonly string[] _typoDictionaryIndexes;
     private readonly TimeSpan _interval;
     private readonly ILogger _logger;
+    private readonly object _roundGate = new();
     private Timer? _timer;
     private int _running;
+    private volatile bool _stopping;
 
     /// <summary>The service.</summary>
     /// <param name="catalog">The catalog of the host.</param>
@@ -39,6 +41,8 @@ internal sealed partial class LuiWarmupService : IHostedService, IDisposable
     /// <param name="cancellationToken">Checked between the indexes.</param>
     public async Task StartAsync(CancellationToken cancellationToken)
     {
+        _stopping = false;
+
         // the rows that the triggers noted come first: the dictionary that is built afterwards knows their words
         var applied = _catalog.ApplyPending(cancellationToken);
         LogOutboxApplied(applied);
@@ -61,19 +65,27 @@ internal sealed partial class LuiWarmupService : IHostedService, IDisposable
         _timer = new Timer(OnRound, null, _interval, _interval);
     }
 
-    /// <summary>Stops the rounds of the outbox.</summary>
+    /// <summary>
+    /// Stops the rounds of the outbox — and waits for a round that runs. The host stops the service, and the service
+    /// leaves nothing running: a round that goes on holds the file of the application, and the host that stopped it is
+    /// gone (ADR-0043).
+    /// </summary>
     /// <param name="cancellationToken">Not used — the rounds stop with the timer.</param>
     public Task StopAsync(CancellationToken cancellationToken)
     {
+        _stopping = true;
         _timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+        JoinRound();
 
         return Task.CompletedTask;
     }
 
-    /// <summary>Stops the timer of the rounds.</summary>
+    /// <summary>Stops the timer of the rounds — and waits for a round that runs.</summary>
     public void Dispose()
     {
+        _stopping = true;
         _timer?.Dispose();
+        JoinRound();
     }
 
     /// <summary>Builds the dictionaries the settings name — every index, if they name none.</summary>
@@ -101,6 +113,13 @@ internal sealed partial class LuiWarmupService : IHostedService, IDisposable
     /// <param name="state">Not used.</param>
     internal void OnRound(object? state)
     {
+        // the service stops: no round begins any more. The timer may have a callback waiting that it never runs
+        // again — the host that stopped the service is gone (ADR-0043).
+        if (_stopping)
+        {
+            return;
+        }
+
         // a round that is still running is not started again. The rounds of a timer may overlap, and the catalog writes
         // through one writer: a second round would not write beside the first, it would hold a thread of the pool while
         // it waits for the writer — one per tick, for as long as the first round waits for the lock of the file
@@ -116,6 +135,25 @@ internal sealed partial class LuiWarmupService : IHostedService, IDisposable
         finally
         {
             Volatile.Write(ref _running, 0);
+            lock (_roundGate)
+            {
+                Monitor.PulseAll(_roundGate);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Waits for a round that runs to end. The round holds the file of the application — the host that stops the
+    /// service waits for it, so that nothing of LUI runs after the service is gone (ADR-0043).
+    /// </summary>
+    private void JoinRound()
+    {
+        lock (_roundGate)
+        {
+            while (Volatile.Read(ref _running) != 0)
+            {
+                Monitor.Wait(_roundGate);
+            }
         }
     }
 

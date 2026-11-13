@@ -570,11 +570,13 @@ expect_caught "a-linked-rebuild-that-builds-nothing" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~A_linked_index_rebuilds_its_typo_dictionary_from_the_table_as_it_is_now" \
   "sed -i 's|        _typos.Rebuild(cancellationToken);|        _typos.EnsureBuilt(cancellationToken);|' src/Nordmann.LUI/Indexes/LinkedIndex.cs"
 
-# 26s. The stop of the warm-up leaves the timer running (issue #106): the rounds would go on against a host that is
-#      shutting down.
+# 26s. The stop of the warm-up leaves the rounds running (issue #106, issue #148): the rounds would go on against a host
+#      that is shutting down. The stop has two parts — the timer stops, and a round that begins after the stop does not
+#      begin at all — and the mutation breaks both of them, so that the test sees a round that applies a row the
+#      application wrote after the stop.
 expect_caught "a-stop-that-keeps-the-rounds" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~After_the_host_stops_no_round_of_the_outbox_begins" \
-  "sed -i 's|        _timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);||' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
+  "sed -i -e 's|        _timer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);||' -e 's|        _stopping = true;|        _stopping = false;|' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
 
 # 26t. The guard against overlapping rounds lets every tick in (issue #106): while the write lock is held, a round per
 #      tick would wait beside the others.
@@ -638,6 +640,13 @@ expect_caught "a-rebuild-that-forgives-nothing-builds-a-dictionary" "${INTEGRATI
 expect_caught "a-duplicate-of-a-text-is-dropped-again" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~Two_spellings_of_one_text_are_two_hits|FullyQualifiedName~The_priority_leads_the_hits|FullyQualifiedName~The_correction_is_not_swallowed|FullyQualifiedName~The_input_and_its_correction_keep" \
   "sed -i 's|        var read = 0;|        var seen = new HashSet<string>(StringComparer.Ordinal);\\n        var read = 0;|' src/Nordmann.LUI/Querying/CandidateReader.cs && sed -i 's|            candidates\\[count++\\] = new Scored { RowId = reader.GetInt64(0), Text = text, WordStart = start, Variant = variant };|            if (seen.Add(Normalizer.ToSearchForm(text, _normalization))) { candidates[count++] = new Scored { RowId = reader.GetInt64(0), Text = text, WordStart = start, Variant = variant }; }|' src/Nordmann.LUI/Querying/CandidateReader.cs"
+
+# 26ab. The stop of the warm-up does not wait for the round that runs (issue #148): the round holds the file of the
+#      application, and the host that stopped the service is gone while LUI still writes (ADR-0043). The test of the
+#      stop has to notice.
+expect_caught "a-stop-that-does-not-wait-for-the-round" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~The_host_waits_for_a_round_that_runs_when_it_is_disposed" \
+  "sed -i '/^        JoinRound();$/d' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
 
 # 27. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
