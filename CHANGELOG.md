@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **The creation names the route**
+  ([ADR-0062](.agents/adr/0062-the-creation-names-the-route-create-and-createlinked.md), #145). `LuiCatalog.Create`
+  creates an **embedded** index, `LuiCatalog.CreateLinked` a **linked** one — the route is named in the call, as it is on
+  the side of opening (`Index` / `LinkedIndex`). **A breaking change** — and still free: the freeze of
+  [ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) begins with the tag `v0.1.0`, and
+  there is no such tag yet.
+  - **Migration**: `catalog.Create(name, index => index.…LinkTo(…))` → `catalog.CreateLinked(name, index => index.…LinkTo(…))`.
+    An embedded index is created with `Create` as before — the compiler does not choose the route any more.
 - **The typo distance is an enumeration, and it belongs to the index**
   ([ADR-0054](.agents/adr/0054-the-typo-distance-is-an-enumeration.md), #118). **A breaking change** — and still
   free: the freeze of

@@ -18,7 +18,7 @@ public sealed class LinkedQueryTests
         Run(database, Table);
         Run(database, "INSERT INTO tag(id, name, usage_count, slug, color) VALUES (1, 'vegan', 5, 'vegan', '#0a0'), (2, 'veganer', 4, 'veganer', NULL);");
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.IsNull("color") ? null : row.GetString("color"))));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.IsNull("color") ? null : row.GetString("color"))));
         tags.Sync();
 
         var hits = tags.Search("vegan").Hits;
@@ -47,7 +47,7 @@ public sealed class LinkedQueryTests
                        (2, 'apfelstrudel', 7, 2.25, '2025-01-31 00:00:00', 15);
             """);
         using var catalog = database.Open();
-        var products = catalog.Create("products", index => index.SingleWord().LinkTo("product", "id", "name")
+        var products = catalog.CreateLinked("products", index => index.SingleWord().LinkTo("product", "id", "name")
             .WithPayload(["sold", "price", "released", "discount"], row => new Product(
                 row.GetInt64("sold"), row.GetDouble("price"), row.Get<DateTime>("released"), row.Get<long?>("discount"))));
         products.Sync();
@@ -81,7 +81,7 @@ public sealed class LinkedQueryTests
             INSERT INTO product(id, name, discount, note, withdrawn) VALUES (1, 'apfelkuchen', NULL, NULL, NULL);
             """);
         using var catalog = database.Open();
-        var optional = catalog.Create("optional", index => index.SingleWord().LinkTo("product", "id", "name")
+        var optional = catalog.CreateLinked("optional", index => index.SingleWord().LinkTo("product", "id", "name")
             .WithPayload(["discount", "note", "withdrawn"], row => new Optional(
                 row.Get<long?>("discount"), row.Get<string>("note"), row.Get<DateTime?>("withdrawn"))));
         optional.Sync();
@@ -89,7 +89,7 @@ public sealed class LinkedQueryTests
         optional.Search("apfelkuchen").Hits.ShouldHaveSingleItem().GetPayload<Optional>()
             .ShouldBe(new Optional(null, null, null), "a nullable value type and a reference type read a NULL as null");
 
-        var strict = catalog.Create("strict", index => index.SingleWord().LinkTo("product", "id", "name")
+        var strict = catalog.CreateLinked("strict", index => index.SingleWord().LinkTo("product", "id", "name")
             .WithPayload(["discount"], row => row.Get<long>("discount")));
         strict.Sync();
         Should.Throw<InvalidOperationException>(() => strict.Search("apfelkuchen"), "a long cannot hold a NULL")
@@ -106,7 +106,7 @@ public sealed class LinkedQueryTests
         Run(database, "INSERT INTO tag(id, name, usage_count, slug, color) VALUES (1, 'vegan', 5, 'vegan', '#0a0'), (2, 'veganer', 4, 'veganer', NULL);");
         using var catalog = database.Open();
         var kept = new List<LuiPayloadRow>();
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").WithPayload(["slug"], row =>
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").WithPayload(["slug"], row =>
             {
                 kept.Add(row);
                 return row.GetString("slug");
@@ -132,10 +132,10 @@ public sealed class LinkedQueryTests
         Insert(database, (1, "vegan", 5));
         using var catalog = database.Open();
 
-        Should.Throw<LuiLinkedTableException>(() => catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name").WithPayload(["shade"], row => row.GetString("shade"))))
+        Should.Throw<LuiLinkedTableException>(() => catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name").WithPayload(["shade"], row => row.GetString("shade"))))
             .Message.ShouldContain("'shade'");
 
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name").WithPayload(["slug"], row => row.GetString("color")));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name").WithPayload(["slug"], row => row.GetString("color")));
         tags.Sync();
 
         Should.Throw<ArgumentException>(() => tags.Search("vegan")).Message.ShouldContain("WithPayload");
@@ -187,7 +187,7 @@ public sealed class LinkedQueryTests
         Run(database, "CREATE TABLE recipe (id INTEGER PRIMARY KEY, title TEXT NOT NULL, views INTEGER NOT NULL);");
         Run(database, "INSERT INTO recipe VALUES (1, 'Apfel Kuchen', 10), (2, 'Bratapfelkuchen', 1000), (3, 'Gedeckter Apfelkuchen', 500);");
         using var catalog = database.Open();
-        var recipes = catalog.Create("recipes", index => index.MultiWord().LinkTo("recipe", "id", "title", weight: "views"));
+        var recipes = catalog.CreateLinked("recipes", index => index.MultiWord().LinkTo("recipe", "id", "title", weight: "views"));
         recipes.Sync();
 
         recipes.Search("kuchen apfel").Hits[0].Text.ShouldBe("Apfel Kuchen");
@@ -226,7 +226,7 @@ public sealed class LinkedQueryTests
         Run(database, Table);
         Insert(database, (1, "Apfelkuchen", 10));
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count"));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count"));
         tags.Sync();
 
         // the application asks for the build (ADR-0042): a query never does
@@ -250,9 +250,9 @@ public sealed class LinkedQueryTests
         Run(database, Table);
         Insert(database, (1, "Müller", 5));
         using var catalog = database.Open();
-        var plain = catalog.Create("plain", index => index.SingleWord().LinkTo("tag", "id", "name")
+        var plain = catalog.CreateLinked("plain", index => index.SingleWord().LinkTo("tag", "id", "name")
             .GermanTransliteration(false).Similarity(new Constant(0.25)));
-        var german = catalog.Create("german", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        var german = catalog.CreateLinked("german", index => index.SingleWord().LinkTo("tag", "id", "name"));
         plain.Sync();
         german.Sync();
 
@@ -262,8 +262,8 @@ public sealed class LinkedQueryTests
         german.Search("mül").Hits.ShouldHaveSingleItem().Similarity.ShouldNotBe(0.25, "the default measure");
 
         // the transliteration is part of the definition; the measure is a property of the instance (ADR-0013)
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create("plain", index => index.SingleWord().LinkTo("tag", "id", "name")));
-        catalog.Create("plain", index => index.SingleWord().LinkTo("tag", "id", "name").GermanTransliteration(false))
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.CreateLinked("plain", index => index.SingleWord().LinkTo("tag", "id", "name")));
+        catalog.CreateLinked("plain", index => index.SingleWord().LinkTo("tag", "id", "name").GermanTransliteration(false))
             .Search("mül").Hits.ShouldHaveSingleItem().Similarity.ShouldNotBe(0.25, "the measure is not stored");
     }
 
@@ -277,7 +277,7 @@ public sealed class LinkedQueryTests
         Run(database, Table);
         Insert(database, (1, "Torte", 10), (2, "Tarte", 50));
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count"));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count"));
         tags.Sync();
         tags.WarmUpTypoDictionary();
         tags.Search("tirte").CorrectedQuery.ShouldBe("tarte", "the heavier word wins");
@@ -341,7 +341,7 @@ public sealed class LinkedQueryTests
         Insert(database, (1, "vegan", 5), (2, "vegetarisch", 3));
         Run(database, "UPDATE tag SET color = 'green';");
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord()
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord()
             .LinkTo("tag", "id", "name", weight: "usage_count")
             .WithPayload(["color"], row => row.GetString("color")));
         tags.Sync();
@@ -368,7 +368,7 @@ public sealed class LinkedQueryTests
         Run(database, "CREATE TABLE recipe (id INTEGER PRIMARY KEY, title TEXT NOT NULL, views INTEGER NOT NULL);");
         Run(database, "INSERT INTO recipe VALUES (1, 'Apfel Kuchen', 10), (2, 'Kuchen mit Apfel', 5);");
         using var catalog = database.Open();
-        var recipes = catalog.Create("recipes", index => index.MultiWord().LinkTo("recipe", "id", "title", weight: "views"));
+        var recipes = catalog.CreateLinked("recipes", index => index.MultiWord().LinkTo("recipe", "id", "title", weight: "views"));
         recipes.Sync();
 
         Run(database, "UPDATE recipe SET title = 'Birnen Torte' WHERE id = 1;");

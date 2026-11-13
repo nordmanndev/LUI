@@ -88,7 +88,7 @@ public static class SampleApp
             "recipes",
             index => index.MultiWord().TypoTolerance());
         var names = catalog.Create("names", index => index.MultiWord().TypoTolerance());
-        var tags = catalog.Create(
+        var tags = catalog.CreateLinked(
             "tags",
             index => index.SingleWord()
                 .LinkTo(SampleDatabase.TagTable, key: "id", text: "name", weight: "usage_count", priority: "rank")

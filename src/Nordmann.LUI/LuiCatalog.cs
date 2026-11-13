@@ -104,9 +104,9 @@ public sealed class LuiCatalog : IDisposable
     }
 
     /// <summary>
-    /// Creates an index: <c>catalog.Create("tags", index =&gt; index.SingleWord())</c>. It is the write path, and it belongs
-    /// in the migration of the application: the index is created if it is missing, and the stored definition is compared
-    /// with the one that was described if it is there.
+    /// Creates an <c>Embedded</c> index: <c>catalog.Create("tags", index =&gt; index.SingleWord())</c>. It is the write
+    /// path, and it belongs in the migration of the application: the index is created if it is missing, and the stored
+    /// definition is compared with the one that was described if it is there.
     /// <para>
     /// The builder chain is the <b>parameter</b>, not the way in: the catalog takes a description and does the
     /// creating itself. The builder is not reachable from the catalog otherwise — the runtime path cannot create an
@@ -128,8 +128,12 @@ public sealed class LuiCatalog : IDisposable
     }
 
     /// <summary>
-    /// Creates an index over a table of the application (<c>Linked</c>): the description starts with
+    /// Creates a <c>Linked</c> index — over a table of the application: the description starts with
     /// <c>LinkTo(…)</c>, and the index reads the table of the application instead of a table of the library.
+    /// <para>
+    /// The route is named in the call, as it is on the side of opening: <c>Create</c> creates an embedded index,
+    /// <c>CreateLinked</c> a linked one (ADR-0062). The compiler does not choose the route.
+    /// </para>
     /// <para>
     /// The index starts empty: fill it with <c>Sync()</c>. That holds after a <c>DropIndex</c> too — a new linked
     /// index is empty and has no triggers until <c>Sync()</c> and, if wanted, <c>CreateTriggers()</c>.
@@ -141,7 +145,7 @@ public sealed class LuiCatalog : IDisposable
     /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
     /// <exception cref="LuiLinkedTableException">The table or a column is missing, or the key is not the table's INTEGER PRIMARY KEY.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
-    public ILuiLinkedIndex Create(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)
+    public ILuiLinkedIndex CreateLinked(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)
     {
         ArgumentNullException.ThrowIfNull(index);
 

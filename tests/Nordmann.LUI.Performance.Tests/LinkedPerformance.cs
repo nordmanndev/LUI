@@ -32,7 +32,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
         CreateTable(database, rows);
 
-        var linked = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
+        var linked = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
         var clock = Stopwatch.StartNew();
         linked.Sync();
         Report($"linked: sync {clock.Elapsed.TotalSeconds:F1} s");

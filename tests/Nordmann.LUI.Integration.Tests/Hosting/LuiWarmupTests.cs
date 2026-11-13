@@ -43,7 +43,7 @@ public sealed class LuiWarmupTests
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
         tags.CreateTriggers();
         Insert(database, (1, "vegan", 0));
         tags.Pending().ShouldBe(1, "the trigger noted the row in the outbox");
@@ -63,7 +63,7 @@ public sealed class LuiWarmupTests
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
         tags.CreateTriggers();
         Insert(database, (1, "vegan", 0));
 
@@ -86,7 +86,7 @@ public sealed class LuiWarmupTests
         using var catalog = database.Open();
         var tags = catalog.Create("tags", index => index.SingleWord());
         tags.Upsert(1, "vegan");
-        var linked = catalog.Create("linked", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        var linked = catalog.CreateLinked("linked", index => index.SingleWord().LinkTo("tag", "id", "name"));
         linked.CreateTriggers();
         Insert(database, (1, "vegan", 0));
 
@@ -129,7 +129,7 @@ public sealed class LuiWarmupTests
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
         tags.CreateTriggers();
         Insert(database, (1, "vegan", 0));
 
@@ -161,7 +161,7 @@ public sealed class LuiWarmupTests
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
         tags.CreateTriggers();
 
         var logger = new RecordingLoggerProvider();
@@ -197,7 +197,7 @@ public sealed class LuiWarmupTests
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
         tags.CreateTriggers();
 
         using var host = Host(database, warmup: true, configure: options =>
@@ -231,7 +231,7 @@ public sealed class LuiWarmupTests
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
         tags.CreateTriggers();
 
         var logger = new RecordingLoggerProvider();

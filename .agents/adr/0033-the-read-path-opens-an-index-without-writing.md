@@ -11,6 +11,11 @@
 > Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
 > [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
 > that name the specification are history; the rule they carry lives in the ADR named beside them.
+>
+> **Note (ADR-0062, 2026-11-13, issue #145):** the two overloads of `Create` — one per content source, the compiler
+> choosing by the return type of the lambda — are one overload and one named call: `Create` creates an embedded index,
+> `CreateLinked` a linked one. The decision of 2026-11-04 stands in every other part: the builder chain is the parameter,
+> the runtime path cannot create an index, and `Open` writes nothing.
 
 - **Status:** Accepted
 - **Date:** 2026-11-05

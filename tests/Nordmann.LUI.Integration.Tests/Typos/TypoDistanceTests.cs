@@ -101,7 +101,7 @@ public sealed class TypoDistanceTests
         Run(database, Table);
         Insert(database, (1, "Kartoffel", 10));
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").TypoTolerance(LuiTypoDistance.None));
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").TypoTolerance(LuiTypoDistance.None));
 
         // the rebuild is asked for explicitly — and an index that forgives nothing has no dictionary to build
         tags.RebuildTypoDictionary();

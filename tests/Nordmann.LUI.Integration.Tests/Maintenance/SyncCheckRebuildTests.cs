@@ -531,7 +531,7 @@ public sealed class SyncCheckRebuildTests
     private static ILuiEmbeddedIndex Words(LuiCatalog catalog) => catalog.Create("words", index => index.SingleWord());
 
     private static ILuiLinkedIndex Tags(LuiCatalog catalog) =>
-        catalog.Create("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
+        catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
 
     private static LuiEntry Entry(long key, string text, int weight = 0, LuiPriority priority = LuiPriority.Normal) =>
         new(key, text) { Weight = weight, Priority = priority };

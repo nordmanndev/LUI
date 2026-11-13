@@ -71,7 +71,7 @@ using var catalog = LuiCatalog.Open("Data Source=app.db");
 
 // A linked index: the text is the column "title", the key is the column "id",
 // the popularity is the column "views".
-var articles = catalog.Create(
+var articles = catalog.CreateLinked(
     "articles",
     index => index.MultiWord().LinkTo(table: "article", key: "id", text: "title", weight: "views"));
 
@@ -114,7 +114,7 @@ using Microsoft.Data.Sqlite;
 using Nordmann.LUI;
 
 using var catalog = LuiCatalog.Open("Data Source=app.db");
-var articles = catalog.Create(
+var articles = catalog.CreateLinked(
     "articles",
     index => index.MultiWord().LinkTo(table: "article", key: "id", text: "title", weight: "views"));
 
@@ -153,7 +153,7 @@ using Microsoft.Data.Sqlite;
 using Nordmann.LUI;
 
 using var catalog = LuiCatalog.Open("Data Source=app.db");
-var articles = catalog.Create(
+var articles = catalog.CreateLinked(
     "articles",
     index => index.MultiWord().LinkTo(table: "article", key: "id", text: "title", weight: "views"));
 

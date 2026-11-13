@@ -73,8 +73,8 @@ internal sealed class IndexFixture : IDisposable
     {
         CreateTable(corpus);
         var index = corpus.Kind == CorpusKind.MultiWord
-            ? _catalog.Create("bench", builder => builder.MultiWord().LinkTo("tag", "id", "name", weight: "usage_count"))
-            : _catalog.Create("bench", builder => builder.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
+            ? _catalog.CreateLinked("bench", builder => builder.MultiWord().LinkTo("tag", "id", "name", weight: "usage_count"))
+            : _catalog.CreateLinked("bench", builder => builder.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
         index.Sync();
         return index;
     }
