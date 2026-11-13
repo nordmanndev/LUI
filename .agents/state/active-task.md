@@ -5,13 +5,13 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** #128 — the C# blocks of the tutorials are compiled by a guard. It is the fourth pull request of the round
-after the release.
-**Branch:** `feature/128-the-tutorial-blocks-are-compiled` carries the fourth pull request of the round; `dev` is at
-`84bcf45`, `main` at `e316c4b` — the tag `v0.1.0` is on the commit of `main`.
+**Issue:** #134 — the origin of the 1912 bytes inside the measured window is open. It is the first pull request of the round
+of the measured work.
+**Branch:** `plan/the-round-of-the-measured-work` carries the plan of the round; `dev` is at `a8d1dd8`, `main` at
+`320605e` — the tag `v0.1.1` is on the commit of `main`.
 **Decision:** the plan
-([the round after the first release](./../plan/2026-11-13-the-round-after-the-first-release.md)) — D1 to D7, on the
-owner's behalf, 2026-11-13.
+([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)) — D1 to D8, on the owner's
+behalf, 2026-11-13.
 
 ## What is done
 
@@ -19,6 +19,8 @@ owner's behalf, 2026-11-13.
   `Nordmann.LUI.Hosting` at the version `0.1.0`, and the freeze of
   [ADR-0026](../adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) in force — the public API grows only
   additively from this version on.
+- **LUI 0.1.1 is released** (2026-11-13): the tag `v0.1.1` on `main`, the packages at the version `0.1.1`, the four guards
+  of the round and the dead paths of the records. The public API did not move.
 - **The whole series is merged**: the public API of the review of 2026-11-04 (ADR-0063), the route named in the call
   (ADR-0062), the chapter that says why the tests are built this way (#81), the warm-up that leaves nothing running
   (#148), and the repository English throughout (ADR-0057).
@@ -40,21 +42,22 @@ The four pull requests of the first round, in the order of the plan:
 4. ~~**#128**~~ — the code blocks of the tutorials are compiled by a guard. The issue names the tutorials by their old
    names; they are `01-first-index.md` … `05-in-the-application.md` since PR #135. **Done.**
 
-Then the release of `0.1.1`, and the second round: **#134** (the 1912 bytes), **#32** (the first load of 3 M entries),
-**#31** (the shadow build of `Linked.Sync()`), **#44** (the dependency on `symspell`) — and **#154**, the test of the
-integration layer that failed once under load and did not reproduce.
+Then the release of `0.1.1` — **done** (PR #160, the release pull request #161, the tag `v0.1.1`, the packages on
+nuget.org) — and the round of the measured work: **#134** (the 1912 bytes), **#154** (the integration flake), **#44** (the
+dependency on `symspell`), **#31** (the shadow build of `Linked.Sync()`), **#32** (the first load of 3 M entries).
 
 ## The next step
 
-**The second round** — the measured work and the decisions, on the plan of the round
-([the round after the first release](./../plan/2026-11-13-the-round-after-the-first-release.md)):
+**The round of the measured work** — `0.2.0`, on the plan
+([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)). Five pull requests, in the order
+of the plan:
 
-1. **#32** — a faster first load (the build of 3 M entries).
-2. **#31** — a shadow build for `Linked.Sync()`.
-3. **#44** — the dependency on `symspell`: keep it or implement SymSpell ourselves (an ADR, the dependency set is the
-   contract of the package).
-4. **#134** — the origin of the 1912 bytes inside the measured window.
-5. **#154** — the test of the integration layer that failed once under load and did not reproduce.
+1. **#134** — the origin of the 1912 bytes inside the measured window: the probe of the window, the runs, the finding.
+2. **#154** — the test of the integration layer that failed once under load: the run that keeps the whole output, the
+   finding.
+3. **#44** — the dependency on `symspell`: the harness over the whole word list, then the ADR that decides.
+4. **#31** — the shadow build for `Linked.Sync()`: the number of the write lock in the sample, then the ADR that decides.
+5. **#32** — a faster first load: the levers at 3 M on two machines, the path in `Sync`, the ADR.
 
-They belong to `0.2.0` (D2), and they need a plan of their own before the first pull request — the round after the first
-release was planned and written before its first pull request, and so is this one.
+Then the release of `0.2.0`: the version line, the section of the CHANGELOG, the README, the pull request `dev` → `main`,
+the tag `v0.2.0`, and the owner's approval of the push to nuget.org.
