@@ -4,6 +4,11 @@
 > Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
 > [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
 > that name the specification are history; the rule they carry lives in the ADR named beside them.
+>
+> **Note (ADR-0063, 2026-11-13, issue #144):** the row of A.2 in the table below names a type that is gone — the builder
+> of the indexes went with the entry point ([0033](./0033-the-read-path-opens-an-index-without-writing.md)). The decision
+> of the owner stands: there is no `LuiIndexRegistrations` either. The surface of 0.1.0, written against the review of
+> 2026-11-04, is in [ADR-0063](./0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied.md).
 
 - **Status:** Accepted (owner's decision, 2026-11-04, epic #39 step G)
 - **Date:** 2026-11-04

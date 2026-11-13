@@ -7,6 +7,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The surface of 0.1.0, written against the review of 2026-11-04**
+  ([ADR-0063](.agents/adr/0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied.md), #144). Every point of the
+  independent review of 2026-11-04 — the ones that were decided and the ones that were declined — and the type or the
+  member that carries it today; the two changes that came after the review; and the points that later decisions took
+  away, with the record that took them. The member-by-member list stays where it was: in
+  [`docs/api.md`](docs/api.md). **No change to the public API.**
+
 ### Changed
 
 - **The creation names the route**
