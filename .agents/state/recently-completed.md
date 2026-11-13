@@ -5,6 +5,16 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The host waits for a round of the outbox that runs when it stops (#148, ADR-0043)
+
+- The warm-up is a service of the host: the host runs it, the host stops it, the host disposes it. What was missing is
+  the round that **runs** when the host stops — the timer died, the round went on, it held the file of the application,
+  and the host that stopped the service was gone while LUI still wrote.
+- The stop and the disposal wait for that round now, and a round that begins after the stop does not begin at all. The
+  teardown of a test waits for the file to be free, the way a test waits for the event it needs.
+- **Why it mattered:** the integration lane of the CI failed in about one of three runs under load — and the release
+  gate runs the same lane.
+
 ## 2026-11-13 — The repository speaks one language, down to the comments (#142, PR #143 merged as `9d5ca7a`)
 
 - The pull requests of the series left nine files in German — the comment of the schedule of the lane, the XML
@@ -13,6 +23,16 @@ the scratchpad here at the end of a session.
 - Nothing but comments and XML documentation changed. The sample data stays German on purpose: it shows what the
   normalisation is for.
 - The guard that would keep it that way is not in the pull request — it belongs to the family of #128, #129 and #130.
+
+## 2026-11-13 — The public surface of 0.1.0 is written down against the review of 2026-11-04 (#144, ADR-0063)
+
+- Every point of the review of 2026-11-04 — the ones that were decided and the ones that were declined — has a line in
+  ADR-0063, and every line names the type or the member that carries it today, checked against the code.
+- Four points of the review were taken up again afterwards: three of them decided differently (the entry point ADR-0033,
+  the types ADR-0035, the typed view ADR-0044), one of them the way the review wanted it (A.3, ADR-0062). Two changes
+  came after the review entirely: the typo distance (ADR-0054) and the uniqueness of a text (ADR-0055).
+- A row of the freeze had become untrue: ADR-0026 said of A.2 that the name `LuiServicesBuilder` stays, and the type is
+  gone with the entry point. The row carries a dated note now.
 
 ## 2026-11-13 — The creation names the route: `Create` and `CreateLinked` (#145, ADR-0062)
 

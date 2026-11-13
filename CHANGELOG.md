@@ -121,6 +121,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The host waits for a round of the outbox that runs when it stops**
+  ([ADR-0043](.agents/adr/0043-the-warm-up-is-a-service-of-the-host.md), #148). The warm-up is a service of the host:
+  the host runs it, the host stops it, the host disposes it. What was missing is the round that **runs** when the host
+  stops — the timer died, the round went on, it held the file of the application, and the host that stopped the service
+  was gone while LUI still wrote. The stop and the disposal wait for that round now, and a round that begins after the
+  stop does not begin at all. **No change to the public API.**
 - **The repository speaks one language, down to the comments**
   ([ADR-0057](.agents/adr/0057-the-repository-of-a-public-library-is-english.md), #142). The pull requests of the
   series left nine files in German — the comment of the schedule of the lane, the documentation of the corpus of

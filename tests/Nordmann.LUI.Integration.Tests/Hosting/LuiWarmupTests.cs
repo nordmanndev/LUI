@@ -263,6 +263,47 @@ public sealed class LuiWarmupTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
+    public async Task The_host_waits_for_a_round_that_runs_when_it_is_disposed()
+    {
+        // issue #148: the host stopped the service, and the round that was running went on — it held the file of the
+        // application, and the teardown of a test could not delete it. The disposal of the host waits for the round
+        // (ADR-0043: the host runs it, the host stops it, the host disposes it).
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        tags.CreateTriggers();
+        Insert(database, (1, "vegan", 0));
+
+        // the round waits for the write lock, which the test holds — it cannot end before the lock is let go
+        using var blocker = database.Connect();
+        Run(blocker, "BEGIN IMMEDIATE;");
+
+        using var host = Host(
+            database,
+            warmup: true,
+            configure: options => options.WarmUpTypoDictionaries = false,
+            catalogOptions: new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(1) });
+
+        // the host is not started: no timer runs, and the round is started by hand — it waits for the lock
+        var service = host.Services.GetServices<IHostedService>().OfType<global::Nordmann.LUI.Hosting.LuiWarmupService>().Single();
+        var round = Task.Factory.StartNew(
+            () => service.OnRound(null),
+            TestContext.Current.CancellationToken,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
+        await WaitUntil(() => service.RoundRunning);
+
+        // the host is disposed: the round that runs is joined, and nothing of LUI runs after the service is gone
+        ((IDisposable)host).Dispose();
+        service.RoundRunning.ShouldBeFalse("the disposal waits for the round that runs");
+        round.IsCompleted.ShouldBeTrue("the round ended before the host was gone");
+
+        Run(blocker, "COMMIT;");
+    }
+
+    [Fact]
     public void The_warm_up_is_registered_once_and_with_a_positive_interval()
     {
         var services = new ServiceCollection();
