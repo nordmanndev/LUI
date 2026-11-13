@@ -648,7 +648,13 @@ expect_caught "a-stop-that-does-not-wait-for-the-round" "${INTEGRATION_PROJECT}"
   "FullyQualifiedName~The_host_waits_for_a_round_that_runs_when_it_is_disposed" \
   "sed -i '/^        JoinRound();$/d' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
 
-# 27. The clean trees stay green.
+# 27. A record that names a file that is not there (issue #137): the files of the measurements moved
+#       twice, and a path that points at nothing is a broken promise.
+expect_caught "a-record-that-names-a-file-that-is-not-there" "${ARCHITECTURE_PROJECT}" \
+  "Every_path_of_a_record_names_a_file_that_exists" \
+  "sed -i 's|tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs|tests/Nordmann.LUI.Performance.Tests/BudgetPerformanceGone.cs|' .agents/adr/0056-the-budgets-live-in-a-file.md"
+
+# 28. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

@@ -11,8 +11,8 @@
   [0032](./0032-the-allocation-of-a-query.md) (the allocation and its target),
   [0040](./0040-the-budget-table-of-the-entrance-is-a-promise.md) (the table of the entrance and its guard)
 - **Affects:**
-  - `.github/workflows/performance.yml` (new), `tests/Nordmann.LUI.Integration.Tests/PerformanceBudget.cs` (the rule of the
-    machine), `tests/Nordmann.LUI.Integration.Tests/PerformanceBudget_Machine.cs` (new)
+  - `.github/workflows/performance.yml` (new), `tests/Nordmann.LUI.Testing/PerformanceBudget.cs` (the rule of the
+    machine), `tests/Nordmann.LUI.Unit.Tests/Budgets/BudgetMachineTests.cs` (new)
   - `docs/testing.md` (the gates and the map), `docs/benchmarks.md` (the lane)
 - **Issue:** #65
 
