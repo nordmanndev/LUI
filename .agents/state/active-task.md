@@ -5,11 +5,11 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** [#148](https://github.com/nordmanndev/LUI/issues/148) — the host stops the warm-up, and a round that runs
-goes on. Found while the documentation of the tests was written (#81).
-**Branch:** `fix/148-the-stop-waits-for-the-round`, from `dev` at `87578de`.
-**Decision:** none — ADR-0043 already decides it ("the host runs it, the host stops it, the host disposes it"); the
-record gets a dated note.
+**Issue:** [#81](https://github.com/nordmanndev/LUI/issues/81) — the documentation of the tests: how they are built, and
+why. The last step of epic #72.
+**Branch:** `docs/81-the-testing-strategy`, from `dev` at `715c121`.
+**Decision:** none — the chapter is a document, not a decision. The rules it explains are the ones of ADR-0019, ADR-0049,
+ADR-0050, ADR-0051, ADR-0056 and ADR-0058.
 
 ## What is done
 
@@ -19,15 +19,16 @@ record gets a dated note.
   `LuiCatalog.CreateLinked` a linked one.
 - **The surface of 0.1.0 is written down against the review of 2026-11-04** (PR #147, `87578de`): every point of the
   review, and the type or the member that carries it today.
-- **The warm-up leaves nothing running**: the stop and the disposal wait for a round that runs, and a round that begins
-  after the stop does not begin. The teardown of a test waits for the file to be free. The integration lane is green in
-  four runs side by side — it failed in about one of three before.
+- **The warm-up leaves nothing running** (PR #149, `715c121`): the stop and the disposal wait for a round that runs, and
+  the integration lane is green in four runs side by side — it failed in about one of three before.
+- **The chapter exists**: `docs/testing-strategy.md` — the layers, the techniques and their reason, what is deliberately
+  not done, and what a new test brings with it. The drift of the prose is gone: the durations of the map are orders of
+  magnitude, and the soak of the concurrency tests says six readers over four thousand entries, as the code does.
 
 ## Open
 
-- **The pull request of #148** is open against `dev`.
-- **The pull request of #81** — the chapter that says why the tests are built the way they are — is open against `dev`
-  as well.
+- **The pull request of #81** is open against `dev`. The acceptance of the issue: the link check and the map are green,
+  and **the owner has read the chapter**.
 - **The `dev` → `main` release pull request** comes after that, and it carries its own review (`AGENTS.md`).
 
 ## The next step
