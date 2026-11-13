@@ -7,7 +7,7 @@ namespace Nordmann.LUI.Unit.Tests.Querying;
 /// <summary>
 /// The ranking in groups, and the lazy similarity (ADR-0008). The similarity is
 /// the expensive stage — 4.5 µs and an allocation per comparison, and 500
-/// candidates are 2.25 ms, more than the whole budget of §16. So the
+/// candidates are 2.25 ms, more than the whole budget of ADR-0020. So the
 /// candidates are grouped by the cheap stages, and the similarity is computed
 /// group by group, only until the hits are full.
 /// <para>

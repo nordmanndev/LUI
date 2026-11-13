@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 #
 # fetch-wordlist.sh — download the German word list for the normalisation
-# parity test (LUI-Spezifikation §19).
+# parity test (ADR-0019, docs/testing.md).
 #
 # The list is the "Deutsche Wörterliste" with 685,829 entries — the number the
 # specification names. It is published under CC0 1.0 (public domain

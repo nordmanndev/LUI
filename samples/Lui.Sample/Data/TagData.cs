@@ -11,7 +11,7 @@ internal static class TagData
     /// <summary>Name, kind, colour, how often it is used, and its rank (0 = <see cref="LuiPriority.System"/>, 3 = normal).</summary>
     internal static IReadOnlyList<(string Name, string Kind, string Color, int Usage, int Rank)> All { get; } =
     [
-        ("vegan", Diet, "#2f855a", 3, 0),          // a system tag: it comes first for every input it matches (E10)
+        ("vegan", Diet, "#2f855a", 3, 0),          // a system tag: it comes first for every input it matches (ADR-0013)
         ("vegetarisch", Diet, "#38a169", 900, 3),
         ("glutenfrei", Diet, "#d69e2e", 410, 3),
         ("laktosefrei", Diet, "#dd6b20", 380, 3),

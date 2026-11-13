@@ -188,7 +188,7 @@ public sealed class RepositoryLayoutTests
     [Fact]
     public void The_library_ships_only_the_documented_runtime_dependencies()
     {
-        // What a consumer gets when they install the core: exactly these (LUI-Spezifikation §17.3). The
+        // What a consumer gets when they install the core: exactly these (ADR-0004). The
         // Microsoft.Extensions abstractions belong to the hosting package (ADR-0018): a console application without a
         // host does not carry them. Build-time packages carry PrivateAssets="all" and stay out.
         var runtime = Repository

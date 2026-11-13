@@ -11,27 +11,27 @@
 
 1. [`README.md`](./README.md) — what LUI is, and what it is not
 2. [`.agents/README.md`](./.agents/README.md) — the index of the **papers of the
-   work**: the specification, the decisions, the plans, the state
-3. [`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md) — the
-   behaviour of the library as it is written down: the kinds of index, the
-   sources of the content, the query path, the ranking, the typo tolerance, the
-   API. The implementation follows it
-4. [`.agents/plan/2026-11-02-lui-repo-plan.md`](./.agents/plan/2026-11-02-lui-repo-plan.md)
-   — the delivery plan, one pull request per step
-5. [`docs/normalization.md`](./docs/normalization.md) — the normalisation
-   rule, and what was *measured* about the half of it that lives inside SQLite
-6. [`docs/architecture/alignment.md`](./docs/architecture/alignment.md) — what
-   applies to a library, and what does not
-7. [`.agents/adr/`](./.agents/adr/) — the decisions, and why
-8. [`docs/api.md`](./docs/api.md) — the public API, described member by member;
+   work**: the decisions, the plans, the state
+3. [`.agents/adr/`](./.agents/adr/) — the decisions, and why. **They are the
+   contract of the library** (ADR-0061): where the code and a decision disagree,
+   the difference becomes a new ADR
+4. [`docs/api.md`](./docs/api.md) — the public API, described member by member;
    a test holds it up against the assemblies
-9. [`docs/testing.md`](./docs/testing.md) — the map of the tests: which test
+5. [`.agents/plan/2026-11-02-lui-repo-plan.md`](./.agents/plan/2026-11-02-lui-repo-plan.md)
+   — the delivery plan, one pull request per step
+6. [`docs/normalization.md`](./docs/normalization.md) — the normalisation
+   rule, and what was *measured* about the half of it that lives inside SQLite
+7. [`docs/architecture/alignment.md`](./docs/architecture/alignment.md) — what
+   applies to a library, and what does not
+8. [`docs/testing.md`](./docs/testing.md) — the map of the tests: which test
    holds which rule up. It is a guard, not a document (ADR-0019)
 
 ## Always / Never / Ask
 
 - ✅ Always keep `.agents/adr/` current: a decision that changes the public API,
   the schema or the dependency set gets an ADR **in the same pull request**.
+  Where the code and a decision disagree, the difference becomes an ADR, and
+  the ADR is the newer truth (ADR-0061).
 - ✅ Always update `CHANGELOG.md` when the public API changes — with a
   **migration note**, not a line of prose.
 - ✅ Always update [`docs/api.md`](./docs/api.md) when the public API changes: a
@@ -72,6 +72,10 @@
 - ❌ Never leave a test file out of the map of the tests
   ([`docs/testing.md`](./docs/testing.md)): an unlisted test file fails the
   build (`TestLandscapeTests`).
+- ❌ Never point at a document that is gone. The specification was deleted
+  (ADR-0061): every reference to one of its sections points at the ADR or the
+  page that carries the same rule, and a reference to a deleted document fails
+  the build (`SpecificationIsGoneTests`).
 - ❌ Never commit anonymously: every commit carries the identity of its author —
   `Mavis <noreply@minimax.io>` for the work of the agent, the owner's own
   identity for the owner's commits.
@@ -99,16 +103,15 @@ request with its own review.
 
 **The truth of this repository is in this repository.** The decisions live in
 [`.agents/adr/`](./.agents/adr/) with their reason, the behaviour of the library
-is written down in
-[`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md), and
-the budgets live in one file
+is written down in the ADR that carries it and on the
+[API page](./docs/api.md), and the budgets live in one file
 ([`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json),
 ADR-0056). No document outside the repository is part of it — a reader who has
 only the repository knows everything a change needs to know.
 
-Where the code and the specification disagree, the difference becomes an ADR,
-and the ADR is the newer truth: the specification is corrected in the same pull
-request.
+Where the code and a decision disagree, the difference becomes an ADR, and the
+ADR is the newer truth. A decision that changes gets a new ADR: the old record
+stays and says that it was superseded.
 
 ## Session start
 

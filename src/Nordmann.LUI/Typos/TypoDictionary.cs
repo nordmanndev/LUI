@@ -3,19 +3,19 @@ using Nordmann.LUI.Normalization;
 namespace Nordmann.LUI.Typos;
 
 /// <summary>
-/// The typo dictionary of one index (LUI-Spezifikation §10): SymSpell over the <b>word beginnings</b> of the
+/// The typo dictionary of one index (ADR-0012): SymSpell over the <b>word beginnings</b> of the
 /// normalised texts, 3 … 10 letters each, with the weights as frequency, one edit.
 /// <para>
 /// Why beginnings: a user types the start of a word. SymSpell over whole words corrects a word that is not
 /// finished hardly at all (11 %); over the beginnings it reaches 40 % — most of what is possible without a
-/// typo (Anhang A4).
+/// typo (docs/benchmarks.md).
 /// </para>
 /// <para>
 /// It lives in memory, is built <b>on the request of the application</b> — <c>WarmUpTypoDictionary</c> (the word
 /// beginnings of 685,000 words cost about 140 MB and a few seconds, which the application should not pay at start, and a
 /// query never pays it: ADR-0042) — and grows with <see cref="Add"/>. A word that is removed stays (SymSpell cannot forget): a correction towards it finds
 /// nothing. <see cref="Rebuild"/> starts anew. SymSpell is not made for reading while writing, so the
-/// dictionary has a lock: lookups share it, an addition has it alone (§15) — the build does not, it works
+/// dictionary has a lock: lookups share it, an addition has it alone (ADR-0015, ADR-0046) — the build does not, it works
 /// on a dictionary of its own and swaps it in, so a write never waits for it.
 /// </para>
 /// <para>
@@ -30,13 +30,13 @@ namespace Nordmann.LUI.Typos;
 internal sealed class TypoDictionary
 #pragma warning restore CA1001
 {
-    /// <summary>A word of fewer letters is not looked up (§10.3).</summary>
+    /// <summary>A word of fewer letters is not looked up (ADR-0012).</summary>
     internal const int MinimumWordLength = 3;
 
-    /// <summary>The longest beginning in the dictionary (§10.1).</summary>
+    /// <summary>The longest beginning in the dictionary (ADR-0012).</summary>
     internal const int LongestBeginning = 10;
 
-    /// <summary>The most corrections that are searched (§10.3).</summary>
+    /// <summary>The most corrections that are searched (ADR-0012).</summary>
     internal const int MaxVariants = 3;
 
     // The lock guards the structure of the dictionary that readers see: lookups share it, an addition has it
@@ -54,7 +54,7 @@ internal sealed class TypoDictionary
     private readonly NormalizationOptions _normalization;
     private readonly Func<IEnumerable<(string Text, int Weight)>> _source;
 
-    /// <summary>How many errors the dictionary forgives — the distance it was built with (§10.1).</summary>
+    /// <summary>How many errors the dictionary forgives — the distance it was built with (ADR-0012).</summary>
     private readonly LuiTypoDistance _distance;
 
     private SymSpell? _symSpell;
@@ -221,7 +221,7 @@ internal sealed class TypoDictionary
 
     /// <summary>
     /// The corrected inputs, best first, at most <see cref="MaxVariants"/>, none equal to the input
-    /// (§10.3): every word of three or more letters is looked up (closest, one edit); the k-th variant takes
+    /// (ADR-0012): every word of three or more letters is looked up (closest, one edit); the k-th variant takes
     /// the k-th suggestion of every word that has one. A word longer than ten letters is looked up by
     /// its first ten and keeps the rest. Empty when the dictionary is not built or nothing is near.
     /// </summary>

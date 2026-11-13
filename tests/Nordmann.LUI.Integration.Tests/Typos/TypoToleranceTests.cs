@@ -3,7 +3,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Typos;
 
 /// <summary>
-/// Typo tolerance (LUI-Spezifikation §10, Anhang B): a typo must not lead nowhere. SymSpell over the word
+/// Typo tolerance (ADR-0012, ADR-0028): a typo must not lead nowhere. SymSpell over the word
 /// beginnings of an index; corrections when no candidate stands at a word start.
 /// </summary>
 public sealed class TypoToleranceTests
@@ -70,7 +70,7 @@ public sealed class TypoToleranceTests
     [InlineData("apfelkuchem")]
     public void A_typo_after_the_tenth_letter_is_not_corrected(string typed)
     {
-        // the dictionary holds the beginnings of 3 … 10 letters (§10.1); a longer word is looked up by its first ten
+        // the dictionary holds the beginnings of 3 … 10 letters (ADR-0012); a longer word is looked up by its first ten
         using var database = new TestDatabase();
         using var recipes = Recipes(database);
 
@@ -83,7 +83,7 @@ public sealed class TypoToleranceTests
     [Fact]
     public void The_german_spelling_without_the_e_is_a_typo_of_one_edit()
     {
-        // §6.3: „muller" is not „mueller" in the index, and one edit away from it
+        // ADR-0005: „muller" is not „mueller" in the index, and one edit away from it
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var people = catalog.Create("people", index => index.MultiWord().TypoTolerance());
@@ -102,7 +102,7 @@ public sealed class TypoToleranceTests
     [Fact]
     public void The_trigger_is_no_word_start_not_no_hits()
     {
-        // „apflekuchen" has a hit in the middle of another word — 34 % of the typos do (§10.2)
+        // „apflekuchen" has a hit in the middle of another word — 34 % of the typos do (ADR-0012)
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
@@ -179,7 +179,7 @@ public sealed class TypoToleranceTests
     [Fact]
     public void A_compound_typed_together_is_corrected_only_if_such_a_word_exists()
     {
-        // the dictionary holds the beginnings of the *words* of the titles (§10.1); „Apfel Kuchen" has the words
+        // the dictionary holds the beginnings of the *words* of the titles (ADR-0012); „Apfel Kuchen" has the words
         // apfel and kuchen, and no word apfelkuchen
         using var database = new TestDatabase();
         using var catalog = database.Open();
@@ -252,7 +252,7 @@ public sealed class TypoToleranceTests
         recipes.Index.Remove(20);
 
         var before = recipes.Index.Query("himbere").Execute();
-        before.Hits.ShouldBeEmpty("the beginnings stay (§10.1), the correction finds nothing");
+        before.Hits.ShouldBeEmpty("the beginnings stay (ADR-0012), the correction finds nothing");
 
         recipes.Index.RebuildTypoDictionary();
 
@@ -306,7 +306,7 @@ public sealed class TypoToleranceTests
     [Fact]
     public async Task Parallel_corrections_beside_a_writer_neither_fail_nor_lose_the_words()
     {
-        // SymSpell is not made for reading while writing (§15): lookups share the lock, additions have it alone
+        // SymSpell is not made for reading while writing (ADR-0015, ADR-0046): lookups share the lock, additions have it alone
         using var database = new TestDatabase();
         using var recipes = Recipes(database);
         recipes.Index.Query("apflekuc").Execute();   // builds the dictionary

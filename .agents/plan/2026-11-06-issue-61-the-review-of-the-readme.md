@@ -33,7 +33,7 @@
 1. The seven gaps are seven gaps of **#61** — the work is not finished, and it stays one pull request.
 2. The **specification stays** in the repository until the owner deletes it; it is a paper of the work and moves with
    the others.
-3. The **budgets of §16** stay as they are (they are measured by the integration tests on the CI machine); the tables
+3. The **budgets of ADR-0020** stay as they are (they are measured by the integration tests on the CI machine); the tables
    of the BenchmarkDotNet run are the ones that were stale.
 4. The **public API does not change** — nothing of this round touches a type, a member or a signature.
 5. The **merge is the owner's**.

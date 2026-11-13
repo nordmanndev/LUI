@@ -5,7 +5,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Querying;
 
 /// <summary>
-/// The plan of the candidate query is a promise (LUI-Spezifikation §8.2, §19):
+/// The plan of the candidate query is a promise (ADR-0008, ADR-0019, docs/testing.md):
 /// the search index hands out its rows in the order of the rowid — no sorter.
 /// </summary>
 public sealed class QueryPlanTests

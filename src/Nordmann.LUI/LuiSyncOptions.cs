@@ -3,7 +3,7 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// How an <c>Embedded</c> index is synced with a source (LUI-Spezifikation §12.4, §14, ADR-0016). A record with
+/// How an <c>Embedded</c> index is synced with a source (ADR-0016, ADR-0016, ADR-0046, ADR-0016). A record with
 /// <c>init</c> properties, bindable from configuration; every value is checked where it is set.
 /// </summary>
 public sealed record LuiSyncOptions
@@ -13,7 +13,7 @@ public sealed record LuiSyncOptions
 
     /// <summary>
     /// The entries per batch, each written in a transaction of its own: 1 … 1,000,000, default 10,000. A batch holds
-    /// SQLite's one write lock (§15) while it runs — about 0.7 s for 10,000 entries —, and other writers get a chance
+    /// SQLite's one write lock (ADR-0015, ADR-0046) while it runs — about 0.7 s for 10,000 entries —, and other writers get a chance
     /// between the batches. A chance, not a bound: SQLite has no queue, and a writer with a short busy timeout can lose
     /// several batches in a row; give them a few seconds. A first load into a file no one else writes is about 30 % faster with 100,000, and faster still with 1,000,000:
     /// three million entries in 172.5 s against 190 s with 100,000 (measured, ADR-0016, ADR-0020).

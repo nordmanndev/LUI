@@ -4,7 +4,7 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// The options of a query (LUI-Spezifikation §12.5), for configuration that
+/// The options of a query (docs/api.md), for configuration that
 /// comes from a file. What follows from the kind of the index — how the input
 /// is searched, the prefix path, the word-start rule — is not an option. Every
 /// value is checked when it is set, and the exception names the property (bound through
@@ -29,7 +29,7 @@ public sealed record LuiQueryOptions
     /// <summary>
     /// How many candidates are ranked. Default: 500 — what is not among the
     /// candidates is not ranked, so the candidates are chosen by priority and
-    /// weight (E2, E10).
+    /// weight (ADR-0006, ADR-0013).
     /// </summary>
     public int Candidates
     {
@@ -55,7 +55,7 @@ public sealed record LuiQueryOptions
     public ILuiSimilarity? Similarity { get; init; }
 
     /// <summary>
-    /// Whether an input without a word start is corrected (§10). <see langword="null"/> takes the distance of the
+    /// Whether an input without a word start is corrected (ADR-0012). <see langword="null"/> takes the distance of the
     /// index. <see langword="true"/> asks for the correction — but only within the distance of the index: a query
     /// cannot widen it, and a distance of <see cref="LuiTypoDistance.None"/> forgives nothing at all.
     /// </summary>

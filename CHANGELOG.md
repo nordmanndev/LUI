@@ -56,7 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
       after the upgrade, because the distance is part of the definition: a change of the distance wants a
       `DropIndex(name)` and a new index.
 - **The budgets live in one file**
-  ([ADR-0056](.agents/adr/0056-the-budgets-live-in-a-file.md), #120). The budgets of §16 were written down three
+  ([ADR-0056](.agents/adr/0056-the-budgets-live-in-a-file.md), #120). The budgets of ADR-0020 were written down three
   times — in the specification, in the tables of the entrance and of the record, and as a number at the call site of
   the measurement. They live in one file now
   ([`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)), an
@@ -111,7 +111,7 @@ may still change until `0.1.0`, each change with an ADR and an entry here; the f
 `dotnet add package Nordmann.LUI --prerelease`.
 
 It ships the packages `Nordmann.LUI` and `Nordmann.LUI.Hosting` with the API of the
-specification ([`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md)):
+decisions ([.agents/adr/](.agents/adr/README.md)):
 
 - `SingleWord` and `MultiWord` indices, `Embedded` and `Linked` content sources
 - FTS5 trigram search with priority-first candidates, word-start ranking and
@@ -198,7 +198,7 @@ The sections below are the changes made on the way to it.
   No change to the public API.
 
 - **The README of the first release** ([ADR-0022](.agents/adr/0022-the-benchmark-results-in-the-readme.md), #36): the
-  query options with their defaults, the ranking and the priority, the typo tolerance, the §16 budgets and the results
+  query options with their defaults, the ranking and the priority, the typo tolerance, the ADR-0020 budgets and the results
   of BenchmarkDotNet. The benchmark tables are rendered from BenchmarkDotNet's reports in `benchmarks/results/` by the
   architecture test `Readme_Benchmarks`, which fails when the README and the reports differ; `tools/benchmarks.sh`
   makes a new run.
@@ -218,10 +218,10 @@ The sections below are the changes made on the way to it.
   `WarmUpTypoDictionary` and `RebuildTypoDictionary` now end their wait for a build another thread runs when their token
   is cancelled.
 
-- **The performance budgets of §16, measured** ([ADR-0020](.agents/adr/0020-the-performance-budgets-measured.md)): a test per
+- **The performance budgets of ADR-0020, measured** ([ADR-0020](.agents/adr/0020-the-performance-budgets-measured.md)): a test per
   target in its scenario (`PerformanceBudgets`, gated), a generated corpus for the measurements, and the benchmark
   project (`benchmarks/Nordmann.LUI.Benchmarks`, BenchmarkDotNet). At three million entries the query median (1.6 ms),
-  the single write (p95 0.5–0.8 ms) and the typo dictionary are met. Four targets of §16 are
+  the single write (p95 0.5–0.8 ms) and the typo dictionary are met. Four targets of ADR-0020 are
   stated anew by the owner after the measurement: the query p95 per input length (≤ 5 ms for 1–4 characters, ≤ 20 ms
   for 5–8), the corrected query (p95 ≤ 35 ms), the allocation (p50 ≤ 250 KB, p95 ≤ 350 KB — too much, bug #30) and the
   file of a million titles (≤ 500 MB) and the build (≤ 4 min — it follows the disk, 172–206 s on two machines; a faster
@@ -289,7 +289,7 @@ The sections below are the changes made on the way to it.
   into words that are ANDed and also searched compactly, so `kuchen apfel` and `apfelkuch` both
   find „Apfel Kuchen"; the word start is decided on the compact form; the default similarity is
   N-gram Dice. A multi-word index has a compact column `s_compact`, and its search index holds
-  that column alone — the specification (§7.4, §8.2) is corrected accordingly. One and two letters
+  that column alone — ADR-0011 and ADR-0008 say so. One and two letters
   are read on the compact text (`a b` = `ab` = `a-b`); at most the eight longest words go into the
   expression.
 - `LuiSimilarity.NgramDice` no longer allocates: a query that compared 500 candidates allocated
@@ -337,9 +337,9 @@ The sections below are the changes made on the way to it.
 
 ### Removed
 
-- **`Highlight` is struck from the specification** ([ADR-0028](.agents/adr/0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md), #20
+- **`Highlight` is struck from the contract** ([ADR-0028](.agents/adr/0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md), #20
   closed): LUI delivers no found positions (`LuiHit.Highlight`, `.Highlight(…)`, a map from the search form to the original). It never
-  existed in the code; spec §9.3 now says "falls away". An application shows a correction with `LuiResult.CorrectedQuery`.
+  existed in the code; ADR-0028 says "falls away". An application shows a correction with `LuiResult.CorrectedQuery`.
 
 - **The freeze** ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md), #43). From the tag `v0.1.0` on, the
   public API of `Nordmann.LUI` and `Nordmann.LUI.Hosting` grows only additively. A breaking change — a removed or renamed
@@ -395,16 +395,16 @@ The sections below are the changes made on the way to it.
   gave `DBNull.Value`; it gives `null`. A `T` that cannot hold null (`Get<long>`) still throws, and `GetString`,
   `GetInt64` and `GetDouble` are unchanged.
 
-- **The budget table of the README is the promise of §16, and a test holds it up**
+- **The budget table of the README is the promise of ADR-0020, and a test holds it up**
   ([ADR-0040](.agents/adr/0040-the-budget-table-of-the-entrance-is-a-promise.md), #38). The limits of the table were
   copied by hand, and they had drifted: the allocation still promised the old target of ≤ 250 / ≤ 350 KB, while the
-  specification and the budget test have held ≤ 60 / ≤ 100 KB since ADR-0032.
-  - A new architecture test (`Readme_Budgets`) reads the target table of §16 out of the specification and compares it
+  budgets and the budget test have held ≤ 60 / ≤ 100 KB since ADR-0032.
+  - A new architecture test (`Readme_Budgets`) reads the target table of ADR-0020 out of the budgets and compares it
     with the budget table of the README, with the target table of the record and with its status table — in order, so
     a swapped limit is caught as well as a changed one.
   - The status table of the record stood apart from the contract twice: it promised the old limits, and it listed the
     allocation before the correction. Its rows follow the order of the contract now.
-  - The allocation row of both tables carries the limits of §16 and the measured values of the run of 2026-11-06
+  - The allocation row of both tables carries the limits of ADR-0020 and the measured values of the run of 2026-11-06
     (46 / 51 KB — bytes, so the machine does not matter).
   - The mutation check has two mutations for it: a limit of the README and a limit of the record edited by hand turn
     the build red.
@@ -442,12 +442,12 @@ The sections below are the changes made on the way to it.
 - **The documentation has an entrance, a contract and a way** ([ADR-0036](.agents/adr/0036-the-readme-the-specification-and-the-tutorial.md),
   [ADR-0022](.agents/adr/0022-the-benchmark-results-in-the-readme.md), #61). The README is rewritten: 571 lines with two
   truths for one rule become 241 lines — what LUI is, what it is **not**, the problem, the highlights, a linked table
-  of contents, the install, one quick start with its output, the budgets of §16, one table for the two index kinds and
+  of contents, the install, one quick start with its output, the budgets of ADR-0020, one table for the two index kinds and
   the two content sources, the payload, `AddLui` in a host, reading only, the most important types, the sample and the
   map of the documentation.
   - The five concept sections (the kinds of index, the sources of the content, the query, the ranking and the
-    priority, the typo tolerance) leave the README: the [specification](.agents/spec/LUI-Spezifikation.md) has them, in
-    full, and it is the contract.
+    priority, the typo tolerance) leave the README: the [decisions](.agents/adr/README.md) have them, in
+    full, and they are the contract.
   - The raw tables of a BenchmarkDotNet run move to [`docs/benchmarks.md`](docs/benchmarks.md) — with the machine, the
     corpus and the method. The guard follows them: `Readme_Benchmarks` renders the section there and fails when the
     file and the committed reports differ; the README keeps the budgets (target, measured value, limit) and links to
@@ -497,7 +497,7 @@ The sections below are the changes made on the way to it.
     - Two hits are equal when their values are, the payload compared by its content (as before, when the hit held the
       deserialised payload).
     - A definition with a key type this version does not know is a `LuiDefinitionMismatchException` when it is opened.
-  - **`Linked` is documented precisely** (spec §7.3): LUI keeps no copy of the row — the normalised text in the search
+  - **`Linked` is documented precisely** (ADR-0015): LUI keeps no copy of the row — the normalised text in the search
     index, the weight and the priority in the order of the candidates; the text and the payload of a hit are read from
     the table when the hit is read.
 
@@ -535,7 +535,7 @@ The sections below are the changes made on the way to it.
   - **The buffers of the candidates are reused** per thread: the arrays of the candidates, of the groups and of the hits
     are kept instead of being thrown away after every query (−40 KB per query).
   The public API is unchanged — `ISpanSimilarity` is internal, and the exported types against the base of the branch are
-  byte-identical. §16 carries the new target (p50 ≤ 60 KB, p95 ≤ 100 KB; measured p50 42 KB, p95 60 KB).
+  byte-identical. ADR-0020 carries the new target (p50 ≤ 60 KB, p95 ≤ 100 KB; measured p50 42 KB, p95 60 KB).
 
 - **The four similarity measures are LUI's own** ([ADR-0030](.agents/adr/0030-the-similarity-measures-are-luis-own.md), #30). With
   the Jaro-Winkler of the entry above, the **Damerau-Levenshtein** and the **Levenshtein** move into the library too, and

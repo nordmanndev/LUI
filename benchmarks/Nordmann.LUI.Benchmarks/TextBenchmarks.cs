@@ -4,7 +4,7 @@ using Nordmann.LUI.Normalization;
 namespace Nordmann.LUI.Benchmarks;
 
 /// <summary>
-/// The work of a query per candidate (§6, §11): the search form of a text — the normalisation the parity of §6.2 is
+/// The work of a query per candidate (ADR-0005, ADR-0030): the search form of a text — the normalisation the parity of ADR-0005 is
 /// about — and the similarity measures the ranking compares the input with. No database.
 /// </summary>
 [MemoryDiagnoser]

@@ -12,12 +12,17 @@
 > **Note (ADR-0028, 2026-11-04):** `Highlight` is not coming back: LUI delivers no found positions, and issue #20 is closed.
 > The text below is history.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-03
 - **Supersedes:** the namespace layout of ADR-0001 (the package decision stands)
 - **Amended by:** [0015](./0015-the-linked-index-is-loosely-coupled.md) — `Owned<long>` is the default; the source step is gone, `WithKey<string>()` and `LinkTo(…)` take its place
 - **Affects:** every public type in `src/Nordmann.LUI/`, `src/Nordmann.LUI.csproj`,
-  `.agents/spec/LUI-Spezifikation.md` §8.3, §11, §12, §17, `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs`,
+  ADR-0008, ADR-0030, docs/api.md, ADR-0018, `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs`,
   `tools/package-smoke-test.sh`, `README.md`
 
 ## Context
@@ -30,7 +35,7 @@ asks for too much prior knowledge":
   13 times);
 - a missing kind or content source shows up as an exception in `Ensure()`, not at compile time — and `Linked`
   (PR-006) would add source-specific options that combine wrongly;
-- `ILuiIndex` mixes reading and writing, although a `Linked` index has no write methods (§12.4): it would have to throw
+- `ILuiIndex` mixes reading and writing, although a `Linked` index has no write methods (ADR-0016): it would have to throw
   `NotSupportedException`;
 - `Upsert` takes six positional parameters, and that it replaces the *whole* entry is not visible in its signature;
   there is no batch;

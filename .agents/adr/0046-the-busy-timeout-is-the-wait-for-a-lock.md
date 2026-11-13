@@ -8,7 +8,7 @@
   - `src/Nordmann.LUI/Storage/Database.cs` (the timeout of the commands of every connection of the catalog)
   - `src/Nordmann.LUI/LuiCatalogOptions.cs` (what `BusyTimeout` promises)
   - `tests/Nordmann.LUI.Integration.Tests/BusyTimeoutTests.cs` (the wait, measured; the long statement)
-  - `tools/mutation-check.sh`, `.agents/spec/LUI-Spezifikation.md` §7.5 and §12.8, `docs/api.md`, the CHANGELOG
+  - `tools/mutation-check.sh`, ADR-0046 and ADR-0046, `docs/api.md`, the CHANGELOG
 - **Issue:** #70
 
 ## Context

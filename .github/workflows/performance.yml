@@ -1,10 +1,10 @@
-# The lane of the schedule for the targets of §16 (ADR-0041). The file stood at
+# The lane of the schedule for the targets of ADR-0020 (ADR-0041). The file stood at
 # tools/performance-lane.yml until the owner gave the agent a token: the connector may not write
 # into .github/workflows/, and a lane that lives outside of it never runs.
 #
 name: Performance
 
-# The targets of §16 run on a schedule of their own: the sizes are asserted on
+# The targets of ADR-0020 run on a schedule of their own: the sizes are asserted on
 # every runner, the times are reported with the machine they were measured on
 # (ADR-0041). The record of the numbers stays docs/benchmarks.md — a lane that
 # runs without writing down what it measured proves nothing.
@@ -33,7 +33,7 @@ concurrency:
 
 jobs:
   budgets:
-    name: The budgets of §16
+    name: The budgets of ADR-0020
     runs-on: ubuntu-24.04
     # sized by the first run (issue #99): the tests took 8.3 minutes on a hosted runner (4 cores, 15 GB, 85 GB of disk),
     # the whole job about 9 — thirty minutes are three times that
@@ -83,7 +83,7 @@ jobs:
 
       # The pipe needs pipefail: without it a failing test would look green,
       # because tee was the last command of the line.
-      - name: The budgets of §16
+      - name: The budgets of ADR-0020
         run: |
           set -euo pipefail
           mkdir -p artifacts/test-results
@@ -108,7 +108,7 @@ jobs:
         run: |
           set -euo pipefail
           {
-            echo '### The budgets of §16'
+            echo '### The budgets of ADR-0020'
             echo ''
             echo '```text'
             grep -F '[perf]' artifacts/test-results/budgets.log || true

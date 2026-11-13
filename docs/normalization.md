@@ -5,9 +5,8 @@
 > what was *measured* about the part that lives inside SQLite, and how the
 > two sides are held together.
 >
-> The specification (LUI-Spezifikation §6.2) demands the parity; this
-> document is the evidence. The decisions behind it are in
-> ADR-0005.
+> ADR-0005 demands the parity; this document is the evidence. The decisions
+> behind it are in ADR-0005.
 
 ---
 
@@ -94,7 +93,7 @@ give `ǽ` and the per-character folding gives `e` + cedilla.
 **697 characters of the Basic Multilingual Plane** are folded differently by
 the tokenizer than by `char.ToLowerInvariant`, and **681** differently than
 "ToLowerInvariant plus strip the diacritic of the precomposed character"
-(the rule one would write from the specification: if the canonical
+(the rule one would write from ADR-0005: if the canonical
 decomposition of the folded character is exactly one base character and one
 non-spacing mark, the result is the base character).
 
@@ -121,7 +120,7 @@ match the trigrams of `apfel kuchen`.
 
 The trigram tokenizer needs three characters. `a`, `ab`, `ß` produce no
 tokens at all — which is why the query path has a separate branch for one and
-two characters (LUI-Spezifikation §8.1).
+two characters (ADR-0008).
 
 ---
 
@@ -214,7 +213,7 @@ not run.
 
 ## 5. The compact form
 
-The specification says the compact form removes "everything except letters
+ADR-0005 says the compact form removes "everything except letters
 and digits". SQLite cannot express that in a generated column, so both
 sides work from the **same explicit list**:
 
@@ -224,7 +223,7 @@ sides work from the **same explicit list**:
 - the Unicode spaces (no-break, thin, narrow, ideographic, …), the dashes,
   the quotes, the guillemets, the middle dot, the bullet and the ellipsis.
 
-**This is a deliberate deviation from §6.1's wording** (ADR-0005): the two
+**This is a deliberate deviation from ADR-0005's wording** (ADR-0005): the two
 sides have to agree *exactly*, or the C# compact form (which strips after
 the folding) and the SQL compact column (which strips before it) would
 differ, and a query would stop finding what it should.

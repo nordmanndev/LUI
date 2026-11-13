@@ -147,7 +147,7 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      # The rule of §6.2 exists twice — as SQL and as C# — and the parity test
+      # The rule of ADR-0005 exists twice — as SQL and as C# — and the parity test
       # compares them over every word of the German word list. Without the
       # list the test is skipped and says so; this job fetches the list and
       # demands it, so that the parity is proved here and not only in the

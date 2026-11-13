@@ -11,7 +11,7 @@ namespace Nordmann.LUI.Architecture.Tests;
 /// <summary>
 /// The shape of the public API is a promise: a library that talks to the web
 /// stack or hands out <c>Task</c>s the caller never had to await is a library
-/// that misleads its consumers (LUI-Spezifikation §13).
+/// that misleads its consumers (ADR-0016).
 /// </summary>
 public sealed class PublicApiShapeTests
 {
@@ -39,7 +39,7 @@ public sealed class PublicApiShapeTests
     public void The_public_api_is_synchronous()
     {
         // Microsoft.Data.Sqlite has no async I/O; a Task-returning API would be
-        // a lie about latency (LUI-Spezifikation §13).
+        // a lie about latency (ADR-0016).
         var offenders = PackageAssemblies
             .SelectMany(assembly => assembly.GetExportedTypes())
             .SelectMany(type => type.GetMethods(

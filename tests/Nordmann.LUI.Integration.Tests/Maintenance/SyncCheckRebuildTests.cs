@@ -3,7 +3,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Maintenance;
 
 /// <summary>
-/// Sync, check, rebuild and optimize (LUI-Spezifikation §12.4, §12.6, §14, ADR-0016): an <c>Embedded</c> index against a
+/// Sync, check, rebuild and optimize (ADR-0016, ADR-0016, ADR-0016, ADR-0046, ADR-0016): an <c>Embedded</c> index against a
 /// source and against itself, a <c>Linked</c> one against the application's table.
 /// </summary>
 public sealed class SyncCheckRebuildTests

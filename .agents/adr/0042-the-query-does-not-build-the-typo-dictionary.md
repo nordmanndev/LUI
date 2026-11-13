@@ -1,8 +1,13 @@
 # 0042 — The query does not build the typo dictionary: the application asks for it
 
-> **Note (ADR-0057, 2026-11-12, issue #121):** the two German quotations of §10.1 were translated into English. The
+> **Note (ADR-0057, 2026-11-12, issue #121):** the two German quotations of ADR-0012 were translated into English. The
 > specification is German and stays German until it is deleted in pull request 8; the decision stands as it was
 > written; the text below is history.
+
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
 
 - **Status:** Accepted
 - **Date:** 2026-11-07
@@ -13,7 +18,7 @@
   - `src/Nordmann.LUI/Querying/TypoCorrection.cs` (the rule), `src/Nordmann.LUI/Typos/TypoDictionary.cs` (the path that is
     gone)
   - `samples/Lui.Sample/Data/SampleSeed.cs`, `samples/Lui.Sample/Indexes/BulkSampleIndex.cs` (the application asks for it)
-  - `.agents/spec/LUI-Spezifikation.md` §10.1 (the contract that is read), `README.md`, `CHANGELOG.md`
+  - ADR-0012 (the contract that is read), `README.md`, `CHANGELOG.md`
   - `tests/Nordmann.LUI.Integration.Tests/TypoDictionaryLifecycleTests.cs` (the contract of the tests) and the tests that
     measured the build inside the query
 - **Issue:** #35
@@ -35,7 +40,7 @@ Three things follow from that, and all three are costs of the *query*:
   next keystroke would start the build again — a build bound to the request would never finish (review of pull request
   34, I3).
 
-The contract of §10.1 said so: *"the build on the first access"*. It is the one promise
+The contract of ADR-0012 said so: *"the build on the first access"*. It is the one promise
 of the library that the application cannot see, cannot pay for and cannot avoid.
 
 ## Decision
@@ -50,7 +55,7 @@ of the library that the application cannot see, cannot pay for and cannot avoid.
    answers without the correction, as before.
 5. **The public API does not change.** `WarmUpTypoDictionary()` and `RebuildTypoDictionary()` exist already, on the
    embedded and on the linked index; no member disappears, so `docs/api.md` stays as it is.
-6. **The specification follows.** §10.1 says *"the build on explicit request"* and names the rule: a query asks,
+6. **The specification follows.** ADR-0012 says *"the build on explicit request"* and names the rule: a query asks,
    the application builds.
 
 ## Alternatives

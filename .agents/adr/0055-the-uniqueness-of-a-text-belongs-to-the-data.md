@@ -20,7 +20,7 @@
 
 `DistinctText` showed one hit per normalised text: the system tag "vegan" and the ordinary tag "Vegan" were one hit
 instead of two. ADR-0008 decided that the option works on the candidates in the order of the rowid — the first candidate
-of a text is the one with the highest priority and then the highest weight, so keeping the first is the rule of §9.2
+of a text is the one with the highest priority and then the highest weight, so keeping the first is the rule of ADR-0013, ADR-0055
 and it costs no second pass.
 
 The option had two prices, and the second one was the worse:

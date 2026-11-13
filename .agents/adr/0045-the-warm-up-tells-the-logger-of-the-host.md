@@ -10,7 +10,7 @@
   - `src/Nordmann.LUI.Hosting/Nordmann.LUI.Hosting.csproj` (the dependency set)
   - `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs` (the guard of the dependency set)
   - `tests/Nordmann.LUI.Integration.Tests/LuiWarmupTests.cs`, `RecordingLoggerProvider.cs` (the failed round is heard)
-  - `.agents/spec/LUI-Spezifikation.md` §12.7 and §17, `docs/api.md`, the README, the tutorial, the CHANGELOG
+  - ADR-0017, ADR-0034 and ADR-0018, `docs/api.md`, the README, the tutorial, the CHANGELOG
 - **Issue:** #68 — the review of pull request 69 (point A5), the owner's decision of 2026-11-08
 
 ## Context

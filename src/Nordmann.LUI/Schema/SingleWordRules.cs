@@ -1,7 +1,7 @@
 namespace Nordmann.LUI.Schema;
 
 /// <summary>
-/// The rules of a single-word index (LUI-Spezifikation §4): tags, words, compounds. The input is searched
+/// The rules of a single-word index (ADR-0014): tags, words, compounds. The input is searched
 /// as a whole, in <c>s_norm</c>.
 /// </summary>
 internal sealed class SingleWordRules : IndexKindRules
@@ -18,7 +18,7 @@ internal sealed class SingleWordRules : IndexKindRules
 
     internal override string IndexedColumn => "s_norm";
 
-    // s_norm without its '#': the hash is not part of the word (§9.1). lower() folds ASCII only (§6.2).
+    // s_norm without its '#': the hash is not part of the word (ADR-0008). lower() folds ASCII only (ADR-0005).
     internal override string PrefixSource => "replace(s_norm, '#', '')";
 
     internal override string? CompactColumnDefinition => null;

@@ -101,7 +101,7 @@ result after it. The times are what the test runner reports — the test run its
 
 The suite grew, because the gaps were filled: the JSON payload serialiser (a public type without a test), the
 lazy similarity of ADR-0008 (a promise about work, provable only by counting the calls of the measure), the
-ranking orders, the quality floors of §19.
+ranking orders, the quality floors of ADR-0019, docs/testing.md.
 
 **One gap was found by the mutation check itself.** It changed the lower-case "ä" of the German
 transliteration to "a" instead of "ae", and the suite stayed green. The table has seven entries — "ä" "Ä"
@@ -122,7 +122,7 @@ filter matches no test, and the pattern escapes its brackets.
 - **The infrastructure is a dependency of the tests, not a link.** `tests/Shared/` is gone. The `Repository` helper
   — which reads the *tree* rather than a hand-written list, the way the architecture rules do — is compiled once.
 - **A test file that is not in the map fails the build.** That is the price of the map: a new test file has to
-  say which rule it holds up. It is also the benefit — the question "which test proves §10.4?" has an answer that
+  say which rule it holds up. It is also the benefit — the question "which test proves ADR-0012?" has an answer that
   cannot go stale.
 - **`Nordmann.LUI.Testing` is public API of the test tree.** Everything in it is `public`, and it is not
   packable — it never reaches a consumer.

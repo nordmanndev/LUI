@@ -16,7 +16,7 @@
     `LuiEmbeddedIndexBuilderExtensions.cs` (gone)
   - `src/Nordmann.LUI/Schema/IndexDefinition.cs`, `Schema/KeyCodec.cs`, `Querying/*Payload*.cs`, `Querying/HitReader.cs`,
     `Querying/QueryRunner.cs`, `Indexes/Embedded*.cs`, `Indexes/LinkedIndex.cs`
-  - spec §7.1, §7.3, §8.3, §12.1–§12.9; README, CHANGELOG, `docs/testing.md`, `tools/package-smoke-test.sh`, the sample
+  - ADR-0006, ADR-0033, ADR-0015, ADR-0008, docs/api.md–ADR-0033; README, CHANGELOG, `docs/testing.md`, `tools/package-smoke-test.sh`, the sample
 - **Issue:** #58 (follows #56)
 
 ## Context
@@ -130,7 +130,7 @@ out again. C is the decision that can still be corrected; A is not.
 
   The hit is a larger struct now — the key holds a number and a reference, and the hit the bytes and their source
   (about +24 B per hit, 20 hits) —, and the payload column is selected for every embedded index. A query whose payloads
-  are not read is cheaper, because nothing is deserialised. All three are far below the target of §16 (p50 ≤ 60 KB,
+  are not read is cheaper, because nothing is deserialised. All three are far below the target of ADR-0020 (p50 ≤ 60 KB,
   ADR-0032).
 - **A payload is deserialised on every `GetPayload<T>()`** — the hit does not cache it, which keeps the hit a small
   value. The application keeps the result when it uses it twice (documented on the method).

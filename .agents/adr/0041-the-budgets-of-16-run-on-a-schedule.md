@@ -1,4 +1,9 @@
-# 0041 — The budgets of §16 run on a schedule: the bytes are asserted, the times are reported
+# 0041 — The budgets of ADR-0020 run on a schedule: the bytes are asserted, the times are reported
+
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
 
 - **Status:** Accepted
 - **Date:** 2026-11-07
@@ -13,8 +18,8 @@
 
 ## Context
 
-The targets of §16 are asserted by the test `PerformanceBudgets` — and that test lives in the layer of the
-measurements, which no job of the CI runs. So the seven targets of §16 are asserted **never**: they are a ritual, and
+The targets of ADR-0020 are asserted by the test `PerformanceBudgets` — and that test lives in the layer of the
+measurements, which no job of the CI runs. So the seven targets of ADR-0020 are asserted **never**: they are a ritual, and
 the numbers of the record come from a run on the machine of the owner.
 
 The table of the targets holds two kinds of target at once:
@@ -34,7 +39,7 @@ the one of the record?
 
 ## Decision
 
-1. **A lane of its own.** `.github/workflows/performance.yml` runs the targets of §16 on a schedule (nightly) and can be
+1. **A lane of its own.** `.github/workflows/performance.yml` runs the targets of ADR-0020 on a schedule (nightly) and can be
    dispatched by hand. A file of its own, because a job cannot have a schedule of its own.
 2. **Two kinds of target, two kinds of verdict.** A target whose unit is a **time** belongs to the machine it was measured
    on: on the machine of the record it is asserted, as before; on any other machine it is **reported** — the number stands
@@ -60,7 +65,7 @@ the one of the record?
 
 ## Consequences
 
-- **The targets of §16 are checked every night.** The four that are sizes — the allocation of a query, the memory of the
+- **The targets of ADR-0020 are checked every night.** The four that are sizes — the allocation of a query, the memory of the
   dictionary, the file — fail the lane when they are missed.
 - **The times stay the owner's.** The lane reports them with the machine named; the run on the machine of the record
   decides them, as it always did.

@@ -10,7 +10,7 @@
   - `LuiQuery`, `LuiQueryOptions`, `LuiTimings`, `LuiPriorityMode` (was `LuiPriorityRanking`), `LuiPayloadRow` (was `LuiRow`),
     `LuiLinkedSyncReport` (was `LuiSyncResult`), `LuiException` (new)
   - `LuiServicesBuilder.AddIndex` / `AddLinkedIndex` (hosting package)
-  - `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs`, `tools/mutation-check.sh`, spec §11–§13, README, CHANGELOG
+  - `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs`, `tools/mutation-check.sh`, ADR-0030–ADR-0016, README, CHANGELOG
 
 ## Context
 
@@ -34,7 +34,7 @@ its own.
 | B.3 | `Check()`, `WarmUpTypoDictionary()`, `RebuildTypoDictionary()` on `ILuiIndex` | on **`ILuiEmbeddedIndex`** and **`ILuiLinkedIndex`** | The interface a suggest endpoint gets injected only reads. `TypoTolerance` and `TypoDictionaryState` stay: the hosting package sees the public API only (ADR-0018). |
 | B.4 | `ILuiSimilarity.Name` | removed | Nothing in the library read it; every measure of your own had to invent a name. |
 | B.2 | — | a **guard**: every property of `LuiQueryOptions` has its method on `LuiQuery`, and every setting method of `LuiQuery` is a property | The settings of a query exist twice, and nothing said that the two sets are the same. No `With…` methods: a record has `with`. |
-| D.4 | — | README and spec §12.7: `AddLui` opens the database when the host starts, also with `EnsureOnStart(false)` | ADR-0017 said it; the README, which people read, did not. |
+| D.4 | — | README and ADR-0017, ADR-0034: `AddLui` opens the database when the host starts, also with `EnsureOnStart(false)` | ADR-0017 said it; the README, which people read, did not. |
 
 ### Notes on the decisions
 

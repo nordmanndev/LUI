@@ -7,7 +7,7 @@
 > asserted. The text below is history and stays as it was written.
 
 > **Name note (ADR-0030, 2026-11-05):** since this record was written, `F23.StringSimilarity` is **no longer a
-> dependency of the core**: the four similarity measures of §11 are LUI's own (ADR-0032, ADR-0030), and the package
+> dependency of the core**: the four similarity measures of ADR-0030 are LUI's own (ADR-0032, ADR-0030), and the package
 > remains a test dependency — the parity tests compare against the library they replace. The runtime dependencies of
 > `Nordmann.LUI` are `Microsoft.Data.Sqlite` and `symspell`. The text below is history and stays as it was written.
 
@@ -15,6 +15,11 @@
 > public library cannot know. Its decision is restated in the terms of this repository: the dependency set of a
 > library is closed, and a package outside the list needs an ADR that says why. The decision stands as it was
 > written; the text below is history.
+
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
 
 - **Status:** Accepted
 - **Date:** 2026-11-02
@@ -31,8 +36,8 @@ LUI needs two packages that no ADR of this repository named yet:
 
 | Package | Licence | Why LUI needs it |
 |---|---|---|
-| `symspell` 6.7.3 | MIT | The typo tolerance (§10) is SymSpell over the **word beginnings** of an index, with one edit and the three best corrections. The measurements in Anhang A are SymSpell measurements. |
-| `F23.StringSimilarity` 7.0.1 | MIT | The four similarity measures of §11 (Jaro-Winkler, N-gram Dice, Damerau-Levenshtein, Levenshtein). |
+| `symspell` 6.7.3 | MIT | The typo tolerance (ADR-0012) is SymSpell over the **word beginnings** of an index, with one edit and the three best corrections. The measurements in the record are SymSpell measurements. |
+| `F23.StringSimilarity` 7.0.1 | MIT | The four similarity measures of ADR-0030 (Jaro-Winkler, N-gram Dice, Damerau-Levenshtein, Levenshtein). |
 
 `Microsoft.Data.Sqlite` 10.0.14 needs no exemption: it is the provider of the persistence layer.
 
@@ -44,20 +49,20 @@ LUI needs two packages that no ADR of this repository named yet:
 
 SymSpell is not a "distance function with a dictionary" — it is a specific
 algorithm (prefix buckets + deletes + a frequency-ranked candidate list), and
-the specification's claim in §10 (typo tolerance recovers 40 % of the
+the specification's claim in ADR-0012 (typo tolerance recovers 40 % of the
 misses that whole-word SymSpell cannot) is a claim *about that algorithm*.
 Re-implementing it would mean re-implementing the very thing the
 measurements are about, and then measuring my version against the spec's
 numbers.
 
 The price: 676,000 word beginnings per index cost about 179 MB of RAM
-(Anhang A). That price is documented in the README and the dictionary is built
+(the record). That price is documented in the README and the dictionary is built
 lazily, on the first typo-tolerant query — not at `Ensure()`.
 
 ### Why `F23.StringSimilarity`
 
 Four measures in one small, MIT-licensed, actively maintained library, each
-with a measured cost in §11 (4.5 µs for Jaro-Winkler, 12.2 µs for N-gram
+with a measured cost in ADR-0030 (4.5 µs for Jaro-Winkler, 12.2 µs for N-gram
 Dice). Hand-rolling four measures would add four places to get subtly wrong,
 for zero benefit.
 

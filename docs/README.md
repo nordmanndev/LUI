@@ -29,8 +29,8 @@ is, and a **record** that says what it costs. The [README](../README.md) is the 
 
 - **One truth, one place.** A rule is stated once: in the code, or in a paper of the work — not in both, and not in the
   README.
-- **The documentation of the library is about the library.** The decisions of the work, the delivery plans and the
-  specification are papers of the work: they are not part of this documentation, and nothing here links them.
+- **The documentation of the library is about the library.** The decisions of the work and the delivery plans are
+  papers of the work: they are not part of this documentation, and nothing here links them.
 - **A document nobody links to is a document nobody reads.** Every file of this directory is reachable from the
   [README](../README.md) or from here — directly or through the index of its own folder.
 

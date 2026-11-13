@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-12
 - **Builds on:** [0019](./0019-the-test-tree-three-layers-one-map.md) (the test tree),
-  [0041](./0041-the-budgets-of-16-run-on-a-schedule.md) (the budgets of §16),
+  [0041](./0041-the-budgets-of-16-run-on-a-schedule.md) (the budgets of ADR-0020),
   [0050](./0050-the-tests-that-read-the-clock-carry-a-trait-and-argue-their-bounds.md) (the trait of the clock),
   [0056](./0056-the-budgets-live-in-a-file.md) (the budgets live in a file)
 - **Affects:**

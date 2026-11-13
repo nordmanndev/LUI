@@ -4,7 +4,7 @@ using Shouldly;
 namespace Nordmann.LUI.Performance.Tests;
 
 /// <summary>
-/// The budgets of LUI-Spezifikation §16 for a single-word index: latency and
+/// The budgets of ADR-0020 for a single-word index: latency and
 /// allocation of a query, the cost of a single write, the build.
 /// <code>dotnet test tests/Nordmann.LUI.Performance.Tests --filter QueryPerformance</code>
 /// </summary>
@@ -53,7 +53,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         // that cannot fail.
         Percentile(allocations, 50).ShouldBeLessThanOrEqualTo(250 * 1024);
 
-        // The latency budget of §16 is stated for three million entries.
+        // The latency budget of ADR-0020 is stated for three million entries.
         // Below that the numbers are reported, not claimed.
         if (entries >= 3_000_000)
         {

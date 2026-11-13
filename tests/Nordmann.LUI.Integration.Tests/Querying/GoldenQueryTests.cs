@@ -3,8 +3,8 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Querying;
 
 /// <summary>
-/// The golden queries of a single-word index — Anhang B of the specification
-/// as fixed expectations (§19), and the system tag of E10.
+/// The golden queries of a single-word index — ADR-0028
+/// as fixed expectations (ADR-0019, docs/testing.md), and the system tag of ADR-0013.
 /// </summary>
 public sealed class GoldenQueryTests
 {
@@ -111,7 +111,7 @@ public sealed class GoldenQueryTests
         wide.CandidatesConsidered.ShouldBe(500);
         database.Scalar<long>("SELECT count(*) FROM lui_tags WHERE s_norm LIKE '%gan%'").ShouldBeGreaterThan(30_000);
 
-        // the same entry as an ordinary tag is not among the five hundred candidates — that is why the priority sits in the rowid (E10)
+        // the same entry as an ordinary tag is not among the five hundred candidates — that is why the priority sits in the rowid (ADR-0013)
         tags.UpdatePriority(1, LuiPriority.Normal);
         tags.Query("gan").Execute().Hits.Select(h => h.Key).ShouldNotContain(1L);
     }

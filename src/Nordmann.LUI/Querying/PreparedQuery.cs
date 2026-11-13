@@ -4,7 +4,7 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI.Querying;
 
 /// <summary>
-/// What the user typed, in the forms the query path needs (LUI-Spezifikation §8). What the forms mean for
+/// What the user typed, in the forms the query path needs (ADR-0008). What the forms mean for
 /// the search — the words, the prefix key, the prefix path, the expression — is decided by the rules of
 /// the kind of the index (<see cref="IndexKindRules"/>).
 /// </summary>
@@ -26,7 +26,7 @@ internal sealed class PreparedQuery
 
     /// <summary>
     /// The search form: what is compared with the index. A leading <c>#</c> of the input is not part
-    /// of it — the hash is not part of the word (§9.1), and both paths must give the same answer
+    /// of it — the hash is not part of the word (ADR-0008), and both paths must give the same answer
     /// whether the user typed it or not (ADR-0008).
     /// </summary>
     internal string Search { get; }
@@ -34,7 +34,7 @@ internal sealed class PreparedQuery
     /// <summary>The compact form: for the word-start rule, and for the compact column of a multi-word index.</summary>
     internal string Compact { get; }
 
-    /// <summary>The words of the input of a multi-word index: the runs of the search form between separators (§4).</summary>
+    /// <summary>The words of the input of a multi-word index: the runs of the search form between separators (ADR-0014).</summary>
     internal IReadOnlyList<string> Words { get; }
 
     /// <summary>
@@ -54,14 +54,14 @@ internal sealed class PreparedQuery
 
     /// <summary>
     /// Whether the input is too short for a trigram — fewer than three <b>code points</b>, not
-    /// UTF-16 units: the prefix path answers it (§8.1).
+    /// UTF-16 units: the prefix path answers it (ADR-0008).
     /// </summary>
     internal bool IsPrefixPath => _kind.IsPrefixPath(SearchLength, CompactLength);
 
     /// <summary>Nothing to search for.</summary>
     internal bool IsEmpty => IsPrefixPath && PrefixLength == 0;
 
-    /// <summary>The FTS5 expression for the candidates (§8.2).</summary>
+    /// <summary>The FTS5 expression for the candidates (ADR-0008).</summary>
     internal string Expression => _kind.Expression(Search, Compact, Words);
 
     internal static PreparedQuery Create(string input, NormalizationOptions options, IndexKindRules kind)

@@ -23,7 +23,7 @@ internal static class Normalizer
     /// The list is a list, not a rule: SQLite cannot express "everything that
     /// is not a letter or a digit" in a generated column, so both sides work
     /// from the same explicit set. ADR-0005 records the deviation from the
-    /// specification's wording.
+    /// wording of the rule it supersedes.
     /// </para>
     /// </summary>
     internal const string Separators =

@@ -5,6 +5,31 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The specification is deleted, and every section of it has a home (#125, step 8 of #117)
+
+- **The specification is gone**: `.agents/spec/LUI-Spezifikation.md` (1429 lines, German) is deleted. It is **not**
+  translated — it was unlinked in step 3, and translating a document with a known end date is work without a purpose.
+- **The references are rehung, not dropped** (ADR-0061, the mapping table): every `§x` became the ADR or the page that
+  carries the same rule. The sweep was one mapping and one pass over 188 files. A reference that names the document it
+  belongs to was left alone: `docs/normalization.md` has a section 7 of its own, and the plan has sections of its own.
+- **The records stay history, the pointer moves**: 31 ADRs that were written against the specification carry a dated note
+  that says where the rule lives now — the precedent is ADR-0036, which carries three such notes.
+- **The contract of the library is the set of the ADRs** (ADR-0002, ADR-0061). `AGENTS.md` says so now, and the papers
+  of the work begin with the decisions and not with a specification.
+- **A guard holds the deletion**: `SpecificationIsGoneTests` — the file is gone, the tree around the papers names it
+  nowhere, and every section reference names a document that exists.
+- **The stale dependabot pull request #108 is closed**: it bumped `xunit.v3` alone and would have failed the restore
+  (NU1107) on today's tree, because `xunit.v3.extensibility.core` came in with PR #136 and pins `xunit.v3.common`.
+  The family moves together instead — PR #140, merged as `8c83bfa`.
+
+## 2026-11-13 — The reports name the hits and the place of the measurement (#124, PR #139 merged as `46f7c36`)
+
+- Every line of a committed report names the number of hits its query found, every report carries the record of its run,
+  the settings of a query are axes, and the lane runs weekly. The correction benchmark finds **no** hits in every line of
+  the report — a measurement that is committed as it stands, and an open point of the pull request.
+- The mutation of the report followed the report the writer writes: the report carries no bold, and a mutation that
+  nothing reacts to proves nothing (`tools/mutation-check.sh`).
+
 ## 2026-11-06 — The read path (#56, PR #57 merged as `73ef344`)
 
 - The catalog is the entry point (ADR-0033): `Create(name, builder)` writes, `Index(…)` opens without writing; a
@@ -36,7 +61,7 @@ the scratchpad here at the end of a session.
   the **word list is the full one and the sample downloads it** (685,829 words, CC0 — the same source and the same place as
   `tools/fetch-wordlist.sh`; the curated 7,071-word subset is what the tests use, and a test never downloads 5.5 MB), the
   **bulk indexes are created on demand** (not registered with the host: the index of LUI comes into being when the panel asks
-  for it or when the button is pressed), and the **largest fill is three million entries** (the scale of §16).
+  for it or when the button is pressed), and the **largest fill is three million entries** (the scale of ADR-0020).
 - Measured: the fill of the whole German word list took **2 m 15 s** (685,829 entries, 69 batches, 158 MB of database), a
   million names about the same; the query against a million names stays in the milliseconds.
 - New: `GermanWordList` downloads the list, `WordSource` prepares it, `BulkSampleIndex` creates the index of LUI on demand,
@@ -79,7 +104,7 @@ the scratchpad here at the end of a session.
 
 ## 2026-11-04 — PR-010 (#36): the README of the first release
 
-- README per plan §7: query options with defaults, ranking and priority, typo tolerance, §16 budgets, BenchmarkDotNet.
+- README per plan §7: query options with defaults, ranking and priority, typo tolerance, ADR-0020 budgets, BenchmarkDotNet.
 - BenchmarkDotNet default job, all 24 benchmarks, 34:40 min; reports in `benchmarks/results/`; the README section is
   rendered by `Readme_Benchmarks` (`LUI_UPDATE_README=1`), which also fails on drift; `tools/benchmarks.sh`. ADR-0022.
 - Smoke test runs the new blocks (priority, stale dictionary); mutation `a-readme-benchmark-number-edited-by-hand`.
@@ -97,7 +122,7 @@ the scratchpad here at the end of a session.
   `searchDisabled`), a cache keyed without `params`, an unescaped `innerHTML`.
 - **`Highlight` struck (owner, 2026-11-04, ADR-0028, #20 closed):** the page marks nothing; a correction is "Did you mean …?" from
   `CorrectedQuery` (one line above the list, choosing it searches the word). A first version with a measured fold table and a span map
-  was built, matched the tokenizer for 334 letters of 16 Latin alphabets, and was dropped. Spec §9.3 "falls away".
+  was built, matched the tokenizer for 334 letters of 16 Latin alphabets, and was dropped. Spec ADR-0028 "falls away".
 - Tests: 35 `SampleApiTests` (real Kestrel), 16 `Sample_Client`, 32 node tests (`npm test`, a CI lane), five mutations;
   browser assertions by hand (Chromium). The sample's `appsettings.json` is gone (a referencing test project copied it and changed its log level).
 
@@ -124,9 +149,9 @@ the scratchpad here at the end of a session.
 
 ## 2026-11-04 — #24: the exact pin of the hosting package to the core (merged as #33)
 
-## 2026-11-03 — PR-009: the performance budgets of §16 (issue #28)
+## 2026-11-03 — PR-009: the performance budgets of ADR-0020 (issue #28)
 
-- ADR-0020. `Corpus` (Testing) generates the measurement corpus for a seed; `PerformanceBudgets` measures every §16
+- ADR-0020. `Corpus` (Testing) generates the measurement corpus for a seed; `PerformanceBudgets` measures every ADR-0020
   target in its scenario and asserts it, or prints its waiver; `benchmarks/Nordmann.LUI.Benchmarks` has real benchmarks.
 - 3 M entries: query p50 1.6–1.7 ms ✓, p95 9.6–10.3 ms (≤ 3.1 ms up to four characters) waived → ADR-0010; allocation
   p95 298 KB waived (it follows the 500 candidates); corrected p95 29 ms waived; single write p95 0.5 ms ✓; build
@@ -204,7 +229,7 @@ the scratchpad here at the end of a session.
 - From the owner's DevEx/architecture review: staged builder (`Index(name).SingleWord().Owned<long>().WithPayload(…)`),
   `ILuiIndex` (read) / `ILuiOwnedIndex` (write), `LuiEntry` + `UpsertMany` (4.4× faster than a loop), named result
   properties, `Lui` prefix and one public namespace, `Normalizer` internal (owner's decision), options checked when set,
-  the three unused `Microsoft.Extensions.*` references out. ADR-0013; spec §8.3/§11/§12/§17 corrected.
+  the three unused `Microsoft.Extensions.*` references out. ADR-0013; ADR-0008/ADR-0030/docs/api.md/ADR-0018 corrected.
 - The smoke test runs every C# block of the README and checks what the quick start says it prints.
 - Not done, by decision: the internal seams (next PR, 005b), instance cache and hosted warm-up (PR-008), `Suggest`.
 
@@ -212,14 +237,14 @@ the scratchpad here at the end of a session.
 
 - `TypoDictionary` (SymSpell, beginnings 3 … 10, frequency `weight + 1`, lazy, `ReaderWriterLockSlim`), correction when no
   candidate stands at a word start, up to three corrections searched and united with the input's candidates, each candidate ranked
-  against the input it was found with. ADR-0012; spec §10.3a.
+  against the input it was found with. ADR-0012; ADR-0012.
 - Off by default. Limits pinned by tests: nothing after the tenth letter, no deletion/insertion in a word of ten letters or more.
 - Measured on the whole word list: dictionary 4.2 s / 138 MB; corrected query p95 8.7 ms (target 10) at 685 k entries.
 - `TypoQualityTests` pins floors (4 letters 55 % … 8 letters 88 % of the right beginning); `TypoPerformance` is gated.
 
 ## 2026-11-02 — PR-004: the multi-word index (issue #7)
 
-- `MultiWord`: `s_compact` and a search index over it alone (owner's decision: §7.4 and §8.2 corrected, −36 % file,
+- `MultiWord`: `s_compact` and a search index over it alone (owner's decision: ADR-0011 and ADR-0008 corrected, −36 % file,
   −40 % build, −30 % latency), words of fewer than three characters only in the ranking, the prefix path decided on
   letters.
 - `Similarity.NgramDice` is our own and allocates nothing (3.6 MB → 263 KB per query at p95), tested equal to

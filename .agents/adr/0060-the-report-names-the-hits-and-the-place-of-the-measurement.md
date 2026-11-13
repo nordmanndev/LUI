@@ -3,7 +3,7 @@
 - **Status:** Accepted
 - **Date:** 2026-11-13
 - **Builds on:** [0022](./0022-the-benchmark-results-in-the-readme.md) (the numbers of the
-  documentation come from the benchmarks), [0041](./0041-the-budgets-of-16-run-on-a-schedule.md) (the budgets of §16 run
+  documentation come from the benchmarks), [0041](./0041-the-budgets-of-16-run-on-a-schedule.md) (the budgets of ADR-0020 run
   on a schedule), [0058](./0058-the-measurement-is-a-layer-of-its-own.md) (the measurement is a layer of its own),
   [0059](./0059-the-corpora-are-four-fixed-files-in-the-repository.md) (the corpora are files)
 - **Affects:**
@@ -34,7 +34,7 @@ The reports of the benchmarks were committed, and they said less than they looke
    itself; the index whose content lives in a table of the application (ADR-0015) was measured in the measurement layer,
    in its own file, with its own scenario. Two reports, two places, no comparison.
 5. **The lane ran every night.** A number that changes every night is a number nobody reads twice; the schedule of
-   §16 measures the targets of the budgets — and the benchmarks were not run by any workflow at all.
+   ADR-0020 measures the targets of the budgets — and the benchmarks were not run by any workflow at all.
 
 ## Decision
 
@@ -70,7 +70,7 @@ The reports of the benchmarks were committed, and they said less than they looke
   report keeps the summary, with the hits.
 - **The guard of the README grows.** The renderer must show a zero as a zero, and every report must carry its record —
   two guards over the committed reports, beside the one that keeps the README in step with them.
-- **§16 asks for exactly this, and it is not changed by it.** The section says that the measured value stands in the
+- **ADR-0020 asks for exactly this, and it is not changed by it.** The section says that the measured value stands in the
   protocol, next to the machine it was measured on — the reports carry the machine now, and with it the date, the number
-  of measurements and the journal mode. The targets of §16 are re-decided in the §16 round, against the measured corpora
+  of measurements and the journal mode. The targets of ADR-0020 are re-decided in the ADR-0020 round, against the measured corpora
   (issue #123); the section itself falls with the German specification (issue #125).

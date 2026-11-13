@@ -2,9 +2,8 @@
 
 > The design before the code. Anyone may edit this file; the agent typically
 > drafts the inventory, the domain expert refines the language. This file and
-> the specification are the two
-> artifacts: this one is the *context*, the specification is the *contract*.
-> Where they disagree, the specification wins and this file gets corrected.
+> the ADRs are the two artifacts: this one is the *context*, the ADRs are the
+> *contract*. Where they disagree, an ADR wins and this file gets corrected.
 
 ---
 
@@ -52,16 +51,16 @@ These never break. Each of them has a test.
 1. **The search index and the content table change in one transaction.**
    Triggers do it; a rollback rolls back both.
 2. **Priority before weight, always.** A `System` entry that matches is a
-   candidate *first*, even when 33 000 other entries match (Anhang A, A8).
+   candidate *first*, even when 33 000 other entries match (ADR-0006, ADR-0013).
 3. **The normalisation rule is the same on both sides.** The SQL columns and
    the C# normaliser produce the same search form — for every word of the
-   German word list, not for a sample of it (§6.2, §19).
+   German word list, not for a sample of it (ADR-0005, ADR-0019, docs/testing.md).
 4. **A query never mutates.** Not the data, not the index, not the schema.
 5. **An index is never silently rebuilt.** A definition that differs from
    `lui_meta` is an error that names both definitions.
 6. **Identifiers never reach SQL unchecked.** Every name is validated against
    `^[a-z][a-z0-9_]{0,40}$` before it is interpolated.
-7. **The query API is synchronous** (§13). `Microsoft.Data.Sqlite` has no
+7. **The query API is synchronous** (ADR-0016). `Microsoft.Data.Sqlite` has no
    asynchronous I/O; a `Task` would be a lie.
 
 ## 4. The data model
@@ -122,8 +121,8 @@ Each finding of a check names its repair.
 
 ## 7. Out of scope for 1.0
 
-Everything in §21 of the specification, with the reason and the revival
-condition in ADR-0003: multi-word
+Everything in ADR-0003, with the reason and the revival condition in
+ADR-0003: multi-word
 prefix matching (O1), virtual normalised columns (O2), hashtags as word
 beginnings (O3), weight expressions (O4), languages beyond German (O5),
 filters on linked indices (O6), soft ranking (O7), suggestions for an empty

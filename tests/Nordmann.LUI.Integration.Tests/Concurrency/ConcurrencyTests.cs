@@ -4,7 +4,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Concurrency;
 
 /// <summary>
-/// Reads run in parallel, writes are serial (LUI-Spezifikation §15): queries
+/// Reads run in parallel, writes are serial (ADR-0015, ADR-0046): queries
 /// and writes at the same time neither fail nor return nonsense.
 /// <para>
 /// The round of issue #67 asks for three more cases around that rule:

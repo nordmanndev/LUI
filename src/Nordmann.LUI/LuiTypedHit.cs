@@ -28,7 +28,7 @@ public readonly record struct LuiTypedHit<TPayload>
     /// <summary>How similar the input is to the text, from the word where the match begins; 0 … 1.</summary>
     public double Similarity => Hit.Similarity;
 
-    /// <summary>Whether the input stands at the beginning of a word of the text (§9.1).</summary>
+    /// <summary>Whether the input stands at the beginning of a word of the text (ADR-0008).</summary>
     public bool AtWordStart => Hit.AtWordStart;
 
     /// <summary>Whether the entry has a payload.</summary>

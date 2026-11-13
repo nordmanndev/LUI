@@ -6,7 +6,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Hosting;
 
 /// <summary>
-/// LUI in a host (LUI-Spezifikation §12.7, ADR-0017, ADR-0033): the container holds the catalog and nothing else. An
+/// LUI in a host (ADR-0017, ADR-0034, ADR-0017, ADR-0033): the container holds the catalog and nothing else. An
 /// index is not registered and not injected — the application asks the catalog for what it needs.
 /// </summary>
 public sealed class DependencyInjectionTests

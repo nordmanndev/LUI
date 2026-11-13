@@ -13,6 +13,11 @@
 > is `CandidateRead`, the linked overload of `AddIndex` is `AddLinkedIndex`, and `Check()`, `WarmUpTypoDictionary` and
 > `RebuildTypoDictionary` are on the write interfaces, not on `ILuiIndex`. The text below is history.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-03
 - **Supersedes:** —
@@ -22,7 +27,7 @@
 
 ## Context
 
-Step 5 of the plan. §10 specifies the mechanism and Anhang A4 measures why: SymSpell over whole words corrects a
+Step 5 of the plan. ADR-0012 specifies the mechanism and the record measures why: SymSpell over whole words corrects a
 word that is not finished hardly at all (11 %); over the **beginnings** of the words it reaches 40 %, most of what is
 possible without a typo. ADR-0004 took the `symspell` dependency for this. What the specification leaves open is the
 places where the mechanism meets real input.
@@ -34,13 +39,13 @@ the normalised texts — a word is a run between separators — with the weights
 length 7 (its default), count threshold 1. Two details of the specification, made exact:
 
 - The frequency of a beginning is the sum of **`weight + 1`** of the texts it begins: SymSpell drops an entry whose
-  count is 0, and half of a tag stock has the weight 0 (Anhang A1). A word with the weight 0 is still a word.
+  count is 0, and half of a tag stock has the weight 0 (the record). A word with the weight 0 is still a word.
 - `Upsert` adds only the beginnings that are not in the dictionary yet (a lookup at distance 0 per beginning), so
   writing the same text again does not inflate a frequency. `Remove` and `UpdateWeight` leave the dictionary as it is;
   `RebuildTypoDictionary()` builds it anew.
 
 **It is built lazily** — on the first input that needs a correction, from `SELECT text, weight FROM lui_<name>`, not at
-`Ensure()`. The whole word list (685,739 words) takes **4.2 s and 138 MB** (targets of §16: ≤ 10 s and ≤ 200 MB). An
+`Ensure()`. The whole word list (685,739 words) takes **4.2 s and 138 MB** (targets of ADR-0020: ≤ 10 s and ≤ 200 MB). An
 application that cannot afford the first-use delay calls `WarmUpTypoDictionary()` at start (it builds only if nothing is
 built; `RebuildTypoDictionary()` builds anew). Both take a `CancellationToken`.
 
@@ -48,11 +53,11 @@ built; `RebuildTypoDictionary()` builds anew). Both take a `CancellationToken`.
 the dictionary belongs to the catalog and the index name, so two instances — an importer beside a search endpoint — share
 the memory and see each other's writes. `Drop()` forgets it: the next index of that name starts empty.
 
-**When it corrects:** when **no candidate stands at a word start** — not when there are no hits (§10.2). The test:
+**When it corrects:** when **no candidate stands at a word start** — not when there are no hits (ADR-0012). The test:
 `apflekuchen` has a hit in the middle of `Teigapflekuchen`, and still `Apfelkuchen` is found. Not for one- or two-letter
 inputs (the prefix path), and not for a word of fewer than three letters.
 
-**How it corrects** (§10.3). Every word of three or more letters is looked up (closest, distance 1). A word that is
+**How it corrects** (ADR-0012). Every word of three or more letters is looked up (closest, distance 1). A word that is
 a beginning of a word of the index comes back unchanged. The k-th correction of the input (k = 1 … 3) takes the k-th
 suggestion of every word that has one — `apflekuchen sahne` becomes `apfelkuchen sahne`. Each correction is searched like
 the input itself (same expression, same prefix rules), and **the candidates are united with those of the input**: the
@@ -67,10 +72,10 @@ search form (`apfelkuchen`, `mueller`); `null` when nothing was corrected.
 
 **Off by default.** `Builder.TypoTolerance(maxEdits)` takes 0 (off) or 1; a query overrides it with
 `.TypoTolerance(bool)` or `LuiQueryOptions.TypoTolerance`. The dictionary costs memory the application did not ask for, and
-Anhang B's rule „a typo does not lead nowhere" is for an application that decided on it. The setting is a property of the
+the rule of the golden queries „a typo does not lead nowhere" is for an application that decided on it. The setting is a property of the
 instance, like the similarity; it is not part of the stored definition.
 
-**Locking** (§15) — and what a build does not do (review M1). SymSpell is not made for reading while writing: lookups share a
+**Locking** (ADR-0015, ADR-0046) — and what a build does not do (review M1). SymSpell is not made for reading while writing: lookups share a
 `ReaderWriterLockSlim`, an addition has it alone. The **build does not hold it**: it builds a dictionary of its own, outside
 the lock, behind a build gate (one build at a time; a cancelled build leaves everything as it was). The writes that arrive
 meanwhile are queued; when the new dictionary is ready the queue is replayed on it and the dictionary is swapped in, in one
@@ -102,7 +107,7 @@ Whole German word list as a `SingleWord` index (685,739 words, weights random), 
 after the first letter, 400 cases per length, Hit@20 = the meant word among the best 20
 (`TypoPerformance`, the layer of the measurements):
 
-| Beginning typed | right | with one typo | Anhang A4 (3 M entries) right / typo |
+| Beginning typed | right | with one typo | the record (3 M entries) right / typo |
 |---:|---:|---:|---:|
 | 4 letters | 30 % | 8 % | 13 % / 9 % |
 | 5 letters | 53 % | 28 % | 42 % / 29 % |
@@ -110,12 +115,12 @@ after the first letter, 400 cases per length, Hit@20 = the meant word among the 
 | 7 letters | 86 % | 70 % | 75 % / 69 % |
 
 Absolute figures like the specification's; the ratios (26 / 52 / 69 / 82 %, against 69 / 69 / 86 / 92 %) are lower because the cases here
-are drawn uniformly from the list and Anhang A draws them by popularity — a popular word is found with and without a typo.
+are drawn uniformly from the list and the record draws them by popularity — a popular word is found with and without a typo.
 The floors in the test suite (`TypoQualityTests`, a stock of 7,071 words, where 64 / 82 / 93 / 96 / 98 % of the right beginning are found for 4 … 8 letters) keep a margin of
 about ten points: 55 / 70 / 80 / 85 / 88 %.
 
 **Cost.** Dictionary: 4.2 s, 138 MB. A corrected query (1,000 inputs with a typo, 5 … 9 letters): **p50 2.7 ms, p95 8.7 ms**, 91 / 408 KB
-(§16: p95 ≤ 10 ms — held here at 685 k entries, built row by row; at 3 M entries it is untested, and ADR-0010 says what to expect). 864 of
+(ADR-0020: p95 ≤ 10 ms — held here at 685 k entries, built row by row; at 3 M entries it is untested, and ADR-0010 says what to expect). 864 of
 1,000 inputs were corrected. The measurement before the review read p50 4.0 ms and p95 12.8 ms (twice); after it 2.7 ms and 8.7 ms (twice). It was not isolated which change did it — candidates are the lock-free `IsBuilt` (a read lock per corrected query) and the rewritten union; the earlier figures are not a different machine, they were taken on the same one.
 
 ## What a rollback and a write past the library do

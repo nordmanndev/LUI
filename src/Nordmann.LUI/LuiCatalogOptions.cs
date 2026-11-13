@@ -3,7 +3,7 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// The options of a catalog (LUI-Spezifikation §12.1, §7.5). They steer how every
+/// The options of a catalog (docs/api.md, ADR-0046). They steer how every
 /// connection of the catalog is set up. Every value is checked when it is set, so
 /// the options can be bound from configuration and fail where they are wrong — the
 /// exception names the property. Bound through <c>IConfiguration.Bind</c>, it arrives
@@ -14,7 +14,7 @@ public sealed record LuiCatalogOptions
 {
     /// <summary>
     /// The page cache of every connection, in megabytes; at least 1. It decides whether the index lives in
-    /// memory (LUI-Spezifikation, Anhang A6). Default: <see langword="null"/>, SQLite's own.
+    /// memory (docs/benchmarks.md). Default: <see langword="null"/>, SQLite's own.
     /// </summary>
     public int? CacheSizeMegabytes
     {
@@ -48,7 +48,7 @@ public sealed record LuiCatalogOptions
 
     /// <summary>
     /// Whether <c>LuiCatalog.Open</c> switches the database to write-ahead logging (<c>journal_mode = WAL</c>,
-    /// LUI-Spezifikation §7.5). Default: yes — WAL lets many readers run beside one writer. <b>WAL is a property
+    /// ADR-0046). Default: yes — WAL lets many readers run beside one writer. <b>WAL is a property
     /// of the file</b>: it stays after LUI is gone, adds <c>-wal</c> and <c>-shm</c> files, and does not work on
     /// network file systems. When LUI shares the database of an application, switch it off here and keep the
     /// mode the application chose.

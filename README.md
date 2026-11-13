@@ -237,7 +237,7 @@ One write in a transaction of its own — Entries = 200000. `WriteBenchmarks`.
 
 #### The search form and the similarity
 
-Per text, no database: the normalisation of §6 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln", `Größe(...)nahme [23]` „Größenänderungsmaßnahme". `TextBenchmarks`.
+Per text, no database: the normalisation of ADR-0005 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln", `Größe(...)nahme [23]` „Größenänderungsmaßnahme". `TextBenchmarks`.
 
 | Method | Text | Mean | Error | Allocated | Hits |
 |---|---|---:|---:|---:|---:|

@@ -14,6 +14,11 @@
 > below keep every rule and every reason of the record; only the source of the rules changed. The text below is
 > history.
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-02
 - **Supersedes:** —
@@ -57,9 +62,9 @@ names the deviations of a library, and ADR-0004 names the second one.
 | What an application does | Why LUI does not do it |
 |---|---|
 | Domain aggregates, commands, a mediator between them | LUI has no domain and no handlers. `LuiCatalog → ILuiIndex → Query` is a library API, not a command bus. A source generator in every consumer's build for no behaviour is a tax, not a discipline. |
-| A persistence layer above the database | LUI *is* the persistence layer, over raw `Microsoft.Data.Sqlite`. The specification's §8 is explicit SQL; a second ORM would hide exactly what the design depends on. |
+| A persistence layer above the database | LUI *is* the persistence layer, over raw `Microsoft.Data.Sqlite`. The specification's ADR-0008 is explicit SQL; a second ORM would hide exactly what the design depends on. |
 | Events, an outbox, a background worker | LUI has no events. Its one long operation (`Sync`) takes an `IProgress<T>` and a `CancellationToken` — the shape of a background job, not a queue. |
-| Its own identifier type | The specification fixes `TKey` as `long` or `string` (§12.3) — the *application's* key. A library must not impose an ID type on its consumer. |
+| Its own identifier type | The specification fixes `TKey` as `long` or `string` (ADR-0035) — the *application's* key. A library must not impose an ID type on its consumer. |
 | A logging stack of its own | A library must not force a logging stack on consumers. LUI takes an optional `ILogger` and nothing else. |
 | Multi-tenancy by default | LUI opens *one* database per catalog. Tenancy is the application's business; `Linked` mode exists precisely so an app keeps its data where it lives. |
 | A frontend baseline | That baseline governs *project* frontends. The sample is a **library demo**: its subject is the LUI API. The sample ships one inline page with plain ES modules and its own CSS — no framework, no bundler, no runtime dependency beyond the vendored `flexdatalist`. |

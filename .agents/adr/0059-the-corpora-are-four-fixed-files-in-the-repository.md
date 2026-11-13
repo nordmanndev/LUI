@@ -1,5 +1,10 @@
 # 0059 — The corpora are four fixed files in the repository, not generators
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-12
 - **Builds on:** [0019](./0019-the-test-tree-three-layers-one-map.md) (the test tree),
@@ -98,18 +103,18 @@ and is not.
 
 - **The budgets of the scenario of three million entries are not asserted — they are reported.** The words corpus has
   1,908,798 entries, so the prefix of three million does not exist. The numbers of the budgets were measured on the
-  old, generated corpus; **the counts of the budgets of §16 are re-decided against the measured corpora** — that is the
+  old, generated corpus; **the counts of the budgets of ADR-0020 are re-decided against the measured corpora** — that is the
   work of the next round, and until then the promise of the file of the budgets is not met by a run on these corpora.
   The measurement says so in its report: a budget below its scenario is reported, not missed.
-- **The distribution of the weights of Anhang A1 is not measured any more.** The weights come from the corpus, and
+- **The distribution of the weights of the record is not measured any more.** The weights come from the corpus, and
   none of the four corpora has half of its entries at the weight 0. The words corpus carries the derived weight — a
   long tail of distinct weights, which is the harder case for the rowid (ADR-0010).
 - **The query over the multi-word index is not measured any more.** The corpus of the titles exists, but no budget
-  names it, and a measurement that asserts nothing is a measurement that cannot fail. The §16 round decides which
+  names it, and a measurement that asserts nothing is a measurement that cannot fail. The ADR-0020 round decides which
   promise measures the titles.
 - **The word list has two lives.** The big list (1,908,798) is the corpus of the benchmark and of the measurements.
   The smaller CC0 list (685,829 words, `enz/german-wordlist`) stays the input of the unit and the integration layer:
-  the normalisation parity test (§19) runs on its checked-in stride of 97 (7,071 words), and the full list is fetched
+  the normalisation parity test (ADR-0019, docs/testing.md) runs on its checked-in stride of 97 (7,071 words), and the full list is fetched
   by `tools/fetch-wordlist.sh`.
 - **The lane needs no fetch.** The corpora are in the repository; the lane writes the scenario of the run and measures
   the files that are checked in.

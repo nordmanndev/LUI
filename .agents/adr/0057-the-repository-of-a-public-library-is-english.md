@@ -1,5 +1,10 @@
 # 0057 — The repository of a public library is English
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-12
 - **Builds on:** [0037](./0037-the-papers-of-the-work-live-under-agents.md) (the papers of the work live under `.agents/`,
@@ -33,7 +38,7 @@ The repository had grown a second voice:
 Two things stay German on purpose:
 
 - the **sample data** ("Gedeckter Apfelkuchen") — it shows what the normalisation is for;
-- the **specification** `.agents/spec/LUI-Spezifikation.md` — it is the contract of the work, it is deleted in pull
+- the **specification** — it is the contract of the work, it is deleted in pull
   request 8, and translating 1,407 lines of a document that is about to go would be work without a purpose.
 
 ## Decision
@@ -77,7 +82,7 @@ row in `docs/api.md`.
 - **ADR-0002 has a new title**, and its row in the index of the decisions carries it.
 - **The German quotation marks stay.** They are the typography of this repository, and they quote the German sample data
   ("Apfel Kuchen") in the code as well as in the documents.
-- **The specification keeps its German text** until pull request 8 deletes it. The citations of its annexes ("Anhang A")
+- **The specification keeps its German text** until pull request 8 deletes it. The citations of its annexes ("the record")
   go with it; nothing else points at a German text.
 - **A second voice in the repository is a bug now.** A German sentence in a document of the library is a defect that the
   search of the acceptance criteria catches.

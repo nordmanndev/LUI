@@ -67,7 +67,7 @@ claim that does not depend on the machine**: 138 MB and 240 MB are the sizes of
 the dictionaries, and they come out the same on every machine.
 
 Two errors cost **1.7 times** the memory of one and **twice** the time — and
-**40 MB more than the budget of §16** allows (§16: *typo dictionary, 700,000
+**40 MB more than the budget of ADR-0020** allows (ADR-0020: *typo dictionary, 700,000
 different words: ≤ 200 MB, build ≤ 10 s*). The build time is still inside the
 budget; the memory is not. The budget was written for one error, and it holds
 for one error. The two-error distance has **no budget of its own yet**: the

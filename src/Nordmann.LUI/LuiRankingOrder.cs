@@ -2,7 +2,7 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// The order in which the candidates are ranked, after the priority
-/// (LUI-Spezifikation §9.2).
+/// (ADR-0013, ADR-0055).
 /// </summary>
 public enum LuiRankingOrder
 {

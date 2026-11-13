@@ -3,7 +3,7 @@ namespace Nordmann.LUI.Schema;
 /// <summary>
 /// The <c>rowid</c> of the search index: priority and weight live in it, so
 /// that <c>ORDER BY rowid LIMIT n</c> reads the best entries first without a
-/// sorter (LUI-Spezifikation §3 E2, §7.2).
+/// sorter (ADR-0006).
 /// <code>
 /// [0][ priority: 2 bit ][ 2^29 − 1 − weight: 29 bit ][ doc_id: 32 bit ]
 /// </code>

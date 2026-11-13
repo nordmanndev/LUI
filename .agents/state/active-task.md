@@ -5,34 +5,33 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** [#38](https://github.com/nordmanndev/LUI/issues/38) — the budget table of the README as a projection: guard
-the limits against §16.
-**Branch:** `feature/budget-table-guard`, from `main` at `dd75649`.
-**Decision:** [ADR-0040](../../.agents/adr/0040-the-budget-table-of-the-entrance-is-a-promise.md),
-[ADR-0039](../../.agents/adr/0039-the-entrance-shows-the-measurement.md),
-[ADR-0032](../../.agents/adr/0032-the-allocation-of-a-query.md).
+**Issue:** [#125](https://github.com/nordmanndev/LUI/issues/125) — the specification is deleted, and every one of its
+sections is rehung onto the ADR or the page that carries the same rule. Step 8 of epic #117, the last of the series.
+**Branch:** `feat/125-specification-goes`, from `dev` at `46f7c36`.
+**Decision:** [ADR-0061](../../.agents/adr/0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md) —
+the mapping table of every section of the deleted document.
 
 ## What is done
 
-- **#61 is merged** (PR #62, merge commit `121f2bd`; the CI of the head commit is green in all four jobs). The README
-  of the release shows the measurement of a fresh BenchmarkDotNet run, has an example of the bulk path, links the API
-  page (`docs/api.md`, guarded by `PublicApiDocumentationTests`), shows the matrix of the kinds and the decision guide of
-  the sources, and the papers of the work live under `.agents/`.
-- **#38**: the new guard `ReadmeBudgetsTests` reads the target table of §16 out of the specification and compares it with
-  the budget table of the README and with the target table of the record. **It found a real drift**: the allocation
-  still promised ≤ 250 / ≤ 350 KB, while the specification and the budget test have held ≤ 60 / ≤ 100 KB since
-  ADR-0032. Both tables carry the limits of the contract now, and the measured values of the run of 2026-11-06
-  (46 / 51 KB — bytes, so the machine does not matter). The mutation check has a mutation for it.
+- **Steps 1 to 7 of the series are merged** — PRs #126, #127, #131, #135, #136, #138 and #139 (the last one as
+  `46f7c36`, its CI green in all eleven jobs). `dev` is 52 commits ahead of `main`, and `main` stays the frozen release
+  branch of `v0.1.0-alpha`.
+- **The sweep is committed** (`552b255`): 188 files, one mapping, one pass. Every `§x` of the specification became the
+  ADR or the page that carries the same rule. A reference that names the document it belongs to was left alone —
+  `docs/normalization.md` has a section 7 of its own, and the plan has sections of its own.
+- **The papers carry their note**: 31 records that were written against the specification say so, with a dated note
+  that says where the rule lives now. The records are history; the pointer is rehung.
+- **The guard**: `SpecificationIsGoneTests` — the file is gone, the tree around the papers names it nowhere, and every
+  section reference names a document that exists.
 
 ## Open
 
-- **The release** (PR-012, `0.1.0`) comes after that — and the owner has to ask for it (`AGENTS.md`).
-- **The specification is a dependency of the build now**: the limits of §16 are read out of it. When the owner deletes
-  it at the end of the release, the limits have to live somewhere else — where is the owner's decision.
-- Two points for the owner: `tools/link-check.py` is a tool, but not yet a lane of the CI; the tutorial has no guard in
-  the tree (its examples are checked by hand in the review).
+- **The pull request of #125** is open against `dev`; the acceptance criteria of the issue are the three facts of the
+  guard, and the five test projects and the build are green.
+- **The `dev` → `main` release pull request** comes after that, and it carries its own review (`AGENTS.md`).
 
 ## The next step
 
-The **release** — which the owner asks for. After that #35, #31, #32, #44, #59 (only on demand) and the `compactLevel`
-follow-up of #48.
+The **release pull request** — the owner asks for it (`AGENTS.md`). After that the backlog of the open issues: the
+three guards that the work found (#128, #129, #130), the two open bugs of the measurement (#134, #137), and the three
+that wait for after 0.1.0 (#31, #32, #44).

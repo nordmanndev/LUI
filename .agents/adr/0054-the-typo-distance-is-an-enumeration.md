@@ -1,5 +1,10 @@
 # 0054 — The typo distance is an enumeration, and it belongs to the index
 
+> **Note (ADR-0061, 2026-11-13, issue #125):** the specification this record was written against is deleted.
+> Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
+> [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
+> that name the specification are history; the rule they carry lives in the ADR named beside them.
+
 - **Status:** Accepted
 - **Date:** 2026-11-11
 - **Builds on:** [0012](./0012-typo-tolerance.md) (the typo tolerance),
@@ -67,7 +72,7 @@ Xeon Platinum (2 cores, 3.0 GB RAM, Debian 12, .NET 10.0.403), with
 `dotnet test tests/Nordmann.LUI.Performance.Tests --configuration Release --filter "FullyQualifiedName~TypoPerformance.What_every_distance_costs"`:
 
 <!--MEASURED-->
-| Distance | The dictionary | The build | The memory | The budget of §16 |
+| Distance | The dictionary | The build | The memory | The budget of ADR-0020 |
 |---|---|---|---|---|
 | `None` | not built | 0.0 s | **0 MB** | — (nothing to build) |
 | `OneError` | built | 4.3 s | **138 MB** | ≤ 200 MB, ≤ 10 s — **held** |
@@ -77,7 +82,7 @@ Xeon Platinum (2 cores, 3.0 GB RAM, Debian 12, .NET 10.0.403), with
 on the same machine makes it twice as slow. **The memory is the machine-independent claim**: 138 MB and 240 MB come out
 the same on every machine.
 
-Two errors cost 1.7 times the memory of one and twice the time. The budget of §16 was written for one error, and it
+Two errors cost 1.7 times the memory of one and twice the time. The budget of ADR-0020 was written for one error, and it
 holds for one error — the two-error distance needs a new budget of its own before the tag `v0.1.0` (the budgets move into
 `budgets.json` with pull request 3 of the series).
 
@@ -110,7 +115,7 @@ measurement is comparable with the old one.
 - **The sample shows the distance** instead of a bool: the panel of the indexes names the distance of the index and the
   state of its dictionary.
 - **The specification is corrected in this pull request** — `AGENTS.md` requires it: an ADR is the newer truth, and the
-  specification is corrected in the same pull request. §7.1, §10.1, §10.3, §10.3a, §12.2, §12.3, §12.4, §12.5 and §12.9
+  specification is corrected in the same pull request. ADR-0006, ADR-0033, ADR-0012, docs/api.md, ADR-0035, ADR-0016, docs/api.md and ADR-0033
   name the distance instead of the bool. The debt is named, not deferred: the rule stands in English in this ADR and in
   [`docs/typo-dictionary.md`](../../docs/typo-dictionary.md) from now on — the translation of the repository comes with
   pull request 4 of the series, the deletion of the specification with pull request 8 (review of pull request #126, I4).

@@ -3,7 +3,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Typos;
 
 /// <summary>
-/// The quality of the correction (LUI-Spezifikation §10.4, §19, Anhang A4): how often the intended word is
+/// The quality of the correction (ADR-0012, ADR-0019, docs/testing.md, docs/benchmarks.md): how often the intended word is
 /// among the best 20 when the beginning of it is typed with one typo, against how often it is when the
 /// beginning is typed right. The floors are measured, with a margin — a change that makes the correction
 /// worse fails here.
@@ -15,7 +15,7 @@ public sealed class TypoQualityTests(ITestOutputHelper output)
     [Theory]
     [InlineData(4, 0.55)]   // measured 64 %: many words begin alike
     [InlineData(5, 0.70)]   // 82 %
-    [InlineData(6, 0.80)]   // 93 % — the specification names 86 … 92 % on a corpus 400 times larger
+    [InlineData(6, 0.80)]   // 93 % — ADR-0012 names 86 … 92 % on a corpus 400 times larger
     [InlineData(7, 0.85)]   // 96 %
     [InlineData(8, 0.88)]   // 98 %
     public void A_typo_in_a_beginning_finds_the_word_almost_as_often_as_the_right_beginning(int length, double floor)

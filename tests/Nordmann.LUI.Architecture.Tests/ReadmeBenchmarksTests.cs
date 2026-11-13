@@ -37,7 +37,7 @@ public sealed class ReadmeBenchmarksTests
         ("SettingsBenchmarks", "The settings of a query", "the budget of the candidates, the order of the ranking, the measure of the similarity and the correction on and off — each of them is measured, not described"),
         ("CorrectionBenchmarks", "A query with a typo correction", "a single-word index with typo tolerance, the dictionary built; the input has one typo"),
         ("WriteBenchmarks", "A single write", "one write in a transaction of its own"),
-        ("TextBenchmarks", "The search form and the similarity", "per text, no database: the normalisation of §6 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln\", `Größe(...)nahme [23]` „Größenänderungsmaßnahme\""),
+        ("TextBenchmarks", "The search form and the similarity", "per text, no database: the normalisation of ADR-0005 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln\", `Größe(...)nahme [23]` „Größenänderungsmaßnahme\""),
     ];
 
     /// <summary>

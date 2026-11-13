@@ -60,7 +60,7 @@ public sealed class TestDatabase : IDisposable
 
     /// <summary>
     /// The size of the database file in megabytes, after a checkpoint has moved the write-ahead log into it — what an
-    /// application has on its disk (LUI-Spezifikation §16, "Dateigröße").
+    /// application has on its disk (ADR-0020, "Dateigröße").
     /// </summary>
     public double FileMegabytes()
     {

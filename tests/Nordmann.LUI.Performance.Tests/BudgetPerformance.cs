@@ -3,8 +3,8 @@ using System.Diagnostics;
 namespace Nordmann.LUI.Performance.Tests;
 
 /// <summary>
-/// The performance targets of LUI-Spezifikation §16 as tests (PR-009, ADR-0020): each target in the scenario of the
-/// specification, measured on a corpus of <see cref="Corpus"/>, and either <b>met</b> — then it is asserted — or
+/// The performance targets of ADR-0020 as tests (PR-009, ADR-0020): each target in the scenario of ADR-0020,
+/// measured on a corpus of <see cref="Corpus"/>, and either <b>met</b> — then it is asserted — or
 /// <b>waived</b>, with a reason and the record that holds it. A target that is missed is never lowered quietly
 /// (<c>docs/benchmarks.md</c>, rule 5); a waiver that is met is reported, so it can go.
 /// <para>
@@ -19,7 +19,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
 {
     /// <summary>The scenario of this run (ADR-0058): the corpus, the prefix length and the settings.</summary>
     private static PerformanceScenario Scenario => PerformanceScenario.Current;
-    /// <summary>The scenario of §16: three million entries — the one the budgets name.</summary>
+    /// <summary>The scenario of ADR-0020: three million entries — the one the budgets name.</summary>
     private static int ScenarioEntries => LuiBudgets.By("query-p50").Scenario.PrefixLength;
 
     /// <summary>The scenario of the file size: one million titles — the one the budget names.</summary>
@@ -54,11 +54,11 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         var (latencies, allocations) = MeasureQueries(words, inputs, typoTolerance: false);
         budget.AtMost("query-p50", Percentile(latencies, 50), "ms");
 
-        // §16 since the owner's decision on ADR-0010: the p95 per length of the input — FTS5's cost grows with it
+        // ADR-0020 since the owner's decision on ADR-0010: the p95 per length of the input — FTS5's cost grows with it
         budget.AtMost("query-p95-short", Percentile(OfLength(inputs, latencies, 1, 4), 95), "ms");
         budget.AtMost("query-p95-long", Percentile(OfLength(inputs, latencies, 5, 8), 95), "ms");
 
-        // §16 since ADR-0032: the causes of #30 are measured and the allocation is lowered — the target is p50 ≤ 60 KB, p95 ≤ 100 KB
+        // ADR-0020 since ADR-0032: the causes of #30 are measured and the allocation is lowered — the target is p50 ≤ 60 KB, p95 ≤ 100 KB
         budget.AtMost("allocation-p50", Percentile(allocations, 50) / 1024, "KB");
         budget.AtMost("allocation-p95", Percentile(allocations, 95) / 1024, "KB");
 
@@ -70,7 +70,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         budget.AtMost("query-corrected-p95", Percentile(corrected, 95), "ms");
 
         budget.AtMost("write-p95", Percentile(MeasureWrites(words, corpus), 95), "ms");
-        // §16 since the owner's decision of 2026-11-04: the build follows the disk — 172–206 s on two machines (#32)
+        // ADR-0020 since the owner's decision of 2026-11-04: the build follows the disk — 172–206 s on two machines (#32)
         budget.AtMost("build-3m", build.Elapsed.TotalSeconds, "s");
 
         budget.Verify();
@@ -127,7 +127,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
 
         var megabytes = database.FileMegabytes();
         Report($"titles: {entries:N0} by Sync in {build.Elapsed.TotalSeconds:F1} s, file {megabytes:N0} MB");
-        // §16 since the owner's decision on ADR-0011/0020: titles of 36 characters on average, the text and its forms
+        // ADR-0020 since the owner's decision on ADR-0011/0020: titles of 36 characters on average, the text and its forms
         budget.AtMost("file-size-1m", megabytes, "MB");
 
         budget.Verify();
@@ -183,7 +183,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         return (latencies, allocations);
     }
 
-    /// <summary>The single writes of §16, each in a transaction of its own: an upsert, a weight, a removal (and the entry back).</summary>
+    /// <summary>The single writes of ADR-0020, each in a transaction of its own: an upsert, a weight, a removal (and the entry back).</summary>
     private static double[] MeasureWrites(ILuiEmbeddedIndex index, Corpus corpus)
     {
         var writes = new List<double>(600);

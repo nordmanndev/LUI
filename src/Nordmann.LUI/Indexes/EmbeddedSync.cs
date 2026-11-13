@@ -6,7 +6,7 @@ using Nordmann.LUI.Typos;
 namespace Nordmann.LUI.Indexes;
 
 /// <summary>
-/// The sync of an <c>Embedded</c> index with a source (LUI-Spezifikation §12.4, §14, ADR-0016): batches of entries, each in a
+/// The sync of an <c>Embedded</c> index with a source (ADR-0016, ADR-0016, ADR-0046, ADR-0016): batches of entries, each in a
 /// transaction of its own on the catalog's writer. A table of the writer's connection holds the keys that were in the
 /// index when the sync began; each one the source has is crossed off, and what is left at the end is removed. Then the
 /// search index is merged. A key the application adds while the sync runs is never removed.

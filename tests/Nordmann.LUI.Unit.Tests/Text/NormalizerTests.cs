@@ -4,8 +4,8 @@ using Shouldly;
 namespace Nordmann.LUI.Unit.Tests.Text;
 
 /// <summary>
-/// The normalisation rule, as the specification states it
-/// (LUI-Spezifikation §6.1).
+/// The normalisation rule, as ADR-0005 states it
+/// (ADR-0005).
 /// </summary>
 public sealed class NormalizerTests
 {

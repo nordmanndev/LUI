@@ -4,7 +4,7 @@ using Microsoft.Data.Sqlite;
 namespace Nordmann.LUI.Storage;
 
 /// <summary>
-/// The database of a catalog (LUI-Spezifikation §7.5, §15): opens connections with the pragmas of the catalog, keeps
+/// The database of a catalog (ADR-0046, ADR-0015, ADR-0046): opens connections with the pragmas of the catalog, keeps
 /// the one long-lived connection of LUI's own writes and the lock that serialises them, and counts the operations
 /// that are running, so that <see cref="Dispose"/> waits for them. It knows no index — the layers above it ask it for
 /// connections (review DevEx D4: the catalog taken apart).
@@ -67,7 +67,7 @@ internal sealed class Database : IDisposable
     internal Lock WriterGate { get; } = new();
 
     /// <summary>
-    /// The connection of the catalog's own writes. SQLite has one writer per file (§15), so one long-lived connection
+    /// The connection of the catalog's own writes. SQLite has one writer per file (ADR-0015, ADR-0046), so one long-lived connection
     /// serves them all — and keeps the prepared statements (ADR-0009). A file that may not be written has no writer:
     /// the write is refused before the connection is opened.
     /// </summary>
@@ -127,7 +127,7 @@ internal sealed class Database : IDisposable
     }
 
     /// <summary>
-    /// Switches the file to write-ahead logging (§7.5), if the options ask for it. WAL is a property of the file; for
+    /// Switches the file to write-ahead logging (ADR-0046), if the options ask for it. WAL is a property of the file; for
     /// a database that cannot have it (in memory) SQLite keeps its mode. A file that may not be written keeps its mode
     /// too: a read-only catalog writes nothing (ADR-0033).
     /// </summary>

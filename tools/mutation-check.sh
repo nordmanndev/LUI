@@ -318,7 +318,7 @@ expect_caught "the-lazy-similarity-is-gone" "${UNIT_PROJECT}" \
   "A_group_that_cannot_reach_the_hits_never_has_its_similarity_computed" \
   "sed -i 's|for (var g = 0; g < GroupCount \&\& result.Count < take; g++)|for (var g = 0; g < GroupCount; g++)|' src/Nordmann.LUI/Querying/Ranker.cs"
 
-# 15. The German transliteration of §6.1 changes — "ä" becomes "a" instead of
+# 15. The German transliteration of ADR-0005 changes — "ä" becomes "a" instead of
 #     "ae" — and the unit layer is the one that has to notice.
 expect_caught "the-transliteration-is-gone" "${UNIT_PROJECT}" \
   "FullyQualifiedName~NormalizerTests" \
@@ -451,7 +451,7 @@ expect_caught "a-link-in-the-documentation-points-at-nothing" "${ARCHITECTURE_PR
   "echo '[a link that points at nothing](./this-file-does-not-exist.md)' >> docs/benchmarks.md"
 
 # 25. The concurrency of the round of issue #67: the write-ahead log is switched off. Without it a reader beside a
-#      writer waits for the lock and gives up with an error — the promise of §15 (many readers beside one writer)
+#      writer waits for the lock and gives up with an error — the promise of ADR-0015, ADR-0046 (many readers beside one writer)
 #      is gone, and the test with the second catalog has to notice.
 expect_caught "a-database-without-the-write-ahead-log" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~Two_catalogs_on_one_file_see_a_consistent_picture" \

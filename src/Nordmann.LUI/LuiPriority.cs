@@ -3,7 +3,7 @@ namespace Nordmann.LUI;
 /// <summary>
 /// The class of an entry, ahead of its weight. A smaller number is a higher
 /// priority: an entry of a higher priority is a candidate for every input it
-/// matches, before any entry of a lower one (LUI-Spezifikation §2, E10).
+/// matches, before any entry of a lower one (docs/api.md, ADR-0013).
 /// </summary>
 public enum LuiPriority
 {

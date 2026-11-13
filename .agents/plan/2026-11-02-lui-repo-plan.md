@@ -8,7 +8,7 @@
 
 - **Status:** Proposed
 - **Date:** 2026-11-02
-- **Inputs:** `LUI-Spezifikation.md` (draft 2, 2026-11-01)
+- **Inputs:** `.md` (draft 2, 2026-11-01)
 - **Scope:** the new `nordmanndev/LUI` repo, one NuGet package, one sample app
 
 ---
@@ -18,7 +18,7 @@
 | Fact | Verified how |
 |---|---|
 | `nordmanndev/LUI` is **empty** — 0 KB, branch `main`, no commits, no other refs | `git clone` → "warning: You have cloned an empty repository"; `git ls-remote` → no refs |
-| The previous LUI (roaring-bitmaps, snapshot format v12, 57 ADRs, 433 tests) is **gone from the remote** | same as above — nothing to carry over except the *working method* (spec §17.4) |
+| The previous LUI (roaring-bitmaps, snapshot format v12, 57 ADRs, 433 tests) is **gone from the remote** | same as above — nothing to carry over except the *working method* (ADR-0004) |
 | The sample uses **`flexdatalist` 3.x** as *the* browser autocomplete library | the vendor's documentation |
 | Sandbox ships .NET **9.0.316**; .NET **10.0.403** was installed to `/workspace/dn10` for this work | `dotnet --list-sdks` |
 
@@ -32,16 +32,16 @@ I did not take the spec's schema on faith. Six probes ran against **the exact de
 
 | # | Probe | Result |
 |---|---|---|
-| P1 | `select sqlite_version()` | **3.53.3** — matches the spec's tested version (§17.3) |
+| P1 | `select sqlite_version()` | **3.53.3** — matches the spec's tested version (ADR-0004) |
 | P2 | `fts5(..., tokenize='trigram remove_diacritics 1')` | **OK** — the tokenizer the whole design rests on |
-| P3 | `GENERATED ALWAYS AS (...) STORED`, incl. *chained* generated columns (`s_compact` → `s_norm`) | **OK** — the spec's §7.2 schema is implementable as written |
+| P3 | `GENERATED ALWAYS AS (...) STORED`, incl. *chained* generated columns (`s_compact` → `s_norm`) | **OK** — the spec's ADR-0006 schema is implementable as written |
 | P4 | Bit-packed rowid `(priority << 61) \| ((2²⁹−1 − weight) << 32) \| doc_id` | **OK** — and `ORDER BY rowid` returns *highest weight first*, exactly as E2 claims |
-| P5 | `EXPLAIN QUERY PLAN` of the candidate query | **`SCAN f VIRTUAL TABLE INDEX 64:M1`** + **`SEARCH c USING INDEX …_rowid`** — no `TEMP B-TREE`. The spec's plan assertion (§19) holds |
+| P5 | `EXPLAIN QUERY PLAN` of the candidate query | **`SCAN f VIRTUAL TABLE INDEX 64:M1`** + **`SEARCH c USING INDEX …_rowid`** — no `TEMP B-TREE`. The spec's plan assertion (ADR-0019, docs/testing.md) holds |
 | P6 | `Linked` mode: `ALTER TABLE app_table ADD COLUMN … GENERATED … STORED`, FTS5 `content_rowid` pointing at a **generated** column, the 3 triggers, `rebuild`, `integrity-check` | **OK** — data preserved, triggers keep the index in sync, `integrity-check` clean |
 
 **One correction to the record:** my first probe run *failed* with `near "STORED": syntax error`. That was **my own missing parenthesis** in the throwaway SQL, not a SQLite limitation — probe P3 (fixed) proves chained generated columns work. Worth stating, because the failure looked exactly like a spec defect.
 
-**What the probes did not settle:** the SQL ↔ C# normalizer parity (§6.2, §19) is the one claim that cannot be verified without the German word list. It is the top risk of the whole build — see §11.
+**What the probes did not settle:** the SQL ↔ C# normalizer parity (ADR-0005, ADR-0019, docs/testing.md) is the one claim that cannot be verified without the German word list. It is the top risk of the whole build — see ADR-0030.
 
 ---
 
@@ -51,10 +51,10 @@ These are locked. Each one is an ADR in `.agents/adr/`.
 
 ### D1 — One NuGet package: `Nordmann.LUI`
 
-The spec §17.1 proposes three packages (`Nordmann.LUI.Abstractions`, `Nordmann.LUI`, `Nordmann.LUI.DependencyInjection`). The delivery requirement is **one**. Resolution:
+ADR-0001 proposes three packages (`Nordmann.LUI.Abstractions`, `Nordmann.LUI`, `Nordmann.LUI.DependencyInjection`). The delivery requirement is **one**. Resolution:
 
 - **One assembly, one package id: `Nordmann.LUI`.**
-- The spec's **namespace layout survives intact** (§17.2) — that is what consumers actually see:
+- The spec's **namespace layout survives intact** (ADR-0014) — that is what consumers actually see:
   `Nordmann.LUI` · `.Indexing` · `.Querying` · `.Normalization` · `.Typos` · `.Similarity` · `.Payloads` · `.DependencyInjection`
 - The DI extension (`AddLui`) lives in namespace `Nordmann.LUI.DependencyInjection` inside the same assembly.
 
@@ -66,7 +66,7 @@ The spec §17.1 proposes three packages (`Nordmann.LUI.Abstractions`, `Nordmann.
 
 ```
 nordmanndev/LUI/
-├── README.md                    ← the front door (see §7)
+├── README.md                    ← the front door (see ADR-0006)
 ├── AGENTS.md                    ← the rules of the repository
 ├── CHANGELOG.md                 ← Keep-a-Changelog; required on public API change
 ├── LICENSE                      ← MIT, "Copyright (c) 2026 Nordmann"
@@ -81,7 +81,7 @@ nordmanndev/LUI/
 │       └── publish.yml          ← v* tag → nuget.org (owner-gated)
 ├── docs/
 │   ├── adr/                     ← ADR-0001… (the spec's E1–E10 become ADRs)
-│   ├── benchmarks.md            ← published numbers for the §16 targets
+│   ├── benchmarks.md            ← published numbers for the ADR-0020 targets
 │   └── plan/                    ← this file
 ├── src/
 │   └── Nordmann.LUI/            ← THE package (one assembly)
@@ -103,7 +103,7 @@ nordmanndev/LUI/
 │   ├── Nordmann.LUI.Architecture.Tests/← NetArchTest rules (the shape of the library)
 │   └── Nordmann.LUI.TestData/         ← corpus + fixtures shared by tests & benchmarks
 ├── benchmarks/
-│   └── Nordmann.LUI.Benchmarks/  ← BenchmarkDotNet + the 3M-corpus generator (§16)
+│   └── Nordmann.LUI.Benchmarks/  ← BenchmarkDotNet + the 3M-corpus generator (ADR-0020)
 ├── samples/
 │   └── Lui.Sample/              ← ASP.NET Core minimal API + the inline static site
 └── tools/
@@ -135,22 +135,22 @@ This is a **library**, not a product. The rules that target products would produ
 | The rule | Why it does not apply to a library |
 |---|---|
 | DDD aggregates, CQS handlers, Mediator dispatch | LUI has no domain and no handlers. `LuiCatalog` → `ILuiIndex` → `Query` is a **library API**, not a command bus. Forcing Mediator in would add a source generator to every consumer's build for no behaviour. |
-| OrmLite persistence layer | LUI *is* the persistence layer, over raw `Microsoft.Data.Sqlite`. A second ORM would hide the SQL that the whole design depends on (the spec's §8 is explicit SQL). |
+| OrmLite persistence layer | LUI *is* the persistence layer, over raw `Microsoft.Data.Sqlite`. A second ORM would hide the SQL that the whole design depends on (the spec's ADR-0008 is explicit SQL). |
 | Outbox / background worker / integration events | LUI has no events. The one long-running operation (`Sync`) takes an `IProgress<T>` and a `CancellationToken` — a background job's shape, not a queue's. |
-| ULID identifiers | The spec fixes `TKey` as `long` or `string` (§12.3) — the *application's* key, not LUI's. LUI must not impose an ID type on its consumer. |
+| ULID identifiers | The spec fixes `TKey` as `long` or `string` (ADR-0035) — the *application's* key, not LUI's. LUI must not impose an ID type on its consumer. |
 | Serilog → Seq as the logging baseline | A library must not force a logging stack on consumers. LUI takes an optional `ILogger` and nothing more; the **sample** may use the built-in `ILogger`. |
 | Multi-tenant by default | LUI opens *one* database per catalog. Tenancy is the application's business. `Linked` mode exists precisely so an app can keep its data where it lives. |
 | Alpine.js + Tailwind frontend baseline | Applies to *project* frontends. The sample is a **library demo**: its job is to expose the LUI API, not to model a production frontend. See D7. |
 
 ### D4 — Dependencies, and the one closed-library deviation
 
-The spec §17.3 names three dependencies. The closed list of the dependencies does **not** name `symspell` or `F23.StringSimilarity`.
+ADR-0004 names three dependencies. The closed list of the dependencies does **not** name `symspell` or `F23.StringSimilarity`.
 
 → **ADR required**, naming both, with the licensing and the alternatives considered. `Microsoft.Data.Sqlite` is the provider of the stack itself, so it needs no exemption.
 
 One more dependency decision: the rule says "never add a NuGet dependency not listed" — and `symspell` is a *dictionary* library, `F23.StringSimilarity` a *distance* library. Both are MIT and actively maintained. The alternative (hand-rolling SymSpell) is a non-starter for a 1.0. The deviation is recorded, not hidden.
 
-### D5 — The nine open questions (§21 O1–O9) are deferred, each with an ADR
+### D5 — The nine open questions (ADR-0003 O1–O9) are deferred, each with an ADR
 
 1.0 ships **exactly** the decided surface of the spec. Each of O1–O9 gets a one-page ADR: the question, the deferral, and the **trigger** that would revive it (e.g. O6 "a `Linked` consumer needs `published = 1` filtering → add a `WHERE` clause to the triggers"). A deferred question with a trigger costs one page; a deferred question without one costs archaeology.
 
@@ -158,7 +158,7 @@ This keeps the API surface honest: nothing in the README is aspirational.
 
 ### D6 — The test corpus: curated in-repo, full list on demand
 
-The spec §19 demands SQL ↔ C# parity over **all 685,829 words** of the German word list. That list is not in the repo, and a CI job that fails because an external URL moved is a test that measures the wrong thing.
+ADR-0019 and `docs/testing.md` demand SQL ↔ C# parity over **all 685,829 words** of the German word list. That list is not in the repo, and a CI job that fails because an external URL moved is a test that measures the wrong thing.
 
 - `tests/Nordmann.LUI.TestData/wordlist/` — a **checked-in curated corpus**: the spec's edge cases (ä/ö/ü/ß, `ẞ`, `İ`, `Ł`, `Łódź`, `Straße`, `Café Crème`, `Apfel-Zimt-Kuchen`, `#Hashtags`, `ß`/`ss` pairs) plus a few thousand common German words covering the letter combinations that stress the transliteration.
 - `tools/fetch-wordlist.sh` — pulls the **full** list for the complete parity run; documented in the README and in `docs/benchmarks.md`.
@@ -197,7 +197,7 @@ The spec §19 demands SQL ↔ C# parity over **all 685,829 words** of the German
 | `POST /api/index/{index}/entries` | Upsert (key, text, weight, priority, payload) |
 | `PATCH /api/index/{index}/entries/{key}` | UpdateWeight / UpdatePriority |
 | `DELETE /api/index/{index}/entries/{key}` | Remove |
-| `POST /api/index/{index}/sync` · `GET /api/index/{index}/check` · `POST /api/index/{index}/rebuild` · `POST /api/index/{index}/optimize` | the maintenance surface (§12.6) |
+| `POST /api/index/{index}/sync` · `GET /api/index/{index}/check` · `POST /api/index/{index}/rebuild` · `POST /api/index/{index}/optimize` | the maintenance surface (ADR-0016) |
 
 The sample seeds two indices so both index kinds are visible: `recipes` (**MultiWord**, Owned) and `tags` (**SingleWord**, Linked) — and `tags` carries a **System**-priority entry (`vegan`) so the priority rule (E10) is visible in the UI, not just in a test.
 
@@ -209,7 +209,7 @@ The sample seeds two indices so both index kinds are visible: `recipes` (**Multi
 
 ### D9 — Sync API (not async) — carried from the spec, and it is the right call
 
-The spec §13 makes the API synchronous because `Microsoft.Data.Sqlite` has no async I/O. That is true and worth keeping: a `Task`-returning API over a synchronous driver is a lie about latency. The sample's ASP.NET Core endpoints therefore call the library **directly in the request** (1–3 ms, CPU-bound), and only the long operations (`Sync`, `Rebuild`) take a `CancellationToken` and run behind a hosted service.
+ADR-0016 makes the API synchronous because `Microsoft.Data.Sqlite` has no async I/O. That is true and worth keeping: a `Task`-returning API over a synchronous driver is a lie about latency. The sample's ASP.NET Core endpoints therefore call the library **directly in the request** (1–3 ms, CPU-bound), and only the long operations (`Sync`, `Rebuild`) take a `CancellationToken` and run behind a hosted service.
 
 ---
 
@@ -230,32 +230,32 @@ Nordmann.LUI.Payloads            IPayloadSerializer<T>, LuiRow
 Nordmann.LUI.DependencyInjection AddLui(), keyed services, ensure-on-start
 ```
 
-All of §12's API, unchanged in shape — only the *packaging* is collapsed to one package (D1).
+All of docs/api.md's API, unchanged in shape — only the *packaging* is collapsed to one package (D1).
 
 ---
 
 ## 5. Delivery plan — one PR per issue, one issue per PR
 
-The spec §20 gives nine steps; I add a repo foundation and the sample, and split the "fluent polish" step so the README is not written against an API that still moves. **12 PRs**, each with ADR + tests + measurement.
+the plan gives nine steps; I add a repo foundation and the sample, and split the "fluent polish" step so the README is not written against an API that still moves. **12 PRs**, each with ADR + tests + measurement.
 
 | PR | Content | Done when |
 |---|---|---|
 | **001** `chore: repo foundation` | solution, `Directory.Build.props`/`.Packages.props`, `.editorconfig`, CI, `AGENTS.md`, LICENSE, ADR-0001 (one package) · 0002 (library vs. application) · 0003 (defer O1–O9) · 0004 (dependencies) | build green, arch tests green, `dotnet pack` produces the `.nupkg` |
-| **002** `feat: normalizer` | `Normalizer` (C#) + the SQL expressions, §6 tables, **parity test** on the curated corpus | parity holds for the whole curated corpus + the spec's edge cases — **done, see §6b** |
-| **003** `feat: single-word owned index` | schema, triggers, packed rowid, candidates, prefix path (1–2 chars), ranking, payload-for-hits-only, `Upsert`/`UpdateWeight`/`UpdatePriority`/`Remove` | golden queries (§Anhang B) green · plan test (`INDEX 64`, no `TEMP B-TREE`) · p50 ≤ 2 ms / p95 ≤ 5 ms on 3M entries |
+| **002** `feat: normalizer` | `Normalizer` (C#) + the SQL expressions, ADR-0005 tables, **parity test** on the curated corpus | parity holds for the whole curated corpus + the spec's edge cases — **done, see §6b** |
+| **003** `feat: single-word owned index` | schema, triggers, packed rowid, candidates, prefix path (1–2 chars), ranking, payload-for-hits-only, `Upsert`/`UpdateWeight`/`UpdatePriority`/`Remove` | golden queries (ADR-0028) green · plan test (`INDEX 64`, no `TEMP B-TREE`) · p50 ≤ 2 ms / p95 ≤ 5 ms on 3M entries |
 | **004** `feat: multi-word index` | word split, `s_compact`, word-start on the compact form, N-gram Dice | golden queries for `MultiWord` green |
-| **005** `feat: typo tolerance` | prefix SymSpell dictionary, 1 edit, 3 corrections, correction triggers only when *no* candidate starts a word | quality floors (§19) green · concurrency test green |
+| **005** `feat: typo tolerance` | prefix SymSpell dictionary, 1 edit, 3 corrections, correction triggers only when *no* candidate starts a word | quality floors (ADR-0019, docs/testing.md) green · concurrency test green |
 | **005a** `feat: api shape` | the review of the API before the first release (issue #11): staged builder, read/write interfaces, `LuiEntry` + `UpsertMany`, named results, one namespace, `Lui` prefix, unused dependencies out | ADR-0013 · smoke test runs the README quick start — **inserted after PR-005** |
 | **005b** `refactor: seams for linked` | the kind as a strategy, the content source as a strategy, the direction of the namespaces, a smaller `QueryRunner` — no behaviour change | ADR-0014 · schema byte-identical · tests unchanged · measurements unchanged — **inserted before PR-006** |
 | **006** `feat: linked index` | `LinkTo`, **loosely coupled** (owner's decision, ADR-0015): no column, index or implicit trigger on the app table; `Sync`, `Refresh`, optional triggers; `Owned<long>` as the builder's default | integration tests against an app table green |
 | **007** `feat: sync / check / rebuild / optimize` | `Sync` (batched, resumable), `Check(source)`, `Check()`, `Rebuild()`, `Optimize()` | 1M-entry sync · abort + resume green |
 | **008** `feat: DI and query polish` | `AddLui`, keyed services, ensure-on-start, hosted `ApplyPending`, stale candidates past the budget; `Highlight` → later version (#20, owner's decision); `.SuggestWhenEmpty` → *no* (D5) | DI smoke test green |
-| **009** `feat: performance budgets` | BenchmarkDotNet project, 3M-corpus generator, §16 targets as tests | every §16 target green or explicitly waived with a reason |
-| **010** `docs: readme, changelog, benchmarks` | the README (§7), `docs/benchmarks.md`, `CHANGELOG.md`, package smoke test with the README code | smoke test green on the packed `.nupkg` |
+| **009** `feat: performance budgets` | BenchmarkDotNet project, 3M-corpus generator, ADR-0020 targets as tests | every ADR-0020 target green or explicitly waived with a reason |
+| **010** `docs: readme, changelog, benchmarks` | the README (ADR-0006), `docs/benchmarks.md`, `CHANGELOG.md`, package smoke test with the README code | smoke test green on the packed `.nupkg` |
 | **011** `feat(sample): the inline static site` | `samples/Lui.Sample` — API + page, seeded corpus, control panel, result panel, index panel | `dotnet run` → the page works; every API knob reachable from the UI |
 | **012** `chore: release 0.1.0` | version, changelog, tag preparation (the **owner** pushes the tag) | `dotnet pack` + smoke test green on the release commit |
 
-**PR-002 is deliberately first and deliberately small.** The SQL ↔ C# parity (§6.2) is the highest-risk claim in the spec; proving it on a small corpus in PR-002 turns a build-breaking surprise in PR-003 into a two-day spike.
+**PR-002 is deliberately first and deliberately small.** The SQL ↔ C# parity (ADR-0005) is the highest-risk claim in the spec; proving it on a small corpus in PR-002 turns a build-breaking surprise in PR-003 into a two-day spike.
 
 ---
 
@@ -263,13 +263,13 @@ The spec §20 gives nine steps; I add a repo foundation and the sample, and spli
 
 The plan is done when **all** of these hold — and I will report each one with evidence, not assertion:
 
-1. **Test delta**: the §19 stages all exist and are green — unit · SQL↔C# parity · integration · golden queries · quality floors · query plan · concurrency · performance.
-2. **Architecture tests** green (NetArchTest: no `Version` on any `PackageReference`; namespace ↔ folder mapping per §17.2; no `System.Text.Json` reflection path; no `Task`-returning public API — §13 is a *test*, not a comment).
+1. **Test delta**: the ADR-0019, docs/testing.md stages all exist and are green — unit · SQL↔C# parity · integration · golden queries · quality floors · query plan · concurrency · performance.
+2. **Architecture tests** green (NetArchTest: no `Version` on any `PackageReference`; namespace ↔ folder mapping per ADR-0014; no `System.Text.Json` reflection path; no `Task`-returning public API — ADR-0016 is a *test*, not a comment).
 3. **`dotnet format --verify-no-changes`** clean; `TreatWarningsAsErrors` on.
 4. **`dotnet pack`** → `Nordmann.LUI.0.1.0.nupkg`; the package smoke test installs it from a local feed into a throwaway application and runs it (`tools/package-smoke-test.sh`).
 5. **The mutation check** (`tools/mutation-check.sh`) — every architecture guard is mutated in an isolated copy and must react. A guard that has never been seen red is a guess. The script reports *how* each mutation was caught: **CAUGHT BY TEST** or **REFUSED BY BUILD** — the difference matters, because a mutation caught for the wrong reason proves nothing.
 6. **The sample runs**: `dotnet run --project samples/Lui.Sample` → the page loads, a suggestion round-trips, and every control changes the JSON result.
-7. **Benchmarks**: `docs/benchmarks.md` carries the measured numbers for the §16 targets, with the machine and the corpus described.
+7. **Benchmarks**: `docs/benchmarks.md` carries the measured numbers for the ADR-0020 targets, with the machine and the corpus described.
 8. **Everything on a branch with a PR** — never straight to `main`.
 
 ---
@@ -313,7 +313,7 @@ decision the plan left open:
 | `tools/mutation-check.sh` | The plan's acceptance bar said "architecture tests green". Green is not evidence. Seven mutations now prove that the guards react. Two of the seven are refused by the *build* (central package management), five by the *test*. |
 | `tools/fetch-wordlist.sh` + `tools/make-curated-corpus.sh` | The corpus is fetched, not curated by hand: a deterministic stride over the 685,829-word list. The Leipzig original sits behind an anti-bot wall; the CC0 mirror is what works. |
 
-The plan's §6 grew items 4 and 5 accordingly. The twelve pull requests are
+The plan's ADR-0005 grew items 4 and 5 accordingly. The twelve pull requests are
 otherwise unchanged.
 
 ## 6b. PR-003 — what actually happened
@@ -324,9 +324,9 @@ also changed three things the plan did not foresee:
 
 | What | Why |
 |---|---|
-| The write path keeps **prepared statements** on a writer connection ([ADR-0009](../adr/0009-writes-use-prepared-statements.md)) | A fresh command per `Upsert` cost 184 µs; a prepared one 59 µs. The §16 build target is out of reach at 184 µs. |
+| The write path keeps **prepared statements** on a writer connection ([ADR-0009](../adr/0009-writes-use-prepared-statements.md)) | A fresh command per `Upsert` cost 184 µs; a prepared one 59 µs. The ADR-0020 build target is out of reach at 184 µs. |
 | `LuiCatalog.Open` **probes the folding** of the loaded SQLite ([ADR-0007](../adr/0007-the-catalog-checks-the-sqlite-it-runs-on.md)) | The fold table is measured data; a different SQLite makes an index invisible, silently. |
-| **The query budget of §16 is not met at 3 M entries** ([ADR-0010](../adr/0010-the-query-budget-at-three-million-entries.md), *Proposed*) | Measured: p50 3.6 ms, p95 26 ms on a trigram-dense synthetic corpus; the time is FTS5's. The plan's "done when" for step 3 named the budget; the pull request reports the numbers instead of the promise, and asks the owner. |
+| **The query budget of ADR-0020 is not met at 3 M entries** ([ADR-0010](../adr/0010-the-query-budget-at-three-million-entries.md), *Proposed*) | Measured: p50 3.6 ms, p95 26 ms on a trigram-dense synthetic corpus; the time is FTS5's. The plan's "done when" for step 3 named the budget; the pull request reports the numbers instead of the promise, and asks the owner. |
 
 
 ## 6c. PR-004 — what actually happened
@@ -334,9 +334,9 @@ also changed three things the plan did not foresee:
 | What | Why |
 |---|---|
 | `Similarity.NgramDice` is **our own, allocation-free** ([ADR-0011](../adr/0011-the-multi-word-index.md)) | Measured: 3.6 MB per query at the 95th percentile with `F23`'s Dice (a dictionary per comparison). Equal to `SorensenDice(2)` on 10,000 random pairs. |
-| One word is searched in `s_compact` alone | Same hits as §8.2's two arms (tested on 1,500 titles), one posting list instead of two. |
-| The search index of a multi-word index holds **`s_compact` only** (owner's decision; §7.4 and §8.2 corrected) | −36 % file, −40 % build, −30 % latency on 500 k titles; one more candidate in 190. |
-| The file size target of §16 (1 M `MultiWord` ≤ 300 MB) is **missed**: 445 MB | long titles (36 characters), and the table holds the text plus two generated forms. |
+| One word is searched in `s_compact` alone | Same hits as ADR-0008's two arms (tested on 1,500 titles), one posting list instead of two. |
+| The search index of a multi-word index holds **`s_compact` only** (owner's decision; ADR-0011 and ADR-0008 corrected) | −36 % file, −40 % build, −30 % latency on 500 k titles; one more candidate in 190. |
+| The file size target of ADR-0020 (1 M `MultiWord` ≤ 300 MB) is **missed**: 445 MB | long titles (36 characters), and the table holds the text plus two generated forms. |
 
 ## 6d. PR-005 — what actually happened
 
@@ -344,8 +344,8 @@ also changed three things the plan did not foresee:
 |---|---|
 | Typo tolerance is **off by default** (`.TypoTolerance(1)` switches it on; a query overrides) ([ADR-0012](../adr/0012-typo-tolerance.md)) | The dictionary costs 138 MB for 685,000 words and a few seconds on first use; an application should decide on that. |
 | Frequency = sum of **`weight + 1`** | SymSpell drops a count of 0, and half of a tag stock has the weight 0. |
-| The candidates of the input **stay** when a correction is searched; each candidate is ranked against the input it was found with | §10.3 says „unite"; the first reading would have lost the mid-word hits and the similarity of the wrong input. |
-| A typo **after the tenth letter** is not corrected; neither is a letter left out or too many in a word of ten letters or more | The dictionary holds the beginnings of 3 … 10 letters (§10.1) — pinned by tests, written down. |
+| The candidates of the input **stay** when a correction is searched; each candidate is ranked against the input it was found with | ADR-0012 says „unite"; the first reading would have lost the mid-word hits and the similarity of the wrong input. |
+| A typo **after the tenth letter** is not corrected; neither is a letter left out or too many in a word of ten letters or more | The dictionary holds the beginnings of 3 … 10 letters (ADR-0012) — pinned by tests, written down. |
 | The p95 of a corrected query is 8.7 ms at 685 k entries (target 10 ms); at 3 M entries it is untested | up to three more FTS statements on a row-by-row index; the bulk build (PR-007) is the lever. |
 
 ## 6e. PR-007 — what actually happened
@@ -373,7 +373,7 @@ also changed three things the plan did not foresee:
 
 | What | Why |
 |---|---|
-| A test per target of §16, in its scenario (`PerformanceBudgets`); a target is met and asserted, or waived with a reason | "every §16 target green or explicitly waived with a reason" — four met, four waived, none lowered ([ADR-0020](../adr/0020-the-performance-budgets-measured.md)) |
+| A test per target of ADR-0020, in its scenario (`PerformanceBudgets`); a target is met and asserted, or waived with a reason | "every ADR-0020 target green or explicitly waived with a reason" — four met, four waived, none lowered ([ADR-0020](../adr/0020-the-performance-budgets-measured.md)) |
 | One generated corpus (`Corpus`) for the budget tests and the benchmarks | the same entries, inputs and typos for a seed; the 3 M corpus generator of the plan |
 | The build of 3 M meets 3 min only with `Sync` and batches of 1,000,000 (172.5 s; 190 s with 100,000) | the number of commits, measured in ADR-0016 |
 | The query p95 is the input length: ≤ 3.1 ms up to four characters, 17.5 ms at eight | FTS5's cost at 3 M. The owner stated the budget per input length (ADR-0010, option 2), the correction, the allocation (bug #30) and the file size anew (2026-11-04, ADR-0020) |
@@ -390,11 +390,11 @@ also changed three things the plan did not foresee:
 | Install | `dotnet add package Nordmann.LUI` |
 | Quick start | the 12-line version: open a catalog → define an index → upsert → query. **This exact code is the smoke test** |
 | The two index kinds | `SingleWord` vs `MultiWord`, with the difference in one table |
-| Owned vs Linked | the same table as the spec §5, in consumer language |
+| Owned vs Linked | the same table as ADR-0014, ADR-0015, in consumer language |
 | The query API | every option of `LuiQueryOptions`, one line each, with the default |
-| Ranking & priority | the rules the user *feels* (§9.1 as a table), and why priority comes first (E10) |
+| Ranking & priority | the rules the user *feels* (ADR-0008 as a table), and why priority comes first (E10) |
 | Typo tolerance | when it triggers, what `CorrectedQuery` means |
-| Performance | the §16 numbers, measured, with the machine |
+| Performance | the ADR-0020 numbers, measured, with the machine |
 | Sample app | how to run it; a screenshot-free description of what it demonstrates |
 | License & contributing | MIT, ADR workflow, PR rules |
 
@@ -404,14 +404,14 @@ also changed three things the plan did not foresee:
 
 | Risk | Severity | Mitigation |
 |---|---|---|
-| **SQL ↔ C# normalizer parity fails on exotic characters.** The SQL side is a `replace()` chain + the tokenizer's `remove_diacritics`; the C# side does Unicode decomposition. These are *not* the same function for `İ`, `Ł`, `ß`/`ss`, Turkish dotless i, or ligatures. | **High** — it is the spec's own duplication (§6.2), and it fails *silently* (search misses, no error) | **Measured and settled in PR-002**: SQLite folds with its own tables — 697 characters of the BMP differ from `char.ToLowerInvariant`, 681 from the precomposed-diacritic rule. The C# side uses a *measured table*, verified against the live tokenizer on every build (ADR-0005). |
+| **SQL ↔ C# normalizer parity fails on exotic characters.** The SQL side is a `replace()` chain + the tokenizer's `remove_diacritics`; the C# side does Unicode decomposition. These are *not* the same function for `İ`, `Ł`, `ß`/`ss`, Turkish dotless i, or ligatures. | **High** — it is the spec's own duplication (ADR-0005), and it fails *silently* (search misses, no error) | **Measured and settled in PR-002**: SQLite folds with its own tables — 697 characters of the BMP differ from `char.ToLowerInvariant`, 681 from the precomposed-diacritic rule. The C# side uses a *measured table*, verified against the live tokenizer on every build (ADR-0005). |
 | **The application's SQLite may fold differently from the build's.** The table is measured from the SQLite that `Microsoft.Data.Sqlite` 10.0.14 bundles; an application that loads a system SQLite folds with other tables — and an index stored with the old folding becomes invisible to the query. | **High** — silent search misses in exactly the deployments that bring their own SQLite | **Decided in ADR-0005, implemented in PR-003**: `LuiCatalog.Open` probes the folding of the SQLite it talks to (a few dozen code points) and fails with a clear error on a mismatch; the fold-table version goes into `lui_meta`, so an index stored with an older table is detected and the application is told to `Rebuild()`. |
 | A **decomposed umlaut** (`Mu` + U+0308 + `ller`) was transliterated differently from the composed one — two spellings, one of them unfindable. | **High** — silent, and macOS file names and some clipboards deliver that form | **Fixed in PR-002**: both sides transliterate the letter plus the combining diaeresis; the edge cases carry the decomposed forms as assertions. |
-| The prefix SymSpell dictionary costs **179 MB / 676k prefixes per index** (§10.1, Anhang A) | Medium | Build it lazily on first typo-tolerant query, not at `Ensure()`; expose `RebuildTypoDictionary()`; document the RAM cost in the README |
+| The prefix SymSpell dictionary costs **179 MB / 676k prefixes per index** (ADR-0012, the record) | Medium | Build it lazily on first typo-tolerant query, not at `Ensure()`; expose `RebuildTypoDictionary()`; document the RAM cost in the README |
 | `Linked` mode writes to the **application's schema** (5 columns + 3 indexes + 3 triggers) | Medium | **Resolved by ADR-0015:** `Linked` never changes the application's table; triggers only on an explicit call or through the application's own migration (`TriggerScript()`) |
 | `symspell` + `F23.StringSimilarity` are **outside the closed library list** | Low (process) | ADR-0004 names both, with license and alternatives |
-| The spec's §16 targets were measured on a 4-core Xeon with the DB in the page cache — **this sandbox is smaller** | Medium | Measure and publish the *sandbox* numbers honestly; keep §16 as the target and report the delta, rather than lowering the target silently |
-| `Microsoft.Data.Sqlite` bundles its own SQLite — the consumer's app may load a **different** SQLite version | Medium | The library checks `sqlite_version()` at open and fails loudly below 3.45 (§17.3) instead of misbehaving |
+| The spec's ADR-0020 targets were measured on a 4-core Xeon with the DB in the page cache — **this sandbox is smaller** | Medium | Measure and publish the *sandbox* numbers honestly; keep ADR-0020 as the target and report the delta, rather than lowering the target silently |
+| `Microsoft.Data.Sqlite` bundles its own SQLite — the consumer's app may load a **different** SQLite version | Medium | The library checks `sqlite_version()` at open and fails loudly below 3.45 (ADR-0004) instead of misbehaving |
 
 ---
 
@@ -420,7 +420,7 @@ also changed three things the plan did not foresee:
 Each of these is a decision I made and would happily revisit — they are all cheap to flip:
 
 1. **Sample shape:** one inline `index.html` (inline CSS + inline vanilla ES module) with flexdatalist vendored — *not* Alpine/Tailwind, *not* a module tree. Reason: "inline static website" + "flexdatalist js only version" both point at a self-contained page; the sample demonstrates the library, not a frontend stack.
-2. **Open questions O1–O9:** all deferred, one ADR each (D5). Nothing from §21 enters 1.0.
+2. **Open questions O1–O9:** all deferred, one ADR each (D5). Nothing from ADR-0003 enters 1.0.
 3. **Corpus:** curated in-repo + opt-in full-list script (D6).
 4. **Publishing:** pipeline ready, owner-gated on the tag and the API key (D8). Nothing is pushed to nuget.org from my side.
 5. **License:** MIT, "Copyright (c) 2026 Nordmann".
