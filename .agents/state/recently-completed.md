@@ -5,6 +5,17 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The API page guards the members, not only the types (#130)
+
+- Every member that `docs/api.md` names for a type exists on that type. The page need not name every member — the
+  promise is the smaller one.
+- The guard was blind in a way nobody knew: the regex of the names in backticks carried `ExplicitCapture` with an
+  unnamed group, and an unnamed group captures nothing — so every token it returned was the empty string. The check of
+  the README ("the README names no type that the code does not have") checked nothing at all. The groups have names now,
+  and the check sees.
+- The guard was seen red before it was seen green, with the defect the issue names: the page wrote `TypoTolerance` on a
+  type that has `TypoDistance`, and the guard of the members says `ILuiIndex.TypoTolerance`.
+
 ## 2026-11-13 — The index of the records gets a guard (#129)
 
 - Four promises now hold the index up: every record has a row, every row names a record that exists, the number of

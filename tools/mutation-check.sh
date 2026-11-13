@@ -666,7 +666,13 @@ expect_caught "a-row-that-points-at-a-record-that-is-not-there" "${ARCHITECTURE_
   "Every_row_of_the_index_points_at_a_record_that_exists" \
   "sed -i 's|(\./0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied\.md)|(./0063-the-surface-of-0-1-0-is-gone.md)|' .agents/adr/README.md"
 
-# 29. The clean trees stay green.
+# 29. A page that names a member the type does not have (issue #130): the page named `TypoTolerance` on a type
+#       that has `TypoDistance`, and the guard of the types accepted it — it compared types, not members.
+expect_caught "a-page-that-names-a-member-the-type-does-not-have" "${ARCHITECTURE_PROJECT}" \
+  "The_page_names_no_member_that_the_type_does_not_have" \
+  "sed -i 's|LuiTypoDistance TypoDistance { get; }|LuiTypoDistance TypoTolerance { get; }|' docs/api.md"
+
+# 30. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 
