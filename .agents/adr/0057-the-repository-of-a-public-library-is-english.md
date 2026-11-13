@@ -4,6 +4,10 @@
 > Every section of it has a home — the ADR or the page that carries the same rule; the mapping is in
 > [ADR-0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md). The sentences below
 > that name the specification are history; the rule they carry lives in the ADR named beside them.
+>
+> **Note (issue #142, 2026-11-13):** the decision reached the files of the pull requests that came after #121.
+> Nine of them carried comments in German, and two carried a quotation of a name that exists in English now.
+> They are translated; the decision below stands as it was written.
 
 - **Status:** Accepted
 - **Date:** 2026-11-12

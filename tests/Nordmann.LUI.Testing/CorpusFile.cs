@@ -220,7 +220,7 @@ public sealed class CorpusFile
         {
             if (line.Length == 0)
             {
-                // das Ende des Kopfs: ab hier ist ein '#' ein Eintrag
+                // the end of the header: from here a '#' is an entry
                 if (header.Count == 0)
                 {
                     throw new InvalidOperationException(

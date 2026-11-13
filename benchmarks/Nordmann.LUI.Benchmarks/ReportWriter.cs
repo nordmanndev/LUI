@@ -113,8 +113,8 @@ internal static class ReportWriter
         var fixture = IndexFixture.Of(settings.Corpus, settings.Entries, settings.Source);
         JournalModes.Add(fixture.JournalMode);
 
-        // die Treffer, die die Abfrage GEFUNDEN hat: `Hits` ist die Obergrenze der Antwort (20),
-        // `CandidatesConsidered` die Zahl der Treffer, die rangiert wurden
+        // the hits the query FOUND: `Hits` is the upper limit of the answer (20),
+        // `CandidatesConsidered` the number of hits that were ranked
         return settings.Run(fixture.Index).CandidatesConsidered.ToString(CultureInfo.InvariantCulture);
     }
 
@@ -176,7 +176,7 @@ internal static class ReportWriter
                 output.AddRange(Rows(table, hits));
             }
 
-            // die alte Tabelle faellt weg: der Bericht behaelt EINE Tabelle — die der Zusammenfassung, mit den Treffern
+            // the old table falls away: the report keeps ONE table — the one of the summary, with the hits
             if (index >= table.First && index <= table.Last)
             {
                 continue;
