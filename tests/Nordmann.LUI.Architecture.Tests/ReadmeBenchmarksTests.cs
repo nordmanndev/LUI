@@ -108,8 +108,8 @@ public sealed class ReadmeBenchmarksTests
     [Fact]
     public void The_reports_come_from_one_run_on_one_machine()
     {
-        // issue #124: jeder Bericht traegt seinen eigenen Lauf (Datum, Messungen je Fall) — der Vergleich laeuft
-        // ueber die MASCHINE und die Laufzeit, nicht ueber den ganzen Block: der Block ist je Klasse verschieden.
+        // issue #124: every report carries its own run (the date, the measurements per case) — the comparison runs
+        // over the MACHINE and the run time, not over the whole block: the block differs per class.
         var machines = Sections
             .Select(section => (section.Class, Environment: Report.Read(ReportPath(section.Class)).Environment))
             .ToArray();

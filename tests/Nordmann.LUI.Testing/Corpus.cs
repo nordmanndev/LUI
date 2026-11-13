@@ -96,7 +96,7 @@ public sealed class Corpus
     }
 
     /// <summary>
-    /// Inputs with one typo (ADR-0012, ADR-0020 "Abfrage mit Tippfehler-Korrektur"): the beginning of an entry of 5 … 9 letters with
+    /// Inputs with one typo (ADR-0012, ADR-0020 "query with correction"): the beginning of an entry of 5 … 9 letters with
     /// one edit after the first letter — the inputs a typo tolerance is there for.
     /// </summary>
     /// <param name="count">How many inputs.</param>

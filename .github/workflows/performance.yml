@@ -10,8 +10,8 @@ name: Performance
 # runs without writing down what it measured proves nothing.
 on:
   schedule:
-    # 03:17 UTC am Montag — eine Zahl der Woche, nicht jede Nacht (issue #124): der Zeitplan laeuft auf dem
-    # Standardbranch, die Zahl der Woche ist damit die stabile Linie von `main`; `dev` wird von Hand gemessen.
+    # 03:17 UTC on Monday — one number of the week, not every night (issue #124): the schedule runs on the
+    # default branch, the number of the week is thereby the stable line of `main`; `dev` is measured by hand.
     - cron: '17 3 * * 1'
   workflow_dispatch:
     inputs:

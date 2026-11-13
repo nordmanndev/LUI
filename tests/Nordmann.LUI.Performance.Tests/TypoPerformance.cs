@@ -166,13 +166,13 @@ public sealed class TypoPerformance(ITestOutputHelper output)
             .Any(h => string.Equals(h.Text, word, StringComparison.Ordinal));
 
     /// <summary>
-    /// Das Korpus der Messung: die Datei, die das Budget ihres Ziels nennt (ADR-0056). Der
-    /// Schnitt, den die Messung nimmt, ist der des Budgets, beschnitten um die Zahl der
-    /// Eintraege des Laufs. Welches Korpus es war, steht im Bericht — zwei Messungen auf
-    /// zwei Korpora sind kein Vergleich.
+    /// The corpus of the measurement: the file that the budget of its target names (ADR-0056). The
+    /// slice that the measurement takes is the one of the budget, cut to the number of entries of the
+    /// run. Which corpus it was stands in the report — two measurements on two corpora are no
+    /// comparison.
     /// </summary>
-    /// <param name="budgetId">Die Kennung des Budgets, dessen Ziel gemessen wird.</param>
-    /// <returns>Das Korpus des Laufs.</returns>
+    /// <param name="budgetId">The id of the budget whose target is measured.</param>
+    /// <returns>The corpus of the run.</returns>
     private Corpus CorpusOf(string budgetId)
     {
         var corpus = Scenario.CorpusOf(budgetId, out var name);

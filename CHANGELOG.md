@@ -102,6 +102,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - The sample's checkbox and its `distinct` parameter are gone; the tutorial, the README and
     [`docs/api.md`](docs/api.md) follow.
 
+### Fixed
+
+- **The repository speaks one language, down to the comments**
+  ([ADR-0057](.agents/adr/0057-the-repository-of-a-public-library-is-english.md), #142). The pull requests of the
+  series left nine files in German — the comment of the schedule of the lane, the documentation of the corpus of
+  the measurements, two comments of the report writer — and two quotations of names that exist in English now.
+  They are translated. The sample data stays German on purpose: it shows what the normalisation is for.
+  **No change to the public API.**
+
 ## [0.1.0-alpha] — 2026-11-11
 
 The first release, and a **prerelease** of 0.1.0
