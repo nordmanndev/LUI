@@ -5,6 +5,21 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The plan of the round of the measured work (0.2.0)
+
+- The plan of the round of `0.2.0` is written:
+  [the round of the measured work](../plan/2026-11-13-the-round-of-the-measured-work.md) — D1 to D8. It carries the five
+  tasks that the release of `0.1.1` left open: **#134** (the 1912 bytes), **#154** (the integration flake), **#44** (the
+  dependency on `symspell`), **#31** (the shadow build of `Linked.Sync()`) and **#32** (the first load of 3 M entries).
+- The two forks of the round were put to the owner and answered on 2026-11-13: **measure first, then decide** — the round
+  carries the measurement and the ADR for #31 and #44, and the implementation they may call for belongs to the round after
+  this one. #32 is the one implementation of the round.
+- The order is the order of the costs: the two flakes first (they need runs, not decisions), then the two decisions (the
+  measurements behind them are cheap), then the load (it needs two machines and hours), then the release.
+- The plan names the traps that are known: the fourth lever of #32 ("content first, then rebuild") is measured already and
+  rejected (ADR-0016), a budget that is missed is not lowered in passing, and a time belongs to the machine it was measured
+  on (ADR-0041).
+
 ## 2026-11-13 — LUI 0.1.1 is released (the pull request `dev` → `main` merged, the tag `v0.1.1` cut)
 
 - The release of the round after the first release: the guards of the repository and the dead paths of the records. The
