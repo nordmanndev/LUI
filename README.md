@@ -445,6 +445,7 @@ are **created on demand** — the page fills them when you ask for it, and shows
 | **[The benchmarks](./docs/benchmarks.md)** | every measured number, with the machine, the corpus and the method |
 | **[The normalisation](./docs/normalization.md)** | the rule that turns a text into a searchable form — and what was measured about it |
 | **[The test map](./docs/testing.md)** | which test proves which rule |
+| **[The testing strategy](./docs/testing-strategy.md)** | why the tests are built the way they are — the layers, the techniques and their reason |
 | **[What applies to a library](./docs/architecture/alignment.md)** and **[the domain](./docs/domain/lui.md)** | the engineering hygiene of a library — and the terms the library speaks |
 
 ## Status

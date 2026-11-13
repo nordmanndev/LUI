@@ -9,6 +9,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The chapter that says why the tests are built the way they are**
+  ([the testing strategy](docs/testing-strategy.md), #81). The layers, the techniques and their reason — real SQLite and no
+  mocks, a file and not `:memory:`, the names as sentences, the three kinds of oracle, a measurement that is not a test,
+  the guards that read the documentation, the mutation check — what is deliberately not done, and what a new test brings
+  with it. The drift of the prose is gone: the durations of the map are orders of magnitude now, and the soak of the
+  concurrency tests says six readers over four thousand entries, as the code does. **No change to the public API.**
 - **The surface of 0.1.0, written against the review of 2026-11-04**
   ([ADR-0063](.agents/adr/0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied.md), #144). Every point of the
   independent review of 2026-11-04 — the ones that were decided and the ones that were declined — and the type or the
