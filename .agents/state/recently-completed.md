@@ -5,6 +5,17 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The index of the records gets a guard (#129)
+
+- Four promises now hold the index up: every record has a row, every row names a record that exists, the number of
+  the row is the number of the record, and the topic of a row is one of the topics of the index.
+- The guard was seen red before it was seen green — and it found a drift the issue did not know about: two rows
+  carried a topic that the table of the index does not name. `Build` (the pipelines and the release) is now a topic
+  of the index, and the two records of the warm-up moved to `Runtime`, whose description covers the host and the work
+  in the background.
+- Two mutations prove that the guard bites: `a-record-that-is-not-in-the-index` and
+  `a-row-that-points-at-a-record-that-is-not-there`.
+
 ## 2026-11-13 — The six dead paths of the records are repaired, and a guard holds them up (#137)
 
 - The six paths of ADR-0032, ADR-0041 and ADR-0056 that named files which moved with PR #77 and PR #136 now name the
