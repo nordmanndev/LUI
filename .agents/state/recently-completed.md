@@ -5,6 +5,17 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The release of 0.1.1: the version line, the CHANGELOG section, the README status
+
+- `Directory.Build.props` has `VersionPrefix` `0.1.1`, without a suffix (ADR-0053): the tag `v0.1.1` follows the tag `v0.1.0`
+  that the freeze of ADR-0026 began with.
+- The CHANGELOG has the section `## [0.1.1] — 2026-11-13`: the four guards of the round, and the four defects they found.
+- The README states the version — the badge, the sentence under the install line, and the status: released as `0.1.1`, with
+  the public API frozen since `0.1.0`.
+- The test of the identity of the package follows the version.
+- The public API does not move: the round is the promises the repository makes about itself, and none of it touches the
+  library. No migration note, no new ADR.
+
 ## 2026-11-13 — The C# blocks of the tutorial are compiled by a guard (#128)
 
 - `tools/tutorial-check.py` reads every page under `docs/tutorial/`, compiles the C# blocks of the page as one program, runs
