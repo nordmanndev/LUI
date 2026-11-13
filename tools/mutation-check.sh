@@ -39,6 +39,10 @@ readonly ARCHITECTURE_PROJECT="tests/Nordmann.LUI.Architecture.Tests/Nordmann.LU
 readonly UNIT_PROJECT="tests/Nordmann.LUI.Unit.Tests/Nordmann.LUI.Unit.Tests.csproj"
 readonly INTEGRATION_PROJECT="tests/Nordmann.LUI.Integration.Tests/Nordmann.LUI.Integration.Tests.csproj"
 
+# The interpreter of the tools of the repository: Python (tools/link-check.py, tools/tutorial-check.py).
+# The name is python3 on Linux and python on Windows — the first one that is there is the one.
+readonly PYTHON="$(command -v python3 || command -v python || echo python3)"
+
 cleanup() { rm -rf "${WORK}"; }
 trap cleanup EXIT
 
@@ -161,6 +165,45 @@ expect_refused() {
     echo "FAIL  ${name}: the build accepted the mutation — the toolchain does not guard this rule"
     echo "${output}" | tail -6
     failures=$((failures + 1))
+  fi
+}
+
+# expect_command_caught <name> <command> <mutation-command> <text-the-output-has-to-name>
+#
+# The guard is a command and not a test (issue #128): the tutorial check compiles the C# blocks of the
+# documentation and compares what they print with the pages. The mutation is run in a copy of the
+# repository, and the command has to fail — and it has to name what it found, so that a command that
+# fails for another reason is not a proof.
+expect_command_caught() {
+  in_shard "$1" || return 0
+  local name="$1"
+  local command="$2"
+  local mutation="$3"
+  local expected="$4"
+  local copy
+  copy="$(prepare_copy "${name}")"
+
+  ( cd "${copy}" && eval "${mutation}" ) >/dev/null 2>&1
+
+  local output status
+  output="$( cd "${copy}" && eval "${command}" 2>&1 )"
+  status=$?
+
+  if [ "${status}" -eq 127 ]; then
+    # The command does not exist — a broken script reports a green that proves nothing.
+    echo "FAIL  ${name}: the command does not exist — the script is broken"
+    failures=$((failures + 1))
+  elif [ "${status}" -eq 0 ]; then
+    echo "FAIL  ${name}: the command accepted the mutation"
+    echo "${output}" | tail -8
+    failures=$((failures + 1))
+  elif ! grep -qF "${expected}" <<<"${output}"; then
+    # It failed, but it did not name what the mutation broke.
+    echo "FAIL  ${name}: the command failed, but it did not name '${expected}'"
+    echo "${output}" | tail -8
+    failures=$((failures + 1))
+  else
+    echo "PASS  ${name}: CAUGHT BY THE COMMAND"
   fi
 }
 
@@ -648,7 +691,46 @@ expect_caught "a-stop-that-does-not-wait-for-the-round" "${INTEGRATION_PROJECT}"
   "FullyQualifiedName~The_host_waits_for_a_round_that_runs_when_it_is_disposed" \
   "sed -i '/^        JoinRound();$/d' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
 
-# 27. The clean trees stay green.
+# 27. A record that names a file that is not there (issue #137): the files of the measurements moved
+#       twice, and a path that points at nothing is a broken promise.
+expect_caught "a-record-that-names-a-file-that-is-not-there" "${ARCHITECTURE_PROJECT}" \
+  "Every_path_of_a_record_names_a_file_that_exists" \
+  "sed -i 's|tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs|tests/Nordmann.LUI.Performance.Tests/BudgetPerformanceGone.cs|' .agents/adr/0056-the-budgets-live-in-a-file.md"
+
+# 28. A record that is not in the index of the records (issue #129): the index is written by hand, and a
+#       record that is missing from it is invisible until a reader looks for it.
+expect_caught "a-record-that-is-not-in-the-index" "${ARCHITECTURE_PROJECT}" \
+  "Every_record_of_the_decisions_has_a_row_in_the_index" \
+  "sed -i '/| \[0063\](\.\/0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied\.md)/d' .agents/adr/README.md"
+
+# 28b. A row of the index that points at a record that is not there (issue #129): a broken pointer in the
+#       place a reader looks for a decision.
+expect_caught "a-row-that-points-at-a-record-that-is-not-there" "${ARCHITECTURE_PROJECT}" \
+  "Every_row_of_the_index_points_at_a_record_that_exists" \
+  "sed -i 's|(\./0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied\.md)|(./0063-the-surface-of-0-1-0-is-gone.md)|' .agents/adr/README.md"
+
+# 29. A page that names a member the type does not have (issue #130): the page named `TypoTolerance` on a type
+#       that has `TypoDistance`, and the guard of the types accepted it — it compared types, not members.
+expect_caught "a-page-that-names-a-member-the-type-does-not-have" "${ARCHITECTURE_PROJECT}" \
+  "The_page_names_no_member_that_the_type_does_not_have" \
+  "sed -i 's|LuiTypoDistance TypoDistance { get; }|LuiTypoDistance TypoTolerance { get; }|' docs/api.md"
+
+# 30. A block of the tutorial that does not compile (issue #128): the guard compiles the blocks of the
+#      documentation and compares what they print with the pages — a block that names an API the
+#      library does not have has to fail the lane.
+expect_command_caught "a-tutorial-block-that-does-not-compile" \
+  "${PYTHON} tools/tutorial-check.py" \
+  "sed -i 's|index.SingleWord()|index.SingleWordTypo()|' docs/tutorial/01-first-index.md" \
+  "docs/tutorial/01-first-index.md"
+
+# 31. A page of the tutorial that says something else than the code does (issue #128): the text block
+#      of the page is the output of the block above it, and the guard compares the two.
+expect_command_caught "a-tutorial-page-that-says-something-else" \
+  "${PYTHON} tools/tutorial-check.py" \
+  "sed -i 's|^1: vegan (120)\$|1: vegan (999)|' docs/tutorial/01-first-index.md" \
+  "docs/tutorial/01-first-index.md"
+
+# 32. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

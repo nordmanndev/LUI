@@ -16,9 +16,9 @@
     `tests/Nordmann.LUI.Testing/Nordmann.LUI.Testing.csproj` (the embedded resource)
   - `tests/Nordmann.LUI.Architecture.Tests/ReadmeBudgetsTests.cs`,
     `tests/Nordmann.LUI.Architecture.Tests/LuiBudgetsTests.cs` (new)
-  - `tests/Nordmann.LUI.Integration.Tests/Performance/PerformanceBudget.cs`,
-    `tests/Nordmann.LUI.Integration.Tests/Performance/BudgetPerformance.cs`,
-    `tests/Nordmann.LUI.Integration.Tests/Performance/BudgetMachineTests.cs`
+  - `tests/Nordmann.LUI.Testing/PerformanceBudget.cs`,
+    `tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs`,
+    `tests/Nordmann.LUI.Unit.Tests/Budgets/BudgetMachineTests.cs`
   - `README.md`, `docs/benchmarks.md`, `docs/testing.md`, `AGENTS.md`,
     (ADR-0020 points at the file)
   - `tools/mutation-check.sh` (the two budget mutations edit the file now)

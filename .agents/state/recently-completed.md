@@ -5,6 +5,90 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-13 — The release of 0.1.1: the version line, the CHANGELOG section, the README status
+
+- `Directory.Build.props` has `VersionPrefix` `0.1.1`, without a suffix (ADR-0053): the tag `v0.1.1` follows the tag `v0.1.0`
+  that the freeze of ADR-0026 began with.
+- The CHANGELOG has the section `## [0.1.1] — 2026-11-13`: the four guards of the round, and the four defects they found.
+- The README states the version — the badge, the sentence under the install line, and the status: released as `0.1.1`, with
+  the public API frozen since `0.1.0`.
+- The test of the identity of the package follows the version.
+- The public API does not move: the round is the promises the repository makes about itself, and none of it touches the
+  library. No migration note, no new ADR.
+
+## 2026-11-13 — The C# blocks of the tutorial are compiled by a guard (#128)
+
+- `tools/tutorial-check.py` reads every page under `docs/tutorial/`, compiles the C# blocks of the page as one program, runs
+  it and compares what it prints with the text block of the page. It runs in the package lane of the CI, beside the smoke
+  test of the README.
+- The guard found a defect in the tutorial: the typed view of the payload (page 3) declared `chip` again — the name the
+  block above had already declared. A reader who pasted the two blocks into one scope got CS0128; the variable is `typed`
+  now.
+- The pages carry two conventions of their own, and the tool reads them: a block that continues the block above says so in
+  its first line (`// continues the block above`), and a block that declares no statement is a listing of the types of the
+  application — it is compiled on its own, because the program of the page has these types already.
+- The mutation check learned a third mechanism, `expect_command_caught`: the guard of this issue is a command and not a
+  test, so the mutation has to make the command fail — and to name what it found. Two mutations prove it:
+  `a-tutorial-block-that-does-not-compile` and `a-tutorial-page-that-says-something-else`.
+- Page 5 (`05-in-the-application.md`) is skipped, and the tool names it: its blocks need a host — a web application or a
+  container — and are not console programs.
+
+## 2026-11-13 — The API page guards the members, not only the types (#130)
+
+- Every member that `docs/api.md` names for a type exists on that type. The page need not name every member — the
+  promise is the smaller one.
+- The guard was blind in a way nobody knew: the regex of the names in backticks carried `ExplicitCapture` with an
+  unnamed group, and an unnamed group captures nothing — so every token it returned was the empty string. The check of
+  the README ("the README names no type that the code does not have") checked nothing at all. The groups have names now,
+  and the check sees.
+- The guard was seen red before it was seen green, with the defect the issue names: the page wrote `TypoTolerance` on a
+  type that has `TypoDistance`, and the guard of the members says `ILuiIndex.TypoTolerance`.
+
+## 2026-11-13 — The index of the records gets a guard (#129)
+
+- Four promises now hold the index up: every record has a row, every row names a record that exists, the number of
+  the row is the number of the record, and the topic of a row is one of the topics of the index.
+- The guard was seen red before it was seen green — and it found a drift the issue did not know about: two rows
+  carried a topic that the table of the index does not name. `Build` (the pipelines and the release) is now a topic
+  of the index, and the two records of the warm-up moved to `Runtime`, whose description covers the host and the work
+  in the background.
+- Two mutations prove that the guard bites: `a-record-that-is-not-in-the-index` and
+  `a-row-that-points-at-a-record-that-is-not-there`.
+
+## 2026-11-13 — The six dead paths of the records are repaired, and a guard holds them up (#137)
+
+- The six paths of ADR-0032, ADR-0041 and ADR-0056 that named files which moved with PR #77 and PR #136 now name the
+  files where they live. The class names stay as they were written — ADR-0049 is the key to them; only the paths were
+  broken.
+- The guard is a test of the architecture layer: every path of the list of the affected files of a *current* record
+  names a file that exists. The records before ADR-0049 keep the names of their day, and a path that a record marks as
+  `**deleted**` is a path on purpose (ADR-0061). The link check does not see these paths: a path in a list is not a
+  link.
+- The guard was seen red before it was seen green, and its mutation — `a-record-that-names-a-file-that-is-not-there` —
+  is caught.
+
+## 2026-11-13 — The plan of the round after the release (`.agents/plan/2026-11-13-the-round-after-the-first-release.md`)
+
+- The plan names what the release left open and in which order: `0.1.1` carries the six dead paths of the records
+  (#137) and the three missing guards (#129, #130, #128); `0.2.0` carries the measured work and the decisions (#134,
+  #32, #31, #44).
+- The decisions D1 to D7: the next version is a patch and the one after it a minor version (the freeze of ADR-0026);
+  every guard comes with a mutation; the mutation check learns a third mechanism (`expect_command_caught`) for the
+  tutorial check, which is a script and not a test; the paths of the records are repaired and the names stay (ADR-0049);
+  the flake gets an issue (#154) with the two facts that are known; the branch model does not change.
+- The four tasks change no public API, so they get no ADR — a decision about the work that changes no code of the
+  library is a plan, not a record of a decision.
+
+## 2026-11-13 — LUI 0.1.0 is released (PR #152 merged, tag `v0.1.0`)
+
+- The release pull request `dev` → `main` is merged (`e316c4b`), the tag `v0.1.0` is cut on that commit, and the freeze
+  of ADR-0026 begins with it: the public API of the two packages grows only additively from now on.
+- The pipeline refused nothing: the tag check read the version of `Directory.Build.props` (`0.1.0`, without a suffix) and
+  agreed with the tag; the gates of every pull request run on the tagged commit before the push is asked for.
+- The push to nuget.org waits for the owner in the environment `nuget` — a key of one hour, no key in the repository
+  (ADR-0048).
+- The epics #39, #64 and #72 are closed with the release, each with the proof of its steps.
+
 ## 2026-11-13 — The release of 0.1.0: the version line, the CHANGELOG section, the README status
 
 - `Directory.Build.props` has no `VersionSuffix` any more: the version of the repository is `0.1.0`, the tag is `v0.1.0`

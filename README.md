@@ -2,7 +2,7 @@
 
 > **Autocomplete suggestions for .NET, straight out of your own SQLite database.** The suggestions of a search field: the best 5–20 entries out of a stock of up to a few million short texts.
 
-[![Build](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml/badge.svg)](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/Nordmann.LUI.svg)](https://www.nuget.org/packages/Nordmann.LUI) ![Version](https://img.shields.io/badge/version-0.1.0-8A2BE2) [![Licence](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE) [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
+[![Build](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml/badge.svg)](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/Nordmann.LUI.svg)](https://www.nuget.org/packages/Nordmann.LUI) ![Version](https://img.shields.io/badge/version-0.1.1-8A2BE2) [![Licence](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE) [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 
 ## What LUI is
 
@@ -39,7 +39,7 @@ dotnet add package Nordmann.LUI.Hosting    # AddLui and the catalog, for ASP.NET
 ```
 
 The two packages are released together, with one version; the core starts no thread of its own. The version is
-`0.1.0`, and the public API is frozen from here on: it grows only additively (see [Status](#status)).
+`0.1.1`, and the public API is frozen from here on: it grows only additively (see [Status](#status)).
 
 ## Quick start
 
@@ -450,7 +450,7 @@ are **created on demand** — the page fills them when you ask for it, and shows
 
 ## Status
 
-LUI is **released as `0.1.0`**, and the public API is frozen with it
+LUI is **released as `0.1.1`**, and the public API has been frozen since `0.1.0`
 ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)). The design is specified, and the
 implementation follows it; every decision of the repository is written down and dated.
 
