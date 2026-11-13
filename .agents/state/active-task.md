@@ -5,8 +5,9 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** #129 — the index of the ADRs gets a guard. It is the second pull request of the round after the release.
-**Branch:** `fix/137-the-paths-of-the-records` carries the first pull request of the round; `dev` is at `813f1c3`,
+**Issue:** #130 — the API page guards the members, not only the types. It is the third pull request of the round after
+the release.
+**Branch:** `fix/129-the-index-of-the-records` carries the second pull request of the round; `dev` is at `ad9111e`,
 `main` at `e316c4b` — the tag `v0.1.0` is on the commit of `main`.
 **Decision:** the plan
 ([the round after the first release](./../plan/2026-11-13-the-round-after-the-first-release.md)) — D1 to D7, on the
@@ -31,9 +32,9 @@ owner's behalf, 2026-11-13.
 
 The four pull requests of the first round, in the order of the plan:
 
-1. ~~**#137**~~ — the dead paths in the records: six paths in four records. **Done.**
-2. **#129** — the index of the ADRs gets a guard. The next one.
-3. **#130** — the API page guards the members, not only the types.
+1. ~~**#137**~~ — the dead paths in the records: six paths in three records. **Done.**
+2. ~~**#129**~~ — the index of the ADRs gets a guard. **Done.**
+3. **#130** — the API page guards the members, not only the types. The next one.
 4. **#128** — the code blocks of the tutorials are compiled by a guard. The issue names the tutorials by their old
    names; they are `01-first-index.md` … `05-in-the-application.md` since PR #135.
 
@@ -43,6 +44,8 @@ integration layer that failed once under load and did not reproduce.
 
 ## The next step
 
-**#129** — the index of the ADRs is written by hand: a new record without a row in it is invisible until a reader
-looks for it, and a row that names a record that is not there is a broken pointer. The rule is a test of the
-architecture layer, next to `AdrPathTests`, which reads the same folder already.
+**#130** — `docs/api.md` names the members of a type in the second column of its table, and nothing compared them:
+the page listed `TypoTolerance` on a type that has `TypoDistance`, and the guard accepted it, because it compared
+types and not members. The rule: every member that the page names for a type exists on that type — and the page is
+not obliged to name every member. The guard belongs beside the one that holds the types up, in
+`PublicApiDocumentationTests`.

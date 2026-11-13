@@ -654,7 +654,19 @@ expect_caught "a-record-that-names-a-file-that-is-not-there" "${ARCHITECTURE_PRO
   "Every_path_of_a_record_names_a_file_that_exists" \
   "sed -i 's|tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs|tests/Nordmann.LUI.Performance.Tests/BudgetPerformanceGone.cs|' .agents/adr/0056-the-budgets-live-in-a-file.md"
 
-# 28. The clean trees stay green.
+# 28. A record that is not in the index of the records (issue #129): the index is written by hand, and a
+#       record that is missing from it is invisible until a reader looks for it.
+expect_caught "a-record-that-is-not-in-the-index" "${ARCHITECTURE_PROJECT}" \
+  "Every_record_of_the_decisions_has_a_row_in_the_index" \
+  "sed -i '/| \[0063\](\.\/0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied\.md)/d' .agents/adr/README.md"
+
+# 28b. A row of the index that points at a record that is not there (issue #129): a broken pointer in the
+#       place a reader looks for a decision.
+expect_caught "a-row-that-points-at-a-record-that-is-not-there" "${ARCHITECTURE_PROJECT}" \
+  "Every_row_of_the_index_points_at_a_record_that_exists" \
+  "sed -i 's|(\./0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied\.md)|(./0063-the-surface-of-0-1-0-is-gone.md)|' .agents/adr/README.md"
+
+# 29. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

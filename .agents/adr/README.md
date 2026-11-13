@@ -53,6 +53,7 @@ decided about the query path" without opening 36 files.
 | `Testing` | the test tree, the map, the guards |
 | `Sample` | the sample application |
 | `Documentation` | where a document belongs |
+| `Build` | the pipelines of the repository and the release |
 | `Scope` | what is deferred, and what is out of scope |
 
 ## Index
@@ -101,9 +102,9 @@ decided about the query path" without opening 36 files.
 | [0040](./0040-the-budget-table-of-the-entrance-is-a-promise.md) | The budget table of the entrance is the promise of ADR-0020, and a test holds it up | Measurement | Accepted |
 | [0041](./0041-the-budgets-of-16-run-on-a-schedule.md) | The budgets of ADR-0020 run on a schedule: the bytes are asserted, the times are reported | Measurement | Accepted (restated 2026-11-12, issue #122, ADR-0058) |
 | [0042](./0042-the-query-does-not-build-the-typo-dictionary.md) | The query does not build the typo dictionary: the application asks for it | Typo tolerance | Accepted |
-| [0043](./0043-the-warm-up-is-a-service-of-the-host.md) | The warm-up is a service of the host: the host asks for it, the library starts nothing | Hosting | Accepted |
+| [0043](./0043-the-warm-up-is-a-service-of-the-host.md) | The warm-up is a service of the host: the host asks for it, the library starts nothing | Runtime | Accepted |
 | [0044](./0044-the-typed-view-over-the-untyped-index.md) | The typed view over the untyped index: `index.As<T>()` gives the payload in the type of the application | API | Accepted |
-| [0045](./0045-the-warm-up-tells-the-logger-of-the-host.md) | The warm-up tells the logger of the host what it did and what failed | Hosting | Accepted |
+| [0045](./0045-the-warm-up-tells-the-logger-of-the-host.md) | The warm-up tells the logger of the host what it did and what failed | Runtime | Accepted |
 | [0046](./0046-the-busy-timeout-is-the-wait-for-a-lock.md) | The busy timeout of the catalog is the wait for a lock — not the 30 s of the provider | Storage | Accepted |
 | [0047](./0047-the-pipelines-change-only-with-the-repository.md) | The pipelines change only with the repository: the SDK of `global.json`, named images, actions pinned by commit, timeouts, Dependabot | Build | Accepted |
 | [0048](./0048-the-release-is-the-pull-request-gate-the-owner-and-a-key-of-one-hour.md) | The release: the gates of every pull request, the owner's approval, a key of one hour (Trusted Publishing) | Build | Accepted |
