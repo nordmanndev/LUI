@@ -8,7 +8,7 @@
 
 ## The steps
 
-1. **The guard.** A new architecture test, `Readme_Budgets`: it reads the target table of §16 out of the
+1. **The guard.** A new architecture test, `Readme_Budgets`: it reads the target table of ADR-0020 out of the
    specification and compares the limits with the budget table of the README and with the target table of the record —
    in order, so a swapped limit is caught as well as a changed one.
 2. **The drift it finds.** The allocation row promised ≤ 250 / ≤ 350 KB; the specification and the budget test have

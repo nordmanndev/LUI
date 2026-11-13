@@ -55,13 +55,13 @@ These never break. Each of them has a test.
    candidate *first*, even when 33 000 other entries match (Anhang A, A8).
 3. **The normalisation rule is the same on both sides.** The SQL columns and
    the C# normaliser produce the same search form — for every word of the
-   German word list, not for a sample of it (§6.2, §19).
+   German word list, not for a sample of it (ADR-0005, ADR-0019, docs/testing.md).
 4. **A query never mutates.** Not the data, not the index, not the schema.
 5. **An index is never silently rebuilt.** A definition that differs from
    `lui_meta` is an error that names both definitions.
 6. **Identifiers never reach SQL unchecked.** Every name is validated against
    `^[a-z][a-z0-9_]{0,40}$` before it is interpolated.
-7. **The query API is synchronous** (§13). `Microsoft.Data.Sqlite` has no
+7. **The query API is synchronous** (ADR-0016). `Microsoft.Data.Sqlite` has no
    asynchronous I/O; a `Task` would be a lie.
 
 ## 4. The data model
@@ -122,7 +122,7 @@ Each finding of a check names its repair.
 
 ## 7. Out of scope for 1.0
 
-Everything in §21 of the specification, with the reason and the revival
+Everything in ADR-0003 of the specification, with the reason and the revival
 condition in ADR-0003: multi-word
 prefix matching (O1), virtual normalised columns (O2), hashtags as word
 beginnings (O3), weight expressions (O4), languages beyond German (O5),

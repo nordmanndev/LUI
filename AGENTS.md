@@ -12,7 +12,7 @@
 1. [`README.md`](./README.md) — what LUI is, and what it is not
 2. [`.agents/README.md`](./.agents/README.md) — the index of the **papers of the
    work**: the specification, the decisions, the plans, the state
-3. [`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md) — the
+3. [](./) — the
    behaviour of the library as it is written down: the kinds of index, the
    sources of the content, the query path, the ranking, the typo tolerance, the
    API. The implementation follows it
@@ -100,7 +100,7 @@ request with its own review.
 **The truth of this repository is in this repository.** The decisions live in
 [`.agents/adr/`](./.agents/adr/) with their reason, the behaviour of the library
 is written down in
-[`.agents/spec/LUI-Spezifikation.md`](./.agents/spec/LUI-Spezifikation.md), and
+[](./), and
 the budgets live in one file
 ([`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json),
 ADR-0056). No document outside the repository is part of it — a reader who has

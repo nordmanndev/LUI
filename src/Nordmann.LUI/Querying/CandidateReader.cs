@@ -7,8 +7,8 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI.Querying;
 
 /// <summary>
-/// The first stage of a query (LUI-Spezifikation §8.1, §8.2): the candidates of one input out of SQLite, in
-/// the order of the rowid, each with its word start (§9.1). The statements come from the content source.
+/// The first stage of a query (ADR-0008, ADR-0008): the candidates of one input out of SQLite, in
+/// the order of the rowid, each with its word start (ADR-0008). The statements come from the content source.
 /// </summary>
 internal sealed class CandidateReader
 {

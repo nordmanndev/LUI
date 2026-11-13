@@ -63,7 +63,7 @@ decided about the query path" without opening 36 files.
 | [0007](./0007-the-catalog-checks-the-sqlite-it-runs-on.md) | The catalog checks the SQLite it runs on | Probe | Accepted |
 | [0008](./0008-the-query-path.md) | The query path: groups, a lazy similarity, and what the result reserves | Query path | Accepted |
 | [0009](./0009-writes-use-prepared-statements.md) | Writes use prepared statements on one writer connection | Storage | Accepted |
-| [0010](./0010-the-query-budget-at-three-million-entries.md) | The query budget of §16 does not hold at three million entries on FTS5 alone | Measurement | Accepted (owner, 2026-11-04: the budget per input length) |
+| [0010](./0010-the-query-budget-at-three-million-entries.md) | The query budget of ADR-0020 does not hold at three million entries on FTS5 alone | Measurement | Accepted (owner, 2026-11-04: the budget per input length) |
 | [0011](./0011-the-multi-word-index.md) | The multi-word index: one indexed column, one expression, a Dice that allocates nothing | Storage | Accepted |
 | [0012](./0012-typo-tolerance.md) | Typo tolerance: SymSpell over the word beginnings, corrected when nothing stands at a word start | Typo tolerance | Accepted |
 | [0013](./0013-the-api-shape-before-the-first-release.md) | The API shape before the first release: steps, one namespace, entries, named results | API | Accepted |
@@ -73,7 +73,7 @@ decided about the query path" without opening 36 files.
 | [0017](./0017-dependency-injection-and-hosted-services.md) | Dependency injection and hosted services, in the package; stale candidates past the budget | Runtime | Accepted |
 | [0018](./0018-two-packages-core-and-hosting.md) | Two packages: the core and the hosting, released together | Packages | Accepted |
 | [0019](./0019-the-test-tree-three-layers-one-map.md) | The test tree: three layers and the measurement layer, one shared infrastructure, one map that is a guard | Testing | Accepted (restated 2026-11-12, issue #122, ADR-0058) |
-| [0020](./0020-the-performance-budgets-measured.md) | The performance budgets of §16, measured: a corpus, a test per target, waivers with reasons | Measurement | Accepted (restated 2026-11-12, issue #122, ADR-0058) |
+| [0020](./0020-the-performance-budgets-measured.md) | The performance budgets of ADR-0020, measured: a corpus, a test per target, waivers with reasons | Measurement | Accepted (restated 2026-11-12, issue #122, ADR-0058) |
 | [0021](./0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md) | A stale typo dictionary, a query that does not wait, a rebuild in the background | Typo tolerance | Accepted |
 | [0022](./0022-the-benchmark-results-in-the-readme.md) | The BenchmarkDotNet results: the raw data in the record, the budgets in the README — committed reports, a rendered section, a guard | Documentation | Accepted (restated 2026-11-06, issue #61, ADR-0039) |
 | [0023](./0023-owned-becomes-embedded.md) | `Owned` becomes `Embedded`: the name of the content source in LUI's own table | API | Accepted |
@@ -93,8 +93,8 @@ decided about the query path" without opening 36 files.
 | [0037](./0037-the-papers-of-the-work-live-under-agents.md) | The papers of the work live under `.agents/`, the documentation of the library under `docs/` | Documentation | Accepted |
 | [0038](./0038-the-public-api-has-a-page-of-its-own.md) | The public API has a page of its own, and a test holds it up | Documentation | Accepted |
 | [0039](./0039-the-entrance-shows-the-measurement.md) | The entrance shows the measurement, the bulk path, the kinds and the sources | Documentation | Accepted |
-| [0040](./0040-the-budget-table-of-the-entrance-is-a-promise.md) | The budget table of the entrance is the promise of §16, and a test holds it up | Measurement | Accepted |
-| [0041](./0041-the-budgets-of-16-run-on-a-schedule.md) | The budgets of §16 run on a schedule: the bytes are asserted, the times are reported | Measurement | Accepted (restated 2026-11-12, issue #122, ADR-0058) |
+| [0040](./0040-the-budget-table-of-the-entrance-is-a-promise.md) | The budget table of the entrance is the promise of ADR-0020, and a test holds it up | Measurement | Accepted |
+| [0041](./0041-the-budgets-of-16-run-on-a-schedule.md) | The budgets of ADR-0020 run on a schedule: the bytes are asserted, the times are reported | Measurement | Accepted (restated 2026-11-12, issue #122, ADR-0058) |
 | [0042](./0042-the-query-does-not-build-the-typo-dictionary.md) | The query does not build the typo dictionary: the application asks for it | Typo tolerance | Accepted |
 | [0043](./0043-the-warm-up-is-a-service-of-the-host.md) | The warm-up is a service of the host: the host asks for it, the library starts nothing | Hosting | Accepted |
 | [0044](./0044-the-typed-view-over-the-untyped-index.md) | The typed view over the untyped index: `index.As<T>()` gives the payload in the type of the application | API | Accepted |

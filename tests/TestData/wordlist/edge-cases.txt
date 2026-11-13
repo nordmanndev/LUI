@@ -1,4 +1,4 @@
-# Edge cases for the normalisation parity test (LUI-Spezifikation §6, §19).
+# Edge cases for the normalisation parity test (ADR-0005, ADR-0019, docs/testing.md).
 #
 # The stride sample next to this file (german-words.sample.txt) covers the
 # German alphabet. This file covers what a stride cannot reach for: the

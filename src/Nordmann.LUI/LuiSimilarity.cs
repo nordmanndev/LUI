@@ -4,7 +4,7 @@ using Nordmann.LUI.Similarity;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// The similarity measures LUI ships (LUI-Spezifikation §11) — all of them LUI's own now: the
+/// The similarity measures LUI ships (ADR-0030) — all of them LUI's own now: the
 /// definitions of <c>F23.StringSimilarity</c>, without its allocation (issue #30, ADR-0032). All of
 /// them are stateless and may be shared between threads.
 /// </summary>

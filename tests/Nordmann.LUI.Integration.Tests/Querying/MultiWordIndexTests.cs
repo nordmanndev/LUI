@@ -7,7 +7,7 @@ namespace Nordmann.LUI.Integration.Tests.Querying;
 
 /// <summary>
 /// The <c>MultiWord</c> index: the schema, the candidates and the ranking of names and titles
-/// (LUI-Spezifikation §4, §7, §8.2, §9, Anhang B).
+/// (ADR-0014, ADR-0006, ADR-0008, ADR-0008, Anhang B).
 /// </summary>
 public sealed class MultiWordIndexTests
 {
@@ -327,7 +327,7 @@ public sealed class MultiWordIndexTests
     [Fact]
     public void The_compact_column_finds_everything_the_two_columns_of_the_specification_found_and_little_more()
     {
-        // §8.2 as written: (s_norm : (w1 AND w2)) OR (s_compact : "w1w2"). The search index holds s_compact only
+        // ADR-0008 as written: (s_norm : (w1 AND w2)) OR (s_compact : "w1w2"). The search index holds s_compact only
         // (ADR-0011); its answer must contain that set, and the rest must be titles whose words run across a
         // boundary of the title — checked here without FTS5, on the folded texts.
         using var database = new TestDatabase();
@@ -385,7 +385,7 @@ public sealed class MultiWordIndexTests
     [Fact]
     public void A_word_that_runs_across_a_boundary_of_the_title_is_found_but_no_word_start()
     {
-        // the one thing the compact column adds to the two columns of the first version of §8.2 (ADR-0011)
+        // the one thing the compact column adds to the two columns of the first version of ADR-0008 (ADR-0011)
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var recipes = catalog.Create("recipes", index => index.MultiWord());

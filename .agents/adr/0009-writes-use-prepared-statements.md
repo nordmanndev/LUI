@@ -24,7 +24,7 @@ public API on 50,000 words in one transaction:
 
 The statement is expensive to *prepare*: SQLite compiles the generated
 columns, the indexes and the three triggers into it. At 184 µs the 3,000,000
-entry build of §16 takes ten minutes; at 59 µs plus the search index it takes
+entry build of ADR-0020 takes ten minutes; at 59 µs plus the search index it takes
 about three.
 
 ## Decision
@@ -37,7 +37,7 @@ guarded by a lock — a connection is used by one thread at a time.
   application's connection: one set per `SqliteConnection`, kept in a
   `ConditionalWeakTable` so that it lives and dies with the connection.
 - **Writes without a transaction** use one long-lived **writer connection** of
-  the catalog. SQLite has one writer per file anyway (§15), so a single
+  the catalog. SQLite has one writer per file anyway (ADR-0015, ADR-0046), so a single
   connection loses nothing, and it keeps the prepared statements alive. Reads
   still use their own pooled connections and run in parallel (WAL).
 - The writer connection is closed by `Dispose()`, after the running

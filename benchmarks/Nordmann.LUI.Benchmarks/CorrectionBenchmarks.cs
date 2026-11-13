@@ -3,7 +3,7 @@ using BenchmarkDotNet.Attributes;
 namespace Nordmann.LUI.Benchmarks;
 
 /// <summary>
-/// A query that needs a correction (§10, §16: p95 ≤ 10 ms): no candidate starts a word, so the typo dictionary gives
+/// A query that needs a correction (ADR-0012, ADR-0020: p95 ≤ 10 ms): no candidate starts a word, so the typo dictionary gives
 /// the corrections and the candidates of each are read. The dictionary is built in the setup, as a warmed-up
 /// application has it.
 /// </summary>

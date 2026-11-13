@@ -1,11 +1,11 @@
-# 0020 — The performance budgets of §16, measured: a corpus, a test per target, waivers with reasons
+# 0020 — The performance budgets of ADR-0020, measured: a corpus, a test per target, waivers with reasons
 
 > **Name note (ADR-0023, 2026-11-04):** since this record was written, `Owned` is called `Embedded`: `ILuiOwnedIndex` is
 > `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
 > `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written —
 > except for the sentences that the note of 2026-11-12 below rewrites and names.
 
-- **Status:** Accepted. **Owner's decisions of 2026-11-04** on the four waivers: the targets are stated anew in §16 and
+- **Status:** Accepted. **Owner's decisions of 2026-11-04** on the four waivers: the targets are stated anew in ADR-0020 and
   asserted — see "The owner's decisions" at the end; the allocation with bug #30
 - **Date:** 2026-11-03
 - **Builds on:** [0010](./0010-the-query-budget-at-three-million-entries.md) (the query budget at 3 M, Proposed),
@@ -15,11 +15,11 @@
   - `tests/Nordmann.LUI.Testing/Corpus.cs` (+ `CorpusKind`), `CorpusFile.cs`, `TestDatabase.FileMegabytes()`
   - `tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs`
   - `benchmarks/Nordmann.LUI.Benchmarks/`
-  - `docs/benchmarks.md`, `docs/testing.md`, spec §16
+  - `docs/benchmarks.md`, `docs/testing.md`, spec ADR-0020
 
 ## Context
 
-Step 9 of the plan: the targets of §16 as tests, a benchmark project, and the scenario of three million entries. Until
+Step 9 of the plan: the targets of ADR-0020 as tests, a benchmark project, and the scenario of three million entries. Until
 now the targets were measured piecemeal — `QueryPerformance` asserted its latency only at three million and was run
 with the row-by-row build of PR-003, `TypoPerformance` the dictionary, ADR-0011 the file size. The bulk path of PR-007
 (`Sync`: batches in the order of the search index, one merge) had not been measured at three million at all.
@@ -39,7 +39,7 @@ with the row-by-row build of PR-003, `TypoPerformance` the dictionary, ADR-0011 
 The same file gives the same corpus, so the budget test and the benchmarks measure the same thing, and a run can be
 repeated.
 
-**A test per target, in the scenario of §16** (`PerformanceBudgets`, in the layer of the measurements):
+**A test per target, in the scenario of ADR-0020** (`PerformanceBudgets`, in the layer of the measurements):
 
 - `The_single_word_index_at_three_million_entries` — the build by `Sync`, the query without and with a correction, the
   allocation, the single writes;
@@ -64,7 +64,7 @@ The measurement machine of `docs/benchmarks.md` (Intel Xeon 2.1 GHz, 4 cores, 15
 whole German word list, no other load. Two runs of the single-word scenario, a third for the batch size of the build,
 a fourth with the test as it is committed (the waivers in place, batches of 1,000,000): it passes.
 
-| Target of §16 | Scenario | Measured | Limit | Verdict |
+| Target of ADR-0020 | Scenario | Measured | Limit | Verdict |
 |---|---|---:|---:|---|
 | query p50 | 3 M entries, inputs of 1–8 characters | 1.61 / 1.71 / 1.67 / 1.34 ms | ≤ 2 ms | **met** |
 | query p95 | the same | 9.64 / 10.25 / 9.93 / 10.22 ms | ≤ 5 ms | **waived** → ADR-0010 |
@@ -122,10 +122,10 @@ and the test map (`Test_Landscape`), which lists the budget test.
 
 ## The owner's decisions (2026-11-04)
 
-The four waivers are gone; the targets are stated anew in §16 and `PerformanceBudgets` asserts them. For the long inputs,
+The four waivers are gone; the targets are stated anew in ADR-0020 and `PerformanceBudgets` asserts them. For the long inputs,
 the correction and the file this is a **loosening** of the target, not its meeting — written down as such:
 
-| Target of §16 | Was | Now | Measured |
+| Target of ADR-0020 | Was | Now | Measured |
 |---|---|---|---:|
 | query p95 | ≤ 5 ms | ≤ 5 ms for 1–4 characters, ≤ 20 ms for 5–8 characters (ADR-0010, option 2) | ≤ 3.1 ms · 17.5 ms at eight |
 | query with correction p95 | ≤ 10 ms | ≤ 35 ms | 27.9–29.0 ms |
@@ -144,9 +144,9 @@ the correction and the file this is a **loosening** of the target, not its meeti
 the next day, with the same code: the build of three million entries took **194.9 s and 205.9 s** (the day before
 172.5 s and 174.2 s); the queries were as fast or faster (p50 1.45–1.48 ms, p95 of 5–8 characters 13.4–14.4 ms), the
 corrected query p95 30.5–32.5 ms, the single write p95 0.72–0.78 ms. The build writes a file of 925 MB and follows the
-speed of the disk; the 180 s of §16 are met on one machine and missed on the next. **Decided by the owner on the same
+speed of the disk; the 180 s of ADR-0020 are met on one machine and missed on the next. **Decided by the owner on the same
 day:** the target is **≤ 4 min** for the first load of three million entries, and a faster first load is issue #32,
-after 0.1.0. `PerformanceBudgets` asserts it; no target of §16 is waived any more.
+after 0.1.0. `PerformanceBudgets` asserts it; no target of ADR-0020 is waived any more.
 
 
 ## Note (2026-11-12, issue #123, ADR-0059)

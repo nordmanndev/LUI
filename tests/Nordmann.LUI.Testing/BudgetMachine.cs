@@ -4,7 +4,7 @@ namespace Nordmann.LUI.Testing;
 public enum BudgetMachine
 {
     /// <summary>
-    /// The machine of the record (Intel Xeon 2.1 GHz, 4 cores, 16 GB, Ubuntu 24.04). Every target of §16 is asserted
+    /// The machine of the record (Intel Xeon 2.1 GHz, 4 cores, 16 GB, Ubuntu 24.04). Every target of ADR-0020 is asserted
     /// here: the times were measured here, and only here they can be met or missed.
     /// </summary>
     Measurement,

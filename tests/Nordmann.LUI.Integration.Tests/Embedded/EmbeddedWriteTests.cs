@@ -3,7 +3,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Embedded;
 
 /// <summary>
-/// The write API of an <c>Embedded</c> single-word index (LUI-Spezifikation §7.2, §7.4, §12.2, §12.4): the entry, the
+/// The write API of an <c>Embedded</c> single-word index (ADR-0006, ADR-0011, docs/api.md, ADR-0016): the entry, the
 /// upsert, the updates, the removal — and a write that changes nothing leaves the search index alone.
 /// </summary>
 public sealed class EmbeddedWriteTests

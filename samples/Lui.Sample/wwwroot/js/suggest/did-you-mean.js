@@ -3,7 +3,7 @@ import { el } from '../core/dom.js';
 /**
  * "Did you mean …?" — what the page says when LUI corrected the input.
  *
- * The typo tolerance (spec §10) searches a corrected word besides the typed one, so the list can show hits the typed text does
+ * The typo tolerance (spec ADR-0012) searches a corrected word besides the typed one, so the list can show hits the typed text does
  * not contain, while the input still holds the typo. The page does not hide that and does not try to mark it: it says it, in
  * one line above the list, and the line is a way to search the corrected word as it is. (The envelope's `correctedQuery` is
  * what the search used; it is the beginning of a word when the dictionary holds beginnings — "mega" for "megn".)

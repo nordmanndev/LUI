@@ -26,7 +26,7 @@ internal static class KeyCodec
             "long" => LuiKeyKind.Number,
             "string" => LuiKeyKind.Text,
             _ => throw new NotSupportedException(
-                $"The key type '{keyType}' of a definition is neither 'long' nor 'string' (LUI-Spezifikation §12.3)."),
+                $"The key type '{keyType}' of a definition is neither 'long' nor 'string' (ADR-0035)."),
         };
 
     /// <summary>The stored text of a key; a key of the other kind is refused.</summary>

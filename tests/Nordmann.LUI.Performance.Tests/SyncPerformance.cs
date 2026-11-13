@@ -4,7 +4,7 @@ using Shouldly;
 namespace Nordmann.LUI.Performance.Tests;
 
 /// <summary>
-/// What a sync of an <c>Embedded</c> index costs (ADR-0016, spec §20 step 7: "Abgleich mit 1 Mio. Einträgen, Abbruch und
+/// What a sync of an <c>Embedded</c> index costs (ADR-0016, spec the plan step 7: "Abgleich mit 1 Mio. Einträgen, Abbruch und
 /// Wiederaufsetzen"): the first sync of an empty index, the same sync again (nothing changes), a sync cancelled halfway
 /// and run again, a sync with a small change, the check against the source, the check of the index and the rebuild —
 /// and the queries after the first sync, against <c>UpsertMany</c> of the same entries; and a delta sync beside a built

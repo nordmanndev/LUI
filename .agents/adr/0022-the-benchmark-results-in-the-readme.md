@@ -27,7 +27,7 @@
 
 ## Context
 
-The README of plan §7 has a section "Performance: the §16 numbers, measured, with the machine". The owner wants the
+The README of plan §7 has a section "Performance: the ADR-0020 numbers, measured, with the machine". The owner wants the
 results of BenchmarkDotNet there as well. A table of numbers copied into a README by hand has two problems:
 
 - It ages silently. The code changes, the numbers stay, and nothing says which run they came from.
@@ -57,10 +57,10 @@ entrance (ADR-0036).
    - `LUI_UPDATE_README=1` writes the section instead of failing. The rendering lives in one place, so the generator and
      the guard cannot disagree. `tools/benchmarks.sh` runs the benchmarks, copies the reports and does that.
 3. **The README shows the budgets, the record shows the run.**
-   - The README shows the **budget table** of [spec §16](./../spec/LUI-Spezifikation.md): the target, the measured
+   - The README shows the **budget table** of [spec ADR-0020](./../spec/.md): the target, the measured
      value, the limit — nine rows, the promise a reader checks — with the machine named and a link to the record.
    - The record holds the raw tables of the BenchmarkDotNet run: 200,000 entries of the same corpus, the code and not
-     the scenario of §16, the machine, the corpus and the method.
+     the scenario of ADR-0020, the machine, the corpus and the method.
    - The two are told apart in both files: the budget test measures the scenario of three million entries, the
      benchmark project measures the code on 200,000.
 4. **The reports come from one run.** The tables are set side by side, so a test asserts that every report names the

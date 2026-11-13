@@ -5,7 +5,7 @@ using Shouldly;
 namespace Nordmann.LUI.Unit.Tests.Text;
 
 /// <summary>
-/// The word-start rule — the table of LUI-Spezifikation §9.1.
+/// The word-start rule — the table of ADR-0008.
 /// </summary>
 public sealed class WordStartTests
 {

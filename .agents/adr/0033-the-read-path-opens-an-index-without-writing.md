@@ -18,7 +18,7 @@
   - `src/Nordmann.LUI/Schema/IndexDefinition.cs` (the payload type)
   - `src/Nordmann.LUI/LuiEmbeddedIndexBuilder.cs`, `src/Nordmann.LUI/LuiLinkedIndexBuilder.cs` (`Create()` instead of `Ensure()`)
   - `src/Nordmann.LUI.Hosting/LuiServicesBuilder.cs` (the container holds the catalog, nothing else)
-  - spec §7.1, §12, §14, §15; `docs/testing.md`, CHANGELOG, README
+  - spec ADR-0006, ADR-0033, docs/api.md, ADR-0016, ADR-0046, ADR-0015, ADR-0046; `docs/testing.md`, CHANGELOG, README
 - **Issue:** #56
 
 ## Context
@@ -243,8 +243,8 @@ it.
   the rest.
 - **The typo dictionary is not built on open** — the first query that needs a correction waits for it, as
   it does for a created index.
-- The guard map (`docs/testing.md`) and the API shape guard follow the new members; the spec (§7.1, §12,
-  §14, §15), the README and the CHANGELOG (with the migration list) are updated in the same pull request.
+- The guard map (`docs/testing.md`) and the API shape guard follow the new members; the spec (ADR-0006, ADR-0033, docs/api.md,
+  ADR-0016, ADR-0046, ADR-0015, ADR-0046), the README and the CHANGELOG (with the migration list) are updated in the same pull request.
 
 ## Alternatives
 

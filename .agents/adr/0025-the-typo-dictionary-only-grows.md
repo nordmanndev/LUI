@@ -13,7 +13,7 @@
   - `LuiServicesBuilder.RebuildStaleTypoDictionariesEvery` and the hosted service `LuiTypoRebuilder` (removed)
   - `Typos/TypoDictionary.cs` (the marks counter, `MarkStale()` and the built-at count removed; the build uses SymSpell's bulk path)
   - `Indexes/EmbeddedSync.cs`, `Hosting/LuiRegistrations.cs`, `Hosting/IndexRegistration.cs`, `Hosting/LinkedIndexRegistration.cs`
-  - spec §10.1, §12.4, §12.7, README, CHANGELOG
+  - spec ADR-0012, ADR-0016, ADR-0017, ADR-0034, README, CHANGELOG
 
 ## Context
 

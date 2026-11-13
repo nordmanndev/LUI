@@ -7,7 +7,7 @@ using Nordmann.LUI.Hosting;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// LUI in a container of <c>Microsoft.Extensions.DependencyInjection</c> (LUI-Spezifikation §12.7, ADR-0017, package
+/// LUI in a container of <c>Microsoft.Extensions.DependencyInjection</c> (ADR-0017, ADR-0034, ADR-0017, package
 /// <c>Nordmann.LUI.Hosting</c>, ADR-0018): <b>one catalog as a singleton, and nothing else</b>.
 /// <para>
 /// The container does not describe indexes (ADR-0033): an index is not registered and not injected. The application asks

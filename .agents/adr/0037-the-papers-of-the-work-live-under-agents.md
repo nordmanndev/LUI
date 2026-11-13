@@ -20,7 +20,7 @@ The `docs/` directory of the repository held two kinds of documents side by side
 | | What it is | Who reads it |
 |---|---|---|
 | `docs/tutorial/`, `docs/normalization.md`, `docs/architecture/alignment.md`, `docs/domain/lui.md`, `docs/testing.md`, `docs/benchmarks.md` | the **documentation of the library** — the way, the rules, the numbers | a reader who wants to use LUI, and a contributor |
-| `docs/adr/` (36 records), `docs/plan/` (4 plans), `docs/spec/LUI-Spezifikation.md` | the **papers of the work** — the decisions, the delivery plans, the contract | the agent that works in the repository, and a reviewer |
+| `docs/adr/` (36 records), `docs/plan/` (4 plans), `docs/spec/.md` | the **papers of the work** — the decisions, the delivery plans, the contract | the agent that works in the repository, and a reviewer |
 
 The README linked both kinds. The consequence was visible to everybody who came to the repository to *use* the library:
 the entrance pointed at a specification, at a folder of 36 ADRs and at four delivery plans — the papers of a process, not

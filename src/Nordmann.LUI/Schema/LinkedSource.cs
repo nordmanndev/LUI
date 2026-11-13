@@ -3,7 +3,7 @@ using Nordmann.LUI.Normalization;
 namespace Nordmann.LUI.Schema;
 
 /// <summary>
-/// The content source <c>Linked</c> (LUI-Spezifikation §5, §7.3, ADR-0015): the content lives in a table of the
+/// The content source <c>Linked</c> (ADR-0014, ADR-0015, ADR-0015, ADR-0015): the content lives in a table of the
 /// application, and LUI never changes that table on its own — no column, no index, no trigger unless the
 /// application asks for one. LUI keeps two tables of its own: <c>lui_&lt;name&gt;</c> without text (the document
 /// id, the packed rowid and the two prefix keys) and a <b>contentless</b> FTS5 table over the search form. The text
@@ -116,7 +116,7 @@ internal sealed class LinkedSource : ContentSource
     /// <summary>Indexes the rows with a key in <c>($from, $to]</c> — the search index in the order of the rowid.</summary>
     internal string SyncChunkSql => Insert($"{_key} > $from AND {_key} <= $to", "s.doc_id > $from AND s.doc_id <= $to");
 
-    // ---- the check (§12.6, §14): the entries against the table -------------------------------------
+    // ---- the check (ADR-0016, ADR-0016, ADR-0046): the entries against the table -------------------------------------
 
     /// <summary>The rows of the table the index should hold and does not: their count, or their first <c>$n</c> keys.</summary>
     internal string MissingSql(bool count) =>
@@ -269,7 +269,7 @@ internal sealed class LinkedSource : ContentSource
     /// </summary>
     private string Indexable => $"{HasText} AND {KeyInRange}";
 
-    /// <summary>The packed rowid of a row (§7.2) — the same expression as the generated column of <c>Embedded</c>.</summary>
+    /// <summary>The packed rowid of a row (ADR-0006) — the same expression as the generated column of <c>Embedded</c>.</summary>
     private string RowIdValue => $"({_priority} << 61) | (({RowId.MaxWeight} - {_weight}) << 32) | {_key}";
 
     /// <summary>The two inserts that index the rows of a condition: the entry with its keys, then the search form.</summary>

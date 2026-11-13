@@ -15,15 +15,15 @@
     `tests/Nordmann.LUI.Integration.Tests/Performance/BudgetPerformance.cs`,
     `tests/Nordmann.LUI.Integration.Tests/Performance/BudgetMachineTests.cs`
   - `README.md`, `docs/benchmarks.md`, `docs/testing.md`, `AGENTS.md`,
-    `.agents/spec/LUI-Spezifikation.md` (§16 points at the file)
+    (ADR-0020 points at the file)
   - `tools/mutation-check.sh` (the two budget mutations edit the file now)
 - **Issue:** #120 (part of #117, step 3)
 
 ## Context
 
-The budgets of the repository were written down three times: in §16 of the specification, in the tables of the entrance
+The budgets of the repository were written down three times: in ADR-0020 of the specification, in the tables of the entrance
 and of the record, and — as a number at the call site — in the code. The guard between them was
-`ReadmeBudgetsTests`, which parsed the German table of §16 and compared it with the three tables that show the limits.
+`ReadmeBudgetsTests`, which parsed the German table of ADR-0020 and compared it with the three tables that show the limits.
 Issue #38 exists because a promise that is written down in three places drifts.
 
 Two things made that arrangement untenable. The specification is the contract of the repository (`AGENTS.md` until now)
@@ -67,13 +67,13 @@ so nothing in the tree could keep it.
    promised. The promise of 200 MB stays with the dictionary of one error. The miss of the old promise (240 MB against
    200 MB) stays written down as a miss — in the ADR of the typo distance and in the document of the dictionary — and is
    not lowered quietly anywhere.
-6. **The specification points at the file.** §16 keeps its number and its §-references — they are rehung in the pull
+6. **The specification points at the file.** ADR-0020 keeps its number and its §-references — they are rehung in the pull
    request that deletes the specification — but it no longer carries a number that the file carries, and no promise the
    file does not.
 
 ## What was measured
 
-**Nothing was measured for this decision.** The limits of the file are the limits of §16, unchanged — a budget that is
+**Nothing was measured for this decision.** The limits of the file are the limits of ADR-0020, unchanged — a budget that is
 lowered in passing is not a decision, it is a bug (ADR-0020, ADR-0040).
 
 One number is new to the file, and it is not a measurement of this pull request: the **240 MB** of the dictionary of two
@@ -89,7 +89,7 @@ against a measurement of 240 MB is met, not hoped for.
   fails.
 - The file cannot grow a second truth: a member that the reader does not know is refused.
 - The scenarios name the corpora of the plan (D7): the corpus files arrive with the measurement infrastructure. The
-  prefix lengths are the ones of §16 today (3 000 000 entries, 1 000 000 titles, 685 739 words) and are re-decided
+  prefix lengths are the ones of ADR-0020 today (3 000 000 entries, 1 000 000 titles, 685 739 words) and are re-decided
   against the measured corpora — never lowered in passing.
 - The word count of the dictionary is **685,739** — the words of the list, not its lines. The entrance said 685,829
   before; that was the count of the lines of the fetched file.

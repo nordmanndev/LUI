@@ -4,7 +4,7 @@ using static Nordmann.LUI.Integration.Tests.Linked.LinkedTable;
 namespace Nordmann.LUI.Integration.Tests.Typos;
 
 /// <summary>
-/// The typo distance is an enumeration (LUI-Spezifikation §10): the dictionary of the word beginnings grows with every
+/// The typo distance is an enumeration (ADR-0012): the dictionary of the word beginnings grows with every
 /// additional error, so the distances are the ones that were measured and a caller cannot ask for a tenth. The distance
 /// belongs to the <b>index</b>: it is part of the stored definition, an index that is opened again knows how its
 /// dictionary was built, and a distance of <c>None</c> builds no dictionary at all.

@@ -4,7 +4,7 @@ namespace Nordmann.LUI.Integration.Tests.Querying;
 
 /// <summary>
 /// The query of a single-word index: the prefix path, the trigram
-/// candidates, the ranking (LUI-Spezifikation §8, §9, §12.5).
+/// candidates, the ranking (ADR-0008, ADR-0008, docs/api.md).
 /// </summary>
 public sealed class SingleWordQueryTests
 {

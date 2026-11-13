@@ -2,7 +2,7 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// The table of the application that a <c>Linked</c> index is linked to is not what the link says: the table or a
-/// column is missing, or the key is not its <c>INTEGER PRIMARY KEY</c> (LUI-Spezifikation §12.8, ADR-0015). LUI does
+/// column is missing, or the key is not its <c>INTEGER PRIMARY KEY</c> (ADR-0046, ADR-0015). LUI does
 /// not change the application's table to make it fit — the message says what is missing.
 /// </summary>
 public sealed class LuiLinkedTableException : LuiException

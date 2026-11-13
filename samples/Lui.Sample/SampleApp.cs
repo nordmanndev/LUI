@@ -55,7 +55,7 @@ public static class SampleApp
     private static void AddServices(IServiceCollection services, string connectionString, string? wordList)
     {
         services
-            // The catalog is configured the way the measurements of the specification (§16) measure it: a page cache of
+            // The catalog is configured the way the measurements of the specification (ADR-0020) measure it: a page cache of
             // 512 MB and a memory-mapped file. A stock of a million entries is a bulk load — the settings are what make
             // it a bulk load and not a million small writes.
             // The container holds the catalog and nothing else (ADR-0033): the indexes of the sample are its own.

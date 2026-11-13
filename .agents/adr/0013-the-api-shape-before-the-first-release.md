@@ -17,7 +17,7 @@
 - **Supersedes:** the namespace layout of ADR-0001 (the package decision stands)
 - **Amended by:** [0015](./0015-the-linked-index-is-loosely-coupled.md) — `Owned<long>` is the default; the source step is gone, `WithKey<string>()` and `LinkTo(…)` take its place
 - **Affects:** every public type in `src/Nordmann.LUI/`, `src/Nordmann.LUI.csproj`,
-  `.agents/spec/LUI-Spezifikation.md` §8.3, §11, §12, §17, `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs`,
+  ADR-0008, ADR-0030, docs/api.md, ADR-0018, `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs`,
   `tools/package-smoke-test.sh`, `README.md`
 
 ## Context
@@ -30,7 +30,7 @@ asks for too much prior knowledge":
   13 times);
 - a missing kind or content source shows up as an exception in `Ensure()`, not at compile time — and `Linked`
   (PR-006) would add source-specific options that combine wrongly;
-- `ILuiIndex` mixes reading and writing, although a `Linked` index has no write methods (§12.4): it would have to throw
+- `ILuiIndex` mixes reading and writing, although a `Linked` index has no write methods (ADR-0016): it would have to throw
   `NotSupportedException`;
 - `Upsert` takes six positional parameters, and that it replaces the *whole* entry is not visible in its signature;
   there is no batch;

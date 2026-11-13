@@ -1,7 +1,7 @@
 namespace Nordmann.LUI.Schema;
 
 /// <summary>
-/// Everything that follows from the kind of an index (LUI-Spezifikation §4), in one place per kind: which
+/// Everything that follows from the kind of an index (ADR-0014), in one place per kind: which
 /// column the search index holds, what the prefix columns are made of, the default similarity, when the
 /// prefix path answers and what the FTS5 expression is. Nothing outside the rules asks which kind an
 /// index is — a rule that is decided in two places is a rule that is forgotten in one (review of pull
@@ -18,10 +18,10 @@ internal abstract class IndexKindRules
     /// <summary>The kind these rules are for.</summary>
     internal abstract LuiIndexKind Kind { get; }
 
-    /// <summary>The similarity of a query that names none (§4, §11).</summary>
+    /// <summary>The similarity of a query that names none (ADR-0014, ADR-0030).</summary>
     internal abstract ILuiSimilarity DefaultSimilarity { get; }
 
-    // ---- the schema (§7.2, §7.4) ---------------------------------------------------------------
+    // ---- the schema (ADR-0006, ADR-0011) ---------------------------------------------------------------
 
     /// <summary>The one column the search index holds.</summary>
     internal abstract string IndexedColumn { get; }
@@ -48,7 +48,7 @@ internal abstract class IndexKindRules
     /// <summary>How <c>s_norm</c> is kept: <c>STORED</c> when the search index reads it, <c>VIRTUAL</c> otherwise.</summary>
     internal abstract string NormStorage { get; }
 
-    // ---- the query (§8) ------------------------------------------------------------------------
+    // ---- the query (ADR-0008) ------------------------------------------------------------------------
 
     /// <summary>The words of the input that the expression is made of; empty when the input is searched whole.</summary>
     internal abstract IReadOnlyList<string> Words(string search);
@@ -56,10 +56,10 @@ internal abstract class IndexKindRules
     /// <summary>The key of the prefix columns for an input.</summary>
     internal abstract string PrefixKey(string search, string compact);
 
-    /// <summary>Whether an input is too short for a trigram, so that the prefix path answers it (§8.1).</summary>
+    /// <summary>Whether an input is too short for a trigram, so that the prefix path answers it (ADR-0008).</summary>
     internal abstract bool IsPrefixPath(int searchLength, int compactLength);
 
-    /// <summary>The FTS5 expression for the candidates of an input (§8.2).</summary>
+    /// <summary>The FTS5 expression for the candidates of an input (ADR-0008).</summary>
     internal abstract string Expression(string search, string compact, IReadOnlyList<string> words);
 
     /// <summary>
@@ -87,7 +87,7 @@ internal abstract class IndexKindRules
 
     /// <summary>
     /// A term as an FTS5 string: in quotation marks, quotation marks doubled. Nothing of the input is ever
-    /// copied into an expression raw (§8.2).
+    /// copied into an expression raw (ADR-0008).
     /// </summary>
     internal static string Quote(string term) => $"\"{term.Replace("\"", "\"\"", StringComparison.Ordinal)}\"";
 }

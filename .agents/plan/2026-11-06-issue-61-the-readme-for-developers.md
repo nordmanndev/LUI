@@ -22,7 +22,7 @@ important types, where to go next).
 | | Finding |
 |---|---|
 | Scope | 571 lines, 18 sections |
-| The five concept sections (182–311) | a duplicate of `.agents/spec/LUI-Spezifikation.md` — two places for one truth |
+| The five concept sections (182–311) | a duplicate of — two places for one truth |
 | Performance (from 387) | the argument for trust stands after two thirds of the file |
 | BenchmarkDotNet tables (414–494) | 80 lines of raw data in the wrong document |
 | Table of contents, badges | none |

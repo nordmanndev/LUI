@@ -5,13 +5,13 @@ using Nordmann.LUI.Typos;
 namespace Nordmann.LUI.Querying;
 
 /// <summary>
-/// The second stage of a query, when it is wanted (LUI-Spezifikation §10.2, §10.3): an input without a word
+/// The second stage of a query, when it is wanted (ADR-0012, ADR-0012): an input without a word
 /// start may be a typo. Its corrections are searched like the input itself, and the candidates are united
 /// with those of the input; the ranking then measures each candidate against the input it was found with.
 /// </summary>
 internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candidates, ContentSource source)
 {
-    /// <summary>Whether the correction is asked for: no candidate stands at a word start (§10.2) — not only "no hits".</summary>
+    /// <summary>Whether the correction is asked for: no candidate stands at a word start (ADR-0012) — not only "no hits".</summary>
     internal static bool IsWanted(Scored[] candidates, int count)
     {
         for (var i = 0; i < count; i++)
@@ -108,7 +108,7 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
     /// (the input and up to three corrections). A length that changes from query to query would miss
     /// the pool every time and cost the union anew — 32 KB per corrected query.
     /// </para> A document found with more than
-    /// one input keeps the version that stands at a word start (§10.3: the best value per <c>doc_id</c>). At
+    /// one input keeps the version that stands at a word start (ADR-0012: the best value per <c>doc_id</c>). At
     /// most <paramref name="limit"/> remain, and the cap keeps the word starts first — they are what the
     /// correction was for (review M2): hits in the middle of words, in rowid order, fill what is left.
     /// </summary>

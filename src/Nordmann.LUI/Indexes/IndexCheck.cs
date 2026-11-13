@@ -4,7 +4,7 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI.Indexes;
 
 /// <summary>
-/// The parts of a check that every index has (LUI-Spezifikation §12.6, §14): the stored definition and FTS5's integrity
+/// The parts of a check that every index has (ADR-0016, ADR-0016, ADR-0046): the stored definition and FTS5's integrity
 /// check. Each finding is a sentence that names what is wrong and what repairs it.
 /// </summary>
 internal static class IndexCheck

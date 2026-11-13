@@ -4,7 +4,7 @@ namespace Nordmann.LUI.Integration.Tests.Querying;
 
 /// <summary>
 /// The golden queries of a single-word index — Anhang B of the specification
-/// as fixed expectations (§19), and the system tag of E10.
+/// as fixed expectations (ADR-0019, docs/testing.md), and the system tag of E10.
 /// </summary>
 public sealed class GoldenQueryTests
 {

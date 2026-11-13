@@ -334,7 +334,7 @@ public sealed class LinkedQueryTests
     [Fact]
     public void A_linked_index_reads_the_text_and_the_payload_live_and_keeps_the_weight_until_a_refresh()
     {
-        // ADR-0035, spec § 7.3: LUI keeps no copy of the row — the normalised text in the search index, the weight and the
+        // ADR-0035, spec ADR-0015: LUI keeps no copy of the row — the normalised text in the search index, the weight and the
         // priority in the order of the candidates; the text and the payload of a hit come from the table when it is read
         using var database = new TestDatabase();
         Run(database, Table);

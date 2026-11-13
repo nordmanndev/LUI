@@ -150,7 +150,7 @@ probe, not in the container.
 
 ### E. The documents
 
-- **Specification** §7.1, §12, §14, §15: `Create`, `Index`, the read-only file, the `PayloadType` in
+- **Specification** ADR-0006, ADR-0033, docs/api.md, ADR-0016, ADR-0046, ADR-0015, ADR-0046: `Create`, `Index`, the read-only file, the `PayloadType` in
   the definition, the container without indexes.
 - **README**: the quick start (`AddLui`, `Create`, `Index`).
 - **CHANGELOG**: the migration list (what from `Ensure`/`OpenIndex`/`AddIndex` to what).

@@ -5,7 +5,7 @@ namespace Nordmann.LUI;
 /// <summary>
 /// One entry of an index, as it is written: an upsert stores <b>all of it</b> —
 /// text, weight, priority and payload — in place of the entry with the same key
-/// (LUI-Spezifikation §12.4). The values are checked when they are set.
+/// (ADR-0016). The values are checked when they are set.
 /// </summary>
 /// <param name="Key">The key of the application: a number or a text, of the kind the index has.</param>
 /// <param name="Text">What is searched and shown; not empty.</param>

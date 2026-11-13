@@ -3,7 +3,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Embedded;
 
 /// <summary>
-/// The batch of an <c>Embedded</c> index (LUI-Spezifikation §12.4, ADR-0013): <c>UpsertMany</c> writes every entry, in
+/// The batch of an <c>Embedded</c> index (ADR-0016, ADR-0013): <c>UpsertMany</c> writes every entry, in
 /// a transaction of its own or in the one of the application, and teaches the typo dictionary as a single upsert does.
 /// </summary>
 public sealed class EmbeddedBatchTests

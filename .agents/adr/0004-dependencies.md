@@ -7,7 +7,7 @@
 > asserted. The text below is history and stays as it was written.
 
 > **Name note (ADR-0030, 2026-11-05):** since this record was written, `F23.StringSimilarity` is **no longer a
-> dependency of the core**: the four similarity measures of §11 are LUI's own (ADR-0032, ADR-0030), and the package
+> dependency of the core**: the four similarity measures of ADR-0030 are LUI's own (ADR-0032, ADR-0030), and the package
 > remains a test dependency — the parity tests compare against the library they replace. The runtime dependencies of
 > `Nordmann.LUI` are `Microsoft.Data.Sqlite` and `symspell`. The text below is history and stays as it was written.
 
@@ -31,8 +31,8 @@ LUI needs two packages that no ADR of this repository named yet:
 
 | Package | Licence | Why LUI needs it |
 |---|---|---|
-| `symspell` 6.7.3 | MIT | The typo tolerance (§10) is SymSpell over the **word beginnings** of an index, with one edit and the three best corrections. The measurements in Anhang A are SymSpell measurements. |
-| `F23.StringSimilarity` 7.0.1 | MIT | The four similarity measures of §11 (Jaro-Winkler, N-gram Dice, Damerau-Levenshtein, Levenshtein). |
+| `symspell` 6.7.3 | MIT | The typo tolerance (ADR-0012) is SymSpell over the **word beginnings** of an index, with one edit and the three best corrections. The measurements in Anhang A are SymSpell measurements. |
+| `F23.StringSimilarity` 7.0.1 | MIT | The four similarity measures of ADR-0030 (Jaro-Winkler, N-gram Dice, Damerau-Levenshtein, Levenshtein). |
 
 `Microsoft.Data.Sqlite` 10.0.14 needs no exemption: it is the provider of the persistence layer.
 
@@ -44,7 +44,7 @@ LUI needs two packages that no ADR of this repository named yet:
 
 SymSpell is not a "distance function with a dictionary" — it is a specific
 algorithm (prefix buckets + deletes + a frequency-ranked candidate list), and
-the specification's claim in §10 (typo tolerance recovers 40 % of the
+the specification's claim in ADR-0012 (typo tolerance recovers 40 % of the
 misses that whole-word SymSpell cannot) is a claim *about that algorithm*.
 Re-implementing it would mean re-implementing the very thing the
 measurements are about, and then measuring my version against the spec's
@@ -57,7 +57,7 @@ lazily, on the first typo-tolerant query — not at `Ensure()`.
 ### Why `F23.StringSimilarity`
 
 Four measures in one small, MIT-licensed, actively maintained library, each
-with a measured cost in §11 (4.5 µs for Jaro-Winkler, 12.2 µs for N-gram
+with a measured cost in ADR-0030 (4.5 µs for Jaro-Winkler, 12.2 µs for N-gram
 Dice). Hand-rolling four measures would add four places to get subtly wrong,
 for zero benefit.
 

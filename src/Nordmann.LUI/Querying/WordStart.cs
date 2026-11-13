@@ -3,12 +3,12 @@ using Nordmann.LUI.Normalization;
 namespace Nordmann.LUI.Querying;
 
 /// <summary>
-/// The word-start rule (LUI-Spezifikation §9.1): an entry satisfies it when
+/// The word-start rule (ADR-0008): an entry satisfies it when
 /// there is a word <c>i</c> in the normalised text such that the <b>compact</b>
 /// text from word <c>i</c> on begins with the <b>compact</b> input. Words are
 /// separated by spaces and hyphens; a leading <c>#</c> does not count.
 /// <para>
-/// The split is <b>only</b> at a space or a hyphen, as §9.1 says. The <i>compact</i> comparison skips the
+/// The split is <b>only</b> at a space or a hyphen, as ADR-0008 says. The <i>compact</i> comparison skips the
 /// whole separator set (punctuation, no-break space, dashes), so „foo/bar" is one word whose compact
 /// text is „foobar": „bar" does not stand at a word start there.
 /// </para>
@@ -17,7 +17,7 @@ internal static class WordStart
 {
     /// <summary>
     /// The position in <paramref name="searchForm"/> where the first matching
-    /// word begins — the similarity is measured from there (§9.2).
+    /// word begins — the similarity is measured from there (ADR-0013, ADR-0055).
     /// </summary>
     /// <param name="searchForm">The normalised text of the entry.</param>
     /// <param name="compactQuery">The compact form of the input.</param>

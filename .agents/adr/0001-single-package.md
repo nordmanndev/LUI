@@ -9,11 +9,11 @@
 - **Supersedes:** —
 - **Amended by:** [0013](./0013-the-api-shape-before-the-first-release.md) — the namespace layout below; [0014](./0014-seams-for-the-second-content-source.md) — the internal namespaces; [0018](./0018-two-packages-core-and-hosting.md) — the dependency injection is a second package, `Nordmann.LUI.Hosting`, released with the core
 - **Affects:** `src/Nordmann.LUI/Nordmann.LUI.csproj`, `Directory.Packages.props`,
-  `.agents/spec/LUI-Spezifikation.md` §17.1, `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs`
+  ADR-0001, `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs`
 
 ## Context
 
-The specification (§17.1) proposes three packages:
+The specification (ADR-0001) proposes three packages:
 
 | Package | Content | Dependencies |
 |---|---|---|

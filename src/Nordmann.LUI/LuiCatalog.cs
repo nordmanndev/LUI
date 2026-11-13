@@ -11,11 +11,11 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// The entry point: knows the connection string and all indexes of a
-/// database (LUI-Spezifikation §2, §12.1). A catalog and its indexes are
+/// database (docs/api.md, docs/api.md). A catalog and its indexes are
 /// meant to be singletons; they are safe to use from many threads.
 /// <para>
 /// Every operation opens its own connection from the pool of
-/// <c>Microsoft.Data.Sqlite</c>, so reads run in parallel (§15).
+/// <c>Microsoft.Data.Sqlite</c>, so reads run in parallel (ADR-0015, ADR-0046).
 /// <see cref="Dispose"/> waits for the operations that are running.
 /// </para>
 /// <para>

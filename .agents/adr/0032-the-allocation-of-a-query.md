@@ -8,7 +8,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-05
-- **Builds on:** [0020](./0020-the-performance-budgets-measured.md) (the budgets of §16, measured),
+- **Builds on:** [0020](./0020-the-performance-budgets-measured.md) (the budgets of ADR-0020, measured),
   [0011](./0011-the-multi-word-index.md) (the measures), [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md)
   (the freeze of the public API)
 - **Followed by:** [0030](./0030-the-similarity-measures-are-luis-own.md) (the other three measures become LUI's own
@@ -22,14 +22,14 @@
     `src/Nordmann.LUI/Querying/TypoCorrection.cs`, `src/Nordmann.LUI/Normalization/Normalizer.cs` (the doc comment)
   - `tests/Nordmann.LUI.Unit.Tests/JaroWinklerEquivalenceTests.cs` (new),
     `tests/Nordmann.LUI.Unit.Tests/SearchFormParityTests.cs` (new)
-  - spec §16, ADR-0020, `docs/testing.md`, CHANGELOG
+  - spec ADR-0020, ADR-0020, `docs/testing.md`, CHANGELOG
 - **Issue:** #30
 
 ## Context
 
-§16 sets a budget for the allocation of a query: p50 ≤ 250 KB, p95 ≤ 350 KB. It was measured at p50 83 KB and p95 298 KB
+ADR-0020 sets a budget for the allocation of a query: p50 ≤ 250 KB, p95 ≤ 350 KB. It was measured at p50 83 KB and p95 298 KB
 (ADR-0020) — the owner finds 250–300 KB per query too much, and issue #30 asks for the **causes measured** and the
-allocation **clearly lower**, with the new target in §16 and in ADR-0020.
+allocation **clearly lower**, with the new target in ADR-0020 and in ADR-0020.
 
 Until now nobody knew where the allocation was. The three plausible suspects — a string per candidate, the growth of the
 `Scored[]`, the similarity measure — were not measured, and the similarity measure of the library allocates in a way that
@@ -122,13 +122,13 @@ The shares of the **before** (153.32 KB, single word) — measured as difference
 
 ## Consequences
 
-- **The target of §16 is lower.** The allocation of a query is now p50 ≤ 60 KB, p95 ≤ 100 KB — measured by the budget
+- **The target of ADR-0020 is lower.** The allocation of a query is now p50 ≤ 60 KB, p95 ≤ 100 KB — measured by the budget
   test at 200,000 entries: **p50 18.09 KB, p95 38.80 KB** (before: p50 83 KB, p95 298 KB at three million, where it was
   about 20 % higher than at 200,000). The corrected query: p50 22 KB, p95 46 KB (before: 73 KB, 215 KB). The test of ADR-0020 measures it at three million and asserts it; a target that is
   missed is not lowered quietly.
 - **What remains, and why it remains:**
   - **The texts of the candidates: 32–64 B per candidate** (19–37 KB per query). `Microsoft.Data.Sqlite` hands out the text
-    of a row as a `string`; the word start (§9.1) needs the folded text, and the folded text cannot be read from the
+    of a row as a `string`; the word start (ADR-0008) needs the folded text, and the folded text cannot be read from the
     database: the column `s_norm` holds the transliteration, the case fold and the removal of the diacritics happen in the
     tokenizer. A candidate needs its text — this is the floor.
   - **The hit phase: about 370 B per hit** (the key, the payload, the hit object) — the hits are what the caller asked for.
@@ -158,5 +158,5 @@ The shares of the **before** (153.32 KB, single word) — measured as difference
 
 **Verified by:** `tests/Nordmann.LUI.Unit.Tests/JaroWinklerEquivalenceTests.cs` (the parity with F23 7.0.1),
 `tests/Nordmann.LUI.Unit.Tests/SearchFormParityTests.cs` (the parity of the two normalisation paths),
-`tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs` (the target of §16), and the probe of this record
+`tests/Nordmann.LUI.Integration.Tests/PerformanceBudgets.cs` (the target of ADR-0020), and the probe of this record
 (200,000 entries, 31 rounds, median).

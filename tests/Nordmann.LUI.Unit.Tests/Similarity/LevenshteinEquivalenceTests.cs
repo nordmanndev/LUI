@@ -6,7 +6,7 @@ namespace Nordmann.LUI.Unit.Tests.Similarity;
 /// <summary>
 /// LUI's own Levenshtein allocates nothing; it must give the same number as the library it replaces
 /// (<c>F23.StringSimilarity.NormalizedLevenshtein</c>) — the measurements of the specification are
-/// measurements of that definition (§11). The parity is the proof; the allocation is the reason (issue #30).
+/// measurements of that definition (ADR-0030). The parity is the proof; the allocation is the reason (issue #30).
 /// </summary>
 public sealed class LevenshteinEquivalenceTests
 {

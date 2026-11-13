@@ -3,7 +3,7 @@ using System.Diagnostics;
 namespace Nordmann.LUI.Performance.Tests;
 
 /// <summary>
-/// What the typo tolerance costs and how good it is on a large stock (LUI-Spezifikation §16: dictionary of
+/// What the typo tolerance costs and how good it is on a large stock (ADR-0020: dictionary of
 /// 700,000 words ≤ 200 MB and ≤ 10 s, corrected query p95 ≤ 10 ms; Anhang A4).
 /// <code>dotnet test tests/Nordmann.LUI.Performance.Tests --filter TypoPerformance --logger "console;verbosity=detailed"</code>
 /// Needs <c>tools/fetch-wordlist.sh</c>.

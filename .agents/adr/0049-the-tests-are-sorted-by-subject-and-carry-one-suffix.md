@@ -61,7 +61,7 @@ usings declares none and is exempt.
 | `Internal_Layering`, `Link_Check`, `Namespace_Convention`, `Public_API_Documentation`, `Public_API_Shape`, `Readme_Benchmarks`, `Readme_Budgets`, `Repository_Layout`, `Sample_Client`, `Test_Landscape`, `Workflow_Rules` | `InternalLayeringTests`, `LinkCheckTests`, `NamespaceConventionTests`, `PublicApiDocumentationTests`, `PublicApiShapeTests`, `ReadmeBenchmarksTests`, `ReadmeBudgetsTests`, `RepositoryLayoutTests`, `SampleClientTests`, `TestLandscapeTests`, `WorkflowRulesTests` |
 | `Type_Names` (a helper) | `TypeNames` |
 | `NormalizationParity` | `NormalizationParityTests` |
-| `PerformanceBudgets` (the targets of §16, measured) | `BudgetPerformance` |
+| `PerformanceBudgets` (the targets of ADR-0020, measured) | `BudgetPerformance` |
 | `PerformanceBudget_Machine` (the rule of the machine, a test of behaviour) | `BudgetMachineTests` |
 | `ReviewFollowUpTests` (15 tests) | `CatalogTests`, `EmbeddedWriteTests`, `EmbeddedPayloadTests`, `SingleWordQueryTests` |
 | `TypoReviewTests` (11 tests) | `TypoDictionaryLifecycleTests`, `TypoToleranceTests` |
@@ -115,7 +115,7 @@ it is the mutation `test-sdk-project-without-a-layer`, caught.
 
 ## Alternatives
 
-- **Folders without namespaces.** Rejected: the library keeps folder = namespace (§17.2). A test tree that does not would
+- **Folders without namespaces.** Rejected: the library keeps folder = namespace (ADR-0014). A test tree that does not would
   need a second rule, and the filters would lose the subject.
 - **Keep the review files and add a pointer per subject.** Rejected: a reader opens the file of the subject and does not
   find the test. The comment above each moved test keeps the history without the detour.

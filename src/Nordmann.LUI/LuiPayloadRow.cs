@@ -3,8 +3,8 @@ using Microsoft.Data.Sqlite;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// The payload columns of one hit of a <c>Linked</c> index, read from the application's table (LUI-Spezifikation
-/// §12.3): what the mapping of <c>WithPayload(columns, row =&gt; …)</c> builds the payload from. It is valid only
+/// The payload columns of one hit of a <c>Linked</c> index, read from the application's table (
+/// ADR-0035): what the mapping of <c>WithPayload(columns, row =&gt; …)</c> builds the payload from. It is valid only
 /// while the mapping runs: copy the values you need out of it. A row that is kept and read after the mapping throws an
 /// <see cref="InvalidOperationException"/> — it would otherwise read the next hit's row, or none, and give the wrong
 /// value without a word (review of 2026-11-04, A.7).

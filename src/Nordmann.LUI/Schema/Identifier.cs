@@ -3,7 +3,7 @@ namespace Nordmann.LUI.Schema;
 /// <summary>
 /// The names that reach SQL. They are checked against
 /// <c>^[a-z][a-z0-9_]{0,40}$</c> and never put into a statement unchecked
-/// (LUI-Spezifikation §7).
+/// (ADR-0006).
 /// </summary>
 internal static class Identifier
 {

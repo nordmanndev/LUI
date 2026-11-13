@@ -12,7 +12,7 @@ labels: ["type:task", "status:queued"]
 
 <!--
 Why is this task needed now? Link the parent issue. Name the part of the
-specification (.agents/spec/LUI-Spezifikation.md) it implements, and the ADRs it
+specification () it implements, and the ADRs it
 touches.
 -->
 

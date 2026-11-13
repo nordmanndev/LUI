@@ -6,7 +6,7 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI.Querying;
 
 /// <summary>
-/// The last stage of a query (LUI-Spezifikation §8.3, E7): key and payload of the hits — and only of the
+/// The last stage of a query (ADR-0008, E7): key and payload of the hits — and only of the
 /// hits — in one statement, in the snapshot of the candidates.
 /// </summary>
 internal sealed class HitReader(ContentSource source, PayloadReader payload)

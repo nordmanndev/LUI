@@ -28,7 +28,7 @@
   - `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs`, `Public_API_Shape.cs`, `Namespace_Convention.cs`,
     `Internal_Layering.cs`, `tests/Shared/Repository.cs`
   - `tools/package-smoke-test.sh`, `tools/mutation-check.sh`, `.github/workflows/publish.yml`
-  - spec §12.7 and §17, the README
+  - spec ADR-0017, ADR-0034 and ADR-0018, the README
 
 ## Context
 

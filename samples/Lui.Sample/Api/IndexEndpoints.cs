@@ -4,7 +4,7 @@ using Nordmann.LUI.Sample.Indexes;
 namespace Nordmann.LUI.Sample.Api;
 
 /// <summary>
-/// The rest of the public surface of LUI behind routes (LUI-Spezifikation §12): the indexes with their definitions, the
+/// The rest of the public surface of LUI behind routes (docs/api.md): the indexes with their definitions, the
 /// write side of an embedded index (<c>Upsert</c>, <c>UpdateWeight</c>, <c>UpdatePriority</c>, <c>Remove</c>), the
 /// application's table behind a linked one, and the maintenance (<c>Sync</c>, <c>Check</c>, <c>Rebuild</c>,
 /// <c>Optimize</c>, the typo dictionary, the outbox and the triggers).

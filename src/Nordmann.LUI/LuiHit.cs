@@ -5,7 +5,7 @@ using Nordmann.LUI.Querying;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// One hit of a query (LUI-Spezifikation §8.3). The hit knows no payload type (ADR-0035): the payload is read where it is
+/// One hit of a query (ADR-0008). The hit knows no payload type (ADR-0035): the payload is read where it is
 /// used, with the type the caller asks for — <c>hit.GetPayload&lt;TagChip&gt;()</c> — and not before.
 /// </summary>
 [StructLayout(LayoutKind.Auto)]
@@ -26,7 +26,7 @@ public readonly record struct LuiHit
     /// <summary>How similar the input is to the text, from the word where the match begins; 0 … 1.</summary>
     public double Similarity { get; init; }
 
-    /// <summary>Whether the input stands at the beginning of a word of the text (§9.1).</summary>
+    /// <summary>Whether the input stands at the beginning of a word of the text (ADR-0008).</summary>
     public bool AtWordStart { get; init; }
 
     /// <summary>Whether the entry has a payload.</summary>

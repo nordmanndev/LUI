@@ -11,7 +11,7 @@
 
 ## Status
 
-**Every target of §16 is measured in its scenario and met** (PR-009,
+**Every target of ADR-0020 is measured in its scenario and met** (PR-009,
 ADR-0020) — three of them as draft 2 set them, five as the owner
 stated them anew after the measurement (2026-11-04, ADR-0010, ADR-0020). The table is the output of
 `BudgetPerformance`, which asserts every row. The allocation was lowered to its target (ADR-0032) and measured again
@@ -34,12 +34,12 @@ corpus.
 **The numbers below were measured on the corpus that was generated.** Since ADR-0059 the corpus is a file in the
 repository, and the corpora have their own sizes: the words corpus has 1,908,798 entries, so the **scenario of three
 million entries does not exist** in it. A budget below its scenario is **reported, not asserted** — the numbers of the
-table are the ones of the runs of 2026-11-04 to 2026-11-12, and **the counts of the budgets of §16 are re-decided
+table are the ones of the runs of 2026-11-04 to 2026-11-12, and **the counts of the budgets of ADR-0020 are re-decided
 against the measured corpora in the next round**. Nothing here is quietly lowered: the file of the budgets still names
 3,000,000 entries, and the run says that it did not reach them.
 
 The dictionary of two errors is the one the **distance `TwoErrors`** builds (ADR-0054): the promise of 200 MB belongs to
-the dictionary of one error, and the two-error dictionary measured **240 MB** — 40 MB more than the target of §16 allows
+the dictionary of one error, and the two-error dictionary measured **240 MB** — 40 MB more than the target of ADR-0020 allows
 (≤ 200 MB). That is a **miss of the old promise** — it is written down as one, in the ADR of the typo distance and in
 [`docs/typo-dictionary.md`](typo-dictionary.md), and no limit is lowered quietly here: the file states 240 MB, the number
 that was measured.
@@ -140,7 +140,7 @@ which is a smaller one. The difference is stated, not hidden.
 
 ## The lane
 
-The targets of §16 run on a schedule of their own
+The targets of ADR-0020 run on a schedule of their own
 (`.github/workflows/performance.yml`, ADR-0041): **every week** — Monday at 03:17 UTC — and by hand when
 somebody wants to see it. A number that changes every night is a number nobody reads twice; the schedule runs on the
 default branch, so the number of the week is the stable line of `main`, and `dev` is measured by hand (issue #124,
@@ -214,7 +214,7 @@ dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter QueryPerfor
 | 200,000 | **0.86 ms** | **2.2 ms** | 4.0 ms | 58 KB / 235 KB |
 | 1,000,000 | 2.02 ms | 7.4 ms | 25 ms | 63 KB / 267 KB |
 | 3,000,000 | 3.57 ms | 26.5 ms | 120 ms | 79 KB / 290 KB |
-| *target (§16), 3,000,000* | *≤ 2 ms* | *≤ 5 ms* | | *≤ 250 KB* |
+| *target (ADR-0020), 3,000,000* | *≤ 2 ms* | *≤ 5 ms* | | *≤ 250 KB* |
 
 **After the join was moved to the primary key** (`doc_id = f.rowid & 4294967295`
 instead of a seek on `s_rowid`, ADR-0006),
@@ -354,7 +354,7 @@ implementation (`SyncPerformance`):
 | `UpsertMany` of the same entries, one transaction | 52.5 s | 53.8 s |
 | query p50 / p95 after `Sync` · after `UpsertMany` | 1.22 / 3.86 · 1.68 / 5.39 ms | 1.11 / 3.36 · 1.73 / 5.55 ms |
 
-The §16 build target (3 M in ≤ 3 min) is measured with the benchmarks (PR-009).
+The ADR-0020 build target (3 M in ≤ 3 min) is measured with the benchmarks (PR-009).
 
 **A delta sync beside a built typo dictionary** (ADR-0021,
 `SyncPerformance.A_delta_sync_with_a_built_typo_dictionary`, 300,000 words of the German list, two runs): a sync of 100
@@ -393,7 +393,7 @@ dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter BudgetPerfo
 **The query over the multi-word index is not measured any more.** The corpus of the titles exists
 ([`wiki-titles.tsv.gz`](../tests/TestData/corpora/wiki-titles.tsv.gz)), but no budget names it, and a measurement that
 asserts nothing is a measurement that cannot fail. The file of the titles is still measured — by the file size of the
-budget `file-size-1m` — and the promise that measures the query over it is decided in the §16 round.
+budget `file-size-1m` — and the promise that measures the query over it is decided in the ADR-0020 round.
 
 | Entries | index | build | file | query p50 / p95 | alloc p50 / p95 | write p50 / p95 |
 |---:|---|---:|---:|---:|---:|---:|
@@ -401,7 +401,7 @@ budget `file-size-1m` — and the promise that measures the query over it is dec
 | 1,000,000 | `s_compact` only, `s_norm` virtual (this PR) | 157 s | 445 MB | 3.16 / 14.1 ms | 83 / 273 KB | 0.32 / 5.7 ms |
 | 200,000 | two columns (first version) | 33 s | 126 MB | 1.64 / 4.9 ms | 46 / 263 KB | 0.31 / 1.9 ms |
 | 1,000,000 | two columns (first version) | 180 s | 619 MB | 4.16 / 21.0 ms | 83 / 273 KB | 0.35 / 4.8 ms |
-| *target (§16)* | | *3 M ≤ 3 min* | *1 M ≤ 300 MB* | *3 M ≤ 2 / 5 ms* | *≤ 250 KB* | *≤ 1 ms p95* |
+| *target (ADR-0020)* | | *3 M ≤ 3 min* | *1 M ≤ 300 MB* | *3 M ≤ 2 / 5 ms* | *≤ 250 KB* | *≤ 1 ms p95* |
 
 - **Allocation.** With `F23`'s Dice the 95th percentile was **3,651 KB** (a dictionary per comparison, 500
   comparisons); with the allocation-free Dice of this PR it is 263 KB (ADR-0011).
@@ -424,7 +424,7 @@ kinds (a letter left out, one too many, one wrong, two swapped) after the first 
 dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter TypoPerformance --logger "console;verbosity=detailed"
 ```
 
-| | Result | Target (§16) |
+| | Result | Target (ADR-0020) |
 |---|---:|---:|
 | Dictionary build (first correction) | **4.2 s** | ≤ 10 s |
 | Dictionary memory | **138 MB** | ≤ 200 MB |
@@ -446,7 +446,7 @@ dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter TypoPerform
 
 ---
 
-## Results: the budgets of §16 (PR-009)
+## Results: the budgets of ADR-0020 (PR-009)
 
 ADR-0020. The measurement machine above; the whole German word list;
 the corpus of `Corpus` (`Nordmann.LUI.Testing`, seed 42): the 685,829 words, then compounds of two of them up to three
@@ -576,7 +576,7 @@ number there always has a run behind it. Run them again with `tools/benchmarks.s
 <!-- the tables of the run are rendered into the README of the release (ADR-0039) -->
 <!-- benchmarks:end -->
 
-**Reading.** These are 200,000 entries on one thread, in the page cache — the code, not the scenario of §16. A query
+**Reading.** These are 200,000 entries on one thread, in the page cache — the code, not the scenario of ADR-0020. A query
 takes 24 µs (two letters, the prefix path of a single-word index) to 1.1 ms (`haus` in titles: many candidates to
 rank); its allocation follows the candidates it reads (#30). A correction costs one more search per correction tried.
 A single write is a commit of its own; load a stock with `UpsertMany` or `Sync` instead.

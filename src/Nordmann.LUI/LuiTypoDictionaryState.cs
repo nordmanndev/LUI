@@ -1,7 +1,7 @@
 namespace Nordmann.LUI;
 
 /// <summary>
-/// Where the typo dictionary of an index stands (LUI-Spezifikation §10.1, ADR-0025) — a value for a health check, and the
+/// Where the typo dictionary of an index stands (ADR-0012, ADR-0025) — a value for a health check, and the
 /// question whether a correction is possible right now.
 /// </summary>
 public enum LuiTypoDictionaryState

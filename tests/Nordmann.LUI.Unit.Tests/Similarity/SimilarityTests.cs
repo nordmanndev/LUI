@@ -3,7 +3,7 @@ using Shouldly;
 
 namespace Nordmann.LUI.Unit.Tests.Similarity;
 
-/// <summary>The similarity measures (LUI-Spezifikation §11).</summary>
+/// <summary>The similarity measures (ADR-0030).</summary>
 public sealed class SimilarityTests
 {
     public static TheoryData<string> Measures => new()
@@ -67,7 +67,7 @@ public sealed class SimilarityTests
     [Fact]
     public void Each_kind_has_the_default_the_specification_names()
     {
-        // §4: Jaro-Winkler for single words, N-gram Dice for several
+        // ADR-0014: Jaro-Winkler for single words, N-gram Dice for several
         ReferenceEquals(IndexKindRules.For(LuiIndexKind.SingleWord).DefaultSimilarity, LuiSimilarity.JaroWinkler).ShouldBeTrue();
         ReferenceEquals(IndexKindRules.For(LuiIndexKind.MultiWord).DefaultSimilarity, LuiSimilarity.NgramDice).ShouldBeTrue();
     }

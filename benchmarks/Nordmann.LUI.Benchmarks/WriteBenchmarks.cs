@@ -4,7 +4,7 @@ using Nordmann.LUI.Testing;
 namespace Nordmann.LUI.Benchmarks;
 
 /// <summary>
-/// A single write in a transaction of its own (§16: p95 ≤ 1 ms): the weight of an entry, an upsert of an entry as it is
+/// A single write in a transaction of its own (ADR-0020: p95 ≤ 1 ms): the weight of an entry, an upsert of an entry as it is
 /// — which leaves the search index alone —, and an upsert with another text — which writes it.
 /// </summary>
 [MemoryDiagnoser]

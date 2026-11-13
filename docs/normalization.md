@@ -5,7 +5,7 @@
 > what was *measured* about the part that lives inside SQLite, and how the
 > two sides are held together.
 >
-> The specification (LUI-Spezifikation §6.2) demands the parity; this
+> The specification (ADR-0005) demands the parity; this
 > document is the evidence. The decisions behind it are in
 > ADR-0005.
 
@@ -121,7 +121,7 @@ match the trigrams of `apfel kuchen`.
 
 The trigram tokenizer needs three characters. `a`, `ab`, `ß` produce no
 tokens at all — which is why the query path has a separate branch for one and
-two characters (LUI-Spezifikation §8.1).
+two characters (ADR-0008).
 
 ---
 
@@ -224,7 +224,7 @@ sides work from the **same explicit list**:
 - the Unicode spaces (no-break, thin, narrow, ideographic, …), the dashes,
   the quotes, the guillemets, the middle dot, the bullet and the ellipsis.
 
-**This is a deliberate deviation from §6.1's wording** (ADR-0005): the two
+**This is a deliberate deviation from ADR-0005's wording** (ADR-0005): the two
 sides have to agree *exactly*, or the C# compact form (which strips after
 the folding) and the SQL compact column (which strips before it) would
 differ, and a query would stop finding what it should.

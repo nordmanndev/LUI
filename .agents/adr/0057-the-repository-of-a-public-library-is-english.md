@@ -33,7 +33,7 @@ The repository had grown a second voice:
 Two things stay German on purpose:
 
 - the **sample data** ("Gedeckter Apfelkuchen") — it shows what the normalisation is for;
-- the **specification** `.agents/spec/LUI-Spezifikation.md` — it is the contract of the work, it is deleted in pull
+- the **specification** — it is the contract of the work, it is deleted in pull
   request 8, and translating 1,407 lines of a document that is about to go would be work without a purpose.
 
 ## Decision

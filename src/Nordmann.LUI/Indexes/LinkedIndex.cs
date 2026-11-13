@@ -7,7 +7,7 @@ using Nordmann.LUI.Typos;
 namespace Nordmann.LUI.Indexes;
 
 /// <summary>
-/// An index over a table of the application (LUI-Spezifikation §5, §7.3, ADR-0015). It writes only its own tables;
+/// An index over a table of the application (ADR-0014, ADR-0015, ADR-0015, ADR-0015). It writes only its own tables;
 /// what it indexes it reads from the application's table, by the statements of its <see cref="LinkedSource"/>.
 /// <para>
 /// Whether it may write is decided by the file, not by the index (ADR-0033): an index of a catalog that was
@@ -137,7 +137,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
         var learned = new List<(string Text, int Weight)>();
         Guarded(() => Write(transaction, (connection, inTransaction) => RefreshAll(connection, inTransaction, distinct, learned, cancellationToken)));
 
-        // the new word beginnings join the typo dictionary, if it is built (§10.1)
+        // the new word beginnings join the typo dictionary, if it is built (ADR-0012)
         _typos.AddRange(learned);
         return learned.Count;
     }
@@ -414,7 +414,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
 
     /// <summary>
     /// Runs a write in the transaction of the application, or in one of LUI's own on the catalog's writer — then the
-    /// writer's lock is held for the whole of it (one writer per file anyway, §15), and an error or a cancellation
+    /// writer's lock is held for the whole of it (one writer per file anyway, ADR-0015, ADR-0046), and an error or a cancellation
     /// rolls it back.
     /// </summary>
     private void Write(SqliteTransaction? transaction, Action<SqliteConnection, SqliteTransaction> write)

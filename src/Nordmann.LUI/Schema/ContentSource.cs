@@ -3,7 +3,7 @@ using Nordmann.LUI.Normalization;
 namespace Nordmann.LUI.Schema;
 
 /// <summary>
-/// Where the content of an index lives (LUI-Spezifikation §5), and everything that depends on it: the
+/// Where the content of an index lives (ADR-0014, ADR-0015), and everything that depends on it: the
 /// names of the tables, the statements that create and remove them, and the SQL that the query path and
 /// the typo dictionary read with. The query path knows this class, not a table name — so a second source
 /// (<c>Linked</c>, a table of the application) is a second subclass, not a second query path (ADR-0014).
@@ -51,10 +51,10 @@ internal abstract class ContentSource
     /// <summary>The statements that create the index, in the order they have to run.</summary>
     internal abstract IReadOnlyList<string> CreateStatements();
 
-    /// <summary>The prefix path (§8.1): <c>(rowid, text)</c> of the best entries whose text begins with one or two characters.</summary>
+    /// <summary>The prefix path (ADR-0008): <c>(rowid, text)</c> of the best entries whose text begins with one or two characters.</summary>
     internal abstract string PrefixSql(int length);
 
-    /// <summary>The candidates of an input of three or more characters (§8.2): <c>(rowid, text)</c> in the order of the rowid.</summary>
+    /// <summary>The candidates of an input of three or more characters (ADR-0008): <c>(rowid, text)</c> in the order of the rowid.</summary>
     internal abstract string CandidateSql { get; }
 
     /// <summary>
@@ -66,7 +66,7 @@ internal abstract class ContentSource
     /// <summary>The number of entries.</summary>
     internal abstract string CountSql { get; }
 
-    /// <summary>What the typo dictionary is built from: <c>(text, weight)</c> of every entry (§10.1).</summary>
+    /// <summary>What the typo dictionary is built from: <c>(text, weight)</c> of every entry (ADR-0012).</summary>
     internal abstract string TextsSql { get; }
 
     /// <summary>Merges the segments of the search index into one (FTS5 <c>optimize</c>).</summary>

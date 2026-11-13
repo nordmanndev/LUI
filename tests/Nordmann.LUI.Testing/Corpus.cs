@@ -1,7 +1,7 @@
 namespace Nordmann.LUI.Testing;
 
 /// <summary>
-/// A corpus of the measurements (LUI-Spezifikation §16, Anhang A; ADR-0020; ADR-0059): the entries, their weights
+/// A corpus of the measurements (ADR-0020, Anhang A; ADR-0020; ADR-0059): the entries, their weights
 /// and the kind of the index they live in. The entries come from a <b>fixed file</b> and not from a generator: a
 /// corpus that changes with the scaling parameter is a different corpus, and a measurement that runs on two corpora is
 /// no comparison. The key of an entry is its position, 1 … n.
@@ -58,7 +58,7 @@ public sealed class Corpus
     }
 
     /// <summary>
-    /// What users type (§16: inputs of 1 … 8 characters): the beginning of an entry, or a piece out of its middle; for
+    /// What users type (ADR-0020: inputs of 1 … 8 characters): the beginning of an entry, or a piece out of its middle; for
     /// titles also two words of a title, a few letters of each, in either order.
     /// </summary>
     /// <param name="count">How many inputs.</param>
@@ -96,7 +96,7 @@ public sealed class Corpus
     }
 
     /// <summary>
-    /// Inputs with one typo (§10, §16 "Abfrage mit Tippfehler-Korrektur"): the beginning of an entry of 5 … 9 letters with
+    /// Inputs with one typo (ADR-0012, ADR-0020 "Abfrage mit Tippfehler-Korrektur"): the beginning of an entry of 5 … 9 letters with
     /// one edit after the first letter — the inputs a typo tolerance is there for.
     /// </summary>
     /// <param name="count">How many inputs.</param>

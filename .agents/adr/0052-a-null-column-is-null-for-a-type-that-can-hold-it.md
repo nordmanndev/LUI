@@ -4,7 +4,7 @@
 - **Date:** 2026-11-11
 - **Builds on:** [0015](./0015-the-linked-index-is-loosely-coupled.md) (the linked index and its payload columns),
   [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (the freeze begins with the tag)
-- **Affects:** `LuiPayloadRow.Get<T>`, `docs/api.md`, the specification §12.3 and §12.8, `CHANGELOG.md`
+- **Affects:** `LuiPayloadRow.Get<T>`, `docs/api.md`, the specification ADR-0035 and ADR-0046, `CHANGELOG.md`
 - **Issue:** #111, found in #104 (pull request #109). The owner's decision of 2026-11-09: change it before 0.1.0.
 
 ## Context

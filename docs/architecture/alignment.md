@@ -35,9 +35,9 @@ which describe *application shape* — and therefore do not".
 | The shape of an application | Why it does not apply to a library | Where it would have hurt |
 |---|---|---|
 | Domain aggregates, a command bus | LUI has no domain, no commands, no handlers. Its API is `LuiCatalog → ILuiIndex → Query`. | a source generator in every consumer's build, for no behaviour |
-| A persistence layer above the database | LUI *is* the persistence layer, over raw `Microsoft.Data.Sqlite`. The specification's §8 is explicit SQL. | a second ORM hiding the SQL the design depends on |
+| A persistence layer above the database | LUI *is* the persistence layer, over raw `Microsoft.Data.Sqlite`. The specification's ADR-0008 is explicit SQL. | a second ORM hiding the SQL the design depends on |
 | Events and a `BackgroundService` | LUI has no events and no process. | a queue for a library that has one long operation with a `CancellationToken` |
-| Its own identifier type | `TKey` is the *application's* key (`long` or `string`, §12.3). | imposing an ID type on consumers |
+| Its own identifier type | `TKey` is the *application's* key (`long` or `string`, ADR-0035). | imposing an ID type on consumers |
 | A logging stack of its own | A library must not force a logging stack on consumers. | a transitive logging dependency in every app |
 | Multi-tenant by default | One catalog = one database. Tenancy is the application's. | the library deciding a tenancy model for its consumer |
 | A frontend framework for the sample | That governs the frontends of *projects*. The sample is a library demo with one inline page, plain ES modules and its own CSS. | a demo whose subject is the LUI API buried under a frontend stack |
@@ -51,5 +51,5 @@ which describe *application shape* — and therefore do not".
 | Every decision of the specification's §3 (E1–E10) becomes an ADR here | the specification asks for it: *"Every decision becomes an ADR in the implementation."* |
 | The performance budgets are tests, not prose | Anhang A's numbers are measurements on a machine that is not the consumer's machine |
 | The dependency set is asserted | a library's dependency list is a public contract (ADR-0004) |
-| The SQL ↔ C# normalisation parity is a test over the whole word list | the rule exists twice (§6.2); a drift between the two sides is a silent search miss |
+| The SQL ↔ C# normalisation parity is a test over the whole word list | the rule exists twice (ADR-0005); a drift between the two sides is a silent search miss |
 | The public API grows only additively from `v0.1.0` on | a library's signatures are its contract with every application built against it; a break costs a minor version, a migration note and an ADR (ADR-0026) |

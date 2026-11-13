@@ -3,7 +3,7 @@ using Shouldly;
 namespace Nordmann.LUI.Unit.Tests.Budgets;
 
 /// <summary>
-/// The targets of §16 come in two kinds: the ones that are **bytes** — the same on every machine — and the ones that
+/// The targets of ADR-0020 come in two kinds: the ones that are **bytes** — the same on every machine — and the ones that
 /// are **times**, and a time belongs to the machine it was measured on. A machine that is not the one of the record
 /// therefore reports the times and asserts the bytes (ADR-0041): a shared runner cannot decide a time target, but it
 /// can decide a size.

@@ -3,7 +3,7 @@ using Microsoft.Data.Sqlite;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// An index over a table of the application (<c>Linked</c>, LUI-Spezifikation §5, §7.3, ADR-0015). It is loosely
+/// An index over a table of the application (<c>Linked</c>, ADR-0014, ADR-0015, ADR-0015, ADR-0015). It is loosely
 /// coupled: LUI never changes the application's table on its own — no column, no index, and no trigger unless the
 /// application asks for one. The application keeps the index current: <see cref="Sync"/> for the whole table,
 /// <see cref="Refresh"/> after its own writes, or the triggers of <see cref="TriggerScript"/>, if it wants them.
@@ -17,7 +17,7 @@ public interface ILuiLinkedIndex : ILuiIndex
     /// index did not hear of. The search index is written in the order of the rowid and merged at the end. A row
     /// without a text, or with a key outside 0 … 4,294,967,295, is left out and counted — never refused.
     /// <para>
-    /// SQLite has one writer per file (§15): other writers wait while a sync runs, <b>up to their busy timeout</b> — a
+    /// SQLite has one writer per file (ADR-0015, ADR-0046): other writers wait while a sync runs, <b>up to their busy timeout</b> — a
     /// million rows take about half a minute, so a writer with a shorter timeout gets <c>SQLITE_BUSY</c>. Run a large
     /// sync when writes are rare, or give the writers a longer timeout.
     /// </para>
@@ -45,7 +45,7 @@ public interface ILuiLinkedIndex : ILuiIndex
     int RefreshMany(IEnumerable<long> keys, SqliteTransaction? transaction = null, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Checks the index against itself and against the application's table (§12.6, §14) and changes nothing: the stored
+    /// Checks the index against itself and against the application's table (ADR-0016, ADR-0016, ADR-0046) and changes nothing: the stored
     /// definition is the one of this instance, the search index passes FTS5's integrity check, the application's table
     /// still fits, and the entries agree with its rows. The integrity check reads the whole search index under SQLite's
     /// write lock (about 2 s for a million entries); the comparison with the table runs after it, in a snapshot of its own,
@@ -64,7 +64,7 @@ public interface ILuiLinkedIndex : ILuiIndex
     void WarmUpTypoDictionary(CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Builds the typo dictionary anew from the entries (§10.1). The dictionary is built on first use and
+    /// Builds the typo dictionary anew from the entries (ADR-0012). The dictionary is built on first use and
     /// grows with every write through LUI: only new word beginnings, so the frequencies of the old ones stay as
     /// they were; a removal does not shrink it, because SymSpell cannot forget — a correction towards a removed
     /// word finds nothing. A rebuild gives the sums of the weights as they are now and forgets the removed

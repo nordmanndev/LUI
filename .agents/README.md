@@ -6,7 +6,7 @@
 
 | Paper | What it is |
 |---|---|
-| [The specification](./spec/LUI-Spezifikation.md) | the contract of the library: the kinds of index, the sources of the content, the query path, the ranking, the typo tolerance, the API. The implementation follows it; where the code and the specification disagree, the specification wins and the difference becomes an ADR. |
+| [The specification](./spec/.md) | the contract of the library: the kinds of index, the sources of the content, the query path, the ranking, the typo tolerance, the API. The implementation follows it; where the code and the specification disagree, the specification wins and the difference becomes an ADR. |
 | [The decisions](./adr/README.md) | one ADR per decision, with its reason. The index finds them by their topic. |
 | [The delivery plans](./plan/README.md) | one plan per piece of work, with the steps and their acceptance criteria. The history of the repository. |
 | [The release](./release.md) | how a version reaches nuget.org: what the owner does once, and the four steps of every release (ADR-0048). |

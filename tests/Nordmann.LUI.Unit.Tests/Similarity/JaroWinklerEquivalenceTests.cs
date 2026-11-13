@@ -6,7 +6,7 @@ namespace Nordmann.LUI.Unit.Tests.Similarity;
 /// <summary>
 /// LUI's own Jaro-Winkler allocates nothing; it must give the same number as the library it replaces
 /// (<c>F23.StringSimilarity.JaroWinkler</c>) — the measurements of the specification are measurements of that
-/// definition (§11). The parity is the proof; the allocation is the reason (issue #30).
+/// definition (ADR-0030). The parity is the proof; the allocation is the reason (issue #30).
 /// </summary>
 public sealed class JaroWinklerEquivalenceTests
 {

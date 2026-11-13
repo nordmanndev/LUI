@@ -5,8 +5,8 @@ using Nordmann.LUI.Testing;
 namespace Nordmann.LUI.Architecture.Tests;
 
 /// <summary>
-/// Folder = namespace. The spec fixes the namespace layout (LUI-Spezifikation
-/// §17.2); a file that lives in <c>Indexing/</c> and declares another namespace
+/// Folder = namespace. The spec fixes the namespace layout (
+/// ADR-0014); a file that lives in <c>Indexing/</c> and declares another namespace
 /// makes the public API's shape a matter of guesswork. The tests follow the same
 /// rule: their folders are their subjects (issue #77).
 /// </summary>
@@ -35,7 +35,7 @@ public sealed class NamespaceConventionTests
             }
         }
 
-        offenders.ShouldBeEmpty("Folder = namespace (LUI-Spezifikation §17.2).");
+        offenders.ShouldBeEmpty("Folder = namespace (ADR-0014).");
     }
 
     [Fact]

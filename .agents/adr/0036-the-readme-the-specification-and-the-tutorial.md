@@ -37,7 +37,7 @@ sections, and it said the same things in two places:
 | | Finding |
 |---|---|
 | Scope | 571 lines, 18 sections |
-| The five concept sections (182–311) | a duplicate of `.agents/spec/LUI-Spezifikation.md` — two places for one truth |
+| The five concept sections (182–311) | a duplicate of — two places for one truth |
 | Performance (from 387) | the argument for trust stands after two thirds of the file |
 | BenchmarkDotNet tables (414–494) | 80 lines of raw data in the wrong document |
 | Table of contents, badges | none |
@@ -61,7 +61,7 @@ one were wrong.
    NuGet, licence, .NET); what LUI is (three sentences); the problem (two sentences: 98 % of the input is a read, and
    the second store for the same data is the expensive part); the highlights (outcome-focused bullets); a linked table
    of contents; the two `dotnet add package` lines; **one** quick start with its output; the budget table of
-   [spec §16](./../spec/LUI-Spezifikation.md) with the machine and a link to the record; one table for the two index
+   [spec ADR-0020](./../spec/.md) with the machine and a link to the record; one table for the two index
    kinds and the two content sources; the payload; `AddLui` in an ASP.NET Core application; reading only
    (`Mode=ReadOnly`); the five most important types; the sample with its two screenshots; the map of the documentation;
    and at the end status, contributing and licence.

@@ -25,7 +25,7 @@
     `LuiSyncReport.TypoDictionaryStale` (new)
   - `LuiServicesBuilder.RebuildStaleTypoDictionariesEvery(TimeSpan?)` (new), the hosted service `LuiTypoRebuilder` (new)
   - `Typos/TypoDictionary.cs`, `Querying/QueryRunner.cs`, `Querying/TypoCorrection.cs`, `Indexes/OwnedSync.cs`
-  - spec §10.1, §10.3a, §12.4, §12.7
+  - spec ADR-0012, ADR-0012, ADR-0016, ADR-0017, ADR-0034
 
 ## Context
 

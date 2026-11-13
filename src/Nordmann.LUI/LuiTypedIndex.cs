@@ -20,7 +20,7 @@ public sealed class LuiTypedIndex<TPayload>
     public LuiKeyKind KeyKind => _index.KeyKind;
 
     /// <summary>
-    /// How many errors a query of this instance forgives (§10): <see cref="LuiTypoDistance.None"/> corrects nothing.
+    /// How many errors a query of this instance forgives (ADR-0012): <see cref="LuiTypoDistance.None"/> corrects nothing.
     /// The distance belongs to the index — a query may switch the correction on or off, but it cannot widen it.
     /// </summary>
     public LuiTypoDistance TypoDistance => _index.TypoDistance;

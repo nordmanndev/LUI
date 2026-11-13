@@ -6,7 +6,7 @@ using Shouldly;
 namespace Nordmann.LUI.Unit.Tests.Querying;
 
 /// <summary>
-/// The FTS5 expression of a <c>MultiWord</c> query (LUI-Spezifikation §8.2): the words ANDed, the
+/// The FTS5 expression of a <c>MultiWord</c> query (ADR-0008): the words ANDed, the
 /// compact form beside them, short words kept out, every term quoted.
 /// </summary>
 public sealed class MultiWordExpressionTests

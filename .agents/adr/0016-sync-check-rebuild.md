@@ -17,7 +17,7 @@
   `ILuiIndex`), `LuiSyncOptions`, `LuiSyncReport`, `LuiIntegrityReport`; `src/Nordmann.LUI/Storage/`,
   `Indexes/IndexStore.cs`, `Indexes/OwnedSync.cs`, `Indexes/OwnedCheck.cs`, `Indexes/IndexCheck.cs`;
   `tests/Nordmann.LUI.Architecture.Tests/Internal_Layering.cs`, `tools/mutation-check.sh`;
-  specification §12, §14, §17.2, §20
+  specification docs/api.md, ADR-0016, ADR-0046, ADR-0014, the plan
 - **Builds on:** [0010](./0010-the-query-budget-at-three-million-entries.md) (option 5, the bulk path),
   [0014](./0014-seams-for-the-second-content-source.md) (D4, D6), [0015](./0015-the-linked-index-is-loosely-coupled.md)
 
@@ -25,7 +25,7 @@
 
 Step 7 of the plan: an `Owned` index is brought in step with a source (`Sync`), compared with it (`Check(source)`),
 checked in itself (`Check()`) and repaired (`Rebuild()`); a `Linked` index gets its `Check()`. The specification asks for
-batches in their own transactions that can be cancelled and run again (§14), and the plan's "done when" is a sync of a
+batches in their own transactions that can be cancelled and run again (ADR-0016, ADR-0046), and the plan's "done when" is a sync of a
 million entries, cancelled and run again. ADR-0010 left one lever for the build and the query tail with this step: load
 in the order of the rowid, merge once. And the review of the API (DevEx D4, D6) asked that the catalog be taken apart
 before the operations that need its connections arrive.
@@ -53,12 +53,12 @@ exception of `Internal_Layering` is gone, and the mutation check proves the rule
 - a sync cancelled or failing **while it reads the source** keeps the batches it committed and removes nothing. One
   cancelled **during the removal at the end** — itself in batches — leaves the rest of the removal undone, unmerged, and
   the typo dictionary not rebuilt (review of pull request 18, S1). Either way a second run finds the committed work
-  unchanged and does only the rest — the "Wiederaufsetzen" of §14;
+  unchanged and does only the rest — the "Wiederaufsetzen" of ADR-0016, ADR-0046;
 - each batch is written **in the order of the search index** (priority, then weight descending — a new entry's
   document id grows with the order of the inserts) with FTS5's `automerge` off, set back to its default before the
   commit; the search index is merged (`optimize`) once at the end, when anything changed;
 - `IProgress<LuiSyncReport>` hears after every batch; an `IAsyncEnumerable` overload takes an asynchronous source
-  (§13) — the call still blocks, the writes stay synchronous.
+  (ADR-0016) — the call still blocks, the writes stay synchronous.
 
 **`Check(source)`** reads the source once, in a snapshot of its own on a connection of its own, and notes what each
 key found in a table of the connection's temporary database (the last entry of a key wins, as in a sync): counts and up
@@ -130,7 +130,7 @@ sync 10.5 s, `UpsertMany` 8.1 s, the same sync again 1.8 s, `Check()` 0.3 s, `Re
   writes (review of pull request 18, S4). Give the application's writers a busy timeout of a few seconds while a sync
   runs. A first load into a file that no one else writes is about 30 % faster with `BatchSize = 100_000` (about 5 s per
   batch — longer than the default busy timeout of 5 s of another writer); the default stays the specification's.
-- The target of §16 for the build (3 M entries in ≤ 3 min) is not measured here; at a million the sync takes 54–78 s.
+- The target of ADR-0020 for the build (3 M entries in ≤ 3 min) is not measured here; at a million the sync takes 54–78 s.
   PR-009 measures it at 3 M.
 - The table of a sync lives in the temporary database of the writer's connection; SQLite keeps it in a file unless
   `temp_store` says otherwise (`MEMORY` gave 12.0 → 10.9 s at 200,000 — within the noise of the runs, not taken).

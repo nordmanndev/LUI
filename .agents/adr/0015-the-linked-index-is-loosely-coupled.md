@@ -11,16 +11,16 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-03
-- **Supersedes:** the `Linked` design of the specification, draft 2 (§5, §7.3, §12.2: generated columns, indexes and
+- **Supersedes:** the `Linked` design of the specification, draft 2 (ADR-0014, ADR-0015, ADR-0015, docs/api.md: generated columns, indexes and
   triggers on the application's table behind `allowSchemaChange`); the source step of the builder in ADR-0013
 - **Affects:** `src/Nordmann.LUI/Schema/LinkedSource.cs`, `Schema/ContentSources.cs`, `Schema/LinkDefinition.cs`,
   `Indexes/LinkedIndex.cs`, `Indexes/LinkedTable.cs`, `Querying/ColumnPayload.cs`, `LuiLinkedIndexBuilder.cs`,
   `LuiIndexBuilderExtensions.cs`, `ILuiLinkedIndex.cs`, `LuiRow.cs`, `LuiLinkedTableException.cs`, `LuiIndexKindBuilder.cs`,
-  `LuiIndexBuilder.cs`; `.agents/spec/LUI-Spezifikation.md` §5, §7.3, §12, §14, §20; `AGENTS.md`; `README.md`
+  `LuiIndexBuilder.cs`; ADR-0014, ADR-0015, ADR-0015, docs/api.md, ADR-0016, ADR-0046, the plan; `AGENTS.md`; `README.md`
 
 ## Context
 
-A `Linked` index searches a table of the application (spec §5). Draft 2 of the specification gave that table five
+A `Linked` index searches a table of the application (spec ADR-0014, ADR-0015). Draft 2 of the specification gave that table five
 generated columns, three indexes and three triggers, created by `Ensure()` with `allowSchemaChange: true`. The owner
 decided against it (issue #15): *the main schema of the application must not be cluttered — no columns; triggers only
 if it must be, and then not implicitly; the responsibility for filling the index may lie with the application, which

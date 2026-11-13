@@ -1,7 +1,7 @@
 namespace Nordmann.LUI;
 
 /// <summary>
-/// The first step of describing an index (LUI-Spezifikation §12.2): its kind. The kind is fixed when the index is
+/// The first step of describing an index (docs/api.md): its kind. The kind is fixed when the index is
 /// created and decides how it is searched. What follows is an <c>Embedded</c> index with numbers as keys — the
 /// default —, or, with <c>LinkTo(…)</c>, an index over a table of the application.
 /// <para>

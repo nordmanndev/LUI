@@ -5,7 +5,7 @@ namespace Nordmann.LUI.Unit.Tests.Text;
 
 /// <summary>
 /// The normalisation rule, as the specification states it
-/// (LUI-Spezifikation §6.1).
+/// (ADR-0005).
 /// </summary>
 public sealed class NormalizerTests
 {

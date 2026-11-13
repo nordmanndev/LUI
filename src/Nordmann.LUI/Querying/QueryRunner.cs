@@ -7,7 +7,7 @@ using Nordmann.LUI.Typos;
 namespace Nordmann.LUI.Querying;
 
 /// <summary>
-/// Runs a query (LUI-Spezifikation §8, §9) as a pipeline: the candidates out of SQLite in the order of the
+/// Runs a query (ADR-0008, ADR-0008) as a pipeline: the candidates out of SQLite in the order of the
 /// rowid (<see cref="CandidateReader"/>), the typo correction when it is wanted (<see cref="TypoCorrection"/>),
 /// the ranking in memory (<see cref="Ranker"/>), key and payload of the hits in one more statement
 /// (<see cref="HitReader"/>) — all in one snapshot. Where the content lives is the content
@@ -138,7 +138,7 @@ internal sealed class QueryRunner
         };
 
     /// <summary>
-    /// The typo correction, when it is wanted (§10.2): the candidates of the corrections united with those of the input.
+    /// The typo correction, when it is wanted (ADR-0012): the candidates of the corrections united with those of the input.
     /// While another build of the dictionary runs, or when the build fails, the query does not wait for it and does not
     /// fail: it answers with what the input found, and says so (ADR-0021).
     /// </summary>

@@ -4,7 +4,7 @@ using static Nordmann.LUI.Integration.Tests.Linked.LinkedTable;
 namespace Nordmann.LUI.Integration.Tests.Linked;
 
 /// <summary>
-/// A <c>Linked</c> index over a table of the application (LUI-Spezifikation §5, §7.3, ADR-0015): loosely coupled —
+/// A <c>Linked</c> index over a table of the application (ADR-0014, ADR-0015, ADR-0015, ADR-0015): loosely coupled —
 /// LUI reads the table and never changes it on its own. The definition, the names, the lifetime of the index.
 /// </summary>
 public sealed class LinkedIndexTests

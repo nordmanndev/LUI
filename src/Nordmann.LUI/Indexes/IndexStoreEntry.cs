@@ -3,7 +3,7 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI.Indexes;
 
 /// <summary>
-/// What <c>lui_meta</c> holds about an index (LUI-Spezifikation §7.1): its kind, its content source, its definition
+/// What <c>lui_meta</c> holds about an index (ADR-0006, ADR-0033): its kind, its content source, its definition
 /// and the version of the schema it was written with.
 /// </summary>
 /// <param name="Kind">The kind of the index.</param>
