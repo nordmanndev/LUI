@@ -23,6 +23,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   count threshold of one, the order of the corrections, and the head of ten letters. Over the whole word list: 685,739
   words, 138 MB, and a fingerprint of the corrections that an own implementation would have to reproduce.
 
+### Fixed
+
+- **The warm-up of the host waits for the round itself** (#185): the host that stops the service waits for the **task**
+  of the round, and not for the flag of the service — the flag is cleared a moment before the round itself is over. The
+  service also counts the rounds that have begun: a claim that stays true, where the claim of a round that *runs* holds
+  only while the round runs. The test of the hunt of issue #154 waited for that momentary claim, and a loaded machine
+  delayed the poll of the test by more than the life of the round (1841 ms against 1.16 s) — the round began and ended
+  between two polls, and the claim was never seen. The public API does not move.
+
 ## [0.1.1] — 2026-11-13
 
 The release of **0.1.1**: the guards of the repository and the dead paths of the records. The public API does not move —

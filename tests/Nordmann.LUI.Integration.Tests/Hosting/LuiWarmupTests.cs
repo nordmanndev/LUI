@@ -171,7 +171,11 @@ public sealed class LuiWarmupTests
             configure: options =>
             {
                 options.WarmUpTypoDictionaries = false;
-                options.OutboxInterval = TimeSpan.FromMilliseconds(50);
+
+                // the round of this test is started by hand — the timer of the service would run a round between the
+                // insert and the rename below, that round would bring the row in, and the failure would never come
+                // (issue #185: the wait of a test must not depend on the moment the machine happens to have)
+                options.OutboxInterval = TimeSpan.FromHours(1);
             },
             logger: logger);
         await host.StartAsync();
@@ -180,7 +184,12 @@ public sealed class LuiWarmupTests
         Insert(database, (1, "vegan", 0));
         Run(database, "ALTER TABLE tag RENAME TO tag_gone;");
 
-        await WaitUntil(() => logger.Entries.Any(entry => entry.Level == LogLevel.Warning));
+        // the round is started by hand and waited for: a machine that is busy runs the timer later, and a test that
+        // waits for a warning with a deadline fails on a busy machine (issue #185)
+        var service = host.Services.GetServices<IHostedService>().OfType<global::Nordmann.LUI.Hosting.LuiWarmupService>().Single();
+        service.OnRound(null);
+        await service.RoundTask;
+
         var warning = logger.Entries.First(entry => entry.Level == LogLevel.Warning);
         warning.Event.Id.ShouldBe(3);
         warning.Exception.ShouldNotBeNull("the logger gets the failure itself, not only a sentence about it");
@@ -249,7 +258,10 @@ public sealed class LuiWarmupTests
         Run(blocker, "BEGIN IMMEDIATE;");
 
         var first = Task.Factory.StartNew(() => service.OnRound(null), TestContext.Current.CancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-        await WaitUntil(() => service.RoundRunning);
+
+        // issue #185: the wait asks for a round that has begun, not for a round that runs — the claim of a round that
+        // runs holds only while the round runs, and a loaded machine can delay the poll of the test by more than that
+        await WaitUntil(() => service.RoundsBegun > 0);
 
         // the first round waits for the lock for the busy timeout of five seconds: the second call is made within it
         service.OnRound(null);
@@ -269,6 +281,10 @@ public sealed class LuiWarmupTests
         // issue #148: the host stopped the service, and the round that was running went on — it held the file of the
         // application, and the teardown of a test could not delete it. The disposal of the host waits for the round
         // (ADR-0043: the host runs it, the host stops it, the host disposes it).
+        // issue #185: this test failed under load, because it waited for a claim that holds only while a round runs:
+        // the round of this test waits for the write lock of the file, which the test itself holds, so it gives up
+        // after the busy timeout of one second — and a loaded machine can delay the poll of the test by more than
+        // that. The wait asks for a round that has begun, and the claim of that stays true.
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
@@ -293,14 +309,53 @@ public sealed class LuiWarmupTests
             TestContext.Current.CancellationToken,
             TaskCreationOptions.LongRunning,
             TaskScheduler.Default);
-        await WaitUntil(() => service.RoundRunning);
+        await WaitUntil(() => service.RoundsBegun > 0);
 
         // the host is disposed: the round that runs is joined, and nothing of LUI runs after the service is gone
         ((IDisposable)host).Dispose();
         service.RoundRunning.ShouldBeFalse("the disposal waits for the round that runs");
-        round.IsCompleted.ShouldBeTrue("the round ended before the host was gone");
+        service.RoundTask.IsCompleted.ShouldBeTrue("the round ended before the host was gone");
 
+        await round;
         Run(blocker, "COMMIT;");
+    }
+
+    [Fact]
+    [Trait("Category", "Timing")]
+    public async Task The_claim_of_a_round_that_has_begun_stays_true_when_the_round_is_over()
+    {
+        // issue #185: the claim of a round that runs is momentary — the round of the test waits for the write lock of
+        // the file, which the test itself holds, so it lives about a second. A waiter that comes late must still learn
+        // that a round ran: the claim of a round that has begun stays true.
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        tags.CreateTriggers();
+        Insert(database, (1, "vegan", 0));
+
+        // the round waits for the write lock, which the test holds — it gives up after the busy timeout and is over
+        using var blocker = database.Connect();
+        Run(blocker, "BEGIN IMMEDIATE;");
+
+        using var host = Host(
+            database,
+            warmup: true,
+            configure: options => options.WarmUpTypoDictionaries = false,
+            catalogOptions: new LuiCatalogOptions { BusyTimeout = TimeSpan.FromMilliseconds(100) });
+
+        var service = host.Services.GetServices<IHostedService>().OfType<global::Nordmann.LUI.Hosting.LuiWarmupService>().Single();
+        var round = Task.Factory.StartNew(
+            () => service.OnRound(null),
+            TestContext.Current.CancellationToken,
+            TaskCreationOptions.LongRunning,
+            TaskScheduler.Default);
+        await WaitUntil(() => service.RoundsBegun > 0);
+        await service.RoundTask;
+        await round;
+
+        service.RoundRunning.ShouldBeFalse("the round is over");
+        service.RoundsBegun.ShouldBe(1, "the claim of a round that has begun stays true");
     }
 
     [Fact]

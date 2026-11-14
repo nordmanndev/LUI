@@ -4,7 +4,7 @@
 - **Base branch:** `dev`
 - **Decided by:** the owner, on 2026-11-13, after the release of `0.1.1` — the two forks of the round (#31, #44) were put to
   the owner and answered: **measure first, then decide**
-- **Issues:** #32, #31, #44, #134, #154 — #117 (the epic they belong to)
+- **Issues:** #32, #31, #44, #134, #154, #185 — #117 (the epic they belong to)
 - **Status:** in progress — three pull requests of it are merged (#134, PR #164, the merge commit `f15370f`; #154, PR #184,
   the merge commit `2a492d1`; #44, PR #187, the merge commit `dcb3cea`)
 - **Why now:** the tag `v0.1.1` exists (2026-11-13), the round of the guards is released, and what is left is the work that
@@ -12,7 +12,7 @@
 
 ## 1. The goal
 
-**0.2.0 — the round of the measured work.** Five tasks, and four of them are questions that the repository cannot answer
+**0.2.0 — the round of the measured work.** Six tasks, and four of them are questions that the repository cannot answer
 without a number:
 
 1. **The first load of three million entries** (#32) — the target of the original is 3 min (180 s): it holds on one machine
@@ -25,9 +25,12 @@ without a number:
 4. **The 1912 bytes** (#134) — one allocation in one measured window of one run, never reproduced.
 5. **The integration test that failed once** (#154) — under load, in a run whose output was filtered, and the name of the
    test was lost with it.
+6. **The wait of the warm-up** (#185) — the test that the hunt of #154 named waits for a round that *runs*, a claim that
+   holds for about a second, and a loaded machine misses it. The fix is the round's own task and a claim that stays true.
 
-The order is the order of the costs: the two flakes first (they need runs, not decisions), then the two decisions (the
-measurements behind them are cheap), then the load (it needs two machines and hours), then the release.
+The order is the order of the costs: the two flakes first (they need runs, not decisions), then the fix of the flake that
+the hunt named (it needs a claim that does not expire), then the two decisions (the measurements behind them are cheap),
+then the load (it needs two machines and hours), then the release.
 
 ## 2. What the release of 0.1.1 left open
 
@@ -37,6 +40,7 @@ the kinds need different things of a pull request.
 | Kind | The issues | What it is | What a pull request costs |
 |---|---|---|---|
 | **Questions about the code** | #134, #154 | two flakes, both with the facts known and the cause unknown | a probe, a procedure, and the number of the runs |
+| **Fixes of the code** | #185 | the wait of the warm-up for a round that runs — a claim that holds for a second | a claim that stays true, the task of the round, and a mutation |
 | **Questions about the design** | #31, #44 | the lock of a linked sync, the dependency on `symspell` | a measurement, then an ADR |
 | **Work that is measured** | #32 | the first load of three million entries | four levers at 3 M on two machines, the path in `Sync`, an ADR |
 
@@ -49,13 +53,17 @@ The epic #117 waits for two of them: #137 (the dead paths of the records ✓ don
 | D1 | **The next version is `0.2.0`, a minor one**, and it carries the five tasks of this round. | The freeze of ADR-0026 is a promise about the API: a break needs a minor version, a migration note and an ADR. Nothing here breaks the API, but the round is of the weight of a minor version — a new ADR about the dependency set, and possibly a new mode of `Sync` (`LuiSyncOptions`) — and a patch would understate it. |
 | D2 | **The round measures first and decides with an ADR** — for #31 and #44 the implementation is *not* in this round. | The owner answered both forks on 2026-11-13 with the same words: *measure first, then decide*. The shadow build is a second write path for every refresh of a linked index; an own SymSpell has to be bit-exact against the one that is measured today (ADR-0012: 4.2 s, 138 MB, 685,739 words, and the floors of `TypoQualityTests`). Neither is a matter of taste, and both have a number that decides them. |
 | D3 | **#32 is the one implementation of the round**: the chosen path goes into `Sync`, with an ADR. | The budget `build-3m` (≤ 4 min, ADR-0056) holds today — 172.5–205.9 s on two machines — but the target of the original is 3 min, and it holds on one machine and misses on the next. A decision without a change would leave the promise where it is; the ADR says whether the chosen path brings the 3 min back. |
-| D4 | **The order is by the cost of the work**: the flakes, the two decisions, the load, the release. | The flakes need runs and nothing else; the two decisions need one number each; the load needs two machines and hours, and its ADR may change the API. |
+| D4 | **The order is by the cost of the work**: the flakes, the fix of the flake, the two decisions, the load, the release. | The flakes need runs and nothing else; the fix of the flake needs a claim that does not expire; the two decisions need one number each; the load needs two machines and hours, and its ADR may change the API. |
 | D5 | **The two flakes are answered by keeping the evidence, not by guessing.** The probe of the allocation window is a tool of the repository (its buffer is allocated *before* the window, its printing *after* it), and the run under load keeps the whole output — the name of the test is written down the moment it fails. | The issue #154 says it plainly: an issue that names a test on suspicion sends the next agent after the wrong thing. The one failure that was lost was lost because the output was filtered; the fix is a procedure that does not filter. |
 | D6 | **The numbers of the round go into the report with the machine beside them** (`docs/benchmarks.md`), and a time belongs to the machine it was measured on (ADR-0041). | The same code built three million entries in 172.5 s and in 205.9 s on two machines — a number without its machine says nothing. ADR-0020 measured the build on two machines for that reason. |
 | D7 | **Every decision of the round that changes the public API, the schema or the dependency set gets its ADR in the same pull request.** The three ADRs of the round are the shadow build, the dependency on `symspell`, and the first load. | The rule of the repository (AGENTS.md). The dependency set is the contract of the package (ADR-0018), and a budget that is missed is measured again and decided again, with an ADR and a record — it is not lowered in passing. |
 | D8 | **The branch model does not change.** The pull requests target `dev`; `dev` → `main` is a release pull request with its own review; the tag `v0.2.0` follows it, and the owner approves the push to nuget.org. | The same road as `0.1.0` and `0.1.1` — the machinery is proved a third time, at low cost. |
 
-## 4. The order: five pull requests and a release
+## 4. The order: six pull requests and a release
+
+The first three pull requests are the spine of the round (D1, D5, D2). The fourth is the fix of the flake that the hunt of
+the second pull request named: a test that waits for a round that *runs* waits for a claim that holds for about a second,
+and a loaded machine misses it. The fifth and the sixth are the two questions of the round, and then the release.
 
 ### PR 1 — The 1912 bytes (#134, D5)
 
@@ -145,7 +153,22 @@ maybe to be looked at again another time, with numbers instead of an impression.
   number of that record: they are not reproducible from the repository, and re-deriving them would be the
   re-implementation the plan says the harness is not.
 
-### PR 4 — The write lock of a linked sync: the number, then the decision (#31, D2, D7)
+### PR 4 — The wait of the warm-up: a claim that stays true, and the task of the round (#185, D5)
+
+- **Files:** the service of the warm-up (`src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs`) and the tests of the
+  warm-up (`tests/Nordmann.LUI.Integration.Tests/Hosting/LuiWarmupTests.cs`).
+- **The rule:** the claim of a round that **runs** holds only while the round runs, and the round of that test lives about
+  a second — a waiter that comes late must not miss it. The service counts the rounds that have **begun**: a claim that
+  stays true. And the round is a **task of the service**, so that the host that stops it waits for the task of the round
+  and not for the flag, which is cleared a moment before the round itself is over.
+- **The trap:** the wait of a test that polls a transient claim is a deadline in disguise. The test of the round that
+  fails waits for a warning of the logger — and the round of the timer can bring the row of the outbox in before the
+  table of the application is renamed under it, so that the failure never comes at all. The round of that test is started
+  by hand and waited for.
+- **The acceptance:** the claim stays true after the round is over (a guard with a mutation that proves it bites), and
+  the host waits for the task of the round.
+
+### PR 5 — The write lock of a linked sync: the number, then the decision (#31, D2, D7)
 
 - **Files:** the sample application — a writer that reports the lock as a problem — the measurement, and the ADR.
 - **The rule:** the question of ADR-0016 is *"is a thirty-second lock per million rows a problem worth it?"* — an
@@ -157,7 +180,7 @@ maybe to be looked at again another time, with numbers instead of an impression.
 - **The acceptance:** the number of the wait on the machine of the measurement, with the machine named; the ADR decides
   whether the shadow build is built, and if it is, it names the round that builds it.
 
-### PR 5 — The faster first load (#32, D3, D6, D7)
+### PR 6 — The faster first load (#32, D3, D6, D7)
 
 - **Files:** the levers measured at 3 M, the chosen path in `Sync` (`src/Nordmann.LUI/Indexes/`), the ADR, and the report
   (`docs/benchmarks.md`) with the machine beside each number.
@@ -176,7 +199,7 @@ maybe to be looked at again another time, with numbers instead of an impression.
   build holds the 3 min of the original target again on the machine of the measurement, or the ADR says why not. The
   budget of 4 min stays as it is — a promise is not lowered in passing, and it is not raised without a record.
 
-### PR 6 — The release `0.2.0`
+### PR 7 — The release `0.2.0`
 
 - The version line (`VersionPrefix` `0.2.0`), the section `## [0.2.0] — <date>` of the CHANGELOG with a migration note if
   the API moved, the README (the badge of the version, the install line, the Status), the pull request `dev` → `main` with
@@ -190,6 +213,7 @@ maybe to be looked at again another time, with numbers instead of an impression.
 |---|---|---|
 | #134 — the 1912 bytes | the probe of the window, the runs, the finding | it does not promise a cause it has not seen |
 | #154 — the integration flake | the procedure of the run under load, the whole output, the finding | it does not name a test on suspicion |
+| #185 — the wait of the warm-up | the claim of a round that has begun, the task of the round, the guard and its mutation | it does not move the promise of ADR-0043 — the note on the record says what it took |
 | #44 — `symspell` | the harness over the whole word list, the ADR | it does not write the own implementation — the ADR names the round that does |
 | #31 — the shadow build | the number of the lock, the ADR | it does not build the shadow tables — the ADR names the round that does |
 | #32 — the first load | four levers at 3 M on two machines, the path in `Sync`, the ADR | it does not lower the budget of 4 min in passing, and it does not raise it without a record |
@@ -215,6 +239,13 @@ maybe to be looked at again another time, with numbers instead of an impression.
   endings of the checkout; the CI on Linux is the authority. Nothing in this plan reformatts a file.
 - **The version line is the tag.** The publish pipeline reads `VersionPrefix` and, if there is one, `VersionSuffix`; the tag
   `v0.2.0` has to agree with it, or the run refuses the tag.
+- **The findings of the performance audit of 2026-11-13/14 are not in this round.** They belong to the epic #166 (0.3.0),
+  which says that its code is not touched before 0.2.0 is done. The cheap ones among them (#181, #182, #175) would have
+  been easy here, but a round does not own the work of the next one — and #175 (the limit of the two-error dictionary,
+  240 MB → 260 MB) is decided by the owner and waits for its pull request in 0.3.0.
+- **The numbers of the records of the 0.3.0 epic shift by one.** ADR-0064 is the decision about `symspell` (merged on
+  2026-11-14), so the four records of the epic are ADR-0065–ADR-0068: the pragmas (0065), the read-only path (0066), the
+  catalog that writes nothing (0067) and the freeze (0068). The epic and its issues name the new numbers.
 
 ## 7. What is not decided here
 
