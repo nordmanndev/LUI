@@ -123,3 +123,4 @@ decided about the query path" without opening 36 files.
 | [0061](./0061-the-specification-is-deleted-and-every-section-of-it-has-a-home.md) | The specification is deleted, and every one of its sections has a home: the section becomes the ADR or the page that carries the same rule | Documentation | Accepted |
 | [0062](./0062-the-creation-names-the-route-create-and-createlinked.md) | The creation names the route: `Create` creates an embedded index, `CreateLinked` a linked one | API | Accepted |
 | [0063](./0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied.md) | The surface of 0.1.0 is the review of 2026-11-04, applied: every point of the review, and the type or the member that carries it today | API | Accepted |
+| [0064](./0064-the-dependency-on-symspell-stays.md) | SymSpell stays, and the contract with it is measured: the rules of the contract are a test, and the whole word list carries the numbers | Packages | Accepted (owner, 2026-11-14) |

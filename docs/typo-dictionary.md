@@ -46,6 +46,13 @@ seven letters, and the correction looks a word up by its first ten letters
 (`LongestBeginning`), so a word longer than ten letters is corrected by its
 beginning and keeps the rest.
 
+**The contract with the package is measured** ([ADR-0064](../.agents/adr/0064-the-dependency-on-symspell-stays.md),
+issue #44): `TypoContractTests` pins the rules above — the beginnings of three to ten letters, the count of a word (its
+weight plus one), the count threshold of one, the order of the corrections and the head of ten letters — and measures the
+dictionary over the whole word list: 685,739 words, **138 MB**, and a fingerprint of the corrections that an own
+implementation of the dictionary would have to reproduce. The numbers are in
+[`docs/benchmarks.md`](./benchmarks.md#the-contract-with-symspell-issue-44).
+
 ## 2. What every distance costs
 
 The numbers were **measured**, not estimated — the word list of the repository

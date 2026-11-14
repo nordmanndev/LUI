@@ -5,8 +5,8 @@
 - **Decided by:** the owner, on 2026-11-13, after the release of `0.1.1` — the two forks of the round (#31, #44) were put to
   the owner and answered: **measure first, then decide**
 - **Issues:** #32, #31, #44, #134, #154 — #117 (the epic they belong to)
-- **Status:** in progress — two pull requests of it are merged (#134, PR #164, the merge commit `f15370f`; #154, PR #184,
-  the merge commit `2a492d1`)
+- **Status:** in progress — three pull requests of it are merged (#134, PR #164, the merge commit `f15370f`; #154, PR #184,
+  the merge commit `2a492d1`; #44, the pull request is open)
 - **Why now:** the tag `v0.1.1` exists (2026-11-13), the round of the guards is released, and what is left is the work that
   needs numbers before it needs code
 
@@ -126,6 +126,24 @@ in the plan:
   writes the implementation against this characterisation and moves it into the library.
 - **The acceptance:** the harness runs over the whole word list and its result is in the report; the ADR decides whether
   `symspell` stays — and if it goes, it names the round that implements it.
+
+**What the pull request did (2026-11-14).** The decision is made, and it is the owner's: **`symspell` stays** (ADR-0064) —
+maybe to be looked at again another time, with numbers instead of an impression.
+
+- The harness is `TypoContractTests`: the **rules** of the contract on a corpus with known weights (the beginnings of
+  three to ten letters, the count of a word = its weight + 1, the count threshold 1, the order of the corrections, the
+  head of ten letters), and the **measurement** over the whole word list — the dictionary of LUI itself, built over
+  685,739 words: **138 MB**, 2.3 s, 684,416 of the words corrected, and a **fingerprint** of the corrections
+  (`936f9a72…`) that an own implementation would have to reproduce. The fingerprint is the same in every run.
+- The harness rides on the lane of the parity over the whole word list — where the list is — and the mutation
+  `a-count-threshold-that-drops-the-light-words` proves that the rules bite.
+- **A difference from the plan.** The plan named the delete variants and the prefix length 7 among the things the harness
+  says. Neither is observable in the corrections: at the distance 1 the candidates of a lookup are the words whose first
+  seven letters are near, and the distance decides — the reach of the correction is the head of ten letters, and the
+  prefix length is a **cost**, not a behaviour. The harness therefore pins the rules that are observable, and it measures
+  the cost (138 MB) and the behaviour (the fingerprint). The 880,384 delete variants of the record of 2026-11-12 stay a
+  number of that record: they are not reproducible from the repository, and re-deriving them would be the
+  re-implementation the plan says the harness is not.
 
 ### PR 4 — The write lock of a linked sync: the number, then the decision (#31, D2, D7)
 

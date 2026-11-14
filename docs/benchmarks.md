@@ -687,6 +687,38 @@ is over when the flag is cleared; the assertion of the test is a hair stronger t
 the family of the 1912 bytes of issue #134 — a one-off of the runtime inside a measured window — and here the *rule's own
 test* caught it, without the probe. The file and the line of the runtime are still the open end of it (issue #165).
 
+## The contract with SymSpell (issue #44)
+
+The core keeps `symspell` ([ADR-0064](../.agents/adr/0064-the-dependency-on-symspell-stays.md)) — the owner decided it
+on 2026-11-14 — and the contract between LUI and the package is measured: the **rules** on a corpus with known weights,
+and the **numbers** over the whole word list.
+
+**The rules** ([`TypoContractTests`](../tests/Nordmann.LUI.Integration.Tests/Typos/TypoContractTests.cs)):
+
+| The rule | What it says |
+|---|---|
+| the beginnings | three to ten letters: a word of two letters is no beginning, a word of three is |
+| the count | the weight of the word **plus one** — SymSpell drops a count of 0 |
+| the count threshold | one: a word with the weight 0 is a word |
+| the order | the distance, then the length that was typed, then the count, then the ordinal |
+| the head of a lookup | the first ten letters: a typo in the tenth letter is corrected, a typo in the eleventh is not |
+
+**The measurement** — the dictionary of LUI itself, built over the whole word list:
+
+| | |
+|---|---|
+| the words | 685,739 (of the 685,829 of the list) |
+| the build | 2.3 s |
+| the memory | **138 MB** |
+| the corrected words | 684,416 of 685,739 — a typo in the third letter is corrected for 99.8 % of them |
+| the fingerprint | `936f9a7240fe2d362dafb3bf9739fae078c4f0f9c145fcf42ec49f24d7061955` |
+| the method | the dictionary of LUI (`TypoDictionary`), built over the whole list; the corrections of every word with one letter wrong (the third one), hashed into a SHA-256 — the same number in every run |
+| machine | AMD Ryzen 7 4800U, 8 cores (16 threads), 15.4 GB RAM, Windows 11 Pro 10.0.26300, .NET 10.0.404 (runtime 10.0.15), Microsoft.Data.Sqlite 10.0.14 |
+
+The **memory** is the number that does not depend on the machine, and it is the number of the record of 2026-11-12: 138 MB
+([the typo dictionary](./typo-dictionary.md)). The **fingerprint** is what an own implementation of the dictionary would
+have to reproduce — and the reason the decision could be made with numbers and not with an impression.
+
 ## The tables of the run
 
 The tables of the BenchmarkDotNet run are **generated** from BenchmarkDotNet's own reports in

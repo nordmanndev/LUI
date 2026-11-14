@@ -17,6 +17,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   layer beside them, keeps the whole output and the trx of every lane, and names the test that failed — the name of the
   failure of that day was lost with the filtered output of the run. The hunt named it:
   `LuiWarmupTests.The_host_waits_for_a_round_that_runs_when_it_is_disposed`, in 4 of the 30 runs.
+- **The contract with SymSpell is measured** (#44, [ADR-0064](.agents/adr/0064-the-dependency-on-symspell-stays.md)):
+  the dependency of the core on `symspell` **stays** — the owner decided it on 2026-11-14 — and the contract between
+  LUI and the package is pinned: the beginnings of three to ten letters, the count of a word (its weight plus one), the
+  count threshold of one, the order of the corrections, and the head of ten letters. Over the whole word list: 685,739
+  words, 138 MB, and a fingerprint of the corrections that an own implementation would have to reproduce.
 
 ## [0.1.1] — 2026-11-13
 
