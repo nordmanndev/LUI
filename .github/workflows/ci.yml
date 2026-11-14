@@ -10,6 +10,19 @@ on:
   pull_request:
     branches: [main, dev]
   workflow_dispatch:
+    # The probe of the measured window (issue #134): the allocation of the measure landed
+    # inside a measured window once, in one run, out of many. A dispatch that asks for the
+    # probe runs the probe alone — the unit lane with the probe armed — and no other lane.
+    # The number of the runs is part of the evidence.
+    inputs:
+      allocation_probe:
+        description: 'The probe of the measured window alone (issue #134)'
+        required: false
+        default: '0'
+        type: choice
+        options:
+          - '0'
+          - '1'
   workflow_call:
 
 permissions:
@@ -26,9 +39,14 @@ concurrency:
 # - every job has a timeout, and every test run a hang timeout that leaves a full dump behind — the dump type is named,
 #   because its default differs between machines (review of pull request 83);
 # - the SDK is the one of global.json, through the setup action.
+#
+# The probe of the measured window (issue #134) is the one dispatch that runs a lane alone: a
+# dispatch that asks for it runs the job "The probe" and skips every other gate. The gate of a
+# pull request is not weakened by that — a pull request never asks for the probe.
 jobs:
   format:
     name: Format
+    if: github.event.inputs.allocation_probe != '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
@@ -46,6 +64,7 @@ jobs:
   # fails, which address answered what (issue #91: three 504s of github.com in a row).
   workflows:
     name: Workflows · actionlint
+    if: github.event.inputs.allocation_probe != '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     steps:
@@ -67,6 +86,7 @@ jobs:
 
   build:
     name: Build · Test
+    if: github.event.inputs.allocation_probe != '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     steps:
@@ -138,8 +158,50 @@ jobs:
           path: artifacts/test-results
           retention-days: 14
 
+  # The probe of the measured window (issue #134): the unit lane with the probe armed. The
+  # probe measures a hundred windows of the shape of the window of the rule and writes the
+  # delta of every iteration down — the buffer of the deltas is allocated before the window,
+  # the report is written after it. A dispatch asks for it with the input allocation_probe=1;
+  # every other lane is skipped then, and the report of the run is in the artifact.
+  allocation-probe:
+    name: The probe of the measured window
+    if: github.event.inputs.allocation_probe == '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: ./.github/actions/setup
+
+      - name: Build
+        run: dotnet build Lui.sln --configuration Release --no-restore
+
+      # The unit lane of the gate, with the probe switched on. A test that hangs for ten
+      # minutes is stopped, and its dump is uploaded.
+      - name: Test · unit with the probe armed
+        env:
+          LUI_ALLOCATION_PROBE: '1'
+        run: >
+          dotnet test tests/Nordmann.LUI.Unit.Tests
+          --configuration Release
+          --no-build
+          --blame-hang-timeout 10m --blame-hang-dump-type full
+          --logger "trx;LogFileName=unit.trx"
+          --results-directory artifacts/test-results
+
+      # The report of the probe is in the folder: it names the window that was dirty, the
+      # iteration of it that allocated, and the amount.
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: allocation-probe
+          path: artifacts/test-results
+          retention-days: 14
+
   parity:
     name: The normalisation parity over the whole word list
+    if: github.event.inputs.allocation_probe != '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -177,6 +239,7 @@ jobs:
 
   mutation:
     name: The guards bite (${{ matrix.shard }}/4)
+    if: github.event.inputs.allocation_probe != '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     strategy:
@@ -198,7 +261,7 @@ jobs:
   # The one row of the mutations, whatever the number of the shards.
   mutation-result:
     name: The guards bite
-    if: always()
+    if: always() && github.event.inputs.allocation_probe != '1'
     needs: mutation
     runs-on: ubuntu-24.04
     timeout-minutes: 5
@@ -212,6 +275,7 @@ jobs:
 
   package:
     name: Package · Smoke test
+    if: github.event.inputs.allocation_probe != '1'
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
@@ -249,6 +313,7 @@ jobs:
   # the format of the code.
   windows:
     name: Windows · the paths, the pragmas, the names of the files
+    if: github.event.inputs.allocation_probe != '1'
     runs-on: windows-2025
     timeout-minutes: 45
     steps:

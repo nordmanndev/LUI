@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **The probe of the measured window** (#134): the unit lane can be dispatched with the probe armed, and the probe
+  names the iteration of a dirty window that allocated and the amount — the run of 43228720565 said only that
+  1912 bytes had been allocated inside the window of `The_measure_allocates_nothing`.
+  `tools/allocation-probe.sh` dispatches the runs, collects their reports and says how many runs there were.
+
 ## [0.1.1] — 2026-11-13
 
 The release of **0.1.1**: the guards of the repository and the dead paths of the records. The public API does not move —

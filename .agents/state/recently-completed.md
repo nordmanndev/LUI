@@ -5,6 +5,30 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-14 — The probe of the measured window is written and armed (#134)
+
+- The probe of the measured window lives in the unit layer: `DamerauAllocationTests` measures a hundred windows of the
+  shape of the window of the rule — 100 iterations each — and writes the delta of every iteration down. The buffers are
+  allocated **before** the window, the report is written **after** it: a probe that prints inside the window measures
+  itself.
+- The probe is **armed, not run once**: it is skipped with a reason until `LUI_ALLOCATION_PROBE=1` arms it. The unit lane
+  is dispatched with the probe armed (`ci.yml`, the input `allocation_probe=1`), and every other gate of that dispatch is
+  skipped — a pull request never asks for the probe.
+- `tools/allocation-probe.sh` is the driver: it dispatches the runs, collects their reports and says how many runs there
+  were. The runs do **not** happen on the branch of the pull request: the CI cancels a run of the same ref (the group of
+  its concurrency is the ref), so the driver pushes the commit of the branch to temporary branches and deletes them again.
+- **The finding**: 87 runs of the lane of the probe on the runner (`ubuntu-24.04`, 4 cores, .NET 10.0.15) — 86 of them
+  with a report, one cancelled by the CI — 8,600 windows, 860,000 iterations of the measure — and **one dirty window**:
+  run [43534600454](https://github.com/nordmanndev/LUI/actions/runs/43534600454), the first window, iteration 62,
+  **7312 bytes**. The source is not the library — the rule's own test was green in that run — and not one of the
+  suspects the issue excluded. The 1912 bytes of the run of 43228720565 were not reproduced. The file and the line of
+  the runtime are not named; that needs the allocation sampling of the runtime, and it is an issue of its own. The
+  numbers stand in `docs/benchmarks.md`.
+- The report of a dirty window names the iteration and the amount, and a guard holds that up
+  (`The_probe_names_the_iteration_that_allocated`); its mutation `a-probe-that-does-not-name-the-iteration` is caught.
+- `[ProbeFact]` is a test attribute in the guard of the map now: a file whose only test is armed by a gate is a test file
+  too, and it belongs in the map.
+
 ## 2026-11-13 — The plan of the round of the measured work (0.2.0)
 
 - The plan of the round of `0.2.0` is written:

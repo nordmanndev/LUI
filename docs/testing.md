@@ -50,6 +50,7 @@ the reason is in the report.
 |---|---|---|
 | the **scenario file** [`performance.scenario.json`](../tests/Nordmann.LUI.Performance.Tests/performance.scenario.json) | the scenario of a measurement run: the prefix length of the corpus, the batch, the minimum weight, the optimization, the machine of the run, the database to keep | a person, on purpose, or the lane, which writes the file before it measures (ADR-0058, ADR-0059) |
 | `LUI_WORDLIST` | where the full word list is | a person, on purpose |
+| `LUI_ALLOCATION_PROBE` | whether the probe of the measured window runs — the probe is armed, not run once: the allocation happened once, in one run, out of many | the lane of the probe alone — a dispatch of `ci.yml` with the input `allocation_probe=1` (issue #134) |
 
 **The gates are dynamic skips** (xUnit.net v3, ADR-0051): `[FullWordListFact]` asks
 whether the whole word list is there when the test is about to run, not when
@@ -77,6 +78,7 @@ with a full dump that is uploaded with the results (ADR-0047, guarded by `Workfl
 | Format | `dotnet format --verify-no-changes` | on its own and first: a format error is reported in a minute, not after every test |
 | Build · Test | the three layers, the tests of the sample, the client of the sample | the whole tree, on every pull request |
 | The normalisation parity over the whole word list | the one test of `NormalizationParityTests` that needs the full list (685,829 words) | the rule of ADR-0005 exists twice — as SQL and as C#; the rest of the layer runs in *Build · Test*, nothing twice |
+| The probe of the measured window | the unit lane with the probe armed, and no other lane | the allocation of the measure landed inside a measured window once, in one run, out of many: the probe names the iteration that allocated, and the number of the runs is part of the evidence (issue #134) |
 | The guards bite | the mutation check, in four shards side by side (`--shard i/4`), and one job of that name that waits for all four | a green test proves nothing until it has been seen red (ADR-0019) — and every mutation says how it must be caught: by its test (`expect_caught`), by the build with a named error where the toolchain is the guard on purpose (`expect_refused`), or by the command itself where the guard is a command and not a test — the tutorial check (`expect_command_caught`, issue #128). A mutation that the build refuses although a test was meant fails the check (issue #73) |
 | Package · Smoke test | the packed library in a throwaway application, beside the other jobs, and the C# blocks of the tutorial compiled and run against the library | the README's code is part of the test — and so is the code of the tutorial: a block that names an API the library does not have fails the lane ([`tools/tutorial-check.py`](../tools/tutorial-check.py), issue #128) |
 | **Windows** | the three layers and the tests of the sample on `windows-2025` | the paths, the pragmas and the case of the file names — the platform where a path is a promise (issue #67) |
@@ -108,6 +110,7 @@ as in the library (`NamespaceConventionTests`). `Support/` holds the types the t
 | [`SimilarityTests`](../tests/Nordmann.LUI.Unit.Tests/Similarity/SimilarityTests.cs) | Unit | the four measures: identical texts (two empty ones included), unrelated texts, the range, the thread safety | ADR-0030, issue #107 |
 | [`JaroWinklerEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/Similarity/JaroWinklerEquivalenceTests.cs) | Unit | LUI's own Jaro-Winkler against the library it replaces: the same number for known pairs, 10,000 random pairs, the lengths 0 … 12 — without a tolerance | issue #30, ADR-0032 |
 | [`DamerauEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/Similarity/DamerauEquivalenceTests.cs) | Unit | LUI's own Damerau-Levenshtein against the library it replaces: the same number, without a tolerance, and no allocation | issue #30, ADR-0030 |
+| [`DamerauAllocationTests`](../tests/Nordmann.LUI.Unit.Tests/Similarity/DamerauAllocationTests.cs) | Unit | the probe of the measured window: the report of a dirty window names the iteration that allocated and the amount — and, when the probe is armed, a hundred windows of the shape of the window of the rule are measured one iteration at a time | issue #134, ADR-0032 |
 | [`LevenshteinEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/Similarity/LevenshteinEquivalenceTests.cs) | Unit | LUI's own Levenshtein against the library it replaces: the same number, without a tolerance, and no allocation | issue #30, ADR-0030 |
 | [`NgramDiceEquivalenceTests`](../tests/Nordmann.LUI.Unit.Tests/Similarity/NgramDiceEquivalenceTests.cs) | Unit | LUI's own N-gram Dice gives the same number as the library it replaces, without allocating | ADR-0011 |
 
@@ -342,6 +345,10 @@ dotnet test Lui.sln --filter "Category!=Timing"
 bash tools/mutation-check.sh
 bash tools/mutation-check.sh --shard 2/4
 bash tools/mutation-check.sh --only the-provider-retries-for-thirty-seconds
+
+# the probe of the measured window — here, on this machine, and on the runner (issue #134)
+bash tools/allocation-probe.sh --local
+bash tools/allocation-probe.sh --runs 20 --parallel 4
 
 # the C# blocks of the tutorial: compiled, run, and compared with the pages (issue #128)
 python tools/tutorial-check.py

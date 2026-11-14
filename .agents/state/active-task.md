@@ -7,8 +7,8 @@ describes it. Link the issue; do not repeat the whole plan here.
 
 **Issue:** #134 — the origin of the 1912 bytes inside the measured window is open. It is the first pull request of the round
 of the measured work.
-**Branch:** `plan/the-round-of-the-measured-work` carries the plan of the round; `dev` is at `a8d1dd8`, `main` at
-`320605e` — the tag `v0.1.1` is on the commit of `main`.
+**Branch:** `feat/allocation-probe` carries the probe of the measured window; `dev` is at `fb21833`, `main` at `320605e` —
+the tag `v0.1.1` is on the commit of `main`.
 **Decision:** the plan
 ([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)) — D1 to D8, on the owner's
 behalf, 2026-11-13.
@@ -31,6 +31,10 @@ behalf, 2026-11-13.
   files of a current record names a file that exists.
 - **The three missing guards of the round are there**: the paths of the records (#137), the index of the records (#129), the
   members of the API page (#130) and the C# blocks of the tutorial (#128).
+- **The probe of the measured window is written** (#134, PR #164): the unit lane can be dispatched with the probe armed, the
+  probe names the iteration of a dirty window that allocated and the amount, and `tools/allocation-probe.sh` dispatches
+  the runs, collects their reports and says how many runs there were. **The probe caught the event** on the runner: 87
+  runs, one dirty window — the first window, iteration 62, 7312 bytes. The numbers stand in `docs/benchmarks.md`.
 
 ## Open
 

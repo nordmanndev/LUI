@@ -730,7 +730,15 @@ expect_command_caught "a-tutorial-page-that-says-something-else" \
   "sed -i 's|^1: vegan (120)\$|1: vegan (999)|' docs/tutorial/01-first-index.md" \
   "docs/tutorial/01-first-index.md"
 
-# 32. The clean trees stay green.
+# 32. A probe that does not name the iteration that allocated (issue #134): the report of a dirty
+#      window has to name the iteration and the amount. A report that says only "something
+#      allocated" sends the next one after the wrong thing — and the run of 43228720565 said
+#      only that 1912 bytes were allocated.
+expect_caught "a-probe-that-does-not-name-the-iteration" "${UNIT_PROJECT}" \
+  "The_probe_names_the_iteration_that_allocated" \
+  "sed -i 's|  iteration {i}: {delta} bytes|  {i}: {delta}|' tests/Nordmann.LUI.Unit.Tests/Support/AllocationProbe.cs"
+
+# 33. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

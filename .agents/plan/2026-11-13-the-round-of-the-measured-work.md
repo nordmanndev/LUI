@@ -5,7 +5,7 @@
 - **Decided by:** the owner, on 2026-11-13, after the release of `0.1.1` — the two forks of the round (#31, #44) were put to
   the owner and answered: **measure first, then decide**
 - **Issues:** #32, #31, #44, #134, #154 — #117 (the epic they belong to)
-- **Status:** proposed — the first pull request of it is not written yet
+- **Status:** in progress — the first pull request of it is written (#134, the branch `feat/allocation-probe`)
 - **Why now:** the tag `v0.1.1` exists (2026-11-13), the round of the guards is released, and what is left is the work that
   needs numbers before it needs code
 
@@ -69,6 +69,20 @@ The epic #117 waits for two of them: #137 (the dead paths of the records ✓ don
 - **The acceptance:** a run in which the window is not clean, with the per-iteration deltas, and the source named — a file
   and a line of the runtime — **or** the documented statement that it cannot be reproduced, with the number of the runs.
   The epic #117 closes with it.
+
+**What the pull request did (2026-11-14).** Two things differ from the plan above, and both are recorded here rather than
+in the plan:
+
+- The **probe is in the unit layer** — the rule it watches is the rule of the unit layer, and a probe beside the rule
+  measures the same window — and the **tool next to `tools/mutation-check.sh` is the driver**: it dispatches the runs,
+  collects their reports and says how many runs there were.
+- The runs do **not** happen on the branch that carries the probe: the CI cancels a run of the same ref (the group of
+  its concurrency is the ref), and the run of the pull request is not the run of the probe. The driver pushes the commit
+  of the branch to temporary branches, dispatches there, and deletes them again.
+- **The probe caught the event**: run 43534600454, the first window, iteration 62, 7312 bytes. The source is not the
+  library (the rule's own test was green in that run) and not one of the suspects the issue excluded — what is left is
+  the one-off of the runtime's own machinery that the issue named. The file and the line of the runtime are not named:
+  that needs the allocation sampling of the runtime, and it is an issue of its own.
 
 ### PR 2 — The integration test that failed once (#154, D5)
 

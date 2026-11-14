@@ -565,6 +565,57 @@ The run of the day measured **two values of every axis that has more than one** 
 of the cases of the class, and the run takes 42 minutes. The vocabulary above is the one of the code; the report of the
 run says which of it was measured.
 
+## The probe of the measured window (issue #134)
+
+The allocation of the measure landed inside a measured window once: the run of
+[43228720565](https://github.com/nordmanndev/LUI/actions/runs/43228720565) said that **1912 bytes** had been allocated
+inside the window of `The_measure_allocates_nothing`, and the hunt for them is still open. The **probe** of the unit lane
+watches a hundred windows of the shape of the window of the rule at a time and writes the delta of every iteration down —
+the buffers are allocated before the window and the report is written after it, so that the probe does not measure itself.
+
+**The runs.** 87 runs of the lane of the probe on the runner of the CI (`ubuntu-24.04`, 4 cores, .NET 10.0.15,
+2026-11-14) — 86 of them with a report, one cancelled by the CI: **8,600 windows** of 100 iterations, **860,000
+iterations** of the measure.
+
+**And the probe caught one.** Run [43534600454](https://github.com/nordmanndev/LUI/actions/runs/43534600454) (2026-11-14,
+00:30 UTC) — the report of the run:
+
+```text
+# The probe of the measured window (issue #134)
+runtime: .NET 10.0.15
+machine: Ubuntu 24.04.5 LTS, 4 cores
+windows: 100, iterations per window: 100
+allocated in the windows: 7312 bytes
+window 0: 7312 bytes
+  iteration 62: 7312 bytes
+dirty windows: 1
+```
+
+**One allocation, in one iteration, of the first window** — the window that begins right after the warm-up, the one the
+issue calls *a window that starts too early*. The rule's own test was green in that run (`The_measure_allocates_nothing`,
+5 ms): the library allocated nothing, and the one-off was somewhere else on the thread of the test.
+
+| | |
+|---|---|
+| runs of the lane of the probe | 87 (86 with a report, one cancelled by the CI) |
+| windows per run | 100, of 100 iterations each |
+| windows measured | 8,600 |
+| iterations of the measure | 860,000 |
+| dirty windows | 1 |
+| the allocation of the catch | 7312 bytes, in one iteration, of the first window |
+| the 1912 bytes of the run of 43228720565 | not reproduced |
+| machine | `ubuntu-24.04`, 4 cores, .NET 10.0.15 |
+
+**What that says.** The source is not the library: the measure allocates nothing in every run — the rule's test is green in
+all of them, the one that caught the one-off included. And it is not one of the suspects the issue excluded: the type
+initialisation (the warm-up of the probe absorbs it), the runtime patch, the `ArrayPool`, the tiering, the counter itself.
+What is left is what the issue named: **a one-off of the runtime's own machinery, on the thread of the test** — and the
+probe now catches it and names the iteration and the amount. It is probably not the same one-off as the 1912 bytes of the
+run of 43228720565: that one came with a window of 53 ms against 13 ms, and the window of this catch was not slow (the
+test took 0.562 s against a median of 0.678 s over the clean runs).
+
+The file and the line of the runtime would need the runtime's own allocation sampling — the open end of the issue.
+
 ## The tables of the run
 
 The tables of the BenchmarkDotNet run are **generated** from BenchmarkDotNet's own reports in
