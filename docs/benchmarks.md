@@ -671,6 +671,14 @@ completes a moment later than the flag that says "no round runs". Under the load
 The library's promise (ADR-0043) is the first one — nothing of LUI runs after the service is gone — and the round's work
 is over when the flag is cleared; the assertion of the test is a hair stronger than the promise.
 
+**The fix (issue #185).** The service counts the rounds that have **begun** — a claim that stays true, where the claim of
+a round that *runs* holds only while the round runs — and the round is a **task of the service**: the host that stops it
+waits for the task, not for the flag. The two waits of the tests of the warm-up ask for the claim that stays true, and
+the round that fails is started by hand and waited for, instead of being waited for with a deadline of thirty seconds: a
+machine that is busy runs the timer later, and the row of the outbox can be brought in before the table of the
+application is renamed under it. The mutation `a-claim-of-a-round-that-does-not-stay-true` proves that the new guard
+bites.
+
 | | |
 |---|---|
 | runs of the four lanes | 30 (120 lanes) |
