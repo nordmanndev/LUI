@@ -5,6 +5,32 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-14 — The run under load names the test that failed (#154, PR #168)
+
+- `tools/load-run.sh` is the procedure of the hunt: the **four lanes of the suite at once**, with the measurement layer
+  beside them (the load of that day was a machine full of test processes). The whole output of every lane is kept, the
+  result of it is kept as the **trx** of the lane, and a lane that fails **names the test that failed**, the moment it
+  fails — the name and the message of it.
+- The naming is a rule, so it is guarded: the self-test of the tool proves it on a trx with one failed test, the package
+  lane of the CI runs that self-test on every pull request, and the mutation
+  `a-run-that-does-not-name-the-failing-test` breaks the naming and is caught.
+- **The finding**: 30 runs, **120 lanes**, **six of them red** — five of the integration layer, one of the unit layer. The
+  lost test of issue #154 is **`LuiWarmupTests.The_host_waits_for_a_round_that_runs_when_it_is_disposed`** (four of the
+  five), and the counts of the failing runs are the counts of the run of 2026-11-13: `Failed: 1, Passed: 421,
+  Skipped: 1, Total: 423`. The issue wrote the warm-up teardown of #148 off; it is that test. Its sibling
+  `A_round_that_fails_is_told_to_the_logger_of_the_host` failed once with the same message.
+- **The reason**, measured with an instrumentation that is not in the repository: the test waits for `RoundRunning`, a
+  claim that holds only while a round runs — and the round gives up after the busy timeout of one second that the test
+  itself sets, so it lives about 1.16 s. The wait polls every 20 ms; under the load the **longest gap between two polls
+  was 1841 ms** — longer than the life of the round. The round began and ended inside that one gap, the claim was never
+  seen, and the deadline of thirty seconds turned the missed moment into a failure. The same test has a second shape of
+  the same race: the task that wraps the round completes a moment after the flag that says "no round runs".
+- The unit lane was red once too, with `NgramDiceEquivalenceTests.A_comparison_allocates_nothing` — **3784 bytes** where
+  the rule allows less than 1000. That is the family of the 1912 bytes of #134, and the open end of it (the file and the
+  line of the runtime) is issue #165.
+- The numbers stand in `docs/benchmarks.md`. The **fix is not in the pull request**: a claim that holds for a second
+  cannot be waited for under a load — it is an issue of its own.
+
 ## 2026-11-14 — The probe of the measured window is written, armed and merged (#134, PR #164)
 
 - The probe of the measured window lives in the unit layer: `DamerauAllocationTests` measures a hundred windows of the
