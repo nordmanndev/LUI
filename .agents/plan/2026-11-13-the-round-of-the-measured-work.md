@@ -6,7 +6,7 @@
   the owner and answered: **measure first, then decide**
 - **Issues:** #32, #31, #44, #134, #154 — #117 (the epic they belong to)
 - **Status:** in progress — three pull requests of it are merged (#134, PR #164, the merge commit `f15370f`; #154, PR #184,
-  the merge commit `2a492d1`; #44, the pull request is open)
+  the merge commit `2a492d1`; #44, PR #187)
 - **Why now:** the tag `v0.1.1` exists (2026-11-13), the round of the guards is released, and what is left is the work that
   needs numbers before it needs code
 

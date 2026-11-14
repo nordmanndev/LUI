@@ -42,7 +42,7 @@ behalf, 2026-11-13.
   five failing integration runs, and their counts are the counts of the run of 2026-11-13. The reason is measured: the
   claim the test waits for holds for about 1.16 s, and the longest gap between two polls under the load was 1841 ms —
   the round began and ended inside one gap. The numbers stand in `docs/benchmarks.md`. The fix of the test is issue #185.
-- **The contract with SymSpell is written** (#44, ADR-0064): the owner decided on 2026-11-14 that **`symspell` stays** —
+- **The contract with SymSpell is written** (#44, PR #187, ADR-0064): the owner decided on 2026-11-14 that **`symspell` stays** —
   maybe to be looked at again another time. The contract is measured: `TypoContractTests` pins the rules (the beginnings of
   three to ten letters, the count of a word = its weight + 1, the count threshold 1, the order of the corrections, the
   head of ten letters) and measures the dictionary over the whole word list — 685,739 words, **138 MB**, 2.3 s, and a
