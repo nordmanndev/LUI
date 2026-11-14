@@ -5,8 +5,8 @@
 - **Decided by:** the owner, on 2026-11-13, after the release of `0.1.1` — the two forks of the round (#31, #44) were put to
   the owner and answered: **measure first, then decide**
 - **Issues:** #32, #31, #44, #134, #154, #185 — #117 (the epic they belong to)
-- **Status:** in progress — three pull requests of it are merged (#134, PR #164, the merge commit `f15370f`; #154, PR #184,
-  the merge commit `2a492d1`; #44, PR #187, the merge commit `dcb3cea`)
+- **Status:** in progress — four pull requests of it are merged (#134, PR #164, the merge commit `f15370f`; #154, PR #184,
+  the merge commit `2a492d1`; #44, PR #187, the merge commit `dcb3cea`; #185, PR #189, the merge commit `f66c584`)
 - **Why now:** the tag `v0.1.1` exists (2026-11-13), the round of the guards is released, and what is left is the work that
   needs numbers before it needs code
 
@@ -50,7 +50,7 @@ The epic #117 waits for two of them: #137 (the dead paths of the records ✓ don
 
 | # | The decision | Why |
 |---|---|---|
-| D1 | **The next version is `0.2.0`, a minor one**, and it carries the five tasks of this round. | The freeze of ADR-0026 is a promise about the API: a break needs a minor version, a migration note and an ADR. Nothing here breaks the API, but the round is of the weight of a minor version — a new ADR about the dependency set, and possibly a new mode of `Sync` (`LuiSyncOptions`) — and a patch would understate it. |
+| D1 | **The next version is `0.2.0`, a minor one**, and it carries the six tasks of this round. | The freeze of ADR-0026 is a promise about the API: a break needs a minor version, a migration note and an ADR. Nothing here breaks the API, but the round is of the weight of a minor version — a new ADR about the dependency set, and possibly a new mode of `Sync` (`LuiSyncOptions`) — and a patch would understate it. |
 | D2 | **The round measures first and decides with an ADR** — for #31 and #44 the implementation is *not* in this round. | The owner answered both forks on 2026-11-13 with the same words: *measure first, then decide*. The shadow build is a second write path for every refresh of a linked index; an own SymSpell has to be bit-exact against the one that is measured today (ADR-0012: 4.2 s, 138 MB, 685,739 words, and the floors of `TypoQualityTests`). Neither is a matter of taste, and both have a number that decides them. |
 | D3 | **#32 is the one implementation of the round**: the chosen path goes into `Sync`, with an ADR. | The budget `build-3m` (≤ 4 min, ADR-0056) holds today — 172.5–205.9 s on two machines — but the target of the original is 3 min, and it holds on one machine and misses on the next. A decision without a change would leave the promise where it is; the ADR says whether the chosen path brings the 3 min back. |
 | D4 | **The order is by the cost of the work**: the flakes, the fix of the flake, the two decisions, the load, the release. | The flakes need runs and nothing else; the fix of the flake needs a claim that does not expire; the two decisions need one number each; the load needs two machines and hours, and its ADR may change the API. |
@@ -63,7 +63,8 @@ The epic #117 waits for two of them: #137 (the dead paths of the records ✓ don
 
 The first three pull requests are the spine of the round (D1, D5, D2). The fourth is the fix of the flake that the hunt of
 the second pull request named: a test that waits for a round that *runs* waits for a claim that holds for about a second,
-and a loaded machine misses it. The fifth and the sixth are the two questions of the round, and then the release.
+and a loaded machine misses it. The fifth and the sixth carry the two measurements that are left — the lock of a linked
+sync (#31) and the first load of three million entries (#32) — and then the release.
 
 ### PR 1 — The 1912 bytes (#134, D5)
 
@@ -167,6 +168,14 @@ maybe to be looked at again another time, with numbers instead of an impression.
   by hand and waited for.
 - **The acceptance:** the claim stays true after the round is over (a guard with a mutation that proves it bites), and
   the host waits for the task of the round.
+
+**What the pull request did (2026-11-14).** Both rules are in the service of the warm-up: the count of the rounds that
+have begun (`RoundsBegun`) and the task of the round (`RoundTask`), which the host that stops it waits for. The three
+waits of the file ask for the claim that stays true, and the round that fails is started by hand and waited for — the
+round of the timer can bring the row of the outbox in before the table of the application is renamed under it, and then
+the failure never comes at all. The mutation `a-claim-of-a-round-that-does-not-stay-true` proves that the new guard
+bites; the four mutations of the warm-up that were there before still bite. The public API does not move — the service is
+internal — and ADR-0043 carries a note, like the note of issue #148.
 
 ### PR 5 — The write lock of a linked sync: the number, then the decision (#31, D2, D7)
 

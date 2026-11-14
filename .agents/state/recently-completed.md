@@ -5,6 +5,30 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-14 — The wait of the warm-up does not expire (#185, PR #189, the merge commit `f66c584`)
+
+- **The flake that the hunt of #154 named is fixed.** The test waited for `RoundRunning`, a claim that holds only while a
+  round runs: the round of that test waits for the write lock of the file, which the test itself holds, so it gives up
+  after the busy timeout of one second (it lives about 1.16 s), and the wait polls every 20 ms — under the load the
+  longest gap between two polls was 1841 ms. The round began and ended inside that one gap, and the claim was never seen.
+- **The claim that stays true**: the service counts the rounds that have **begun** (`RoundsBegun`). A waiter that comes
+  late still learns that a round ran.
+- **The task of the round**: the round is a task of the service (`RoundTask`), and the host that stops it waits for that
+  task — not for the flag, which is cleared a moment before the round itself is over. That is the second shape of the
+  same race, which the hunt found as well (`round.IsCompleted` was false right after the disposal).
+- **Two more waits of the same file are fixed with it**: the test of the round that waits for the write lock waits for the
+  claim that stays true, and the test of the round that fails starts the round **by hand** and waits for it — the round of
+  the timer can bring the row of the outbox in before the table of the application is renamed under it, and then the
+  failure never comes at all.
+- **The proof**: the red commit is in the history of the branch (`073c52c`), the mutation
+  `a-claim-of-a-round-that-does-not-stay-true` is caught, the four mutations of the warm-up that were there before still
+  bite, and the gates of the pull request are green. The public API does not move — the service is internal — and the
+  promise of ADR-0043 stands as it was written: the record carries a note of it, like the note of issue #148.
+- **The numbers of the records of the 0.3.0 epic shift by one** (2026-11-14): ADR-0064 is the decision about `symspell`,
+  so the four records of the epic #166 are ADR-0065–ADR-0068 — the pragmas (0065), the read-only path (0066), the
+  catalog that writes nothing (0067) and the freeze (0068). The epic and its issues #169–#172 carry the new numbers, and
+  #183 names the rule of 0065 §3.
+
 ## 2026-11-14 — The contract with SymSpell is measured, and the dependency stays (#44, ADR-0064, PR #187, the merge commit `dcb3cea`)
 
 - **The decision is the owner's**: on 2026-11-14 the owner answered the question of issue #44 — **`symspell` stays**,
