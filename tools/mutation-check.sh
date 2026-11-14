@@ -753,7 +753,15 @@ expect_command_caught "a-run-that-does-not-name-the-failing-test" \
   "sed -i 's|printf(\"the failing test: %s|printf(\"a test failed:|' tools/load-run.sh" \
   "Nordmann.LUI.Integration.Tests.Catalog.A_test_that_failed"
 
-# 35. The clean trees stay green.
+# 35. A claim of a round that does not stay true (issue #185): the claim of a round that has begun is momentary — the
+#      round of the test waits for the write lock of the file, which the test itself holds, so it lives about a second,
+#      and a loaded machine can delay the poll of a test by more than that. A waiter that comes late must not miss the
+#      round, so the claim has to stay true.
+expect_caught "a-claim-of-a-round-that-does-not-stay-true" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~The_claim_of_a_round_that_has_begun_stays_true_when_the_round_is_over" \
+  "sed -i 's|            Volatile.Write(ref _running, 0);|            Interlocked.Exchange(ref _roundsBegun, 0);\n            Volatile.Write(ref _running, 0);|' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
+
+# 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 
