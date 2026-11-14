@@ -92,38 +92,49 @@ echo "=== the probe of ${ref} (${sha}) ==="
 
 # The temporary branches: one run of each of them at a time, the runs of a wave beside each
 # other. A wave waits for its runs, so that the next wave may use the same branches again.
+# The name of a branch carries the time of this run of the script: the runs of a branch name
+# are the runs of one invocation, and the collection reads them from there.
+stamp="$(date +%s)"
 for i in $(seq 1 "${parallel}"); do
-  name="lui-probe/${sha:0:7}-${i}"
+  name="lui-probe/${sha:0:7}-${stamp}-${i}"
   git push origin --delete "${name}" >/dev/null 2>&1 || true
   git push origin "${sha}:refs/heads/${name}" >/dev/null
   refs+=("${name}")
 done
 
 wave=0
-ids=()
-while [ "${#ids[@]}" -lt "${runs}" ]; do
+dispatched=0
+while [ "${dispatched}" -lt "${runs}" ] && [ "${wave}" -lt "$(( runs + parallel ))" ]; do
   wave=$((wave + 1))
   echo "--- wave ${wave} ---"
 
   pids=()
   for i in $(seq 1 "${parallel}"); do
-    [ "$(( ${#ids[@]} + ${#pids[@]} ))" -lt "${runs}" ] || break
+    [ "${dispatched}" -lt "${runs}" ] || break
+    dispatched=$((dispatched + 1))
     target="${refs[$((i - 1))]}"
 
     (
       # The run of this dispatch — and not the one of the wave before it, which ran on the
-      # same branch. The time of the dispatch tells the two apart.
-      since="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+      # same branch. The id of the last run is the mark: the clock of this machine and the
+      # clock of GitHub do not have to agree, and a run that was dispatched a second before
+      # the dispatch of this one is older than the mark and not the run we wait for.
+      previous="$(gh run list --workflow "${WORKFLOW}" --branch "${target}" --event workflow_dispatch \
+        --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+
       gh workflow run "${WORKFLOW}" --ref "${target}" -f allocation_probe=1 >/dev/null
 
       id=''
       for _ in $(seq 1 60); do
-        id="$(gh run list --workflow "${WORKFLOW}" --branch "${target}" --event workflow_dispatch \
-          --limit 5 --json databaseId,createdAt \
-          --jq ".[] | select(.createdAt >= \"${since}\") | .databaseId" | head -1)"
-        [ -n "${id}" ] && break
+        newest="$(gh run list --workflow "${WORKFLOW}" --branch "${target}" --event workflow_dispatch \
+          --limit 1 --json databaseId --jq '.[0].databaseId // empty')"
+        if [ -n "${newest}" ] && [ "${newest}" != "${previous}" ]; then
+          id="${newest}"
+          break
+        fi
         sleep 5
       done
+
       if [ -z "${id}" ]; then
         echo "no run appeared for ${target}" >&2
         exit 1
@@ -136,38 +147,37 @@ while [ "${#ids[@]}" -lt "${runs}" ]; do
   done
 
   for pid in "${pids[@]}"; do
-    wait "${pid}"
-  done
-
-  for i in $(seq 1 "${parallel}"); do
-    [ "$(( ${#ids[@]} + i ))" -le "${runs}" ] || break
-    file="artifacts/probe/ids/${refs[$((i - 1))]##*/}.txt"
-    [ -f "${file}" ] || continue
-    ids+=("$(cat "${file}")")
-    rm -f "${file}"
+    wait "${pid}" || echo "a run of the wave ${wave} failed — its report is missing" >&2
   done
 done
 
 echo '=== the runs ==='
 dirty=0
 missing=0
-for id in "${ids[@]}"; do
-  echo "--- run ${id} ---"
-  gh run view "${id}" --json conclusion --jq '.conclusion'
+count=0
+for target in "${refs[@]}"; do
+  mapfile -t ids < <(gh run list --workflow "${WORKFLOW}" --branch "${target}" --event workflow_dispatch \
+    --json databaseId --jq '.[].databaseId')
 
-  dir="artifacts/probe/${id}"
-  mkdir -p "${dir}"
-  if ! gh run download "${id}" --name "${ARTIFACT}" --dir "${dir}" >/dev/null 2>&1 \
-      || [ ! -f "${dir}/${REPORT}" ]; then
-    echo "the report of the run ${id} is missing — a run without a report proves nothing" >&2
-    missing=$((missing + 1))
-    continue
-  fi
+  for id in "${ids[@]}"; do
+    count=$((count + 1))
+    echo "--- run ${id} ---"
+    gh run view "${id}" --json conclusion --jq '.conclusion'
 
-  cat "${dir}/${REPORT}"
-  windows="$(grep -c '^window ' "${dir}/${REPORT}" || true)"
-  dirty=$((dirty + windows))
+    dir="artifacts/probe/${id}"
+    mkdir -p "${dir}"
+    if ! gh run download "${id}" --name "${ARTIFACT}" --dir "${dir}" >/dev/null 2>&1 \
+        || [ ! -f "${dir}/${REPORT}" ]; then
+      echo "the report of the run ${id} is missing — a run without a report proves nothing" >&2
+      missing=$((missing + 1))
+      continue
+    fi
+
+    cat "${dir}/${REPORT}"
+    windows="$(grep -c '^window ' "${dir}/${REPORT}" || true)"
+    dirty=$((dirty + windows))
+  done
 done
 
 echo '=== the number of the runs ==='
-echo "${#ids[@]} run(s), ${dirty} dirty window(s), ${missing} run(s) without a report"
+echo "${count} run(s), ${dirty} dirty window(s), ${missing} run(s) without a report"
