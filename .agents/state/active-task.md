@@ -5,10 +5,10 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** #134 — the origin of the 1912 bytes inside the measured window is open. It is the first pull request of the round
-of the measured work.
-**Branch:** `feat/allocation-probe` carries the probe of the measured window; `dev` is at `fb21833`, `main` at `320605e` —
-the tag `v0.1.1` is on the commit of `main`.
+**Issue:** #154 — a test of the integration layer failed once under load, and the name of it was lost. It is the second
+pull request of the round of the measured work.
+**Branch:** `dev` is at `f15370f` (the merge of PR #164, the probe of the measured window), `main` at `320605e` — the tag
+`v0.1.1` is on the commit of `main`.
 **Decision:** the plan
 ([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)) — D1 to D8, on the owner's
 behalf, 2026-11-13.
@@ -31,10 +31,11 @@ behalf, 2026-11-13.
   files of a current record names a file that exists.
 - **The three missing guards of the round are there**: the paths of the records (#137), the index of the records (#129), the
   members of the API page (#130) and the C# blocks of the tutorial (#128).
-- **The probe of the measured window is written** (#134, PR #164): the unit lane can be dispatched with the probe armed, the
-  probe names the iteration of a dirty window that allocated and the amount, and `tools/allocation-probe.sh` dispatches
-  the runs, collects their reports and says how many runs there were. **The probe caught the event** on the runner: 87
-  runs, one dirty window — the first window, iteration 62, 7312 bytes. The numbers stand in `docs/benchmarks.md`.
+- **The probe of the measured window is written and merged** (#134, PR #164, the merge commit `f15370f`): the unit lane
+  can be dispatched with the probe armed, the probe names the iteration of a dirty window that allocated and the amount,
+  and `tools/allocation-probe.sh` dispatches the runs, collects their reports and says how many runs there were.
+  **The probe caught the event** on the runner: 87 runs, one dirty window — the first window, iteration 62, 7312 bytes.
+  The numbers stand in `docs/benchmarks.md`. The file and the line of the runtime are the open end of it: issue #165.
 
 ## Open
 
@@ -56,7 +57,9 @@ dependency on `symspell`), **#31** (the shadow build of `Linked.Sync()`), **#32*
 ([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)). Five pull requests, in the order
 of the plan:
 
-1. **#134** — the origin of the 1912 bytes inside the measured window: the probe of the window, the runs, the finding.
+1. ~~**#134**~~ — the origin of the 1912 bytes inside the measured window: the probe of the window, the runs, the
+   finding. **Done** (PR #164, the merge commit `f15370f`) — and the probe caught the event: 87 runs, one dirty window
+   that names the iteration and the amount. The open end of it — the file and the line of the runtime — is issue #165.
 2. **#154** — the test of the integration layer that failed once under load: the run that keeps the whole output, the
    finding.
 3. **#44** — the dependency on `symspell`: the harness over the whole word list, then the ADR that decides.

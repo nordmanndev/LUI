@@ -5,7 +5,7 @@
 - **Decided by:** the owner, on 2026-11-13, after the release of `0.1.1` — the two forks of the round (#31, #44) were put to
   the owner and answered: **measure first, then decide**
 - **Issues:** #32, #31, #44, #134, #154 — #117 (the epic they belong to)
-- **Status:** in progress — the first pull request of it is written (#134, the branch `feat/allocation-probe`)
+- **Status:** in progress — the first pull request of it is merged (#134, PR #164, the merge commit `f15370f`)
 - **Why now:** the tag `v0.1.1` exists (2026-11-13), the round of the guards is released, and what is left is the work that
   needs numbers before it needs code
 

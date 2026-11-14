@@ -5,7 +5,7 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
-## 2026-11-14 — The probe of the measured window is written and armed (#134)
+## 2026-11-14 — The probe of the measured window is written, armed and merged (#134, PR #164)
 
 - The probe of the measured window lives in the unit layer: `DamerauAllocationTests` measures a hundred windows of the
   shape of the window of the rule — 100 iterations each — and writes the delta of every iteration down. The buffers are
@@ -17,6 +17,8 @@ the scratchpad here at the end of a session.
 - `tools/allocation-probe.sh` is the driver: it dispatches the runs, collects their reports and says how many runs there
   were. The runs do **not** happen on the branch of the pull request: the CI cancels a run of the same ref (the group of
   its concurrency is the ref), so the driver pushes the commit of the branch to temporary branches and deletes them again.
+- The pull request is merged (PR #164, the merge commit `f15370f`): the gates of the pull request are green, and the
+  probe job of it is skipped — a pull request never asks for the probe.
 - **The finding**: 87 runs of the lane of the probe on the runner (`ubuntu-24.04`, 4 cores, .NET 10.0.15) — 86 of them
   with a report, one cancelled by the CI — 8,600 windows, 860,000 iterations of the measure — and **one dirty window**:
   run [43534600454](https://github.com/nordmanndev/LUI/actions/runs/43534600454), the first window, iteration 62,
