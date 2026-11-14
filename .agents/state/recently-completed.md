@@ -5,7 +5,7 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
-## 2026-11-14 — The run under load names the test that failed (#154, PR #168)
+## 2026-11-14 — The run under load names the test that failed (#154, PR #184)
 
 - `tools/load-run.sh` is the procedure of the hunt: the **four lanes of the suite at once**, with the measurement layer
   beside them (the load of that day was a machine full of test processes). The whole output of every lane is kept, the

@@ -36,7 +36,7 @@ behalf, 2026-11-13.
   and `tools/allocation-probe.sh` dispatches the runs, collects their reports and says how many runs there were.
   **The probe caught the event** on the runner: 87 runs, one dirty window — the first window, iteration 62, 7312 bytes.
   The numbers stand in `docs/benchmarks.md`. The file and the line of the runtime are the open end of it: issue #165.
-- **The run under load is written** (#154, PR #168): `tools/load-run.sh` runs the four lanes of the suite at once, with the
+- **The run under load is written** (#154, PR #184): `tools/load-run.sh` runs the four lanes of the suite at once, with the
   measurement layer beside them, keeps the whole output and the trx of every lane, and **names the test that failed** the
   moment it fails. **The failure named itself**: 30 runs, 120 lanes, six of them red — the lost test is
   `LuiWarmupTests.The_host_waits_for_a_round_that_runs_when_it_is_disposed`, in four of the five failing integration runs,
