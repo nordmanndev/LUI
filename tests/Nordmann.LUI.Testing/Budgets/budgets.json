@@ -83,7 +83,7 @@
       "scenario": {
         "corpus": "words.txt",
         "prefixLength": 3000000,
-        "condition": "Embedded, a first load by Sync"
+        "condition": "Embedded, a first load by Sync, in batches of 1,000,000"
       },
       "limit": 4,
       "unit": "min",
