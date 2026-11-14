@@ -5,6 +5,28 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-14 — The contract with SymSpell is measured, and the dependency stays (#44, ADR-0064)
+
+- **The decision is the owner's**: on 2026-11-14 the owner answered the question of issue #44 — **`symspell` stays**,
+  maybe to be looked at again another time. ADR-0064 records it with the numbers behind it.
+- **The harness** is `TypoContractTests`, and it is a characterisation, not a re-implementation: it observes LUI's own
+  dictionary (`TypoDictionary`) at the boundary with the package.
+  - The **rules**, on a corpus with known weights: a beginning is of three to ten letters; the count of a word is its
+    weight plus one; the count threshold is one (a word with the weight zero is a word); the order of the corrections is
+    the distance, then the length that was typed, then the count, then the ordinal; the head of a lookup is the first ten
+    letters (a typo in the tenth is corrected, a typo in the eleventh is not).
+  - The **measurement** over the whole word list: 685,739 words, the dictionary in **138 MB**, 2.3 s, 684,416 of the
+    words corrected by a typo in the third letter, and the **fingerprint** of the corrections
+    (`936f9a7240fe2d362dafb3bf9739fae078c4f0f9c145fcf42ec49f24d7061955`) — the same in every run, and what an own
+    implementation would have to reproduce.
+- The harness **rides on the lane of the parity over the whole word list** — where the list is — and the mutation
+  `a-count-threshold-that-drops-the-light-words` proves that the rules bite.
+- **A difference from the plan**: the delete variants and the prefix length 7 are **not observable** in the corrections —
+  at the distance 1 the distance decides, and the prefix length is a cost, not a behaviour. The harness pins the
+  observable rules and measures the cost and the behaviour; the 880,384 delete variants of the record of 2026-11-12 stay
+  what they are: a number of that record.
+- The numbers stand in `docs/benchmarks.md`, beside the machine that measured them.
+
 ## 2026-11-14 — The run under load names the test that failed (#154, PR #184, the merge commit `2a492d1`)
 
 - `tools/load-run.sh` is the procedure of the hunt: the **four lanes of the suite at once**, with the measurement layer

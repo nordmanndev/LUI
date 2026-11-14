@@ -6,8 +6,8 @@ describes it. Link the issue; do not repeat the whole plan here.
 -->
 
 **Issue:** #44 — the dependency of the core on `symspell`. It is the third pull request of the round of the measured work.
-**Branch:** `dev` is at `2a492d1` (the merge of PR #184, the run under load), `main` at `320605e` — the tag `v0.1.1` is on
-the commit of `main`.
+**Branch:** `feat/44-the-contract-of-symspell` carries the harness of the contract; `dev` is at `a8127ad` (the merge of
+PR #186), `main` at `320605e` — the tag `v0.1.1` is on the commit of `main`.
 **Decision:** the plan
 ([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)) — D1 to D8, on the owner's
 behalf, 2026-11-13.
@@ -42,6 +42,12 @@ behalf, 2026-11-13.
   five failing integration runs, and their counts are the counts of the run of 2026-11-13. The reason is measured: the
   claim the test waits for holds for about 1.16 s, and the longest gap between two polls under the load was 1841 ms —
   the round began and ended inside one gap. The numbers stand in `docs/benchmarks.md`. The fix of the test is issue #185.
+- **The contract with SymSpell is written** (#44, PR #187, ADR-0064): the owner decided on 2026-11-14 that **`symspell` stays** —
+  maybe to be looked at again another time. The contract is measured: `TypoContractTests` pins the rules (the beginnings of
+  three to ten letters, the count of a word = its weight + 1, the count threshold 1, the order of the corrections, the
+  head of ten letters) and measures the dictionary over the whole word list — 685,739 words, **138 MB**, 2.3 s, and a
+  fingerprint of the corrections that an own implementation would have to reproduce. The harness rides on the lane of the
+  parity over the whole word list, where the list is. The numbers stand in `docs/benchmarks.md`.
 
 ## Open
 
@@ -69,8 +75,9 @@ of the plan:
 2. ~~**#154**~~ — the test of the integration layer that failed once under load: the run that keeps the whole output,
    the finding. **Done** (PR #184, the merge commit `2a492d1`) — the failure named itself: 30 runs, 120 lanes, six red,
    and the lost test is `The_host_waits_for_a_round_that_runs_when_it_is_disposed`. The fix of the test is issue #185.
-3. **#44** — the dependency on `symspell`: the harness over the whole word list, then the ADR that decides. **The next
-   pull request of the round.**
+3. ~~**#44**~~ — the dependency on `symspell`: the harness over the whole word list, then the ADR that decides.
+   **Written** (ADR-0064) — the owner decided that `symspell` stays; the harness pins the rules of the contract and
+   measures the dictionary over the whole word list: 685,739 words, 138 MB, and the fingerprint of the corrections.
 4. **#31** — the shadow build for `Linked.Sync()`: the number of the write lock in the sample, then the ADR that decides.
 5. **#32** — a faster first load: the levers at 3 M on two machines, the path in `Sync`, the ADR.
 

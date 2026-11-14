@@ -217,6 +217,11 @@ jobs:
       # lines and fails loudly (ADR-0058, D19). The rest of the integration layer —
       # the other tests of the parity too — runs in the job "Build · Test": this
       # one runs the test of the whole list, and nothing twice.
+      #
+      # The harness of the contract with SymSpell (issue #44) rides here: it
+      # needs the same list, and the list is here — the dictionary of the whole
+      # list and the fingerprint of its corrections are the numbers the
+      # decision about the dependency is made with.
       - name: Fetch the word list
         run: bash tools/fetch-wordlist.sh
 
@@ -224,7 +229,7 @@ jobs:
         run: |
           dotnet build tests/Nordmann.LUI.Integration.Tests --configuration Release --no-restore
           dotnet test tests/Nordmann.LUI.Integration.Tests --configuration Release --no-build \
-            --filter "FullyQualifiedName~NormalizationParityTests.The_normalizer_and_the_tokenizer_agree_on_the_full_word_list" \
+            --filter "FullyQualifiedName~NormalizationParityTests.The_normalizer_and_the_tokenizer_agree_on_the_full_word_list|FullyQualifiedName~TypoContractTests.The_contract_over_the_whole_word_list_is_measured" \
             --blame-hang-timeout 10m --blame-hang-dump-type full \
             --results-directory artifacts/test-results
 
