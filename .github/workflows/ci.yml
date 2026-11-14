@@ -298,6 +298,12 @@ jobs:
       - name: Tutorial check
         run: python3 tools/tutorial-check.py
 
+      # The naming of a failing test (issue #154): a test of the integration layer failed once under load,
+      # and the name of it was lost with the output of that run. The procedure of the run under load has to
+      # name the test that failed — the self-test of the tool proves that it does.
+      - name: The naming of a failing test
+        run: bash tools/load-run.sh --self-test
+
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: nupkg

@@ -80,7 +80,7 @@ with a full dump that is uploaded with the results (ADR-0047, guarded by `Workfl
 | The normalisation parity over the whole word list | the one test of `NormalizationParityTests` that needs the full list (685,829 words) | the rule of ADR-0005 exists twice — as SQL and as C#; the rest of the layer runs in *Build · Test*, nothing twice |
 | The probe of the measured window | the unit lane with the probe armed, and no other lane | the allocation of the measure landed inside a measured window once, in one run, out of many: the probe names the iteration that allocated, and the number of the runs is part of the evidence (issue #134) |
 | The guards bite | the mutation check, in four shards side by side (`--shard i/4`), and one job of that name that waits for all four | a green test proves nothing until it has been seen red (ADR-0019) — and every mutation says how it must be caught: by its test (`expect_caught`), by the build with a named error where the toolchain is the guard on purpose (`expect_refused`), or by the command itself where the guard is a command and not a test — the tutorial check (`expect_command_caught`, issue #128). A mutation that the build refuses although a test was meant fails the check (issue #73) |
-| Package · Smoke test | the packed library in a throwaway application, beside the other jobs, and the C# blocks of the tutorial compiled and run against the library | the README's code is part of the test — and so is the code of the tutorial: a block that names an API the library does not have fails the lane ([`tools/tutorial-check.py`](../tools/tutorial-check.py), issue #128) |
+| Package · Smoke test | the packed library in a throwaway application, beside the other jobs, the C# blocks of the tutorial compiled and run against the library, and the self-test of the naming of a failing test | the README's code is part of the test — and so is the code of the tutorial: a block that names an API the library does not have fails the lane ([`tools/tutorial-check.py`](../tools/tutorial-check.py), issue #128). And the procedure of the run under load has to name the test that failed ([`tools/load-run.sh`](../tools/load-run.sh), issue #154) |
 | **Windows** | the three layers and the tests of the sample on `windows-2025` | the paths, the pragmas and the case of the file names — the platform where a path is a promise (issue #67) |
 | **Publish** (a tag `v*`) | the tag against `Directory.Build.props` and `main`, then **every lane above** (it calls `ci.yml`), then — after the owner's approval — the push with a key of one hour (Trusted Publishing) | a release passes exactly the gates of a pull request, and stores no key (ADR-0048) |
 | Performance (every night, by hand) | the budgets of the file — the targets of ADR-0020, in the file of ADR-0056 | a time belongs to the machine it was measured on; a size is the same everywhere (ADR-0041) |
@@ -349,6 +349,13 @@ bash tools/mutation-check.sh --only the-provider-retries-for-thirty-seconds
 # the probe of the measured window — here, on this machine, and on the runner (issue #134)
 bash tools/allocation-probe.sh --local
 bash tools/allocation-probe.sh --runs 20 --parallel 4
+
+# the run under load — the four lanes at once, the performance layer beside them, the whole output kept,
+# and the failing test named (issue #154)
+bash tools/load-run.sh --runs 20
+bash tools/load-run.sh --serial --load none
+bash tools/load-run.sh --name artifacts/load-run/<stamp>/run-01-integration.trx
+bash tools/load-run.sh --self-test
 
 # the C# blocks of the tutorial: compiled, run, and compared with the pages (issue #128)
 python tools/tutorial-check.py

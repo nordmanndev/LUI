@@ -5,7 +5,7 @@
 - **Decided by:** the owner, on 2026-11-13, after the release of `0.1.1` — the two forks of the round (#31, #44) were put to
   the owner and answered: **measure first, then decide**
 - **Issues:** #32, #31, #44, #134, #154 — #117 (the epic they belong to)
-- **Status:** in progress — the first pull request of it is merged (#134, PR #164, the merge commit `f15370f`)
+- **Status:** in progress — two pull requests of it are merged (#134, PR #164, the merge commit `f15370f`; #154)
 - **Why now:** the tag `v0.1.1` exists (2026-11-13), the round of the guards is released, and what is left is the work that
   needs numbers before it needs code
 
@@ -93,6 +93,23 @@ in the plan:
   A lane on its own runner has no load at all; the load is local, or it is made.
 - **The acceptance:** one run in which the failure names itself and the reason is written down — **or** the documented
   answer of "it does not happen any more", with the number of the runs that says so.
+
+**What the pull request did (2026-11-14).** The failure named itself, and the name is the one the issue did not have:
+
+- The procedure is **`tools/load-run.sh`**: the **four lanes of the suite at once**, with the measurement layer beside
+  them. The plan said "the integration layer while the performance layer takes the machine"; the run of that day was the
+  whole suite in one run, and the four lanes at once are what makes the machine busy the way it was busy that day.
+- **30 runs, 120 lanes, six of them red** — five of the integration layer, one of the unit layer. The lost test is
+  `LuiWarmupTests.The_host_waits_for_a_round_that_runs_when_it_is_disposed` (four of the five), and the counts of the
+  failing runs are the counts of the run of 2026-11-13: `Failed: 1, Passed: 421, Skipped: 1, Total: 423`. The issue
+  suspected the warm-up teardown of #148 and wrote it off; it is that test.
+- **The reason**, measured with an instrumentation that is not in the repository: the test waits for a claim that holds
+  only while a round runs, and the round gives up after the busy timeout of one second that the test itself sets — it
+  lives about 1.16 s. The wait polls every 20 ms; under the load the longest gap between two polls was **1841 ms**, so
+  the round began and ended inside one gap and the claim was never seen. The same test has a second shape of the same
+  race: the task that wraps the round completes a moment after the flag that says "no round runs".
+- **The fix is not in this pull request** — it is an issue of its own: a claim that holds for a second cannot be waited
+  for under a load.
 
 ### PR 3 — The dependency on `symspell`: the harness, then the decision (#44, D2, D7)
 

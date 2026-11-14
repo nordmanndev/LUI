@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   names the iteration of a dirty window that allocated and the amount — the run of 43228720565 said only that
   1912 bytes had been allocated inside the window of `The_measure_allocates_nothing`.
   `tools/allocation-probe.sh` dispatches the runs, collects their reports and says how many runs there were.
+- **The run under load** (#154): `tools/load-run.sh` runs the four lanes of the suite at once, with the measurement
+  layer beside them, keeps the whole output and the trx of every lane, and names the test that failed — the name of the
+  failure of that day was lost with the filtered output of the run. The hunt named it:
+  `LuiWarmupTests.The_host_waits_for_a_round_that_runs_when_it_is_disposed`, in 4 of the 30 runs.
 
 ## [0.1.1] — 2026-11-13
 
