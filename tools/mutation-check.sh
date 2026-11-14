@@ -738,7 +738,15 @@ expect_caught "a-probe-that-does-not-name-the-iteration" "${UNIT_PROJECT}" \
   "The_probe_names_the_iteration_that_allocated" \
   "sed -i 's|  iteration {i}: {delta} bytes|  {i}: {delta}|' tests/Nordmann.LUI.Unit.Tests/Support/AllocationProbe.cs"
 
-# 33. The clean trees stay green.
+# 33. A run that does not name the failing test (issue #154): the failure of that day was lost, because the
+#      output of the run was filtered, and what was left of it was the count. A procedure that keeps the whole
+#      output has to name the test that failed — the name is the answer the issue #154 is still missing.
+expect_command_caught "a-run-that-does-not-name-the-failing-test" \
+  "bash tools/load-run.sh --self-test" \
+  "sed -i 's|printf(\"the failing test: %s|printf(\"a test failed:|' tools/load-run.sh" \
+  "Nordmann.LUI.Integration.Tests.Catalog.A_test_that_failed"
+
+# 34. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 
