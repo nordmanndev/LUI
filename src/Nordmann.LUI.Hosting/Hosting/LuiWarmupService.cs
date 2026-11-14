@@ -22,6 +22,8 @@ internal sealed partial class LuiWarmupService : IHostedService, IDisposable
     private readonly object _roundGate = new();
     private Timer? _timer;
     private int _running;
+    private int _roundsBegun;
+    private Task _roundTask = Task.CompletedTask;
     private volatile bool _stopping;
 
     /// <summary>The service.</summary>
@@ -107,6 +109,19 @@ internal sealed partial class LuiWarmupService : IHostedService, IDisposable
     internal bool RoundRunning => Volatile.Read(ref _running) != 0;
 
     /// <summary>
+    /// The number of the rounds that have begun — a claim that stays true (issue #185). The claim of a round that
+    /// <em>runs</em> holds only while the round runs, and a round that waits for the write lock of the file lives about
+    /// a second: a waiter that comes late must not miss the round.
+    /// </summary>
+    internal int RoundsBegun => Volatile.Read(ref _roundsBegun);
+
+    /// <summary>
+    /// The task of the round that runs — or of the last that ran (issue #185). The round of the service is over when
+    /// this task is completed; the flag of the service can be a moment ahead of it.
+    /// </summary>
+    internal Task RoundTask => Volatile.Read(ref _roundTask);
+
+    /// <summary>
     /// A round of the outbox — one at a time. The callback of the timer; internal so that a test can start a round
     /// beside one that runs, without a timer and without a race (#106).
     /// </summary>
@@ -128,6 +143,15 @@ internal sealed partial class LuiWarmupService : IHostedService, IDisposable
             return;
         }
 
+        // the round is a task of the service: the host that stops the service waits for the task of the round, and not
+        // for the flag of the service — the flag says "no round runs" a moment before the round itself is over (#185)
+        var finished = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _roundTask = finished.Task;
+
+        // the rounds that have begun are counted — after the task is known, so that a waiter that comes late finds
+        // both (issue #185)
+        Interlocked.Increment(ref _roundsBegun);
+
         try
         {
             Round();
@@ -139,6 +163,10 @@ internal sealed partial class LuiWarmupService : IHostedService, IDisposable
             {
                 Monitor.PulseAll(_roundGate);
             }
+
+            // the flag is cleared before the task is completed: the flag is the sign of the service, the task is the
+            // truth of the round — and the host that stops the service waits for the task (issue #185)
+            finished.TrySetResult();
         }
     }
 
@@ -155,6 +183,10 @@ internal sealed partial class LuiWarmupService : IHostedService, IDisposable
                 Monitor.Wait(_roundGate);
             }
         }
+
+        // the flag of the service is only the sign of the round: the task of the round is its truth, and the host
+        // that stops the service waits for that (issue #185)
+        Volatile.Read(ref _roundTask).GetAwaiter().GetResult();
     }
 
     /// <summary>
