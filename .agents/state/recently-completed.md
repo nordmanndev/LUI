@@ -5,7 +5,7 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
-## 2026-11-14 — The run under load names the test that failed (#154, PR #184)
+## 2026-11-14 — The run under load names the test that failed (#154, PR #184, the merge commit `2a492d1`)
 
 - `tools/load-run.sh` is the procedure of the hunt: the **four lanes of the suite at once**, with the measurement layer
   beside them (the load of that day was a machine full of test processes). The whole output of every lane is kept, the
@@ -28,8 +28,9 @@ the scratchpad here at the end of a session.
 - The unit lane was red once too, with `NgramDiceEquivalenceTests.A_comparison_allocates_nothing` — **3784 bytes** where
   the rule allows less than 1000. That is the family of the 1912 bytes of #134, and the open end of it (the file and the
   line of the runtime) is issue #165.
-- The numbers stand in `docs/benchmarks.md`. The **fix is not in the pull request**: a claim that holds for a second
-  cannot be waited for under a load — it is an issue of its own.
+- The numbers stand in `docs/benchmarks.md`. The pull request is merged (PR #184, the merge commit `2a492d1`) and the
+  issue #154 is closed with the proof. The **fix is not in the pull request**: a claim that holds for a second cannot be
+  waited for under a load — it is issue #185.
 
 ## 2026-11-14 — The probe of the measured window is written, armed and merged (#134, PR #164)
 

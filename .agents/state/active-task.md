@@ -5,10 +5,9 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** #154 — a test of the integration layer failed once under load, and the name of it was lost. It is the second
-pull request of the round of the measured work.
-**Branch:** `feat/154-the-run-under-load` carries the run under load; `dev` is at `c89fe85` (the merge of PR #167), `main`
-at `320605e` — the tag `v0.1.1` is on the commit of `main`.
+**Issue:** #44 — the dependency of the core on `symspell`. It is the third pull request of the round of the measured work.
+**Branch:** `dev` is at `2a492d1` (the merge of PR #184, the run under load), `main` at `320605e` — the tag `v0.1.1` is on
+the commit of `main`.
 **Decision:** the plan
 ([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)) — D1 to D8, on the owner's
 behalf, 2026-11-13.
@@ -36,13 +35,13 @@ behalf, 2026-11-13.
   and `tools/allocation-probe.sh` dispatches the runs, collects their reports and says how many runs there were.
   **The probe caught the event** on the runner: 87 runs, one dirty window — the first window, iteration 62, 7312 bytes.
   The numbers stand in `docs/benchmarks.md`. The file and the line of the runtime are the open end of it: issue #165.
-- **The run under load is written** (#154, PR #184): `tools/load-run.sh` runs the four lanes of the suite at once, with the
-  measurement layer beside them, keeps the whole output and the trx of every lane, and **names the test that failed** the
-  moment it fails. **The failure named itself**: 30 runs, 120 lanes, six of them red — the lost test is
-  `LuiWarmupTests.The_host_waits_for_a_round_that_runs_when_it_is_disposed`, in four of the five failing integration runs,
-  and their counts are the counts of the run of 2026-11-13. The reason is measured: the claim the test waits for holds for
-  about 1.16 s, and the longest gap between two polls under the load was 1841 ms — the round began and ended inside one
-  gap. The numbers stand in `docs/benchmarks.md`. The fix is an issue of its own.
+- **The run under load is written and merged** (#154, PR #184, the merge commit `2a492d1`): `tools/load-run.sh` runs the
+  four lanes of the suite at once, with the measurement layer beside them, keeps the whole output and the trx of every
+  lane, and **names the test that failed** the moment it fails. **The failure named itself**: 30 runs, 120 lanes, six of
+  them red — the lost test is `LuiWarmupTests.The_host_waits_for_a_round_that_runs_when_it_is_disposed`, in four of the
+  five failing integration runs, and their counts are the counts of the run of 2026-11-13. The reason is measured: the
+  claim the test waits for holds for about 1.16 s, and the longest gap between two polls under the load was 1841 ms —
+  the round began and ended inside one gap. The numbers stand in `docs/benchmarks.md`. The fix of the test is issue #185.
 
 ## Open
 
@@ -67,10 +66,11 @@ of the plan:
 1. ~~**#134**~~ — the origin of the 1912 bytes inside the measured window: the probe of the window, the runs, the
    finding. **Done** (PR #164, the merge commit `f15370f`) — and the probe caught the event: 87 runs, one dirty window
    that names the iteration and the amount. The open end of it — the file and the line of the runtime — is issue #165.
-2. **#154** — the test of the integration layer that failed once under load: the run that keeps the whole output, the
-   finding. **Written** — the failure named itself: 30 runs, 120 lanes, six red, and the lost test is
-   `The_host_waits_for_a_round_that_runs_when_it_is_disposed`.
-3. **#44** — the dependency on `symspell`: the harness over the whole word list, then the ADR that decides.
+2. ~~**#154**~~ — the test of the integration layer that failed once under load: the run that keeps the whole output,
+   the finding. **Done** (PR #184, the merge commit `2a492d1`) — the failure named itself: 30 runs, 120 lanes, six red,
+   and the lost test is `The_host_waits_for_a_round_that_runs_when_it_is_disposed`. The fix of the test is issue #185.
+3. **#44** — the dependency on `symspell`: the harness over the whole word list, then the ADR that decides. **The next
+   pull request of the round.**
 4. **#31** — the shadow build for `Linked.Sync()`: the number of the write lock in the sample, then the ADR that decides.
 5. **#32** — a faster first load: the levers at 3 M on two machines, the path in `Sync`, the ADR.
 
