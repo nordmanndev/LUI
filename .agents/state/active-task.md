@@ -6,8 +6,8 @@ describes it. Link the issue; do not repeat the whole plan here.
 -->
 
 **Issue:** #31 — the write lock of a linked sync: the number of the wait of the writer, then the decision about the
-shadow build. It is the fourth pull request of the round of the measured work.
-**Branch:** `dev` is at `dcb3cea` (the merge of PR #187, the contract with SymSpell), `main` at `320605e` — the tag
+shadow build. It is the fifth pull request of the round of the measured work.
+**Branch:** `dev` is at `f66c584` (the merge of PR #189, the wait of the warm-up), `main` at `320605e` — the tag
 `v0.1.1` is on the commit of `main`.
 **Decision:** the plan
 ([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)) — D1 to D8, on the owner's
@@ -42,7 +42,8 @@ behalf, 2026-11-13.
   them red — the lost test is `LuiWarmupTests.The_host_waits_for_a_round_that_runs_when_it_is_disposed`, in four of the
   five failing integration runs, and their counts are the counts of the run of 2026-11-13. The reason is measured: the
   claim the test waits for holds for about 1.16 s, and the longest gap between two polls under the load was 1841 ms —
-  the round began and ended inside one gap. The numbers stand in `docs/benchmarks.md`. The fix of the test is issue #185.
+  the round began and ended inside one gap. The numbers stand in `docs/benchmarks.md`. The fix of the test was issue #185 —
+  and it is merged (PR #189).
 - **The contract with SymSpell is written and merged** (#44, PR #187, the merge commit `dcb3cea`, ADR-0064): the owner
   decided on 2026-11-14 that **`symspell` stays** — maybe to be looked at again another time. The contract is measured:
   `TypoContractTests` pins the rules (the beginnings of three to ten letters, the count of a word = its weight + 1, the
@@ -50,6 +51,14 @@ behalf, 2026-11-13.
   word list — 685,739 words, **138 MB**, 2.3 s, and a fingerprint of the corrections that an own implementation would have
   to reproduce. The harness rides on the lane of the parity over the whole word list. The numbers stand in
   `docs/benchmarks.md`.
+- **The wait of the warm-up does not expire** (#185, PR #189, the merge commit `f66c584`): the service counts the rounds
+  that have **begun** — a claim that stays true — and the round is a **task of the service**, so that the host that stops
+  it waits for the task of the round and not for the flag, which is cleared a moment before the round itself is over.
+  That is the flake the hunt of #154 named, and the fix of it: the claim of a round that *runs* holds for about a second,
+  and a loaded machine delayed the poll of the test by more than that. Two more waits of the same file are fixed with it
+  — the round that fails is started by hand and waited for. The mutation
+  `a-claim-of-a-round-that-does-not-stay-true` proves that the new guard bites; the promise of ADR-0043 stands as it was
+  written, and the record carries a note of it.
 
 ## Open
 
@@ -63,12 +72,13 @@ The four pull requests of the first round, in the order of the plan:
 
 Then the release of `0.1.1` — **done** (PR #160, the release pull request #161, the tag `v0.1.1`, the packages on
 nuget.org) — and the round of the measured work: **#134** (the 1912 bytes), **#154** (the integration flake), **#44** (the
-dependency on `symspell`), **#31** (the shadow build of `Linked.Sync()`), **#32** (the first load of 3 M entries).
+dependency on `symspell`), **#185** (the wait of the warm-up), **#31** (the shadow build of `Linked.Sync()`), **#32** (the
+first load of 3 M entries).
 
 ## The next step
 
 **The round of the measured work** — `0.2.0`, on the plan
-([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)). Five pull requests, in the order
+([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)). Six pull requests, in the order
 of the plan:
 
 1. ~~**#134**~~ — the origin of the 1912 bytes inside the measured window: the probe of the window, the runs, the
@@ -81,9 +91,12 @@ of the plan:
    **Done** (PR #187, the merge commit `dcb3cea`, ADR-0064) — the owner decided that `symspell` stays; the harness pins
    the rules of the contract and measures the dictionary over the whole word list: 685,739 words, 138 MB, and the
    fingerprint of the corrections.
-4. **#31** — the shadow build for `Linked.Sync()`: the number of the write lock in the sample, then the ADR that decides.
+4. ~~**#185**~~ — the wait of the warm-up: a claim that stays true, and the task of the round. **Done** (PR #189, the merge
+   commit `f66c584`) — the service counts the rounds that have begun, and the host waits for the task of the round. The
+   mutation `a-claim-of-a-round-that-does-not-stay-true` proves that the guard bites.
+5. **#31** — the shadow build for `Linked.Sync()`: the number of the write lock in the sample, then the ADR that decides.
    **The next pull request of the round.**
-5. **#32** — a faster first load: the levers at 3 M on two machines, the path in `Sync`, the ADR.
+6. **#32** — a faster first load: the levers at 3 M on two machines, the path in `Sync`, the ADR.
 
 Then the release of `0.2.0`: the version line, the section of the CHANGELOG, the README, the pull request `dev` → `main`,
 the tag `v0.2.0`, and the owner's approval of the push to nuget.org.
