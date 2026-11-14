@@ -31,10 +31,10 @@ behalf, 2026-11-13.
   files of a current record names a file that exists.
 - **The three missing guards of the round are there**: the paths of the records (#137), the index of the records (#129), the
   members of the API page (#130) and the C# blocks of the tutorial (#128).
-- **The probe of the measured window is written** (#134): the unit lane can be dispatched with the probe armed, the probe
-  names the iteration of a dirty window that allocated and the amount, and `tools/allocation-probe.sh` dispatches the
-  runs, collects their reports and says how many runs there were. The runs on the runner found no dirty window — the
-  number of the runs stands in `docs/benchmarks.md`.
+- **The probe of the measured window is written** (#134, PR #164): the unit lane can be dispatched with the probe armed, the
+  probe names the iteration of a dirty window that allocated and the amount, and `tools/allocation-probe.sh` dispatches
+  the runs, collects their reports and says how many runs there were. **The probe caught the event** on the runner: 87
+  runs, one dirty window — the first window, iteration 62, 7312 bytes. The numbers stand in `docs/benchmarks.md`.
 
 ## Open
 
