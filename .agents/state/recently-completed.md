@@ -5,7 +5,7 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
-## 2026-11-14 — The contract with SymSpell is measured, and the dependency stays (#44, ADR-0064)
+## 2026-11-14 — The contract with SymSpell is measured, and the dependency stays (#44, ADR-0064, PR #187, the merge commit `dcb3cea`)
 
 - **The decision is the owner's**: on 2026-11-14 the owner answered the question of issue #44 — **`symspell` stays**,
   maybe to be looked at again another time. ADR-0064 records it with the numbers behind it.
