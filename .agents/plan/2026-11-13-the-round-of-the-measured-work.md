@@ -19,7 +19,8 @@ without a number:
    and misses on the next, with the same code (172.5 s and 194.9–205.9 s). The budget was raised to 4 min on that day
    (ADR-0020) and it holds today. The levers are known, and none of them is measured at that size.
 2. **The write lock of a linked sync** (#31) — 26.7 s for a million rows, in one transaction. ADR-0016 left the question to
-   the owner: *is a thirty-second lock per million rows a problem worth it?*
+   the owner: *is a thirty-second lock per million rows a problem worth it?* The owner answered it on 2026-11-14: the
+   rule stands, and the shadow build comes when an application reports the lock as a problem.
 3. **The dependency on `symspell`** (#44) — the last foreign algorithm of the core. The dependency set of a package is its
    contract (ADR-0018), so the question is the owner's; the data to answer it is ours to measure.
 4. **The 1912 bytes** (#134) — one allocation in one measured window of one run, never reproduced.
@@ -56,7 +57,7 @@ The epic #117 waits for two of them: #137 (the dead paths of the records ✓ don
 | D4 | **The order is by the cost of the work**: the flakes, the fix of the flake, the two decisions, the load, the release. | The flakes need runs and nothing else; the fix of the flake needs a claim that does not expire; the two decisions need one number each; the load needs two machines and hours, and its ADR may change the API. |
 | D5 | **The two flakes are answered by keeping the evidence, not by guessing.** The probe of the allocation window is a tool of the repository (its buffer is allocated *before* the window, its printing *after* it), and the run under load keeps the whole output — the name of the test is written down the moment it fails. | The issue #154 says it plainly: an issue that names a test on suspicion sends the next agent after the wrong thing. The one failure that was lost was lost because the output was filtered; the fix is a procedure that does not filter. |
 | D6 | **The numbers of the round go into the report with the machine beside them** (`docs/benchmarks.md`), and a time belongs to the machine it was measured on (ADR-0041). | The same code built three million entries in 172.5 s and in 205.9 s on two machines — a number without its machine says nothing. ADR-0020 measured the build on two machines for that reason. |
-| D7 | **Every decision of the round that changes the public API, the schema or the dependency set gets its ADR in the same pull request.** The three ADRs of the round are the shadow build, the dependency on `symspell`, and the first load. | The rule of the repository (AGENTS.md). The dependency set is the contract of the package (ADR-0018), and a budget that is missed is measured again and decided again, with an ADR and a record — it is not lowered in passing. |
+| D7 | **Every decision of the round that changes the public API, the schema or the dependency set gets its ADR in the same pull request.** The ADRs of the round are the dependency on `symspell` and the first load; the shadow build of ADR-0016 gets no ADR of its own — the rule of ADR-0016 stands, and a note on that record says what it took. | The rule of the repository (AGENTS.md). The dependency set is the contract of the package (ADR-0018), and a budget that is missed is measured again and decided again, with an ADR and a record — it is not lowered in passing. A decision that changes nothing needs no record of its own: a note on the record it belongs to says what it took. |
 | D8 | **The branch model does not change.** The pull requests target `dev`; `dev` → `main` is a release pull request with its own review; the tag `v0.2.0` follows it, and the owner approves the push to nuget.org. | The same road as `0.1.0` and `0.1.1` — the machinery is proved a third time, at low cost. |
 
 ## 4. The order: six pull requests and a release
@@ -179,15 +180,25 @@ internal — and ADR-0043 carries a note, like the note of issue #148.
 
 ### PR 5 — The write lock of a linked sync: the number, then the decision (#31, D2, D7)
 
-- **Files:** the sample application — a writer that reports the lock as a problem — the measurement, and the ADR.
+- **Files:** the measurement — a writer of the application's table beside a linked sync, in the performance layer — the
+  record (`docs/benchmarks.md`), and the note on ADR-0016.
 - **The rule:** the question of ADR-0016 is *"is a thirty-second lock per million rows a problem worth it?"* — an
-  application answers it, not a document. The sample writes to its table while the index syncs, and reports how long the
-  writer waits.
+  application answers it, not a document. A writer writes to the table of the application while the index syncs, and
+  reports how long it waits.
 - **The trap:** the shadow build is not only the build: a `Refresh` or an `ApplyPending` that runs during the build writes
   the old tables, and those writes have to reach the new ones too (the outbox, or a second write path). That is the reason
   the decision is not taken without a number — and the number is about the lock, not about the build.
-- **The acceptance:** the number of the wait on the machine of the measurement, with the machine named; the ADR decides
+- **The acceptance:** the number of the wait on the machine of the measurement, with the machine named; the decision says
   whether the shadow build is built, and if it is, it names the round that builds it.
+
+**What the pull request did (2026-11-14).** The measurement lives in the performance layer, not in the sample application:
+the sample demonstrates the library, and the layer of the measurements is where "what does this cost" lives (ADR-0058,
+ADR-0019). The number: the sync of a linked index of 1,000,000 rows holds the write lock of the file for **26.7 s** — the
+same number as ADR-0015 and ADR-0016 — a writer waits up to **25.8 s**, and with the busy timeout of the catalog (5 s) **4
+of 11** of its writes fail with `SQLITE_BUSY`. The owner decided on 2026-11-14: **the rule of ADR-0016 stands**, and the
+shadow build comes when an application reports the lock as a problem. Nothing is built and nothing changes — the public
+API, the schema and the dependency set stay as they are — so the decision gets **no ADR of its own**: a note on ADR-0016
+says what it took, the way the notes of issues #76 and #148 do.
 
 ### PR 6 — The faster first load (#32, D3, D6, D7)
 
@@ -224,7 +235,7 @@ internal — and ADR-0043 carries a note, like the note of issue #148.
 | #154 — the integration flake | the procedure of the run under load, the whole output, the finding | it does not name a test on suspicion |
 | #185 — the wait of the warm-up | the claim of a round that has begun, the task of the round, the guard and its mutation | it does not move the promise of ADR-0043 — the note on the record says what it took |
 | #44 — `symspell` | the harness over the whole word list, the ADR | it does not write the own implementation — the ADR names the round that does |
-| #31 — the shadow build | the number of the lock, the ADR | it does not build the shadow tables — the ADR names the round that does |
+| #31 — the shadow build | the number of the lock, the note on ADR-0016 | it does not build the shadow tables — the decision names the application that reports the lock as the trigger |
 | #32 — the first load | four levers at 3 M on two machines, the path in `Sync`, the ADR | it does not lower the budget of 4 min in passing, and it does not raise it without a record |
 | #117 — the epic | it closes with #134 | the weekly lane that says whether the budgets hold goes on |
 

@@ -178,10 +178,10 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     /// measures how long it waits for the write lock of the file.
     /// </summary>
     /// <param name="database">The file of the measurement.</param>
-    /// <param name="cancellationToken">The token that stops the writer.</param>
     /// <param name="busyTimeout">The busy timeout of the writer.</param>
     /// <param name="waits">The waits of the writes that succeeded, in milliseconds.</param>
     /// <param name="onFailure">Called for every write that failed with SQLITE_BUSY.</param>
+    /// <param name="cancellationToken">The token that stops the writer.</param>
     private static void WriteWhileTheSyncRuns(
         TestDatabase database,
         TimeSpan busyTimeout,

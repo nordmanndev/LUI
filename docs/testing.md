@@ -226,7 +226,7 @@ machine it was measured on — and the **sizes** are asserted (ADR-0041).
 | [`QueryPerformance`](../tests/Nordmann.LUI.Performance.Tests/QueryPerformance.cs) | Performance | the latency and the allocation of a query, the cost of a write, the build | ADR-0020, ADR-0058 |
 | [`SyncPerformance`](../tests/Nordmann.LUI.Performance.Tests/SyncPerformance.cs) | Performance | what a sync costs, a cancelled one, the check, the rebuild — and a delta sync beside a built typo dictionary | the plan, step 7, ADR-0016, ADR-0021, ADR-0058 |
 | [`TypoPerformance`](../tests/Nordmann.LUI.Performance.Tests/TypoPerformance.cs) | Performance | what the typo dictionary costs, and how good the correction is on the whole list | ADR-0020, ADR-0012, ADR-0058 |
-| [`LinkedPerformance`](../tests/Nordmann.LUI.Performance.Tests/LinkedPerformance.cs) | Performance | what a linked index costs against the table of the application | ADR-0015, ADR-0058 |
+| [`LinkedPerformance`](../tests/Nordmann.LUI.Performance.Tests/LinkedPerformance.cs) | Performance | what a linked index costs against the table of the application — the sync, the queries, the refreshes, and the write lock that a sync holds while it runs | ADR-0015, ADR-0016, ADR-0058 |
 | [`BatchPerformance`](../tests/Nordmann.LUI.Performance.Tests/BatchPerformance.cs) | Performance | what a batch saves over a loop of single upserts | ADR-0013, ADR-0058 |
 | [`PerformanceScenarioTests`](../tests/Nordmann.LUI.Performance.Tests/PerformanceScenarioTests.cs) | Performance | the reader of the scenario file: a scenario with an unknown member is refused — a member that nobody reads would be a second truth beside the scenario — and a scenario with the members of the run is read | ADR-0058, ADR-0059 |
 
