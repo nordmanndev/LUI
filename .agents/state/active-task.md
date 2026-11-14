@@ -5,9 +5,9 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** #31 — the write lock of a linked sync: the number of the wait of the writer, then the decision about the
-shadow build. It is the fifth pull request of the round of the measured work.
-**Branch:** `dev` is at `f66c584` (the merge of PR #189, the wait of the warm-up), `main` at `320605e` — the tag
+**Issue:** #32 — a faster first load: the four levers at three million entries, on two machines, then the path in `Sync`
+and the ADR that decides. It is the sixth pull request of the round of the measured work.
+**Branch:** `dev` is at `421bcd9` (the merge of PR #191, the write lock of a linked sync), `main` at `320605e` — the tag
 `v0.1.1` is on the commit of `main`.
 **Decision:** the plan
 ([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)) — D1 to D8, on the owner's
@@ -59,6 +59,12 @@ behalf, 2026-11-13.
   — the round that fails is started by hand and waited for. The mutation
   `a-claim-of-a-round-that-does-not-stay-true` proves that the new guard bites; the promise of ADR-0043 stands as it was
   written, and the record carries a note of it.
+- **The write lock of a linked sync is measured, and the rule of ADR-0016 stands** (#31, PR #191, the merge commit
+  `421bcd9`): the sync of a linked index of 1,000,000 rows holds the write lock of the file for **26.7 s** — the same
+  number as ADR-0015 and ADR-0016 — a writer of the application waits up to **25.8 s**, and with the busy timeout of the
+  catalog (5 s, ADR-0046) **4 of 11** of its writes fail with `SQLITE_BUSY`. The owner decided on 2026-11-14: the shadow
+  build comes when an application reports the lock as a problem. Nothing is built and nothing changes, so the decision
+  gets **no ADR of its own** — a note on ADR-0016 says what it took, the way the notes of the issues #76 and #148 do.
 
 ## Open
 
@@ -72,7 +78,7 @@ The four pull requests of the first round, in the order of the plan:
 
 Then the release of `0.1.1` — **done** (PR #160, the release pull request #161, the tag `v0.1.1`, the packages on
 nuget.org) — and the round of the measured work: **#134** (the 1912 bytes), **#154** (the integration flake), **#44** (the
-dependency on `symspell`), **#185** (the wait of the warm-up), **#31** (the shadow build of `Linked.Sync()`), **#32** (the
+dependency on `symspell`), **#185** (the wait of the warm-up), **#31** (the write lock of a linked sync), **#32** (the
 first load of 3 M entries).
 
 ## The next step
@@ -94,9 +100,13 @@ of the plan:
 4. ~~**#185**~~ — the wait of the warm-up: a claim that stays true, and the task of the round. **Done** (PR #189, the merge
    commit `f66c584`) — the service counts the rounds that have begun, and the host waits for the task of the round. The
    mutation `a-claim-of-a-round-that-does-not-stay-true` proves that the guard bites.
-5. **#31** — the shadow build for `Linked.Sync()`: the number of the write lock in the sample, then the ADR that decides.
-   **The next pull request of the round.**
+5. ~~**#31**~~ — the write lock of a linked sync: the number of the lock, then the decision. **Done** (PR #191, the merge
+   commit `421bcd9`) — the sync of a linked index of 1,000,000 rows holds the write lock of the file for 26.7 s, a writer
+   waits up to 25.8 s, and with the busy timeout of the catalog four of eleven writes fail with `SQLITE_BUSY`. The owner
+   decided on 2026-11-14: the rule of ADR-0016 stands, and the shadow build comes when an application reports the lock
+   as a problem. Nothing is built, so the decision has no ADR of its own — a note on ADR-0016 says what it took.
 6. **#32** — a faster first load: the levers at 3 M on two machines, the path in `Sync`, the ADR.
+   **The next pull request of the round.**
 
 Then the release of `0.2.0`: the version line, the section of the CHANGELOG, the README, the pull request `dev` → `main`,
 the tag `v0.2.0`, and the owner's approval of the push to nuget.org.

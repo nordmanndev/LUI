@@ -5,6 +5,26 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-14 — The write lock of a linked sync is measured, and the rule of ADR-0016 stands (#31, PR #191, the merge commit `421bcd9`)
+
+- **The number.** The sync of a linked index of 1,000,000 rows holds the write lock of the file for **26.7 s** — the same
+  number as ADR-0015 and ADR-0016, measured again on the machine of the record (AMD Ryzen 7 4800U). A writer of the
+  application's table waits for that lock: the longest wait measured was **25.8 s**, and with the busy timeout of the
+  catalog (5 s, ADR-0046) **4 of 11** of its writes failed with `SQLITE_BUSY`.
+- **The measurement** lives in the performance layer (`The_write_lock_of_a_linked_sync` in `LinkedPerformance`): the
+  writer of the application has its own connection and its own busy timeout — it writes beside LUI, not through it. A
+  measurement is not a test of behaviour (ADR-0019), so it has no guard and no mutation.
+- **The decision (the owner, 2026-11-14):** the rule of ADR-0016 stands. The shadow build comes when an application
+  reports the lock as a problem; until then the sync holds the lock, and the doc comment of `Sync` says so.
+- **Nothing is built and nothing changes** — the public API, the schema and the dependency set stay as they are. The
+  decision therefore gets **no ADR of its own**: a note on ADR-0016 says what it took, the way the notes of the issues
+  #76 and #148 do, and the open question 2 of that record carries the answer. The plan's D7 says so too: a decision
+  that changes nothing needs no record of its own.
+- **One flake on the way, named in its own issue (#192):** the Windows lane of the CI failed on
+  `LevenshteinEquivalenceTests.The_measure_allocates_nothing` with 7,296 bytes — the family of #134 and #165, a one-off
+  of the runtime inside the measured window. The re-run was green. The instance is in issue #192, so that the next
+  agent goes after the right thing.
+
 ## 2026-11-14 — The wait of the warm-up does not expire (#185, PR #189, the merge commit `f66c584`)
 
 - **The flake that the hunt of #154 named is fixed.** The test waited for `RoundRunning`, a claim that holds only while a
