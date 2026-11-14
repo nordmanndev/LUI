@@ -727,6 +727,38 @@ The **memory** is the number that does not depend on the machine, and it is the 
 ([the typo dictionary](./typo-dictionary.md)). The **fingerprint** is what an own implementation of the dictionary would
 have to reproduce — and the reason the decision could be made with numbers and not with an impression.
 
+## The write lock of a linked sync (issue #31)
+
+The sync of a linked index is **one transaction**: it holds the write lock of the file for as long as it runs, and every
+other writer of the file waits for it ([ADR-0016](../.agents/adr/0016-sync-check-rebuild.md)). The question of ADR-0016 is
+whether that wait is a problem worth a second write path — the shadow build. An application answers it, not a document: a
+writer of the application's table writes while the index syncs, and reports how long it waits.
+
+**The measurement** ([`LinkedPerformance`](../tests/Nordmann.LUI.Performance.Tests/LinkedPerformance.cs), the whole German
+word list, 1,000,000 entries):
+
+| | |
+|---|---|
+| the lock of the sync | **26.7 s** — the same number as ADR-0015 and ADR-0016 |
+| the longest wait of a write of the application | **25.8 s** |
+| the writes that failed with the busy timeout of the catalog (5 s, ADR-0046) | **4 of 11** — `SQLITE_BUSY` |
+| the writer | its own connection and its own busy timeout: it writes beside LUI, not through it |
+| machine | AMD Ryzen 7 4800U, 8 cores (16 threads), 15.4 GB RAM, Windows 11 Pro 10.0.26300, .NET 10.0.404 (runtime 10.0.15), Microsoft.Data.Sqlite 10.0.14 |
+
+The writer writes every 50 ms; while the lock is held, its writes wait for it — one of them waits for the rest of the
+sync. With the busy timeout of the catalog the same writer fails: four of its eleven writes never got the lock.
+
+**The decision (the owner, 2026-11-14):** the rule of ADR-0016 stands — the shadow build comes when an application reports
+the lock as a problem. Nothing has changed since ADR-0016 (the same 26.7 s), and no application has reported the lock. The
+note on the record of ADR-0016 says what it took.
+
+```text
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter The_write_lock_of_a_linked_sync --logger "console;verbosity=detailed"
+```
+
+The scenario of the run is a file (ADR-0058): `prefixLength` 1,000,000 in
+`tests/Nordmann.LUI.Performance.Tests/performance.scenario.json`, then the run above.
+
 ## The tables of the run
 
 The tables of the BenchmarkDotNet run are **generated** from BenchmarkDotNet's own reports in

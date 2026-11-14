@@ -171,6 +171,8 @@ sync 10.5 s, `UpsertMany` 8.1 s, the same sync again 1.8 s, `Check()` 0.3 s, `Re
    would hold the lock per chunk only — but a `Refresh` or an `ApplyPending` that runs meanwhile writes the old tables,
    and has to reach the new ones too (noted in the outbox, applied after the swap). Not built here: it is a second write
    path for every refresh, and the owner should decide whether a 30-second lock per million rows is a problem worth it.
+   *(Answered on 2026-11-14, issue #31: the rule of this record stands — the shadow build comes when an application
+   reports the lock as a problem. The note below says what it took.)*
 
 **Verified by:** `tests/Nordmann.LUI.Integration.Tests/SyncCheckRebuildTests.cs` (30 tests: a sync into an empty index, adds,
 changes, keeps and removes, the same sync again, the payload compared, batches and progress, cancelled and run again,
@@ -193,4 +195,19 @@ code is in the history:
 ```bash
 git show 0cbc02fb9ab700ee5d7585e590f9bfad60af3627:tests/Nordmann.LUI.Integration.Tests/EmbeddedBulkExperiment.cs
 ```
+
+## Note (issue #31, 2026-11-14)
+
+The second open question above — the shadow build for `Linked.Sync()` — is answered by the owner on 2026-11-14: **the rule
+of this record stands.** The shadow build comes when an application reports the lock as a problem; until then the sync
+holds the write lock of the file, and the doc comment of `Sync` says so.
+
+What the question was measured with: the sync of a linked index of 1,000,000 rows holds the write lock of the file for
+**26.7 s** — the same number as ADR-0015 and as this record — on the machine of the record (AMD Ryzen 7 4800U, 8 cores).
+A writer of the application waits for that lock: the longest wait measured was **25.8 s**, and with the busy timeout of
+the catalog (5 s, ADR-0046) **4 of 11** of its writes failed with `SQLITE_BUSY`. The measurement is in the performance
+layer (`The_write_lock_of_a_linked_sync`), the numbers in `docs/benchmarks.md`.
+
+Nothing is built, and nothing changes: the public API, the schema and the dependency set stay as they are. The decision
+stands as it was written; this note says what it took.
 
