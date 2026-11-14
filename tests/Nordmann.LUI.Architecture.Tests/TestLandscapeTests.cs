@@ -49,10 +49,11 @@ public sealed class TestLandscapeTests
     /// The attributes that make a file a test file — in any form: <c>[Fact]</c>, <c>[Fact(Skip = …)]</c>,
     /// <c>[Theory, InlineData(…)]</c>, <c>[InlineData(…), Theory]</c>. A plain string search for <c>[Fact]</c> let a file
     /// whose only test is skipped out of the map (review of PR #25, finding 4). The measurement layer has its own
-    /// attributes — the measurements are facts of their own layer (ADR-0058).
+    /// attributes — the measurements are facts of their own layer (ADR-0058). The probe of the measured window has
+    /// one as well: a file whose only test is armed by a gate is a test file too (issue #134).
     /// </summary>
     private static readonly Regex TestAttribute = new(
-        @"[\[,]\s*(Fact|Theory|FullWordListFact)\s*[\](,]",
+        @"[\[,]\s*(Fact|Theory|FullWordListFact|ProbeFact)\s*[\](,]",
         RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture,
         TimeSpan.FromSeconds(1));
 
