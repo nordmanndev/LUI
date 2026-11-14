@@ -76,9 +76,74 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         budget.Verify();
     }
 
+    /// <summary>
+    /// The first lever of issue #32: a longer write-ahead log while the first load runs. SQLite checkpoints the log
+    /// every thousand pages; a larger interval means fewer checkpoints — and a log of up to 400 MB. ADR-0016 measured
+    /// 12 % at a million entries. The pragma is set on the connection of the writer, which is the connection the sync
+    /// writes through. This is a spike: its numbers go into the record, its code goes with the decision.
+    /// </summary>
     [Fact]
-    public void The_typo_dictionary_of_the_whole_word_list()
+    public void The_first_load_with_a_longer_write_ahead_log()
     {
+        var corpus = CorpusOf("query-p50");
+        var batch = Scenario.Batch;
+
+        // the baseline twice: the disk of the machine warms up, and the second baseline says how much of the
+        // difference is the machine and how much is the lever
+        var baseline = Build(corpus, batch, null);
+        var lever = Build(corpus, batch, 100_000);
+        var again = Build(corpus, batch, null);
+
+        Report($"build: baseline {baseline.Seconds:F1} s, with a log of 100,000 pages {lever.Seconds:F1} s, baseline again {again.Seconds:F1} s");
+        Report($"the log of the file: {baseline.LogMegabytes:N0} MB without the lever, {lever.LogMegabytes:N0} MB with it");
+    }
+
+    /// <summary>
+    /// One build of the index, with or without the lever of the first load.
+    /// </summary>
+    /// <param name="corpus">The corpus of the run.</param>
+    /// <param name="batch">The batch of the scenario.</param>
+    /// <param name="checkpointPages">The pages between two checkpoints of the write-ahead log, or null for the default
+    /// of SQLite.</param>
+    /// <returns>How long the build took, and how large the log of the file was.</returns>
+    private static BuildResult Build(Corpus corpus, int batch, int? checkpointPages)
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
+        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+
+        if (checkpointPages is { } pages)
+        {
+            using var pragma = catalog.Database.Writer.CreateCommand();
+            pragma.CommandText = $"PRAGMA wal_autocheckpoint = {pages};";
+            pragma.ExecuteNonQuery();
+        }
+
+        var clock = Stopwatch.StartNew();
+        words.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = batch });
+        clock.Stop();
+
+        return new BuildResult(clock.Elapsed.TotalSeconds, LogMegabytes(database.FilePath));
+    }
+
+    /// <summary>
+    /// The size of the write-ahead log of the file, in megabytes — what the lever of a longer log costs.
+    /// </summary>
+    /// <param name="path">The path of the file of the database.</param>
+    /// <returns>The size of the log, in megabytes.</returns>
+    private static double LogMegabytes(string path)
+    {
+        var log = path + "-wal";
+        return File.Exists(log) ? new FileInfo(log).Length / 1_048_576.0 : 0;
+    }
+
+    /// <summary>What one build of the measurement has shown: the time and the size of the log of the file.</summary>
+    /// <param name="Seconds">How long the build took.</param>
+    /// <param name="LogMegabytes">How large the write-ahead log of the file was.</param>
+    private sealed record BuildResult(double Seconds, double LogMegabytes);
+
+    [Fact]
+    public void The_typo_dictionary_of_the_whole_word_list()    {
         var corpus = CorpusOf("typo-dictionary-size");
         var words = corpus.Texts;
         var budget = new PerformanceBudget(output.WriteLine, words.Count >= TypoScenario, Scenario.Machine);
