@@ -2,7 +2,10 @@
 name: Bug
 about: Something behaves differently from the contract
 title: "[BUG] <what is wrong>"
-labels: ["type:bug", "status:queued"]
+labels: status:queued, type:task
+assignees: ''
+type: Bug
+
 ---
 
 > A bug is a difference between the code and the **contract**. The contract is
