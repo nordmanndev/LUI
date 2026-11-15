@@ -143,7 +143,8 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
     private sealed record BuildResult(double Seconds, double LogMegabytes);
 
     [Fact]
-    public void The_typo_dictionary_of_the_whole_word_list()    {
+    public void The_typo_dictionary_of_the_whole_word_list()
+    {
         var corpus = CorpusOf("typo-dictionary-size");
         var words = corpus.Texts;
         var budget = new PerformanceBudget(output.WriteLine, words.Count >= TypoScenario, Scenario.Machine);
