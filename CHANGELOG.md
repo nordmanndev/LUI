@@ -23,6 +23,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   count threshold of one, the order of the corrections, and the head of ten letters. Over the whole word list: 685,739
   words, 138 MB, and a fingerprint of the corrections that an own implementation would have to reproduce.
 
+### Changed
+
+- **The first load keeps its path, and its budget is three minutes again** (#32,
+  [ADR-0065](.agents/adr/0065-the-first-load-keeps-its-path-and-its-budget-is-three-minutes.md)): the lever of the issue — a
+  longer write-ahead log while the first load runs — was measured on two machines and **rejected** (no gain, and a log of
+  424 MB instead of 229 MB); the two other levers of the issue are **moot**, because the target holds again. The build of
+  the whole corpus of the repository (1,908,798 entries) by `Sync`, in batches of 1,000,000, takes **120.4 s** on the
+  machine of the record and **165.1–172.9 s** on the machine of the report, so the budget `build-3m` goes **back to
+  3 minutes** (ADR-0020). The public API does not move.
+
 ### Fixed
 
 - **The warm-up of the host waits for the round itself** (#185): the host that stops the service waits for the **task**

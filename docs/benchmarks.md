@@ -26,7 +26,7 @@ corpus.
 | query with correction p95 | 27.9–32.5 ms | ≤ 35 ms |
 | allocation p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | single write p95 | 0.51–0.78 ms | ≤ 1 ms |
-| build of 3 M | 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 240 s (#32) |
+| build of 3 M | 120.4 s on the machine of the record, 165.1–172.9 s on the machine of the report (1,908,798 entries — the whole corpus of the repository); at 3 M on 2026-11-04: 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 180 s (#32) |
 | typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s (the machine of the record), 4.3 s (the run of 2026-11-12) | ≤ 200 MB, ≤ 10 s |
 | typo dictionary of two errors, 685,739 words | 240 MB (2026-11-12) | ≤ 240 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
@@ -55,7 +55,7 @@ the measurement has something to contradict.
 | Query with typo correction | 3 M entries, a beginning with one typo | p95 ≤ 35 ms |
 | Allocation per query | 3 M entries, inputs of 1–8 characters, the candidate budget of 500 | p50 ≤ 60 KB, p95 ≤ 100 KB |
 | `Upsert` / `UpdateWeight` / `Remove` | one at a time, own transaction | p95 ≤ 1 ms |
-| Build-up | 3 M entries, `Embedded`, a first load by `Sync` | ≤ 4 min |
+| Build-up | 3 M entries, `Embedded`, a first load by `Sync` | ≤ 3 min |
 | Typo dictionary | 685,739 distinct words | ≤ 200 MB, build ≤ 10 s |
 | Typo dictionary, two errors | 685,739 distinct words | ≤ 240 MB |
 | File size | 1 M titles of 36 characters on average, `MultiWord` | ≤ 500 MB including the content table |
@@ -757,6 +757,63 @@ dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter The_write_l
 ```
 
 The scenario of the run is a file (ADR-0058): `prefixLength` 1,000,000 in
+`tests/Nordmann.LUI.Performance.Tests/performance.scenario.json`, then the run above.
+
+## The first load (issue #32)
+
+The first load of a file no other process writes is `Sync` with the batch of ADR-0020 (1,000,000) — the fewest commits.
+ADR-0020 gave the build the target of **3 minutes** (172.5 / 174.2 s on two containers — met); on 2026-11-04 the same
+code took 194.9 / 205.9 s on a container started anew, and the target was loosened to **4 minutes** in the same breath.
+Issue #32 asked for the three minutes back and named four levers.
+
+**The lever that was measured** — the checkpoint interval of the write-ahead log
+([`BudgetPerformance`](../tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs),
+`The_first_load_with_a_longer_write_ahead_log`): SQLite checkpoints the log every thousand pages, a larger interval means
+fewer checkpoints — and a log of up to 400 MB. The pragma stands on the connection of the writer, which is the connection
+the sync writes through.
+
+| The run | the machine of the record | the machine of the report |
+|---|---:|---:|
+| the baseline | 120.0 s | 172.9 s |
+| with a log of 100,000 pages | 122.0 s | 180.8 s |
+| the baseline again | 120.0 s | 165.1 s |
+| the log of the file | 229 MB without the lever, 424 MB with it | 229 MB without the lever, 424 MB with it |
+
+The lever brings **no gain** — two seconds on the machine of the record, eight on the machine of the report, against a
+machine that is noisy by five seconds — and it **doubles the log**. It is **rejected**: the pragma stays where SQLite puts
+it. The baseline stands at both ends of the run, because old and new are measured alternately (rule 3 of this file): the
+second baseline says how much of the difference is the machine and how much is the lever.
+
+**The two levers that were not measured** — the content table in key order, and `PRAGMA synchronous` during the first load
+— are **moot** (the owner, 2026-11-15): the target holds again, so no lever is needed. The fourth lever of the issue — an
+empty index in one transaction, with the content first and a rebuild after it — was measured and rejected in ADR-0016; it
+stays the repair (`Rebuild()`), not the load.
+
+**The build itself** — `Sync`, the batch of ADR-0020, the whole corpus of the repository (1,908,798 entries):
+
+| | |
+|---|---|
+| the build | **120.4 s** on the machine of the record, **165.1–172.9 s** on the machine of the report |
+| the file | 415 MB |
+| the machine of the record | GitHub-hosted `ubuntu-24.04`, Intel Xeon 2.1 GHz, 4 cores, 15 GB, .NET 10.0.15 — the run [43653936522](https://github.com/nordmanndev/LUI/actions/runs/43653936522) |
+| the machine of the report | AMD Ryzen 7 4800U, 8 cores (16 threads), 15.4 GB RAM, Windows 11 Pro 10.0.26300, .NET 10.0.404 (runtime 10.0.15), Microsoft.Data.Sqlite 10.0.14 |
+
+**The decision (the owner, 2026-11-15):** the budget of the first load goes **back to 3 minutes** (180 s) — the promise of
+ADR-0020. The four minutes of 2026-11-04 answered a miss of the three minutes at a size the corpus of the repository does
+not have; against the corpus that exists, the build takes 120.4 s and 165–173 s, and the three minutes hold. **The path
+of the first load does not move**: `Sync` with the batch of 1,000,000, the pragmas where SQLite puts them, and no lever in
+the library.
+
+**What is still open:** the scenario of the budget names **three million** entries, and the words corpus has 1,908,798 —
+the run is **reported, not asserted** (the rule of the status table of this file), and the number at three million entries
+is the one of 2026-11-04: 172.5 / 174.2 s on one container, 194.9 / 205.9 s on the next. The corpus that has three million
+entries, and the limits measured against it, are the task of issue #176.
+
+```text
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter The_first_load_with_a_longer_write_ahead_log --logger "console;verbosity=detailed"
+```
+
+The scenario of the run is a file (ADR-0058): `prefixLength` 3,000,000 and `batch` 1,000,000 in
 `tests/Nordmann.LUI.Performance.Tests/performance.scenario.json`, then the run above.
 
 ## The tables of the run

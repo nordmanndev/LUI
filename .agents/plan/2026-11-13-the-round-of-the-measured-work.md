@@ -18,7 +18,8 @@ without a number:
 
 1. **The first load of three million entries** (#32) — the target of the original is 3 min (180 s): it holds on one machine
    and misses on the next, with the same code (172.5 s and 194.9–205.9 s). The budget was raised to 4 min on that day
-   (ADR-0020) and it holds today. The levers are known, and none of them is measured at that size.
+   (ADR-0020). The levers are known, and none of them is measured at that size. **The owner answered on 2026-11-15:** the
+   budget goes back to 3 min — the lever that was measured brings no gain, and the target holds again (ADR-0065).
 2. **The write lock of a linked sync** (#31) — 26.7 s for a million rows, in one transaction. ADR-0016 left the question to
    the owner: *is a thirty-second lock per million rows a problem worth it?* The owner answered it on 2026-11-14: the
    rule stands, and the shadow build comes when an application reports the lock as a problem.
@@ -54,7 +55,7 @@ The epic #117 waits for two of them: #137 (the dead paths of the records ✓ don
 |---|---|---|
 | D1 | **The next version is `0.2.0`, a minor one**, and it carries the six tasks of this round. | The freeze of ADR-0026 is a promise about the API: a break needs a minor version, a migration note and an ADR. Nothing here breaks the API, but the round is of the weight of a minor version — a new ADR about the dependency set, and possibly a new mode of `Sync` (`LuiSyncOptions`) — and a patch would understate it. |
 | D2 | **The round measures first and decides with an ADR** — for #31 and #44 the implementation is *not* in this round. | The owner answered both forks on 2026-11-13 with the same words: *measure first, then decide*. The shadow build is a second write path for every refresh of a linked index; an own SymSpell has to be bit-exact against the one that is measured today (ADR-0012: 4.2 s, 138 MB, 685,739 words, and the floors of `TypoQualityTests`). Neither is a matter of taste, and both have a number that decides them. |
-| D3 | **#32 is the one implementation of the round**: the chosen path goes into `Sync`, with an ADR. | The budget `build-3m` (≤ 4 min, ADR-0056) holds today — 172.5–205.9 s on two machines — but the target of the original is 3 min, and it holds on one machine and misses on the next. A decision without a change would leave the promise where it is; the ADR says whether the chosen path brings the 3 min back. |
+| D3 | **#32 is the one implementation of the round**: the chosen path goes into `Sync`, with an ADR. | The budget `build-3m` (≤ 4 min, ADR-0056) held — 172.5–205.9 s on two machines — but the target of the original is 3 min, and it held on one machine and missed on the next. A decision without a change would leave the promise where it is; the ADR says whether the chosen path brings the 3 min back. **It does not: no path changes** (ADR-0065). |
 | D4 | **The order is by the cost of the work**: the flakes, the fix of the flake, the two decisions, the load, the release. | The flakes need runs and nothing else; the fix of the flake needs a claim that does not expire; the two decisions need one number each; the load needs two machines and hours, and its ADR may change the API. |
 | D5 | **The two flakes are answered by keeping the evidence, not by guessing.** The probe of the allocation window is a tool of the repository (its buffer is allocated *before* the window, its printing *after* it), and the run under load keeps the whole output — the name of the test is written down the moment it fails. | The issue #154 says it plainly: an issue that names a test on suspicion sends the next agent after the wrong thing. The one failure that was lost was lost because the output was filtered; the fix is a procedure that does not filter. |
 | D6 | **The numbers of the round go into the report with the machine beside them** (`docs/benchmarks.md`), and a time belongs to the machine it was measured on (ADR-0041). | The same code built three million entries in 172.5 s and in 205.9 s on two machines — a number without its machine says nothing. ADR-0020 measured the build on two machines for that reason. |
@@ -203,8 +204,8 @@ says what it took, the way the notes of issues #76 and #148 do.
 
 ### PR 6 — The faster first load (#32, D3, D6, D7)
 
-- **Files:** the levers measured at 3 M, the chosen path in `Sync` (`src/Nordmann.LUI/Indexes/`), the ADR, and the report
-  (`docs/benchmarks.md`) with the machine beside each number.
+- **Files:** the levers measured at the size of the corpus of the repository, the record (`docs/benchmarks.md`) with the
+  machine beside each number, the budget file (`tests/Nordmann.LUI.Testing/Budgets/budgets.json`) and the ADR.
 - **The levers** (the issue names them; the numbers of ADR-0016 are at 1 M):
   - **the checkpoint interval of the WAL** while a sync loads — 12 % at 1 M, for a WAL of up to 400 MB, not taken;
   - **the content table in key order** — the keys are in order today; the question is whether the three columns of the
@@ -219,6 +220,29 @@ says what it took, the way the notes of issues #76 and #148 do.
 - **The acceptance:** each lever measured at 3 M on at least two machines; the chosen path in `Sync` with an ADR; the
   build holds the 3 min of the original target again on the machine of the measurement, or the ADR says why not. The
   budget of 4 min stays as it is — a promise is not lowered in passing, and it is not raised without a record.
+
+**What the pull request did (2026-11-15).** Two things had to be right before a number could mean anything, and both were
+wrong at first: **the lane measured the build with the batch of 10,000**, while the promise of ADR-0020 names the batch of
+1,000,000 — the batch is worth about 20 % (ADR-0016), so the number the lane published was not the number of the promise;
+and **the scenario of three million entries does not exist** — since ADR-0059 the corpora are files in the repository, and
+the words corpus holds 1,908,798 entries, so a budget below its scenario is reported, not asserted. The lane and the
+default of the scenario file now carry the batch of ADR-0020.
+
+The **lever that was measured** is the checkpoint interval of the write-ahead log, and it is **rejected**: on the machine of
+the record 120.0 s without it, 122.0 s with a log of 100,000 pages, 120.0 s again without it; on the machine of the report
+172.9 s, 180.8 s, 165.1 s. No gain — and the log of the file doubles (229 MB → 424 MB). The other two levers of the issue
+are **moot**: the target holds again, so no lever is needed.
+
+The **owner decided on 2026-11-15**: the budget of the first load goes **back to 3 minutes** (180 s) — the promise of
+ADR-0020 — and **the path of the first load does not move**: `Sync` with the batch of 1,000,000, the pragmas where SQLite
+puts them, no lever in the library. The build of the whole corpus of the repository (1,908,798 entries) takes **120.4 s** on
+the machine of the record and **165.1–172.9 s** on the machine of the report. The decision has an ADR of its own
+(ADR-0065), because a promise that moves is a promise: the file of the budgets says 180 s again, and the tables of the
+README and of the record follow it (the guard `ReadmeBudgetsTests` holds the three together).
+
+**What stays open:** the number at three million entries is the one of 2026-11-04 (172.5 / 174.2 s on one container,
+194.9 / 205.9 s on the next) — the corpus that has three million entries, and the limits measured against it, are the task
+of issue #176.
 
 ### PR 7 — The release `0.2.0`
 
@@ -237,14 +261,15 @@ says what it took, the way the notes of issues #76 and #148 do.
 | #185 — the wait of the warm-up | the claim of a round that has begun, the task of the round, the guard and its mutation | it does not move the promise of ADR-0043 — the note on the record says what it took |
 | #44 — `symspell` | the harness over the whole word list, the ADR | it does not write the own implementation — the ADR names the round that does |
 | #31 — the shadow build | the number of the lock, the note on ADR-0016 | it does not build the shadow tables — the decision names the application that reports the lock as the trigger |
-| #32 — the first load | four levers at 3 M on two machines, the path in `Sync`, the ADR | it does not lower the budget of 4 min in passing, and it does not raise it without a record |
+| #32 — the first load | the lever that was measured, the numbers of two machines, the budget back at 3 min, the ADR | it does not lower the budget in passing, and it does not raise it without a record — and it does not put a lever into the library that brings nothing |
 | #117 — the epic | it closes with #134 | the weekly lane that says whether the budgets hold goes on |
 
 ## 6. The traps that are known
 
-- **A budget that is missed is not lowered in passing.** The build of 3 M is ≤ 4 min (ADR-0020, the file of the budgets
-  ADR-0056) and it holds today; the target of #32 is the 3 min of the original, and a target that is reached is raised with
-  an ADR and a record.
+- **A budget that is missed is not lowered in passing.** The build of 3 M is ≤ 3 min (ADR-0020, the file of the budgets
+  ADR-0056) again — the owner decided that on 2026-11-15, and the ADR of it (ADR-0065) and the record say what it took.
+  A target that is reached is raised with an ADR and a record; a target that is missed is measured again and decided
+  again, and not written down as met.
 - **A time belongs to the machine it was measured on** (ADR-0041). The same code took 172.5 s and 205.9 s on two machines
   a day apart — the build writes a 925 MB file and follows the disk. Every number of the round names its machine.
 - **The measurement lane is not part of the CI.** A budget on a shared runner is a coin toss (ADR-0020); the lane of the
@@ -265,8 +290,9 @@ says what it took, the way the notes of issues #76 and #148 do.
   been easy here, but a round does not own the work of the next one — and #175 (the limit of the two-error dictionary,
   240 MB → 260 MB) is decided by the owner and waits for its pull request in 0.3.0.
 - **The numbers of the records of the 0.3.0 epic shift by one.** ADR-0064 is the decision about `symspell` (merged on
-  2026-11-14), so the four records of the epic are ADR-0065–ADR-0068: the pragmas (0065), the read-only path (0066), the
-  catalog that writes nothing (0067) and the freeze (0068). The epic and its issues name the new numbers.
+  2026-11-14), so the four records of the epic are ADR-0066–ADR-0069: the pragmas (0066), the read-only path (0067), the
+  catalog that writes nothing (0068) and the freeze (0069). ADR-0065 is the first load of #32 (2026-11-15), and the epic
+  and its issues name the new numbers.
 
 ## 7. What is not decided here
 
