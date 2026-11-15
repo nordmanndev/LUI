@@ -5,11 +5,12 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** the release of `0.2.0` — the seventh pull request of the round of the measured work: the version line
-(`VersionPrefix` `0.2.0`), the section `## [0.2.0]` of the CHANGELOG, the README (the badge of the version, the install
-line, the Status), the pull request `dev` → `main` with its own review, the tag `v0.2.0`, and the owner's approval of the
-push to nuget.org.
-**Branch:** `dev` is at `d125d98` (the merge of PR #194, the first load), `main` at `320605e` — the tag `v0.1.1` is on the
+**Issue:** the round of the measured work is released. What is left is the next round: the epic of the audit
+([#166](https://github.com/nordmanndev/LUI/issues/166)) with its issues #168–#183 — the connection of the catalogue, the
+read-only path, the opening of a catalogue, the freeze of 0.1.0 and the six findings of the audit. Two issues of the round
+of the measured work are still open: [#165](https://github.com/nordmanndev/LUI/issues/165) (the file and the line of the
+runtime of the one-off) and [#192](https://github.com/nordmanndev/LUI/issues/192) (the window of the unit layer).
+**Branch:** `dev` is at `9ba74e3` (the merge of PR #196, the release), `main` at `f4ef3c4` — the tag `v0.2.0` is on the
 commit of `main`.
 **Decision:** the plan
 ([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)) — D1 to D8, on the owner's
@@ -23,6 +24,10 @@ behalf, 2026-11-13.
   additively from this version on.
 - **LUI 0.1.1 is released** (2026-11-13): the tag `v0.1.1` on `main`, the packages at the version `0.1.1`, the four guards
   of the round and the dead paths of the records. The public API did not move.
+- **LUI 0.2.0 is released** (2026-11-15): the tag `v0.2.0` on `main` (the merge commit `f4ef3c4`), the packages
+  `Nordmann.LUI` and `Nordmann.LUI.Hosting` at the version `0.2.0` on nuget.org, and the round of the measured work
+  with it — six pull requests, every one of them ending in a number. The public API did not move: the freeze of
+  [ADR-0026](../adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) holds, and there is no migration note.
 - **The whole series is merged**: the public API of the review of 2026-11-04 (ADR-0063), the route named in the call
   (ADR-0062), the chapter that says why the tests are built this way (#81), the warm-up that leaves nothing running
   (#148), and the repository English throughout (ADR-0057).
@@ -125,5 +130,11 @@ of the plan:
    the owner decided on 2026-11-15 that the budget goes **back to 3 minutes** and that the path of the first load does
    not move.
 
-Then the release of `0.2.0`: the version line, the section of the CHANGELOG, the README, the pull request `dev` → `main`,
-the tag `v0.2.0`, and the owner's approval of the push to nuget.org.
+Then the release of `0.2.0` — **done** (PR #196, the release pull request #197, the tag `v0.2.0` on the commit `f4ef3c4`
+of `main`, the packages on nuget.org).
+
+**The next round** is the audit of 2026-11-13/14: the epic [#166](https://github.com/nordmanndev/LUI/issues/166) with its
+issues #168–#183 — the four records of the epic are ADR-0066 (the catalogue owns the connection), ADR-0067 (the read
+path), ADR-0068 (three ways to open a catalogue) and ADR-0069 (the freeze of 0.1.0 is lifted for 0.3.0). Two issues of the
+round of the measured work stay open: **#165** (the file and the line of the runtime of the one-off) and **#192** (the
+window of the unit layer).
