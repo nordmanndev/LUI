@@ -5,10 +5,12 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** #32 — a faster first load: the four levers at three million entries, on two machines, then the path in `Sync`
-and the ADR that decides. It is the sixth pull request of the round of the measured work.
-**Branch:** `dev` is at `421bcd9` (the merge of PR #191, the write lock of a linked sync), `main` at `320605e` — the tag
-`v0.1.1` is on the commit of `main`.
+**Issue:** the release of `0.2.0` — the seventh pull request of the round of the measured work: the version line
+(`VersionPrefix` `0.2.0`), the section `## [0.2.0]` of the CHANGELOG, the README (the badge of the version, the install
+line, the Status), the pull request `dev` → `main` with its own review, the tag `v0.2.0`, and the owner's approval of the
+push to nuget.org.
+**Branch:** `dev` is at `d125d98` (the merge of PR #194, the first load), `main` at `320605e` — the tag `v0.1.1` is on the
+commit of `main`.
 **Decision:** the plan
 ([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)) — D1 to D8, on the owner's
 behalf, 2026-11-13.
@@ -65,6 +67,18 @@ behalf, 2026-11-13.
   catalog (5 s, ADR-0046) **4 of 11** of its writes fail with `SQLITE_BUSY`. The owner decided on 2026-11-14: the shadow
   build comes when an application reports the lock as a problem. Nothing is built and nothing changes, so the decision
   gets **no ADR of its own** — a note on ADR-0016 says what it took, the way the notes of the issues #76 and #148 do.
+- **The first load keeps its path, and its budget is three minutes again** (#32, PR #194, the merge commit `d125d98`,
+  ADR-0065): the lever of the issue — a longer write-ahead log while the first load runs — was measured on two machines
+  and **rejected**: 120.0 s → 122.0 s → 120.0 s on the machine of the record, 172.9 s → 180.8 s → 165.1 s on the machine
+  of the report, and the log of the file doubles from 229 MB to 424 MB. The other two levers of the issue are **moot**:
+  the target holds again, so no lever is needed. The owner decided on 2026-11-15: the budget of the first load goes
+  **back to 3 minutes** (180 s) — the promise of ADR-0020 — and the path does not move: `Sync` with the batch of
+  1,000,000, the pragmas where SQLite puts them, no lever in the library. The build of the whole corpus of the repository
+  (1,908,798 entries) takes **120.4 s** on the machine of the record and **165.1–172.9 s** on the machine of the report.
+  Two things had to be right before a number could mean anything, and both were wrong: the lane measured the build with
+  the batch of 10,000 (the promise of ADR-0020 names 1,000,000 — worth about 20 %), and the scenario of three million
+  entries does not exist — the budget stays reported, not asserted, and the number at three million is the one of
+  2026-11-04 (the corpus with three million entries is the task of issue #176).
 
 ## Open
 
@@ -105,8 +119,11 @@ of the plan:
    waits up to 25.8 s, and with the busy timeout of the catalog four of eleven writes fail with `SQLITE_BUSY`. The owner
    decided on 2026-11-14: the rule of ADR-0016 stands, and the shadow build comes when an application reports the lock
    as a problem. Nothing is built, so the decision has no ADR of its own — a note on ADR-0016 says what it took.
-6. **#32** — a faster first load: the levers at 3 M on two machines, the path in `Sync`, the ADR.
-   **The next pull request of the round.**
+6. ~~**#32**~~ — a faster first load: the lever that was measured, the numbers of two machines, the budget back at
+   3 min, the ADR. **Done** (PR #194, the merge commit `d125d98`, ADR-0065) — the checkpoint interval of the
+   write-ahead log is rejected (no gain, and the log of the file doubles); the two other levers of the issue are moot;
+   the owner decided on 2026-11-15 that the budget goes **back to 3 minutes** and that the path of the first load does
+   not move.
 
 Then the release of `0.2.0`: the version line, the section of the CHANGELOG, the README, the pull request `dev` → `main`,
 the tag `v0.2.0`, and the owner's approval of the push to nuget.org.

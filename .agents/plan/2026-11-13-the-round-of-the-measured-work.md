@@ -5,9 +5,9 @@
 - **Decided by:** the owner, on 2026-11-13, after the release of `0.1.1` — the two forks of the round (#31, #44) were put to
   the owner and answered: **measure first, then decide**
 - **Issues:** #32, #31, #44, #134, #154, #185 — #117 (the epic they belong to)
-- **Status:** in progress — five pull requests of it are merged (#134, PR #164, the merge commit `f15370f`; #154, PR #184,
+- **Status:** in progress — six pull requests of it are merged (#134, PR #164, the merge commit `f15370f`; #154, PR #184,
   the merge commit `2a492d1`; #44, PR #187, the merge commit `dcb3cea`; #185, PR #189, the merge commit `f66c584`;
-  #31, PR #191, the merge commit `421bcd9`)
+  #31, PR #191, the merge commit `421bcd9`; #32, PR #194, the merge commit `d125d98`) — what is left is the release
 - **Why now:** the tag `v0.1.1` exists (2026-11-13), the round of the guards is released, and what is left is the work that
   needs numbers before it needs code
 

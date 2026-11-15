@@ -5,6 +5,31 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-15 — The first load keeps its path, and its budget is three minutes again (#32, PR #194, the merge commit `d125d98`)
+
+- **The lever of the issue is measured and rejected.** The checkpoint interval of the write-ahead log: 120.0 s without
+  it, 122.0 s with a log of 100,000 pages, 120.0 s again without it on the machine of the record; 172.9 s, 180.8 s,
+  165.1 s on the machine of the report. No gain — and the log of the file doubles (229 MB → 424 MB). The pragma stays
+  where SQLite puts it.
+- **The two other levers of the issue are moot** (the owner, 2026-11-15): the content table in key order and
+  `PRAGMA synchronous` during the first load — the target holds again, so no lever is needed. The fourth lever of the
+  issue was measured and rejected in ADR-0016; it stays the repair (`Rebuild()`), not the load.
+- **The decision:** the budget of the first load goes **back to 3 minutes** (180 s) — the promise of ADR-0020 — and
+  **the path does not move**: `Sync` with the batch of 1,000,000, the pragmas where SQLite puts them, no lever in the
+  library. The decision has a record of its own: **ADR-0065**.
+- **Two things had to be right before a number could mean anything, and both were wrong:** the lane measured the build
+  with the batch of **10,000**, while the promise of ADR-0020 names the batch of **1,000,000** (worth about 20 %,
+  ADR-0016); and the scenario of three million entries does not exist — the words corpus holds 1,908,798 entries, so a
+  budget below its scenario is reported, not asserted, and the number at three million is the one of 2026-11-04
+  (172.5–205.9 s). The corpus with three million entries, and the limits measured against it, are the task of issue #176.
+- **The numbers:** the build of the whole corpus of the repository (1,908,798 entries) takes **120.4 s** on the machine
+  of the record (the runner of the lane, the run 43653936522) and **165.1–172.9 s** on the machine of the report
+  (AMD Ryzen 7 4800U).
+- **The record:** `docs/benchmarks.md`, the section "The first load (issue #32)". The budget file says 180 s again, and
+  the tables of the README and of the record follow it — the guard `ReadmeBudgetsTests` holds the three together, and its
+  two mutations are caught.
+- **The next task:** the release of `0.2.0` — the seventh pull request of the round.
+
 ## 2026-11-14 — The write lock of a linked sync is measured, and the rule of ADR-0016 stands (#31, PR #191, the merge commit `421bcd9`)
 
 - **The number.** The sync of a linked index of 1,000,000 rows holds the write lock of the file for **26.7 s** — the same
