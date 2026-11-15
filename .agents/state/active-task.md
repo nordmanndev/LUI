@@ -138,3 +138,7 @@ issues #168–#183 — the four records of the epic are ADR-0066 (the catalogue 
 path), ADR-0068 (three ways to open a catalogue) and ADR-0069 (the freeze of 0.1.0 is lifted for 0.3.0). Two issues of the
 round of the measured work stay open: **#165** (the file and the line of the runtime of the one-off) and **#192** (the
 window of the unit layer).
+
+**The trap of the release:** the merge of the release pull request can take `dev` with it — its head *is* `dev`. It
+happened on 2026-11-15 (after PR #197), and `dev` was recreated at the commit of `main`. **After every release merge:
+check that `dev` is still there.**
