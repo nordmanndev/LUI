@@ -14,8 +14,9 @@ of 2026-11-13/14. **Nothing else comes into 0.3.0** (the owner, 2026-11-15).
 order of the plan.
 **Decision:** the plan ([the round of 0.3.0](./../plan/2026-11-15-the-round-of-0-3-0.md)) and the epic #166 — every
 decision of the round was taken by the owner on 2026-11-14 and 2026-11-15.
-**Status:** **waiting for the owner.** The implementation starts when the owner merges the pull request that brings the
-plan into `0.3.0` — not before.
+**Status:** **the round is open.** The owner merged the plan into `0.3.0` on 2026-11-15 (PR #201, the merge commit
+`64e0efb`) — that was the go. **The next step is #169** (ADR-0066): a branch from `0.3.0`, a pull request against `0.3.0`.
+Before it, read the index of the records: the numbers 0066–0069 have to be free.
 
 ## What is done
 
@@ -138,7 +139,7 @@ of `main`, the packages on nuget.org).
 pull requests, one per issue, then the release:
 
 1. **#169** — ADR-0066: the catalogue owns the connection (`LuiPragmas`, the path, `AddLui` with a factory) — **the first
-   pull request of the round**, once the owner has merged the plan.
+   pull request of the round, and the next step.**
 2. **#171** — ADR-0068: `Open`, `OpenOrCreate`, `OpenReadOnly`.
 3. **#170** — ADR-0067: the read path opens read-only.
 4. **#173** — the prefix path reads only the rowid.
