@@ -251,6 +251,11 @@ of issue #176.
   its own review, the tag `v0.2.0`, and the owner's approval of the push to nuget.org.
 - **A minor version:** the freeze of ADR-0026 allows an additive change without a note, and a break with a note. The CHANGELOG
   says which of the two this release is.
+- **The trap of the release:** the merge of the release pull request can take `dev` with it — its head *is* `dev`. On
+  2026-11-15 the branch was gone from the remote after PR #197 was merged (the setting `delete_branch_on_merge` of the
+  repository is off, and the local branches were untouched — something else removed it). **After the merge of the release
+  pull request: check that `dev` is still there, and recreate it at the commit of `main` if it is not** — the next round
+  branches from `dev`.
 
 ## 5. What 0.2.0 holds, and what it does not
 
