@@ -252,10 +252,11 @@ of issue #176.
 - **A minor version:** the freeze of ADR-0026 allows an additive change without a note, and a break with a note. The CHANGELOG
   says which of the two this release is.
 - **The trap of the release:** the merge of the release pull request can take `dev` with it — its head *is* `dev`. On
-  2026-11-15 the branch was gone from the remote after PR #197 was merged (the setting `delete_branch_on_merge` of the
-  repository is off, and the local branches were untouched — something else removed it). **After the merge of the release
-  pull request: check that `dev` is still there, and recreate it at the commit of `main` if it is not** — the next round
-  branches from `dev`.
+  2026-11-15 the branch was gone from the remote after PR #197 was merged: the button **Delete branch** next to the merge
+  of a pull request deletes its head, and the head of the release pull request is `dev`. Nothing was lost (the history is
+  in the merge commits, and `dev` was recreated at the commit of `main`), but the state pull request that followed was
+  closed because its base was gone. **After the merge of the release pull request: do not click "Delete branch" there, and
+  check that `dev` is still there** — the next round branches from `dev`.
 
 ## 5. What 0.2.0 holds, and what it does not
 
