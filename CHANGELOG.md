@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-11-15
+
+The release of **0.2.0**: the round of the measured work — six pull requests, and every one of them ends in a number, with
+the machine beside it in the record. The public API does not move — the freeze of
+[ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) holds, and nothing in this release
+needs a migration note.
+
 ### Added
 
 - **The probe of the measured window** (#134): the unit lane can be dispatched with the probe armed, and the probe
@@ -749,7 +756,8 @@ The sections below are the changes made on the way to it.
   - The package no longer depends on `Microsoft.Extensions.DependencyInjection.Abstractions`,
     `Microsoft.Extensions.Hosting.Abstractions` and `Microsoft.Extensions.Logging.Abstractions`: no code used them.
 
-[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/nordmanndev/LUI/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/nordmanndev/LUI/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nordmanndev/LUI/compare/v0.1.0-alpha...v0.1.0
 [0.1.0-alpha]: https://github.com/nordmanndev/LUI/releases/tag/v0.1.0-alpha
