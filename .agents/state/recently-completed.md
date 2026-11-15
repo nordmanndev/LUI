@@ -5,6 +5,18 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-15 — LUI 0.2.0 is released (PR #196, the release pull request #197, the tag `v0.2.0`)
+
+- **The round of the measured work is out**: the tag `v0.2.0` is cut on the commit of `main` (`f4ef3c4`), and the packages
+  `Nordmann.LUI` and `Nordmann.LUI.Hosting` are on nuget.org at the version `0.2.0`.
+- **What the round brought:** six pull requests, and every one of them ends in a number — the probe of the measured window
+  (#134), the run under load (#154), the contract with `symspell` (#44, ADR-0064), the wait of the warm-up (#185), the
+  write lock of a linked sync (#31) and the first load (#32, ADR-0065). The public API did not move: the freeze of
+  ADR-0026 holds, and there is no migration note.
+- **The next round** is the audit of 2026-11-13/14: the epic #166 with its issues #168–#183, and the four records of the
+  epic are ADR-0066–ADR-0069. Two issues of the round of the measured work stay open: **#165** (the file and the line of
+  the runtime of the one-off) and **#192** (the window of the unit layer).
+
 ## 2026-11-15 — The first load keeps its path, and its budget is three minutes again (#32, PR #194, the merge commit `d125d98`)
 
 - **The lever of the issue is measured and rejected.** The checkpoint interval of the write-ahead log: 120.0 s without

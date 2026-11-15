@@ -5,15 +5,17 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** the release of `0.2.0` — the seventh pull request of the round of the measured work: the version line
-(`VersionPrefix` `0.2.0`), the section `## [0.2.0]` of the CHANGELOG, the README (the badge of the version, the install
-line, the Status), the pull request `dev` → `main` with its own review, the tag `v0.2.0`, and the owner's approval of the
-push to nuget.org.
-**Branch:** `dev` is at `d125d98` (the merge of PR #194, the first load), `main` at `320605e` — the tag `v0.1.1` is on the
-commit of `main`.
-**Decision:** the plan
-([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)) — D1 to D8, on the owner's
-behalf, 2026-11-13.
+**Issue:** the round of **0.3.0** — the epic [#166](https://github.com/nordmanndev/LUI/issues/166) and its issues
+#169–#183: the catalogue owns the connection (a path and typed options, ADR-0066), the read path read-only (ADR-0067),
+three ways to open a catalogue (ADR-0068), the freeze of 0.1.0 lifted for 0.3.0 (ADR-0069), and the findings of the audit
+of 2026-11-13/14. **Nothing else comes into 0.3.0** (the owner, 2026-11-15).
+**Branch:** `0.3.0` — branched from `main` at `f4ef3c4` (the release of 0.2.0), with the three state pull requests of
+`dev` merged into it. **Every pull request of the round branches from `0.3.0` and targets `0.3.0`**, one per issue, in the
+order of the plan.
+**Decision:** the plan ([the round of 0.3.0](./../plan/2026-11-15-the-round-of-0-3-0.md)) and the epic #166 — every
+decision of the round was taken by the owner on 2026-11-14 and 2026-11-15.
+**Status:** **waiting for the owner.** The implementation starts when the owner merges the pull request that brings the
+plan into `0.3.0` — not before.
 
 ## What is done
 
@@ -23,6 +25,10 @@ behalf, 2026-11-13.
   additively from this version on.
 - **LUI 0.1.1 is released** (2026-11-13): the tag `v0.1.1` on `main`, the packages at the version `0.1.1`, the four guards
   of the round and the dead paths of the records. The public API did not move.
+- **LUI 0.2.0 is released** (2026-11-15): the tag `v0.2.0` on `main` (the merge commit `f4ef3c4`), the packages
+  `Nordmann.LUI` and `Nordmann.LUI.Hosting` at the version `0.2.0` on nuget.org, and the round of the measured work
+  with it — six pull requests, every one of them ending in a number. The public API did not move: the freeze of
+  [ADR-0026](../adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) holds, and there is no migration note.
 - **The whole series is merged**: the public API of the review of 2026-11-04 (ADR-0063), the route named in the call
   (ADR-0062), the chapter that says why the tests are built this way (#81), the warm-up that leaves nothing running
   (#148), and the repository English throughout (ADR-0057).
@@ -125,5 +131,26 @@ of the plan:
    the owner decided on 2026-11-15 that the budget goes **back to 3 minutes** and that the path of the first load does
    not move.
 
-Then the release of `0.2.0`: the version line, the section of the CHANGELOG, the README, the pull request `dev` → `main`,
-the tag `v0.2.0`, and the owner's approval of the push to nuget.org.
+Then the release of `0.2.0` — **done** (PR #196, the release pull request #197, the tag `v0.2.0` on the commit `f4ef3c4`
+of `main`, the packages on nuget.org).
+
+**The next round is 0.3.0** — [the plan](./../plan/2026-11-15-the-round-of-0-3-0.md), on the branch `0.3.0`. Fifteen
+pull requests, one per issue, then the release:
+
+1. **#169** — ADR-0066: the catalogue owns the connection (`LuiPragmas`, the path, `AddLui` with a factory) — **the first
+   pull request of the round**, once the owner has merged the plan.
+2. **#171** — ADR-0068: `Open`, `OpenOrCreate`, `OpenReadOnly`.
+3. **#170** — ADR-0067: the read path opens read-only.
+4. **#173** — the prefix path reads only the rowid.
+5. **#174** — no word start on the prefix path.
+6. **#172** — ADR-0069: the freeze of 0.1.0 is lifted, the guard that the old API is gone, the migration note.
+7. to 15. **#181, #182, #179, #178, #180, #177, #176, #183, #175** — the findings of the audit, in this order.
+16. The release of 0.3.0 into the branch; then `0.3.0` → `dev`, `dev` → `main`, the tag `v0.3.0`.
+
+**Not in 0.3.0:** #165 (the file and the line of the runtime of the one-off) and #192 (the window of the unit layer) stay
+open for the round after.
+
+**The trap of the release:** the merge of the release pull request can take `dev` with it — its head *is* `dev`, and the
+button **Delete branch** next to the merge deletes the head. It happened on 2026-11-15 (after PR #197); nothing was lost,
+`dev` was recreated at the commit of `main` and the state pull request was reopened and merged. **After every release
+merge: do not click "Delete branch" there, and check that `dev` is still there.**

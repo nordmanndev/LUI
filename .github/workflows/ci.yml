@@ -6,9 +6,11 @@ on:
   push:
     # The pull requests of the series branch from `dev` and target `dev`; `dev` → `main` is the release pull request.
     # Without `dev` here, not one pull request of the series is checked at all.
-    branches: [main, dev]
+    # The round of 0.3.0 has a branch of its own (`0.3.0`, the plan of 2026-11-15): its pull requests target `0.3.0`, and
+    # without it here not one of them would be checked either.
+    branches: [main, dev, '0.3.0']
   pull_request:
-    branches: [main, dev]
+    branches: [main, dev, '0.3.0']
   workflow_dispatch:
     # The probe of the measured window (issue #134): the allocation of the measure landed
     # inside a measured window once, in one run, out of many. A dispatch that asks for the
