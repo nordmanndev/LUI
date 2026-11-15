@@ -170,11 +170,13 @@ earlier run are in
 **A write**, one at a time, in a transaction of its own: p95 **0.51–0.78 ms**
 (limit ≤ 1 ms).
 
-**The build**, three million entries in one first load with `Sync`:
-**172.5–174.2 s** on one machine and **194.9–205.9 s** on the next (limit
-≤ 240 s). A first load into a file no one else writes is about 30 % faster
-with a batch of 100,000 than with 10,000, and faster still with 1,000,000:
-three million entries in 172.5 s against 190 s.
+**The build**, the first load of a file with `Sync`: **120.4 s** on the machine of
+the record and **165.1–172.9 s** on the machine of the report, measured against
+the whole corpus of the repository (1,908,798 entries); the limit is **≤ 180 s**
+for three million entries, and the number at three million is the one of
+2026-11-04 (172.5–205.9 s). A first load into a file no one else writes is about
+30 % faster with a batch of 100,000 than with 10,000, and faster still with
+1,000,000: three million entries in 172.5 s against 190 s.
 
 **The file**: one million titles of 36 characters on average take **457 MB**
 (limit ≤ 500 MB). An embedded index holds the text and the derived forms of
