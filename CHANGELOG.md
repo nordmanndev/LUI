@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-11-15
+
+The release of **0.2.0**: the round of the measured work — six pull requests, and every one of them ends in a number, with
+the machine beside it in the record. The public API does not move — the freeze of
+[ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) holds, and nothing in this release
+needs a migration note.
+
+### Added
+
+- **The probe of the measured window** (#134): the unit lane can be dispatched with the probe armed, and the probe
+  names the iteration of a dirty window that allocated and the amount — the run of 43228720565 said only that
+  1912 bytes had been allocated inside the window of `The_measure_allocates_nothing`.
+  `tools/allocation-probe.sh` dispatches the runs, collects their reports and says how many runs there were.
+- **The run under load** (#154): `tools/load-run.sh` runs the four lanes of the suite at once, with the measurement
+  layer beside them, keeps the whole output and the trx of every lane, and names the test that failed — the name of the
+  failure of that day was lost with the filtered output of the run. The hunt named it:
+  `LuiWarmupTests.The_host_waits_for_a_round_that_runs_when_it_is_disposed`, in 4 of the 30 runs.
+- **The contract with SymSpell is measured** (#44, [ADR-0064](.agents/adr/0064-the-dependency-on-symspell-stays.md)):
+  the dependency of the core on `symspell` **stays** — the owner decided it on 2026-11-14 — and the contract between
+  LUI and the package is pinned: the beginnings of three to ten letters, the count of a word (its weight plus one), the
+  count threshold of one, the order of the corrections, and the head of ten letters. Over the whole word list: 685,739
+  words, 138 MB, and a fingerprint of the corrections that an own implementation would have to reproduce.
+
+### Changed
+
+- **The first load keeps its path, and its budget is three minutes again** (#32,
+  [ADR-0065](.agents/adr/0065-the-first-load-keeps-its-path-and-its-budget-is-three-minutes.md)): the lever of the issue — a
+  longer write-ahead log while the first load runs — was measured on two machines and **rejected** (no gain, and a log of
+  424 MB instead of 229 MB); the two other levers of the issue are **moot**, because the target holds again. The build of
+  the whole corpus of the repository (1,908,798 entries) by `Sync`, in batches of 1,000,000, takes **120.4 s** on the
+  machine of the record and **165.1–172.9 s** on the machine of the report, so the budget `build-3m` goes **back to
+  3 minutes** (ADR-0020). The public API does not move.
+
+### Fixed
+
+- **The warm-up of the host waits for the round itself** (#185): the host that stops the service waits for the **task**
+  of the round, and not for the flag of the service — the flag is cleared a moment before the round itself is over. The
+  service also counts the rounds that have begun: a claim that stays true, where the claim of a round that *runs* holds
+  only while the round runs. The test of the hunt of issue #154 waited for that momentary claim, and a loaded machine
+  delayed the poll of the test by more than the life of the round (1841 ms against 1.16 s) — the round began and ended
+  between two polls, and the claim was never seen. The public API does not move.
+
 ## [0.1.1] — 2026-11-13
 
 The release of **0.1.1**: the guards of the repository and the dead paths of the records. The public API does not move —
@@ -714,7 +756,8 @@ The sections below are the changes made on the way to it.
   - The package no longer depends on `Microsoft.Extensions.DependencyInjection.Abstractions`,
     `Microsoft.Extensions.Hosting.Abstractions` and `Microsoft.Extensions.Logging.Abstractions`: no code used them.
 
-[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.1.1...HEAD
+[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/nordmanndev/LUI/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/nordmanndev/LUI/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nordmanndev/LUI/compare/v0.1.0-alpha...v0.1.0
 [0.1.0-alpha]: https://github.com/nordmanndev/LUI/releases/tag/v0.1.0-alpha

@@ -730,7 +730,38 @@ expect_command_caught "a-tutorial-page-that-says-something-else" \
   "sed -i 's|^1: vegan (120)\$|1: vegan (999)|' docs/tutorial/01-first-index.md" \
   "docs/tutorial/01-first-index.md"
 
-# 32. The clean trees stay green.
+# 32. A probe that does not name the iteration that allocated (issue #134): the report of a dirty
+#      window has to name the iteration and the amount. A report that says only "something
+#      allocated" sends the next one after the wrong thing — and the run of 43228720565 said
+#      only that 1912 bytes were allocated.
+expect_caught "a-probe-that-does-not-name-the-iteration" "${UNIT_PROJECT}" \
+  "The_probe_names_the_iteration_that_allocated" \
+  "sed -i 's|  iteration {i}: {delta} bytes|  {i}: {delta}|' tests/Nordmann.LUI.Unit.Tests/Support/AllocationProbe.cs"
+
+# 33. A count threshold that drops the light words (issue #44): the contract with SymSpell says that a word with the
+#      weight zero is a word — SymSpell drops a count of 0, so LUI adds one. A threshold of two would drop the light
+#      words, and the correction of them would be gone.
+expect_caught "a-count-threshold-that-drops-the-light-words" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~TypoContractTests.The_count_threshold_is_one" \
+  "sed -i 's|countThreshold: 1|countThreshold: 2|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
+
+# 34. A run that does not name the failing test (issue #154): the failure of that day was lost, because the
+#      output of the run was filtered, and what was left of it was the count. A procedure that keeps the whole
+#      output has to name the test that failed — the name is the answer the issue #154 is still missing.
+expect_command_caught "a-run-that-does-not-name-the-failing-test" \
+  "bash tools/load-run.sh --self-test" \
+  "sed -i 's|printf(\"the failing test: %s|printf(\"a test failed:|' tools/load-run.sh" \
+  "Nordmann.LUI.Integration.Tests.Catalog.A_test_that_failed"
+
+# 35. A claim of a round that does not stay true (issue #185): the claim of a round that has begun is momentary — the
+#      round of the test waits for the write lock of the file, which the test itself holds, so it lives about a second,
+#      and a loaded machine can delay the poll of a test by more than that. A waiter that comes late must not miss the
+#      round, so the claim has to stay true.
+expect_caught "a-claim-of-a-round-that-does-not-stay-true" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~The_claim_of_a_round_that_has_begun_stays_true_when_the_round_is_over" \
+  "sed -i 's|            Volatile.Write(ref _running, 0);|            Interlocked.Exchange(ref _roundsBegun, 0);\n            Volatile.Write(ref _running, 0);|' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
+
+# 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 

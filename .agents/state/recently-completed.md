@@ -5,6 +5,174 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-15 — The first load keeps its path, and its budget is three minutes again (#32, PR #194, the merge commit `d125d98`)
+
+- **The lever of the issue is measured and rejected.** The checkpoint interval of the write-ahead log: 120.0 s without
+  it, 122.0 s with a log of 100,000 pages, 120.0 s again without it on the machine of the record; 172.9 s, 180.8 s,
+  165.1 s on the machine of the report. No gain — and the log of the file doubles (229 MB → 424 MB). The pragma stays
+  where SQLite puts it.
+- **The two other levers of the issue are moot** (the owner, 2026-11-15): the content table in key order and
+  `PRAGMA synchronous` during the first load — the target holds again, so no lever is needed. The fourth lever of the
+  issue was measured and rejected in ADR-0016; it stays the repair (`Rebuild()`), not the load.
+- **The decision:** the budget of the first load goes **back to 3 minutes** (180 s) — the promise of ADR-0020 — and
+  **the path does not move**: `Sync` with the batch of 1,000,000, the pragmas where SQLite puts them, no lever in the
+  library. The decision has a record of its own: **ADR-0065**.
+- **Two things had to be right before a number could mean anything, and both were wrong:** the lane measured the build
+  with the batch of **10,000**, while the promise of ADR-0020 names the batch of **1,000,000** (worth about 20 %,
+  ADR-0016); and the scenario of three million entries does not exist — the words corpus holds 1,908,798 entries, so a
+  budget below its scenario is reported, not asserted, and the number at three million is the one of 2026-11-04
+  (172.5–205.9 s). The corpus with three million entries, and the limits measured against it, are the task of issue #176.
+- **The numbers:** the build of the whole corpus of the repository (1,908,798 entries) takes **120.4 s** on the machine
+  of the record (the runner of the lane, the run 43653936522) and **165.1–172.9 s** on the machine of the report
+  (AMD Ryzen 7 4800U).
+- **The record:** `docs/benchmarks.md`, the section "The first load (issue #32)". The budget file says 180 s again, and
+  the tables of the README and of the record follow it — the guard `ReadmeBudgetsTests` holds the three together, and its
+  two mutations are caught.
+- **The next task:** the release of `0.2.0` — the seventh pull request of the round.
+
+## 2026-11-14 — The write lock of a linked sync is measured, and the rule of ADR-0016 stands (#31, PR #191, the merge commit `421bcd9`)
+
+- **The number.** The sync of a linked index of 1,000,000 rows holds the write lock of the file for **26.7 s** — the same
+  number as ADR-0015 and ADR-0016, measured again on the machine of the record (AMD Ryzen 7 4800U). A writer of the
+  application's table waits for that lock: the longest wait measured was **25.8 s**, and with the busy timeout of the
+  catalog (5 s, ADR-0046) **4 of 11** of its writes failed with `SQLITE_BUSY`.
+- **The measurement** lives in the performance layer (`The_write_lock_of_a_linked_sync` in `LinkedPerformance`): the
+  writer of the application has its own connection and its own busy timeout — it writes beside LUI, not through it. A
+  measurement is not a test of behaviour (ADR-0019), so it has no guard and no mutation.
+- **The decision (the owner, 2026-11-14):** the rule of ADR-0016 stands. The shadow build comes when an application
+  reports the lock as a problem; until then the sync holds the lock, and the doc comment of `Sync` says so.
+- **Nothing is built and nothing changes** — the public API, the schema and the dependency set stay as they are. The
+  decision therefore gets **no ADR of its own**: a note on ADR-0016 says what it took, the way the notes of the issues
+  #76 and #148 do, and the open question 2 of that record carries the answer. The plan's D7 says so too: a decision
+  that changes nothing needs no record of its own.
+- **One flake on the way, named in its own issue (#192):** the Windows lane of the CI failed on
+  `LevenshteinEquivalenceTests.The_measure_allocates_nothing` with 7,296 bytes — the family of #134 and #165, a one-off
+  of the runtime inside the measured window. The re-run was green. The instance is in issue #192, so that the next
+  agent goes after the right thing.
+
+## 2026-11-14 — The wait of the warm-up does not expire (#185, PR #189, the merge commit `f66c584`)
+
+- **The flake that the hunt of #154 named is fixed.** The test waited for `RoundRunning`, a claim that holds only while a
+  round runs: the round of that test waits for the write lock of the file, which the test itself holds, so it gives up
+  after the busy timeout of one second (it lives about 1.16 s), and the wait polls every 20 ms — under the load the
+  longest gap between two polls was 1841 ms. The round began and ended inside that one gap, and the claim was never seen.
+- **The claim that stays true**: the service counts the rounds that have **begun** (`RoundsBegun`). A waiter that comes
+  late still learns that a round ran.
+- **The task of the round**: the round is a task of the service (`RoundTask`), and the host that stops it waits for that
+  task — not for the flag, which is cleared a moment before the round itself is over. That is the second shape of the
+  same race, which the hunt found as well (`round.IsCompleted` was false right after the disposal).
+- **Two more waits of the same file are fixed with it**: the test of the round that waits for the write lock waits for the
+  claim that stays true, and the test of the round that fails starts the round **by hand** and waits for it — the round of
+  the timer can bring the row of the outbox in before the table of the application is renamed under it, and then the
+  failure never comes at all.
+- **The proof**: the red commit is in the history of the branch (`073c52c`), the mutation
+  `a-claim-of-a-round-that-does-not-stay-true` is caught, the four mutations of the warm-up that were there before still
+  bite, and the gates of the pull request are green. The public API does not move — the service is internal — and the
+  promise of ADR-0043 stands as it was written: the record carries a note of it, like the note of issue #148.
+- **The numbers of the records of the 0.3.0 epic shift by one** (2026-11-14): ADR-0064 is the decision about `symspell`,
+  so the four records of the epic #166 are ADR-0065–ADR-0068 — the pragmas (0065), the read-only path (0066), the
+  catalog that writes nothing (0067) and the freeze (0068). The epic and its issues #169–#172 carry the new numbers, and
+  #183 names the rule of 0065 §3.
+
+## 2026-11-14 — The contract with SymSpell is measured, and the dependency stays (#44, ADR-0064, PR #187, the merge commit `dcb3cea`)
+
+- **The decision is the owner's**: on 2026-11-14 the owner answered the question of issue #44 — **`symspell` stays**,
+  maybe to be looked at again another time. ADR-0064 records it with the numbers behind it.
+- **The harness** is `TypoContractTests`, and it is a characterisation, not a re-implementation: it observes LUI's own
+  dictionary (`TypoDictionary`) at the boundary with the package.
+  - The **rules**, on a corpus with known weights: a beginning is of three to ten letters; the count of a word is its
+    weight plus one; the count threshold is one (a word with the weight zero is a word); the order of the corrections is
+    the distance, then the length that was typed, then the count, then the ordinal; the head of a lookup is the first ten
+    letters (a typo in the tenth is corrected, a typo in the eleventh is not).
+  - The **measurement** over the whole word list: 685,739 words, the dictionary in **138 MB**, 2.3 s, 684,416 of the
+    words corrected by a typo in the third letter, and the **fingerprint** of the corrections
+    (`936f9a7240fe2d362dafb3bf9739fae078c4f0f9c145fcf42ec49f24d7061955`) — the same in every run, and what an own
+    implementation would have to reproduce.
+- The harness **rides on the lane of the parity over the whole word list** — where the list is — and the mutation
+  `a-count-threshold-that-drops-the-light-words` proves that the rules bite.
+- **A difference from the plan**: the delete variants and the prefix length 7 are **not observable** in the corrections —
+  at the distance 1 the distance decides, and the prefix length is a cost, not a behaviour. The harness pins the
+  observable rules and measures the cost and the behaviour; the 880,384 delete variants of the record of 2026-11-12 stay
+  what they are: a number of that record.
+- The numbers stand in `docs/benchmarks.md`, beside the machine that measured them.
+
+## 2026-11-14 — The run under load names the test that failed (#154, PR #184, the merge commit `2a492d1`)
+
+- `tools/load-run.sh` is the procedure of the hunt: the **four lanes of the suite at once**, with the measurement layer
+  beside them (the load of that day was a machine full of test processes). The whole output of every lane is kept, the
+  result of it is kept as the **trx** of the lane, and a lane that fails **names the test that failed**, the moment it
+  fails — the name and the message of it.
+- The naming is a rule, so it is guarded: the self-test of the tool proves it on a trx with one failed test, the package
+  lane of the CI runs that self-test on every pull request, and the mutation
+  `a-run-that-does-not-name-the-failing-test` breaks the naming and is caught.
+- **The finding**: 30 runs, **120 lanes**, **six of them red** — five of the integration layer, one of the unit layer. The
+  lost test of issue #154 is **`LuiWarmupTests.The_host_waits_for_a_round_that_runs_when_it_is_disposed`** (four of the
+  five), and the counts of the failing runs are the counts of the run of 2026-11-13: `Failed: 1, Passed: 421,
+  Skipped: 1, Total: 423`. The issue wrote the warm-up teardown of #148 off; it is that test. Its sibling
+  `A_round_that_fails_is_told_to_the_logger_of_the_host` failed once with the same message.
+- **The reason**, measured with an instrumentation that is not in the repository: the test waits for `RoundRunning`, a
+  claim that holds only while a round runs — and the round gives up after the busy timeout of one second that the test
+  itself sets, so it lives about 1.16 s. The wait polls every 20 ms; under the load the **longest gap between two polls
+  was 1841 ms** — longer than the life of the round. The round began and ended inside that one gap, the claim was never
+  seen, and the deadline of thirty seconds turned the missed moment into a failure. The same test has a second shape of
+  the same race: the task that wraps the round completes a moment after the flag that says "no round runs".
+- The unit lane was red once too, with `NgramDiceEquivalenceTests.A_comparison_allocates_nothing` — **3784 bytes** where
+  the rule allows less than 1000. That is the family of the 1912 bytes of #134, and the open end of it (the file and the
+  line of the runtime) is issue #165.
+- The numbers stand in `docs/benchmarks.md`. The pull request is merged (PR #184, the merge commit `2a492d1`) and the
+  issue #154 is closed with the proof. The **fix is not in the pull request**: a claim that holds for a second cannot be
+  waited for under a load — it is issue #185.
+
+## 2026-11-14 — The probe of the measured window is written, armed and merged (#134, PR #164)
+
+- The probe of the measured window lives in the unit layer: `DamerauAllocationTests` measures a hundred windows of the
+  shape of the window of the rule — 100 iterations each — and writes the delta of every iteration down. The buffers are
+  allocated **before** the window, the report is written **after** it: a probe that prints inside the window measures
+  itself.
+- The probe is **armed, not run once**: it is skipped with a reason until `LUI_ALLOCATION_PROBE=1` arms it. The unit lane
+  is dispatched with the probe armed (`ci.yml`, the input `allocation_probe=1`), and every other gate of that dispatch is
+  skipped — a pull request never asks for the probe.
+- `tools/allocation-probe.sh` is the driver: it dispatches the runs, collects their reports and says how many runs there
+  were. The runs do **not** happen on the branch of the pull request: the CI cancels a run of the same ref (the group of
+  its concurrency is the ref), so the driver pushes the commit of the branch to temporary branches and deletes them again.
+- The pull request is merged (PR #164, the merge commit `f15370f`): the gates of the pull request are green, and the
+  probe job of it is skipped — a pull request never asks for the probe.
+- **The finding**: 87 runs of the lane of the probe on the runner (`ubuntu-24.04`, 4 cores, .NET 10.0.15) — 86 of them
+  with a report, one cancelled by the CI — 8,600 windows, 860,000 iterations of the measure — and **one dirty window**:
+  run [43534600454](https://github.com/nordmanndev/LUI/actions/runs/43534600454), the first window, iteration 62,
+  **7312 bytes**. The source is not the library — the rule's own test was green in that run — and not one of the
+  suspects the issue excluded. The 1912 bytes of the run of 43228720565 were not reproduced. The file and the line of
+  the runtime are not named; that needs the allocation sampling of the runtime, and it is an issue of its own. The
+  numbers stand in `docs/benchmarks.md`.
+- The report of a dirty window names the iteration and the amount, and a guard holds that up
+  (`The_probe_names_the_iteration_that_allocated`); its mutation `a-probe-that-does-not-name-the-iteration` is caught.
+- `[ProbeFact]` is a test attribute in the guard of the map now: a file whose only test is armed by a gate is a test file
+  too, and it belongs in the map.
+
+## 2026-11-13 — The plan of the round of the measured work (0.2.0)
+
+- The plan of the round of `0.2.0` is written:
+  [the round of the measured work](../plan/2026-11-13-the-round-of-the-measured-work.md) — D1 to D8. It carries the five
+  tasks that the release of `0.1.1` left open: **#134** (the 1912 bytes), **#154** (the integration flake), **#44** (the
+  dependency on `symspell`), **#31** (the shadow build of `Linked.Sync()`) and **#32** (the first load of 3 M entries).
+- The two forks of the round were put to the owner and answered on 2026-11-13: **measure first, then decide** — the round
+  carries the measurement and the ADR for #31 and #44, and the implementation they may call for belongs to the round after
+  this one. #32 is the one implementation of the round.
+- The order is the order of the costs: the two flakes first (they need runs, not decisions), then the two decisions (the
+  measurements behind them are cheap), then the load (it needs two machines and hours), then the release.
+- The plan names the traps that are known: the fourth lever of #32 ("content first, then rebuild") is measured already and
+  rejected (ADR-0016), a budget that is missed is not lowered in passing, and a time belongs to the machine it was measured
+  on (ADR-0041).
+
+## 2026-11-13 — LUI 0.1.1 is released (the pull request `dev` → `main` merged, the tag `v0.1.1` cut)
+
+- The release of the round after the first release: the guards of the repository and the dead paths of the records. The
+  public API did not move — the freeze of ADR-0026 holds, and there was no migration note to give.
+- The two packages are on nuget.org at the version `0.1.1`: `Nordmann.LUI` and `Nordmann.LUI.Hosting`.
+- The gates of every pull request are green on the tagged commit (the format, the workflows, the three layers and the tests
+  of the sample, the parity over the whole word list, the mutation check in four shards, the package smoke test, the tutorial
+  check and the Windows lane).
+
 ## 2026-11-13 — The release of 0.1.1: the version line, the CHANGELOG section, the README status
 
 - `Directory.Build.props` has `VersionPrefix` `0.1.1`, without a suffix (ADR-0053): the tag `v0.1.1` follows the tag `v0.1.0`

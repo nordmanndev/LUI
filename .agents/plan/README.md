@@ -18,6 +18,7 @@ it.
 | [Issue #64 — the production readiness](./2026-11-06-issue-64-production-readiness.md) | 2026-11-06 | the round of the review of 2026-11-06: the guards that run by themselves, the numbers that agree with the specification, the query that does not build the dictionary, the hardened concurrency and the typed view. |
 | [The public surface and the measurement](./2026-11-11-the-public-surface-and-the-measurement.md) | 2026-11-11 | the public API before the freeze of 0.1.0 and the measurement that goes with it: the typo distance as an enumeration, `DistinctText` removed, the budgets in a file, the corpora as three fixed files, the measurement as a layer of its own without environment variables, the specification unlinked and then deleted — eight pull requests on the branch `dev`. |
 | [The round after the first release](./2026-11-13-the-round-after-the-first-release.md) | 2026-11-13 | the work that the release of 0.1.0 left open: the six dead paths of the records and the three missing guards in `0.1.1`, and the measured work and the decisions of the dependency set in `0.2.0` — four pull requests on the branch `dev` and a release. |
+| [The round of the measured work](./2026-11-13-the-round-of-the-measured-work.md) | 2026-11-13 | the round of `0.2.0`: the first load of three million entries, the write lock of a linked sync, the dependency on `symspell`, the 1912 bytes and the integration test that failed once — four of the five tasks are questions that need a number before they need code. |
 
 ## The difference
 
@@ -46,5 +47,7 @@ A plan points at the ADRs it produced; an ADR rarely names the plan that led to 
 - **The sixth plan** is the history of the round after the release: what the release of 0.1.0 left open, why the next
   version is a patch and the one after it a minor version, and in which order the four pull requests of the guards and
   the dead paths come.
+- **The seventh plan** is the history of the round of the measured work: what the release of 0.1.1 left open, why the round
+  measures before it decides, and in which order the five pull requests of `0.2.0` come.
 
 Every decision the plans produced is an ADR in [`../adr/`](../adr/README.md) — indexed there by its topic.

@@ -15,6 +15,21 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     private static PerformanceScenario Scenario => PerformanceScenario.Current;
     private const int Queries = 2_000;
 
+    /// <summary>
+    /// The busy timeout of the writer of the application in the first phase: long enough that the wait for the lock
+    /// is measured and not a failure.
+    /// </summary>
+    private static readonly TimeSpan WriterBusyTimeout = TimeSpan.FromSeconds(60);
+
+    /// <summary>The busy timeout of the catalog (ADR-0046): the timeout of an application that writes with LUI.</summary>
+    private static readonly TimeSpan CatalogBusyTimeout = TimeSpan.FromSeconds(5);
+
+    /// <summary>How long the writer of the application waits between two writes.</summary>
+    private static readonly TimeSpan WriterPause = TimeSpan.FromMilliseconds(50);
+
+    /// <summary>The error code of SQLite for a table that is locked by another writer (SQLITE_BUSY).</summary>
+    private const int SqliteBusy = 5;
+
     [Fact]
     public void Sync_queries_and_refreshes_against_embedded()
     {
@@ -95,6 +110,117 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
 
         Report($"refresh: p50 {Percentile(refreshes, 50):F2} / p95 {Percentile(refreshes, 95):F2} ms (own transaction)");
     }
+
+    /// <summary>
+    /// The write lock of a linked sync (issue #31, ADR-0016): the sync of a linked index is one transaction, so it
+    /// holds the write lock of the file for as long as it runs, and every other writer of the file waits for it. The
+    /// question of ADR-0016 is whether that wait is a problem worth a second write path — an application answers it,
+    /// not a document.
+    /// <para>
+    /// The writer of the application has its own connection and its own busy timeout: it writes beside LUI, not
+    /// through it. The first one waits long enough that the wait is measured and not a failure; the second one has
+    /// the busy timeout of the catalog (ADR-0046), and its writes fail while the lock is held.
+    /// </para>
+    /// </summary>
+    [Fact]
+    public void The_write_lock_of_a_linked_sync()
+    {
+        var entries = Scenario.PrefixLength ?? 200_000;
+        var corpus = CorpusOf("build-3m");
+        var words = corpus.Texts;
+
+        var rows = Enumerable.Range(1, entries)
+            .Select(i => (Id: (long)i, Text: words[(i - 1) % words.Count], Weight: corpus.Weights[(i - 1) % corpus.Weights.Count]))
+            .ToList();
+
+        using var database = new TestDatabase();
+        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
+        CreateTable(database, rows);
+
+        var linked = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
+
+        var waiting = WriteBesideASync(database, linked, WriterBusyTimeout);
+        Report($"sync: {waiting.LockSeconds:F1} s — the write lock of the file");
+        Report($"writer: {waiting.Writes} writes, the longest wait {waiting.LongestWait / 1000:F1} s, {waiting.Failures} failed");
+
+        var failing = WriteBesideASync(database, linked, CatalogBusyTimeout);
+        Report($"writer with the busy timeout of the catalog ({CatalogBusyTimeout.TotalSeconds:F0} s): "
+            + $"{failing.Writes} writes, {failing.Failures} failed with SQLITE_BUSY");
+    }
+
+    /// <summary>
+    /// One phase of the measurement: a writer beside a sync of the index, with a busy timeout of its own. It returns
+    /// the lock the sync held and what the writer of the application experienced.
+    /// </summary>
+    /// <param name="database">The file of the measurement.</param>
+    /// <param name="linked">The linked index that syncs.</param>
+    /// <param name="busyTimeout">The busy timeout of the writer of the application.</param>
+    /// <returns>The lock and the waits of the writer.</returns>
+    private static LockMeasurement WriteBesideASync(TestDatabase database, ILuiLinkedIndex linked, TimeSpan busyTimeout)
+    {
+        var waits = new List<double>();
+        var failures = 0;
+        using var stop = new CancellationTokenSource();
+        var writer = Task.Run(() => WriteWhileTheSyncRuns(database, busyTimeout, waits, () => failures++, stop.Token));
+
+        var clock = Stopwatch.StartNew();
+        linked.Sync();
+        var lockSeconds = clock.Elapsed.TotalSeconds;
+
+        stop.Cancel();
+        writer.GetAwaiter().GetResult();
+
+        return new LockMeasurement(lockSeconds, waits.Count, failures, waits.Count == 0 ? 0 : waits.Max());
+    }
+
+    /// <summary>
+    /// The writer of the application: it writes to the table of the application while the index syncs, and it
+    /// measures how long it waits for the write lock of the file.
+    /// </summary>
+    /// <param name="database">The file of the measurement.</param>
+    /// <param name="busyTimeout">The busy timeout of the writer.</param>
+    /// <param name="waits">The waits of the writes that succeeded, in milliseconds.</param>
+    /// <param name="onFailure">Called for every write that failed with SQLITE_BUSY.</param>
+    /// <param name="cancellationToken">The token that stops the writer.</param>
+    private static void WriteWhileTheSyncRuns(
+        TestDatabase database,
+        TimeSpan busyTimeout,
+        List<double> waits,
+        Action onFailure,
+        CancellationToken cancellationToken)
+    {
+        using var connection = database.Connect();
+        var random = new Random(7);
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var started = Stopwatch.GetTimestamp();
+            try
+            {
+                using var update = connection.CreateCommand();
+
+                // the busy timeout of the writer: Microsoft.Data.Sqlite sets the timeout of SQLite for every command
+                // from the timeout of the command, so this is the place where the wait of the writer is set
+                update.CommandTimeout = (int)busyTimeout.TotalSeconds;
+                update.CommandText = "UPDATE tag SET usage_count = usage_count + 1 WHERE id = $id;";
+                update.Parameters.AddWithValue("$id", random.Next(1, 1_000));
+                update.ExecuteNonQuery();
+                waits.Add(Stopwatch.GetElapsedTime(started).TotalMilliseconds);
+            }
+            catch (SqliteException exception) when (exception.SqliteErrorCode == SqliteBusy)
+            {
+                onFailure();
+            }
+
+            cancellationToken.WaitHandle.WaitOne(WriterPause);
+        }
+    }
+
+    /// <summary>What one phase of the measurement has seen: the lock of the sync and the waits of the writer.</summary>
+    /// <param name="LockSeconds">How long the sync held the write lock of the file.</param>
+    /// <param name="Writes">How many writes of the application succeeded.</param>
+    /// <param name="Failures">How many writes of the application failed with SQLITE_BUSY.</param>
+    /// <param name="LongestWait">The longest wait of a write that succeeded, in milliseconds.</param>
+    private sealed record LockMeasurement(double LockSeconds, int Writes, int Failures, double LongestWait);
 
     private static void CreateTable(TestDatabase database, List<(long Id, string Text, int Weight)> rows)
     {
