@@ -2,7 +2,7 @@
 
 > **Autocomplete suggestions for .NET, straight out of your own SQLite database.** The suggestions of a search field: the best 5–20 entries out of a stock of up to a few million short texts.
 
-[![Build](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml/badge.svg)](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/Nordmann.LUI.svg)](https://www.nuget.org/packages/Nordmann.LUI) ![Version](https://img.shields.io/badge/version-0.1.1-8A2BE2) [![Licence](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE) [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
+[![Build](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml/badge.svg)](https://github.com/nordmanndev/LUI/actions/workflows/ci.yml) [![NuGet](https://img.shields.io/nuget/v/Nordmann.LUI.svg)](https://www.nuget.org/packages/Nordmann.LUI) ![Version](https://img.shields.io/badge/version-0.2.0-8A2BE2) [![Licence](https://img.shields.io/badge/licence-MIT-blue.svg)](./LICENSE) [![.NET](https://img.shields.io/badge/.NET-10.0-512BD4)](https://dotnet.microsoft.com/)
 
 ## What LUI is
 
@@ -39,7 +39,7 @@ dotnet add package Nordmann.LUI.Hosting    # AddLui and the catalog, for ASP.NET
 ```
 
 The two packages are released together, with one version; the core starts no thread of its own. The version is
-`0.1.1`, and the public API is frozen from here on: it grows only additively (see [Status](#status)).
+`0.2.0`, and the public API is frozen from here on: it grows only additively (see [Status](#status)).
 
 ## Quick start
 
@@ -124,22 +124,32 @@ in [`docs/benchmarks.md`](./docs/benchmarks.md).
 | query with a typo correction, p95 | 27.9–32.5 ms | ≤ 35 ms |
 | allocation per query, p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms | ≤ 1 ms |
-| first load of 3 M entries (`Sync`) | 172.5–205.9 s | ≤ 4 min (#32) |
+| first load of 3 M entries (`Sync`) | 120.4–172.9 s | ≤ 3 min (#32) |
 | typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
 | typo dictionary of two errors, 685,739 words | 240 MB | ≤ 240 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
 The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
 (ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
-values** are the numbers of the last measurement of each row: the latencies, the build and the size of the file from
+values** are the numbers of the last measurement of each row: the latencies and the size of the file from
 the CI machine (2026-11-05, before the allocation was lowered — so they are an upper bound); the allocation in bytes,
-and therefore independent of the machine (2026-11-06, the current code). A measured value does **not** live in the
+and therefore independent of the machine (2026-11-06, the current code); the build from the lane of 2026-11-14 (**120.4 s**,
+on the machine of the record) and the machine of the report (**165.1–172.9 s**) — a time belongs to the machine it was
+measured on ([ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The build was measured against the
+whole corpus of the repository (1,908,798 entries): the corpus does not have three million entries yet, so the number at
+three million is the one of 2026-11-04 (172.5–205.9 s), and it is measured again when the corpus grows (#176).
+A measured value does **not** live in the
 file: it belongs to a run and to its machine, and a file that carried it would be a second truth beside the promise.
 
 The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
 (ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
-values** are the numbers of the last measurement of each row: the latencies, the build and the size of the file from
+values** are the numbers of the last measurement of each row: the latencies and the size of the file from
 the CI machine (2026-11-05, before the allocation was lowered — so they are an upper bound); the allocation in bytes,
-and therefore independent of the machine (2026-11-06, the current code); the typo dictionary in bytes and in seconds
+and therefore independent of the machine (2026-11-06, the current code); the build from the lane of 2026-11-14 (**120.4 s**,
+on the machine of the record) and the machine of the report (**165.1–172.9 s**) — a time belongs to the machine it was
+measured on ([ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The build was measured against the
+whole corpus of the repository (1,908,798 entries): the corpus does not have three million entries yet, so the number at
+three million is the one of 2026-11-04 (172.5–205.9 s), and it is measured again when the corpus grows (#176); the typo
+dictionary in bytes and in seconds
 (2026-11-06, the machine of the record — a time belongs to the machine it was measured on,
 [ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured again on
 2026-11-12 — **4.3 s** for the same **138 MB** ([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)): a time belongs
@@ -450,7 +460,7 @@ are **created on demand** — the page fills them when you ask for it, and shows
 
 ## Status
 
-LUI is **released as `0.1.1`**, and the public API has been frozen since `0.1.0`
+LUI is **released as `0.2.0`**, and the public API has been frozen since `0.1.0`
 ([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)). The design is specified, and the
 implementation follows it; every decision of the repository is written down and dated.
 

@@ -6,6 +6,15 @@
 > service was gone while LUI still wrote. The stop and the disposal wait for that round now, and a round that begins
 > after the stop does not begin at all. The decision stands as it was written; this note says what it took.
 
+> **Note (issue #185, 2026-11-14):** the note above says that the stop and the disposal wait for the round that runs.
+> What the hunt of issue #154 found is that the *wait* of a test for that round can miss it: the claim of a round that
+> **runs** holds only while the round runs, and the round of that test waits for the write lock of the file, which the
+> test itself holds — so it gives up after the busy timeout of one second, and a loaded machine delayed the poll of the
+> test by more than that (1841 ms against 1.16 s). The service counts the rounds that have **begun** — a claim that
+> stays true — and the round is a **task of the service**, so that the host waits for the task of the round and not for
+> the flag, which is cleared a moment before the round itself is over. The decision stands as it was written; this note
+> says what it took.
+
 - **Status:** Accepted
 - **Date:** 2026-11-07
 - **Builds on:** [0017](./0017-dependency-injection-and-hosted-services.md) (the dependency injection and the hosted services),
@@ -21,7 +30,7 @@
   - `src/Nordmann.LUI/Indexes/IndexStore.cs` (the list of the indexes of a catalog)
   - `tests/Nordmann.LUI.Architecture.Tests/Public_API_Shape.cs` (the guard of the registrations of the container)
   - `tests/Nordmann.LUI.Architecture.Tests/Repository_Layout.cs` (the guard of the dependency set of the hosting package)
-  - `tests/Nordmann.LUI.Integration.Tests/LuiWarmupTests.cs` (the four cases)
+  - `tests/Nordmann.LUI.Integration.Tests/Hosting/LuiWarmupTests.cs` (the cases of the service)
   - `docs/api.md`, `docs/testing.md`, the CHANGELOG, the README, the tutorial
 - **Issue:** #68
 

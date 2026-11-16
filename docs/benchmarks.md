@@ -26,7 +26,7 @@ corpus.
 | query with correction p95 | 27.9–32.5 ms | ≤ 35 ms |
 | allocation p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | single write p95 | 0.51–0.78 ms | ≤ 1 ms |
-| build of 3 M | 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 240 s (#32) |
+| build of 3 M | 120.4 s on the machine of the record, 165.1–172.9 s on the machine of the report (1,908,798 entries — the whole corpus of the repository); at 3 M on 2026-11-04: 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 180 s (#32) |
 | typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s (the machine of the record), 4.3 s (the run of 2026-11-12) | ≤ 200 MB, ≤ 10 s |
 | typo dictionary of two errors, 685,739 words | 240 MB (2026-11-12) | ≤ 240 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
@@ -55,7 +55,7 @@ the measurement has something to contradict.
 | Query with typo correction | 3 M entries, a beginning with one typo | p95 ≤ 35 ms |
 | Allocation per query | 3 M entries, inputs of 1–8 characters, the candidate budget of 500 | p50 ≤ 60 KB, p95 ≤ 100 KB |
 | `Upsert` / `UpdateWeight` / `Remove` | one at a time, own transaction | p95 ≤ 1 ms |
-| Build-up | 3 M entries, `Embedded`, a first load by `Sync` | ≤ 4 min |
+| Build-up | 3 M entries, `Embedded`, a first load by `Sync` | ≤ 3 min |
 | Typo dictionary | 685,739 distinct words | ≤ 200 MB, build ≤ 10 s |
 | Typo dictionary, two errors | 685,739 distinct words | ≤ 240 MB |
 | File size | 1 M titles of 36 characters on average, `MultiWord` | ≤ 500 MB including the content table |
@@ -615,6 +615,206 @@ run of 43228720565: that one came with a window of 53 ms against 13 ms, and the 
 test took 0.562 s against a median of 0.678 s over the clean runs).
 
 The file and the line of the runtime would need the runtime's own allocation sampling — the open end of the issue.
+
+## The run under load (issue #154)
+
+A test of the integration layer failed once under load, and the name of it was lost with the output of that run: the
+output was filtered, and what was left of it was the count — `Failed: 1, Passed: 421, Skipped: 1, Total: 423`. The
+failure came in a run where all four layers ran at once; the runs of the layer alone were green (issue #154).
+
+**The procedure.** [`tools/load-run.sh`](../tools/load-run.sh) runs the four lanes of the suite **at once**, with the
+measurement layer beside them — the load of that day was a machine full of test processes, and a build of the benchmarks
+is what took the machine. The whole output of every lane is kept, the result of it is kept as the **trx** of the lane (the
+file itself, not a grep over the output), and a lane that fails **names the test that failed**, the moment it fails: the
+name and the message of it.
+
+**The runs.** 30 runs of the four lanes at once — **120 lanes** — with the measurement layer beside them (one run of it
+takes about three minutes with the scenario of the repository, 200,000 entries). **Six of the 120 lanes were red**, and
+every one of them named its test:
+
+| The lane | The runs | The test that failed | What it said |
+|---|---|---|---|
+| Integration | 4 of 30 | `LuiWarmupTests.The_host_waits_for_a_round_that_runs_when_it_is_disposed` | `The claim of the service did not come true in thirty seconds.` |
+| Integration | 1 of 30 | `LuiWarmupTests.A_round_that_fails_is_told_to_the_logger_of_the_host` | the same |
+| Unit | 1 of 30 | `NgramDiceEquivalenceTests.A_comparison_allocates_nothing` | 3784 bytes instead of less than 1000 |
+
+**The name of the lost test.** `The_host_waits_for_a_round_that_runs_when_it_is_disposed` — and the counts of the five
+failing integration runs are the counts of the run of that day: `Failed: 1, Passed: 421, Skipped: 1, Total: 423`. The
+issue said the failure was *not* the warm-up teardown of issue #148; it is that test — the one whose fix (PR #149) came
+with it, and the test that waits for a round that is running.
+
+**What that says.** The test does not wait for a *stable* claim: it waits for `RoundRunning`, and that claim holds only
+while the round runs — and the round of that test waits for the write lock of the file, which the test itself holds, so
+the round gives up after the **busy timeout** of the catalog, which the test sets to **one second**. The wait polls every
+20 ms on the thread pool of the test process; under the load of the hunt the poll is not scheduled within that second, the
+round comes and goes between two polls, and the claim never comes true. The deadline of thirty seconds then does what a
+deadline does: it turns a missed moment into a failure.
+
+**The instrumented runs.** Two failing runs, with the round and the polls measured (the instrumentation is not in the
+repository — it was the diagnosis, not a change):
+
+```text
+the round began after 1 ms          the round began after 0 ms
+the round ended after 1168 ms        the round ended after 1155 ms
+polls: 1017, the longest gap between two polls: 1841 ms, the whole wait: 30002 ms
+polls: 934, the longest gap between two polls: 1807 ms, the whole wait: 30011 ms
+the round had ended when the wait gave up: True
+```
+
+The round lived about **1.16 s**; the longest gap between two polls was **1.84 s** — longer than the whole life of the
+round. The round began and ended inside that one gap, the claim was never seen, and the wait ran out its thirty seconds.
+The poll itself was not starved: 1017 polls in thirty seconds is one every 29 ms. **One** gap was.
+
+**And the second shape of the same race.** The same test failed in another way once: `round.IsCompleted` was false right
+after the host was disposed. The disposal waits until the round is no longer running — and the *task* that wraps the round
+completes a moment later than the flag that says "no round runs". Under the load the test sees the task not yet completed.
+The library's promise (ADR-0043) is the first one — nothing of LUI runs after the service is gone — and the round's work
+is over when the flag is cleared; the assertion of the test is a hair stronger than the promise.
+
+**The fix (issue #185).** The service counts the rounds that have **begun** — a claim that stays true, where the claim of
+a round that *runs* holds only while the round runs — and the round is a **task of the service**: the host that stops it
+waits for the task, not for the flag. The two waits of the tests of the warm-up ask for the claim that stays true, and
+the round that fails is started by hand and waited for, instead of being waited for with a deadline of thirty seconds: a
+machine that is busy runs the timer later, and the row of the outbox can be brought in before the table of the
+application is renamed under it. The mutation `a-claim-of-a-round-that-does-not-stay-true` proves that the new guard
+bites.
+
+| | |
+|---|---|
+| runs of the four lanes | 30 (120 lanes) |
+| lanes that failed | 6 — 5 of the integration layer, 1 of the unit layer |
+| the test of the issue | `The_host_waits_for_a_round_that_runs_when_it_is_disposed`, in 4 of the 30 runs |
+| the counts of the failing runs | `Failed: 1, Passed: 421, Skipped: 1, Total: 423` — the counts of the run of 2026-11-13 |
+| the life of a round | about 1.16 s (the busy timeout of one second that the test sets) |
+| the longest gap between two polls | 1841 ms — longer than the life of the round |
+| machine | AMD Ryzen 7 4800U, 8 cores (16 threads), 15.4 GB RAM, Windows 11 Pro 10.0.26300, .NET 10.0.404 (runtime 10.0.15), Microsoft.Data.Sqlite 10.0.14 |
+| the load | the measurement layer with the scenario of the repository (200,000 entries), about three minutes a run |
+
+**The other flake of the round, caught by the same hunt.** The unit lane was red once, with
+`NgramDiceEquivalenceTests.A_comparison_allocates_nothing`: **3784 bytes** where the rule allows less than 1000. That is
+the family of the 1912 bytes of issue #134 — a one-off of the runtime inside a measured window — and here the *rule's own
+test* caught it, without the probe. The file and the line of the runtime are still the open end of it (issue #165).
+
+## The contract with SymSpell (issue #44)
+
+The core keeps `symspell` ([ADR-0064](../.agents/adr/0064-the-dependency-on-symspell-stays.md)) — the owner decided it
+on 2026-11-14 — and the contract between LUI and the package is measured: the **rules** on a corpus with known weights,
+and the **numbers** over the whole word list.
+
+**The rules** ([`TypoContractTests`](../tests/Nordmann.LUI.Integration.Tests/Typos/TypoContractTests.cs)):
+
+| The rule | What it says |
+|---|---|
+| the beginnings | three to ten letters: a word of two letters is no beginning, a word of three is |
+| the count | the weight of the word **plus one** — SymSpell drops a count of 0 |
+| the count threshold | one: a word with the weight 0 is a word |
+| the order | the distance, then the length that was typed, then the count, then the ordinal |
+| the head of a lookup | the first ten letters: a typo in the tenth letter is corrected, a typo in the eleventh is not |
+
+**The measurement** — the dictionary of LUI itself, built over the whole word list:
+
+| | |
+|---|---|
+| the words | 685,739 (of the 685,829 of the list) |
+| the build | 2.3 s |
+| the memory | **138 MB** |
+| the corrected words | 684,416 of 685,739 — a typo in the third letter is corrected for 99.8 % of them |
+| the fingerprint | `936f9a7240fe2d362dafb3bf9739fae078c4f0f9c145fcf42ec49f24d7061955` |
+| the method | the dictionary of LUI (`TypoDictionary`), built over the whole list; the corrections of every word with one letter wrong (the third one), hashed into a SHA-256 — the same number in every run |
+| machine | AMD Ryzen 7 4800U, 8 cores (16 threads), 15.4 GB RAM, Windows 11 Pro 10.0.26300, .NET 10.0.404 (runtime 10.0.15), Microsoft.Data.Sqlite 10.0.14 |
+
+The **memory** is the number that does not depend on the machine, and it is the number of the record of 2026-11-12: 138 MB
+([the typo dictionary](./typo-dictionary.md)). The **fingerprint** is what an own implementation of the dictionary would
+have to reproduce — and the reason the decision could be made with numbers and not with an impression.
+
+## The write lock of a linked sync (issue #31)
+
+The sync of a linked index is **one transaction**: it holds the write lock of the file for as long as it runs, and every
+other writer of the file waits for it ([ADR-0016](../.agents/adr/0016-sync-check-rebuild.md)). The question of ADR-0016 is
+whether that wait is a problem worth a second write path — the shadow build. An application answers it, not a document: a
+writer of the application's table writes while the index syncs, and reports how long it waits.
+
+**The measurement** ([`LinkedPerformance`](../tests/Nordmann.LUI.Performance.Tests/LinkedPerformance.cs), the whole German
+word list, 1,000,000 entries):
+
+| | |
+|---|---|
+| the lock of the sync | **26.7 s** — the same number as ADR-0015 and ADR-0016 |
+| the longest wait of a write of the application | **25.8 s** |
+| the writes that failed with the busy timeout of the catalog (5 s, ADR-0046) | **4 of 11** — `SQLITE_BUSY` |
+| the writer | its own connection and its own busy timeout: it writes beside LUI, not through it |
+| machine | AMD Ryzen 7 4800U, 8 cores (16 threads), 15.4 GB RAM, Windows 11 Pro 10.0.26300, .NET 10.0.404 (runtime 10.0.15), Microsoft.Data.Sqlite 10.0.14 |
+
+The writer writes every 50 ms; while the lock is held, its writes wait for it — one of them waits for the rest of the
+sync. With the busy timeout of the catalog the same writer fails: four of its eleven writes never got the lock.
+
+**The decision (the owner, 2026-11-14):** the rule of ADR-0016 stands — the shadow build comes when an application reports
+the lock as a problem. Nothing has changed since ADR-0016 (the same 26.7 s), and no application has reported the lock. The
+note on the record of ADR-0016 says what it took.
+
+```text
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter The_write_lock_of_a_linked_sync --logger "console;verbosity=detailed"
+```
+
+The scenario of the run is a file (ADR-0058): `prefixLength` 1,000,000 in
+`tests/Nordmann.LUI.Performance.Tests/performance.scenario.json`, then the run above.
+
+## The first load (issue #32)
+
+The first load of a file no other process writes is `Sync` with the batch of ADR-0020 (1,000,000) — the fewest commits.
+ADR-0020 gave the build the target of **3 minutes** (172.5 / 174.2 s on two containers — met); on 2026-11-04 the same
+code took 194.9 / 205.9 s on a container started anew, and the target was loosened to **4 minutes** in the same breath.
+Issue #32 asked for the three minutes back and named four levers.
+
+**The lever that was measured** — the checkpoint interval of the write-ahead log
+([`BudgetPerformance`](../tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs),
+`The_first_load_with_a_longer_write_ahead_log`): SQLite checkpoints the log every thousand pages, a larger interval means
+fewer checkpoints — and a log of up to 400 MB. The pragma stands on the connection of the writer, which is the connection
+the sync writes through.
+
+| The run | the machine of the record | the machine of the report |
+|---|---:|---:|
+| the baseline | 120.0 s | 172.9 s |
+| with a log of 100,000 pages | 122.0 s | 180.8 s |
+| the baseline again | 120.0 s | 165.1 s |
+| the log of the file | 229 MB without the lever, 424 MB with it | 229 MB without the lever, 424 MB with it |
+
+The lever brings **no gain** — two seconds on the machine of the record, eight on the machine of the report, against a
+machine that is noisy by five seconds — and it **doubles the log**. It is **rejected**: the pragma stays where SQLite puts
+it. The baseline stands at both ends of the run, because old and new are measured alternately (rule 3 of this file): the
+second baseline says how much of the difference is the machine and how much is the lever.
+
+**The two levers that were not measured** — the content table in key order, and `PRAGMA synchronous` during the first load
+— are **moot** (the owner, 2026-11-15): the target holds again, so no lever is needed. The fourth lever of the issue — an
+empty index in one transaction, with the content first and a rebuild after it — was measured and rejected in ADR-0016; it
+stays the repair (`Rebuild()`), not the load.
+
+**The build itself** — `Sync`, the batch of ADR-0020, the whole corpus of the repository (1,908,798 entries):
+
+| | |
+|---|---|
+| the build | **120.4 s** on the machine of the record, **165.1–172.9 s** on the machine of the report |
+| the file | 415 MB |
+| the machine of the record | GitHub-hosted `ubuntu-24.04`, Intel Xeon 2.1 GHz, 4 cores, 15 GB, .NET 10.0.15 — the run [43653936522](https://github.com/nordmanndev/LUI/actions/runs/43653936522) |
+| the machine of the report | AMD Ryzen 7 4800U, 8 cores (16 threads), 15.4 GB RAM, Windows 11 Pro 10.0.26300, .NET 10.0.404 (runtime 10.0.15), Microsoft.Data.Sqlite 10.0.14 |
+
+**The decision (the owner, 2026-11-15):** the budget of the first load goes **back to 3 minutes** (180 s) — the promise of
+ADR-0020. The four minutes of 2026-11-04 answered a miss of the three minutes at a size the corpus of the repository does
+not have; against the corpus that exists, the build takes 120.4 s and 165–173 s, and the three minutes hold. **The path
+of the first load does not move**: `Sync` with the batch of 1,000,000, the pragmas where SQLite puts them, and no lever in
+the library.
+
+**What is still open:** the scenario of the budget names **three million** entries, and the words corpus has 1,908,798 —
+the run is **reported, not asserted** (the rule of the status table of this file), and the number at three million entries
+is the one of 2026-11-04: 172.5 / 174.2 s on one container, 194.9 / 205.9 s on the next. The corpus that has three million
+entries, and the limits measured against it, are the task of issue #176.
+
+```text
+dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter The_first_load_with_a_longer_write_ahead_log --logger "console;verbosity=detailed"
+```
+
+The scenario of the run is a file (ADR-0058): `prefixLength` 3,000,000 and `batch` 1,000,000 in
+`tests/Nordmann.LUI.Performance.Tests/performance.scenario.json`, then the run above.
 
 ## The tables of the run
 

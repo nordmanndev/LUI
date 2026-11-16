@@ -738,20 +738,48 @@ expect_caught "a-probe-that-does-not-name-the-iteration" "${UNIT_PROJECT}" \
   "The_probe_names_the_iteration_that_allocated" \
   "sed -i 's|  iteration {i}: {delta} bytes|  {i}: {delta}|' tests/Nordmann.LUI.Unit.Tests/Support/AllocationProbe.cs"
 
-# 33. A stylesheet of the client that is not the file the provenance says (issue #212): the stylesheets of
+# 33. A count threshold that drops the light words (issue #44): the contract with SymSpell says that a word with the
+#      weight zero is a word — SymSpell drops a count of 0, so LUI adds one. A threshold of two would drop the light
+#      words, and the correction of them would be gone.
+expect_caught "a-count-threshold-that-drops-the-light-words" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~TypoContractTests.The_count_threshold_is_one" \
+  "sed -i 's|countThreshold: 1|countThreshold: 2|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
+
+# 34. A run that does not name the failing test (issue #154): the failure of that day was lost, because the
+#      output of the run was filtered, and what was left of it was the count. A procedure that keeps the whole
+#      output has to name the test that failed — the name is the answer the issue #154 is still missing.
+expect_command_caught "a-run-that-does-not-name-the-failing-test" \
+  "bash tools/load-run.sh --self-test" \
+  "sed -i 's|printf(\"the failing test: %s|printf(\"a test failed:|' tools/load-run.sh" \
+  "Nordmann.LUI.Integration.Tests.Catalog.A_test_that_failed"
+
+# 35. A claim of a round that does not stay true (issue #185): the claim of a round that has begun is momentary — the
+#      round of the test waits for the write lock of the file, which the test itself holds, so it lives about a second,
+#      and a loaded machine can delay the poll of a test by more than that. A waiter that comes late must not miss the
+#      round, so the claim has to stay true.
+expect_caught "a-claim-of-a-round-that-does-not-stay-true" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~The_claim_of_a_round_that_has_begun_stays_true_when_the_round_is_over" \
+  "sed -i 's|            Volatile.Write(ref _running, 0);|            Interlocked.Exchange(ref _roundsBegun, 0);\n            Volatile.Write(ref _running, 0);|' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
+
+
+
+# 36. A stylesheet of the client that is not the file the provenance says (issue #212): the stylesheets of
 #      the page come from somewhere else, and a file that nobody named is a file nobody checked.
 expect_caught "the-stylesheet-of-the-client-is-not-the-file-the-provenance-says" "${ARCHITECTURE_PROJECT}" \
   "The_stylesheets_of_the_client_are_the_files_the_provenance_says" \
   "printf '\n/* a change nobody named */\n' >> samples/Lui.Sample/wwwroot/css/mvp.css"
 
-# 34. A stylesheet in a subfolder that loads something from another origin (issue #212): the stylesheet of
+# 37. A stylesheet in a subfolder that loads something from another origin (issue #212): the stylesheet of
 #      the library lives in css/vendor/, and the walk of the stylesheets has to go into the subfolders —
 #      a file that the walk does not see is a file nobody checks.
 expect_caught "the-css-of-a-subfolder-is-walked-too" "${ARCHITECTURE_PROJECT}" \
   "The_page_has_no_inline_script_style_or_event_handler_and_loads_nothing_from_elsewhere" \
   "printf '\n.x { background: url(https://example.invalid/x.png); }\n' >> samples/Lui.Sample/wwwroot/css/vendor/flexdatalist.css"
 
-# 35. The clean trees stay green.
+
+
+# 38. The clean trees stay green.
+
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 
