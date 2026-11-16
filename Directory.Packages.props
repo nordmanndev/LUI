@@ -15,7 +15,7 @@
     three Microsoft.Extensions abstractions are the hosting package's (Nordmann.LUI.Hosting) only.
   -->
   <ItemGroup Label="Runtime — shipped inside Nordmann.LUI and Nordmann.LUI.Hosting">
-    <PackageVersion Include="Microsoft.Data.Sqlite" Version="10.0.14" />
+    <PackageVersion Include="Microsoft.Data.Sqlite" Version="11.0.0" />
     <PackageVersion Include="symspell" Version="6.7.3" />
     <PackageVersion Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.14" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.14" />
