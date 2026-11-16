@@ -150,7 +150,9 @@ public sealed partial class SampleClientTests
         EventHandlerAttribute().IsMatch(html).ShouldBeFalse("an inline event handler");
         ExternalResource().IsMatch(html).ShouldBeFalse("a script or stylesheet from another origin");
 
-        foreach (var css in Directory.EnumerateFiles(Path.Combine(Repository.SampleWebRoot, "css"), "*.css"))
+        // The walk goes into the subfolders as well: the stylesheet of the library lives in css/vendor/, and a file that the
+        // walk does not see is a file nobody checks.
+        foreach (var css in Directory.EnumerateFiles(Path.Combine(Repository.SampleWebRoot, "css"), "*.css", SearchOption.AllDirectories))
         {
             var text = File.ReadAllText(css);
             text.ShouldNotContain("@import", Case.Sensitive, css);
@@ -192,6 +194,42 @@ public sealed partial class SampleClientTests
 
     [GeneratedRegex(@"SHA-256 \| `(?<hash>[0-9a-f]{64})`", RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
     private static partial Regex Sha256InReadme();
+
+    /// <summary>
+    /// The files of the client that come from somewhere else are the files the provenance says: the stylesheet of MVP.css, the
+    /// stylesheet that flexdatalist itself ships, the font of the brand and the four images of the logo. A file that is not the
+    /// one <c>wwwroot/css/README.md</c> describes fails the build — a changed file needs the provenance and the browser check
+    /// redone.
+    /// </summary>
+    [Fact]
+    public void The_stylesheets_of_the_client_are_the_files_the_provenance_says()
+    {
+        var readme = File.ReadAllText(Path.Combine(Repository.SampleWebRoot, "css", "README.md"));
+
+        var rows = VendoredFile().Matches(readme);
+        rows.Count.ShouldBeGreaterThan(0, "the provenance names no file at all");
+
+        foreach (Match row in rows)
+        {
+            var file = row.Groups["file"].Value;
+            var stated = row.Groups["hash"].Value;
+            var path = Path.Combine(Repository.SampleWebRoot, file.Replace('/', Path.DirectorySeparatorChar));
+
+            File.Exists(path).ShouldBeTrue($"the provenance names '{file}', and the file is not there");
+
+            // The hash of a text file is taken over the file as the repository has it — the line endings normalised back to LF,
+            // so that a checkout with CRLF does not change it. The font is bytes, and is hashed as they are.
+            var actual = path.EndsWith(".woff2", StringComparison.OrdinalIgnoreCase)
+                ? Convert.ToHexStringLower(SHA256.HashData(File.ReadAllBytes(path)))
+                : Convert.ToHexStringLower(SHA256.HashData(Repository.NormalizedBytes(path)));
+
+            actual.ShouldBe(stated, $"'{file}' is not the file the provenance describes — a changed file needs the provenance and the browser check redone");
+        }
+    }
+
+    /// <summary>A row of the provenance: the file, whatever the columns between, and its SHA-256 in the last column.</summary>
+    [GeneratedRegex(@"^\| `(?<file>[^`]+)` \|[^\n]*\| `(?<hash>[0-9a-f]{64})` \|$", RegexOptions.Multiline | RegexOptions.ExplicitCapture, matchTimeoutMilliseconds: 2000)]
+    private static partial Regex VendoredFile();
 
     [Fact]
     public void The_client_has_no_dependencies_and_no_build()
