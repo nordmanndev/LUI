@@ -81,9 +81,10 @@ remembered.
   — the sample's hits table and timings table are data visualizations. Noto Naskh Arabic and Noto Sans Traditional Chinese are
   support faces for those scripts.
 - **The fonts measured** (Google Fonts, Latin subset, variable): **Montserrat 37,956 B**, SHA-256
-  `06b16db7a969135d48d38c49183be7fb88d4452e2a3011957c7851941f4e4879`, **SIL Open Font License 1.1** (4,400 B);
-  **Roboto Slab 34,236 B**, SHA-256 `50cf7d32c18e1001749b51f1565ef745bc0687b0297b2b13465ed577cc20a8ff`,
-  **Apache License 2.0** (11,358 B).
+  `06b16db7a969135d48d38c49183be7fb88d4452e2a3011957c7851941f4e4879`, **SIL Open Font License 1.1** (4,400 B) — **the
+  one that is vendored**. **Roboto Slab 34,236 B**, SHA-256 `50cf7d32c18e1001749b51f1565ef745bc0687b0297b2b13465ed577cc20a8ff`,
+  **Apache License 2.0** (11,358 B) — **not vendored**: it is the tertiary typeface of the guide, and it would have to reach
+  the tables through a `table { font-family: … }` rule, which is a style of our own (D3). The deviation is in §8.
 - **The logo** (chapter 2, PDF pages 8–21): the mark is a *T* built from 12 equal squares, the wordmark is Montserrat ExtraBold,
   the guide names the colour of the mark `#017efa` and of the wordmark `#00002d`, and the rule is *"the White version should be
   used for dark backgrounds and the Black version should be used on light backgrounds"*; the exclusion zone is 50 % of the
@@ -111,7 +112,7 @@ remembered.
 | D7 | **The page names its dataset with `data-scenario` on the body** (`<body data-view="dataset" data-scenario="recipes">`, the index page: `<body data-view="hub">`); one root module reads it. | The CSP forbids an inline script, and the guard forbids an inline `<script>` without `src` — so the identity of the page cannot be a script in the page. One root module keeps the module tree of ADR-0027 valid. |
 | D8 | **The information stays, the way it is shown changes**: the segmented timing bar becomes a table of the four phases, the priority pills become `strong` text (`mark` for the System priority), the badges become `small`, the facts and the request log become tables, the "?" of a setting becomes `details`/`summary`, the tab strip becomes the `nav`, the colour dot of a tag becomes a small image with the colour in its data. | D3, taken to its end: with no style of its own, everything that carried information in a colour or a shape has to say it in an element. MVP has an element for a table, a `small`, a `strong`, a `mark` and a `details` — the information does not need a class. |
 | D9 | **The work is issue-driven**: one epic and six pull requests, each green, each with its verification, the ADR in the pull request that changes the client. | The rule of the repository (AGENTS.md): work is issue-driven, one pull request per issue, and a decision that changes the dependency set or the client gets an ADR in the same pull request. |
-| D10 | **The brand of the guide is applied as far as the two vendored stylesheets allow.** A third stylesheet, `wwwroot/css/brand.css`, is the client's own — and its **only selectors are `:root`** (with or without an attribute), its only at-rules `@font-face` and `@media` around such a selector. It maps the guide's palette onto MVP's `--color-*` (eleven variables) and onto the library's `--fdl-*` (its twenty-one), sets `--font-family` to Montserrat and the tables to Roboto Slab, and gives the dark mode the brand's own night values. The two fonts and the two logo files are vendored with their licences and their hashes. The logo in the header is the **company's** lockup (the owner's decision of 2026-11-16): the Nordmann Development mark, not the Timetables logo of the guide. | The owner's answer: *"styling where possible applied to the attached guide"* and *"the company's logo in the header — the guide's palette and type as the styling"*. Both vendored stylesheets are **written to be themed by their variables** — MVP says so in its own words ("Most styles are editable through CSS variables"), and the library exposes its palette the same way. The brand therefore enters **without a single style of its own**: only the values. The guide's rules that the page can keep: the colours at 100 % opacity (every value in the layer is opaque — MVP's `--color-accent` is `#118bee15`, eight digits with an alpha, and the layer replaces it), the RGB values on screen, and the white logo on a dark background. The rules it cannot keep: Gotham (commercial licence), and the exclusion zone around the logo (MVP's spacing is what it is). |
+| D10 | **The brand of the guide is applied as far as the two vendored stylesheets allow.** A third stylesheet, `wwwroot/css/brand.css`, is the client's own — and its **only selectors are `:root`** (with or without an attribute), its only at-rules `@font-face` and `@media` around such a selector. It maps the guide's palette onto MVP's `--color-*` (eleven variables) and onto the library's `--fdl-*` (its twenty-one), sets `--font-family` to Montserrat and gives the dark mode the brand's own night values. The two fonts and the two logo files are vendored with their licences and their hashes. The logo in the header is the **company's** lockup (the owner's decision of 2026-11-16): the Nordmann Development mark, not the Timetables logo of the guide. | The owner's answer: *"styling where possible applied to the attached guide"* and *"the company's logo in the header — the guide's palette and type as the styling"*. Both vendored stylesheets are **written to be themed by their variables** — MVP says so in its own words ("Most styles are editable through CSS variables"), and the library exposes its palette the same way. The brand therefore enters **without a single style of its own**: only the values. The guide's rules that the page can keep: the colours at 100 % opacity (every value in the layer is opaque — MVP's `--color-accent` is `#118bee15`, eight digits with an alpha, and the layer replaces it), the RGB values on screen, and the white logo on a dark background. The rules it cannot keep: Gotham (commercial licence), and the exclusion zone around the logo (MVP's spacing is what it is). |
 
 ## 4. The vocabulary
 
@@ -162,9 +163,9 @@ the sample's own class names are gone.
 | `css/components.css` | 7,403 B | — |
 | `css/layout.css` | 1,060 B | — |
 | `css/tokens.css` | 1,163 B | — |
-| `fonts/` | — | 72,192 B (Montserrat 37,956 + Roboto Slab 34,236) + 15,758 B of the two licences |
+| `fonts/` | — | 37,956 B (Montserrat) + 4,400 B of its licence |
 | `img/` | — | the logo and its white wordmark |
-| **the total of the stylesheets** | **15,001 B, 313 lines of ours** | **18,475 B, ~60 lines of `:root` only** |
+| **the total of the stylesheets** | **15,001 B, 313 lines of ours** | **16,475 B, ~60 lines of `:root` only** |
 
 The stylesheets grow by 3,474 bytes and **the sample writes no style of its own** — the two files are vendored, hashed and
 named, and the third is the brand's values and nothing else.
@@ -234,8 +235,7 @@ indexes panel (the six indexes with their state, the maintenance of each, and th
 | `wwwroot/css/brand.css` | the brand's values — `:root` only, plus the two `@font-face` |
 | `wwwroot/css/README.md` | the provenance of the three: source, version, licence, SHA-256 |
 | `wwwroot/fonts/Montserrat-latin.woff2` | vendored, 37,956 B, SIL OFL 1.1 |
-| `wwwroot/fonts/RobotoSlab-latin.woff2` | vendored, 34,236 B, Apache 2.0 |
-| `wwwroot/fonts/Montserrat-OFL.txt`, `wwwroot/fonts/RobotoSlab-LICENSE.txt` | the licences of the two fonts |
+| `wwwroot/fonts/Montserrat-OFL.txt` | the licence of the font (SIL Open Font License 1.1) |
 | `wwwroot/img/logo.svg`, `wwwroot/img/logo-white.svg` | the company's lockup (from `1.svg`), **cropped to its artwork** (`viewBox="478 802 2196 396"`), and the same file with the wordmark in white for the dark surface |
 | `wwwroot/img/logo-short.svg`, `wwwroot/img/logo-short-white.svg` | the short lockup (from `2.svg`), cropped the same way, for the tight places — the footer, the images of the README |
 
@@ -358,7 +358,7 @@ Each pull request is green on its own, and the sample works at every step of the
 | The stylesheets | the layout from MVP, the dropdown from the library, the colours and the type from the brand | the sample writes **no** style — and the dropdown keeps the library's own look, tinted with the brand's values |
 | The brand | the palette, the type, the logo, as far as the two vendored stylesheets allow | it does not give the page Gotham (commercial licence), the exclusion zone around the logo, or the brand's sunshine yellow for the `mark` — all three would need a style of our own |
 | The loss | the tab strip, the two columns with the sticky settings, the card look, the timing bar as a bar, the colour dot as a dot | — |
-| The bytes | 18,475 B of stylesheet instead of 15,001 B, plus 72 KB of fonts and their licences | the two stylesheets are vendored: 10,264 B of MVP and 6,211 B of the library, both with a hash and a licence; the third file is the brand's values |
+| The bytes | 16,475 B of stylesheet instead of 15,001 B, plus 42 KB of the font and its licence | the two stylesheets are vendored: 10,264 B of MVP and 6,211 B of the library, both with a hash and a licence; the third file is the brand's values |
 
 ## 8. The traps that are known
 
@@ -384,6 +384,10 @@ Each pull request is green on its own, and the sample works at every step of the
 - **Gotham cannot go on a web page** — the guide names it for the headings, but it is a commercial licence (Hoefler &
   Frere-Jones). The guide's own logo wordmark is set in Montserrat ExtraBold, so Montserrat carries the headings. The
   deviation belongs in the ADR, not in a comment.
+- **The tertiary typeface cannot come either.** Roboto Slab is the guide's face for *"captions, call-outs, sidebars, and data
+  visualizations"* — and the sample's two tables are data visualisations. It would have to reach them through a
+  `table { font-family: … }` rule, and that is a style of our own, which D3 forbids. So the tables carry Montserrat, and the
+  font of Roboto Slab is not vendored. The deviation belongs in the ADR.
 - **The brand has no dark palette** — the night is built from the brand's own dark values (the background Midnight Navy
   `#00002d`, the surface Black Coffee `#1a1a42`, the text Pure White). The library's own dark block must be overridden in the
   same media query: it is the same specificity, so the later rule in the cascade wins — which is why the brand's layer is
