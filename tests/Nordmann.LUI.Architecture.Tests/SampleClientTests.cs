@@ -204,7 +204,9 @@ public sealed partial class SampleClientTests
     [Fact]
     public void The_stylesheets_of_the_client_are_the_files_the_provenance_says()
     {
-        var readme = File.ReadAllText(Path.Combine(Repository.SampleWebRoot, "css", "README.md"));
+        // The provenance is read with the line endings normalised back to LF: a checkout on Windows has CRLF, and the rows of the
+        // table are anchored at the end of their line. The hash of a text file is taken over the same bytes.
+        var readme = Repository.NormalizedText(Path.Combine(Repository.SampleWebRoot, "css", "README.md"));
 
         var rows = VendoredFile().Matches(readme);
         rows.Count.ShouldBeGreaterThan(0, "the provenance names no file at all");
