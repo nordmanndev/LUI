@@ -13,6 +13,12 @@ namespace Nordmann.LUI;
 public sealed record LuiCatalogOptions
 {
     /// <summary>
+    /// The settings of the connections of the catalog (ADR-0066): how long they wait for the lock of the file, how they
+    /// write, and how large their page cache is. Default: <see cref="LuiPragmas"/>'s own defaults.
+    /// </summary>
+    public LuiPragmas Pragmas { get; init; } = new();
+
+    /// <summary>
     /// The page cache of every connection, in megabytes; at least 1. It decides whether the index lives in
     /// memory (docs/benchmarks.md). Default: <see langword="null"/>, SQLite's own.
     /// </summary>

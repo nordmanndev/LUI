@@ -171,7 +171,11 @@ internal sealed class Database : IDisposable
         SqliteConnection.ClearPool(connection);
     }
 
-    private string Pragmas()
+    /// <summary>
+    /// The pragmas of a connection: the three that belong to it (ADR-0066). The journal mode is not among them — it is
+    /// a property of the file, and a read-only connection cannot set it.
+    /// </summary>
+    internal string Pragmas()
     {
         var timeout = (long)_options.BusyTimeout.TotalMilliseconds;
         var pragmas = string.Create(CultureInfo.InvariantCulture, $"PRAGMA busy_timeout = {timeout}; PRAGMA synchronous = NORMAL;");

@@ -52,6 +52,7 @@ The settings of the catalog. Every one of them has a default; none of them has t
 
 | Member | Default | What it is for |
 |---|---|---|
+| `LuiPragmas Pragmas` | `new LuiPragmas()` | the settings of the connections of the catalog — see below |
 | `int? CacheSizeMegabytes` | the SQLite default | the page cache of the file |
 | `int? MemoryMapMegabytes` | the SQLite default | the memory map of the file |
 | `TimeSpan BusyTimeout` | 5 s | how long a writer waits for the lock of the file — then `SqliteException` with `SQLITE_BUSY`. At least about one second: below it, Microsoft.Data.Sqlite retries until a second has passed (ADR-0046). It bounds the wait for a lock, not the time a statement runs. |
@@ -61,6 +62,32 @@ The settings of the catalog. Every one of them has a default; none of them has t
 
 The file decides whether writing is allowed at all: a catalog opened with `Mode=ReadOnly` writes nothing, and every
 write throws a `LuiReadOnlyException`.
+
+### `LuiPragmas`
+
+The settings of the connections of a catalog (ADR-0066). They belong to the catalog: an index has no connection of its own
+to configure, and the application never holds one.
+
+| Member | Default | What it is for |
+|---|---|---|
+| `TimeSpan BusyTimeout` | 5 s | how long a connection waits for the lock of the file — then `SqliteException` with `SQLITE_BUSY`. At least one second, at most ten minutes. It is checked when the catalog is opened. |
+| `LuiSynchronous Synchronous` | `LuiSynchronous.Normal` | how the connections write: `Normal` or `Full` |
+| `int? CacheSizeMegabytes` | the SQLite default | the page cache of **every** connection, in megabytes; 1 to 1024. It holds per connection: the upper bound of the read path is the number of parallel queries times this value. |
+
+Every value is checked when the catalog is opened: a value out of range is an `ArgumentOutOfRangeException`, before a
+connection is opened — so a file that is not written is not created either.
+
+### `LuiSynchronous`
+
+How the connections of a catalog write (ADR-0066).
+
+| Value | What it is for |
+|---|---|
+| `Normal` | the usual one: the write-ahead log carries the durability of the file |
+| `Full` | every write is flushed to the disk: the safest, and the slowest |
+
+`Off` would put the file at risk on a power loss, and `Extra` would cost without a gain in the write-ahead log — a setting
+that makes no sense does not exist.
 
 ---
 
@@ -491,12 +518,14 @@ The warm-up is a service of the host, not a thread of the library: the host star
 
 ## The whole surface
 
-Forty-three public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing else is public.
+Forty-five public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|
 | `LuiCatalog` | class | [the entry point](#the-catalog--the-entry-point) |
 | `LuiCatalogOptions` | record | [the entry point](#the-catalog--the-entry-point) |
+| `LuiPragmas` | record | [the entry point](#the-catalog--the-entry-point) |
+| `LuiSynchronous` | enum | [the entry point](#the-catalog--the-entry-point) |
 | `LuiIndexKindBuilder` | class | [creating an index](#creating-an-index--the-description) |
 | `LuiEmbeddedIndexBuilder` | class | [creating an index](#creating-an-index--the-description) |
 | `LuiLinkedIndexBuilder` | class | [creating an index](#creating-an-index--the-description) |
