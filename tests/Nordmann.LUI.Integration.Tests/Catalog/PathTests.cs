@@ -20,6 +20,16 @@ public sealed class PathTests
         catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
     }
 
+    [Fact]
+    public void The_catalogue_keeps_the_path_of_the_file()
+    {
+        using var database = new TestDatabase();
+
+        using var catalog = LuiCatalog.Open(database.FilePath);
+
+        catalog.Path.ShouldBe(Path.GetFullPath(database.FilePath), "the path of the file is kept");
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData(":memory:")]

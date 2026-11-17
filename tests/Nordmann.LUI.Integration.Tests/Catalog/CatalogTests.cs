@@ -33,7 +33,7 @@ public sealed class CatalogTests
         using var first = database.Open();
         using var second = database.Open();
 
-        first.ConnectionString.ShouldBe(second.ConnectionString);
+        first.Path.ShouldBe(second.Path);
     }
 
     [Fact]
@@ -163,29 +163,9 @@ public sealed class CatalogTests
             .ShouldStartWith("2026-11-02T12:00:00");
     }
 
-    // review of pull request 6, B6: the journal mode
+    // review of pull request 6, B6: the journal mode — and ADR-0066 §4
     [Fact]
-    public void A_database_can_stay_in_its_journal_mode()
-    {
-        using var database = new TestDatabase();
-        using (var connection = database.Connect())
-        {
-            using var command = connection.CreateCommand();
-            command.CommandText = "PRAGMA journal_mode = DELETE; CREATE TABLE app(id INTEGER PRIMARY KEY);";
-            command.ExecuteNonQuery();
-        }
-
-        using var catalog = database.Open(new LuiCatalogOptions { WriteAheadLog = false });
-        var tags = catalog.Create("tags", index => index.SingleWord());
-        tags.Upsert(1, "vegan", 5);
-
-        database.Scalar<string>("PRAGMA journal_mode").ShouldBe("delete");
-        tags.Query("vegan").Execute().Hits.Count.ShouldBe(1);
-    }
-
-    // review of pull request 6, B6: the journal mode
-    [Fact]
-    public void A_database_in_rollback_mode_is_switched_to_wal_by_default()
+    public void A_database_with_tables_keeps_its_journal_mode()
     {
         using var database = new TestDatabase();
         using (var connection = database.Connect())
@@ -196,6 +176,32 @@ public sealed class CatalogTests
         }
 
         using var catalog = database.Open();
+        var tags = catalog.Create("tags", index => index.SingleWord());
+        tags.Upsert(1, "vegan", 5);
+
+        database.Scalar<string>("PRAGMA journal_mode").ShouldBe("delete", "a file with tables keeps its mode");
+        tags.Query("vegan").Execute().Hits.Count.ShouldBe(1);
+    }
+
+    // ADR-0066 §4: the journal mode is set once, when LUI sets up a file whose schema is empty
+    [Fact]
+    public void OpenOrCreate_puts_a_file_it_creates_into_wal_mode()
+    {
+        using var database = new TestDatabase();
+
+        using var catalog = LuiCatalog.OpenOrCreate(database.FilePath);
+
+        database.Scalar<string>("PRAGMA journal_mode").ShouldBe("wal");
+    }
+
+    // ADR-0066 §4: the journal mode is set once, when LUI sets up a file whose schema is empty
+    [Fact]
+    public void OpenOrCreate_puts_an_empty_file_into_wal_mode()
+    {
+        using var database = new TestDatabase();
+        File.WriteAllBytes(database.FilePath, []);
+
+        using var catalog = LuiCatalog.OpenOrCreate(database.FilePath);
 
         database.Scalar<string>("PRAGMA journal_mode").ShouldBe("wal");
     }
@@ -212,30 +218,36 @@ public sealed class CatalogTests
         Should.NotThrow(() => LuiCatalog.EnsureSqliteVersion("3.53.3"));
     }
 
-    // the shape of the API before 0.1.0 (ADR-0013), the options
+    // ADR-0066: the values of the connections are checked when the catalog is opened
     [Fact]
-    public void A_catalog_option_out_of_range_fails_where_it_is_set()
+    public void A_catalog_option_out_of_range_fails_when_the_catalog_is_opened()
     {
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiCatalogOptions { CacheSizeMegabytes = 0 })
-            .Message.ShouldContain("CacheSizeMegabytes");
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiCatalogOptions { MemoryMapMegabytes = -1 })
-            .Message.ShouldContain("MemoryMapMegabytes");
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(-1) })
-            .Message.ShouldContain("BusyTimeout");
+        using var database = new TestDatabase();
+
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 0 } }));
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 1025 } }));
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(-1) } }));
         Should.Throw<ArgumentNullException>(() => new LuiCatalogOptions { TimeProvider = null! });
 
-        Should.NotThrow(() => new LuiCatalogOptions { CacheSizeMegabytes = null, MemoryMapMegabytes = 1 });
+        File.Exists(database.FilePath).ShouldBeFalse("the values are refused before a connection is opened");
     }
 
     // the shape of the API before 0.1.0 (ADR-0013), the options
     [Fact]
     public void The_exception_of_a_wrong_value_names_the_property_as_its_parameter()
     {
+        using var database = new TestDatabase();
+
         Should.Throw<ArgumentOutOfRangeException>(() => new LuiQueryOptions { MaxResults = 0 }).ParamName.ShouldBe("MaxResults");
         Should.Throw<ArgumentOutOfRangeException>(() => new LuiQueryOptions { Candidates = 0 }).ParamName.ShouldBe("Candidates");
         Should.Throw<ArgumentOutOfRangeException>(() => new LuiQueryOptions { Rank = (LuiRankingOrder)42 }).ParamName.ShouldBe("Rank");
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiCatalogOptions { CacheSizeMegabytes = 0 }).ParamName.ShouldBe("CacheSizeMegabytes");
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(-1) }).ParamName.ShouldBe("BusyTimeout");
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 0 } })).ParamName.ShouldBe("CacheSizeMegabytes");
+        Should.Throw<ArgumentOutOfRangeException>(
+            () => database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(-1) } })).ParamName.ShouldBe("BusyTimeout");
         Should.Throw<ArgumentNullException>(() => new LuiCatalogOptions { TimeProvider = null! }).ParamName.ShouldBe("TimeProvider");
         Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry(1, "a") { Weight = -1 }).ParamName.ShouldBe("Weight");
         Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry(1, "a") { Priority = (LuiPriority)7 }).ParamName.ShouldBe("Priority");
@@ -247,7 +259,10 @@ public sealed class CatalogTests
     public void The_catalog_options_reach_the_connections()
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 3, BusyTimeout = TimeSpan.FromMilliseconds(1234) });
+        using var catalog = database.Open(new LuiCatalogOptions
+        {
+            Pragmas = new LuiPragmas { CacheSizeMegabytes = 3, BusyTimeout = TimeSpan.FromMilliseconds(1234) },
+        });
         using var connection = catalog.Database.OpenConnection();
         using var command = connection.CreateCommand();
 
