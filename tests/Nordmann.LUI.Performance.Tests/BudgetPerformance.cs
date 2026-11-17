@@ -39,7 +39,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         budget.SayTheMachine();
 
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
 
         // the build: the bulk path of a sync into an empty index (ADR-0016); the batch of the scenario measures another
@@ -109,7 +109,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
     private static BuildResult Build(Corpus corpus, int batch, int? checkpointPages)
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
 
         if (checkpointPages is { } pages)
@@ -151,7 +151,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         budget.SayTheMachine();
 
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         var index = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         index.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = 100_000 });
 
@@ -178,7 +178,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         budget.SayTheMachine();
 
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         // the kind comes out of the corpus file (ADR-0059): a title is more than one word
         if (corpus.Kind != CorpusKind.MultiWord)
         {

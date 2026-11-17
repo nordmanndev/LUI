@@ -86,7 +86,7 @@ public sealed class PragmasTests
     public void The_pragma_statement_names_the_three_pragmas_and_no_journal_mode()
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open();
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 64 } });
 
         var statement = catalog.Database.Pragmas();
 

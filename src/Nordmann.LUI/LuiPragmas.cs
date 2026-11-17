@@ -1,10 +1,10 @@
 namespace Nordmann.LUI;
 
 /// <summary>
-/// The settings of the connections of a catalogue (ADR-0066). They belong to the catalogue: an index has no connection
-/// of its own to configure, and the application never holds one.
+/// The settings of the connections of a catalog (ADR-0066). They belong to the catalog: an index has no connection of
+/// its own to configure, and the application never holds one.
 /// <para>
-/// Every value is checked when the catalogue is opened: a value out of range is an
+/// Every value is checked when the catalog is opened: a value out of range is an
 /// <see cref="ArgumentOutOfRangeException"/> <b>before</b> a connection is opened, so a file that is not written is
 /// not created either.
 /// </para>

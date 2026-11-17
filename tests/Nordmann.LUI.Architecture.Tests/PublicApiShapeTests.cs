@@ -311,7 +311,7 @@ public sealed class PublicApiShapeTests
             .SelectMany(type => type.GetMethods(declared))
             .Where(method => method.Name.StartsWith("Add", StringComparison.Ordinal))
             .ToArray();
-        registrations.Length.ShouldBe(3, "AddLui, AddLui with the connection string from the container, and AddLuiWarmup");
+        registrations.Length.ShouldBe(2, "AddLui and AddLuiWarmup — the hosting takes a factory (ADR-0066)");
         registrations.ShouldAllBe(method => method.Name == "AddLui" || method.Name == "AddLuiWarmup");
         registrations.ShouldAllBe(method => method.ReturnType == typeof(IServiceCollection));
     }

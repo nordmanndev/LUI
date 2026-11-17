@@ -39,7 +39,9 @@ public sealed class TypoDictionaryLifecycleTests
         // its build: both wait for the busy timeout.
         // The query does not build any more (ADR-0042): there is no second connection, and no deadlock.
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { WriteAheadLog = false, BusyTimeout = TimeSpan.FromSeconds(2) });
+        // the file has a table of its own, so LUI keeps its journal mode (ADR-0066)
+        database.PrepareWithATable();
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(2) } });
         var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         words.Upsert(1, "kartoffel");
 

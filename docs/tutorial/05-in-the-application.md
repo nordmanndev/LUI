@@ -28,7 +28,7 @@ using Nordmann.LUI;
 var builder = WebApplication.CreateBuilder(args);
 
 // The container holds the catalog and nothing else.
-builder.Services.AddLui("Data Source=app.db");
+builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"));
 
 var app = builder.Build();
 
@@ -46,7 +46,7 @@ The endpoint asks the catalog for the index it needs. An index is **not**
 registered and **not** injected: the container does not describe indexes, so
 there is one way into them and it is the catalog.
 
-`AddLui` has a second shape, for a connection string that comes from the
+`AddLui` has a second shape, for a path that comes from the
 configuration:
 
 ```csharp
@@ -58,7 +58,7 @@ using Nordmann.LUI;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddLui(
-    sp => sp.GetRequiredService<IConfiguration>().GetConnectionString("app")!);
+    sp => LuiCatalog.OpenOrCreate(sp.GetRequiredService<IConfiguration>().GetValue<string>("App:Path")!));
 
 var app = builder.Build();
 app.Run();
@@ -70,6 +70,10 @@ app.Run();
 > index is a change in two places, and a name that is wrong in one of them is
 > an exception at run time. One catalog, asked for what it needs, cannot
 > drift. See ADR-0033 and ADR-0034.
+>
+> The factory is the caller's: the container holds the catalog and nothing
+> else, and the way the catalog is opened travels with the call that opens
+> it (ADR-0066).
 ## The catalog from the container
 
 The catalog is a singleton, and the application asks it for its indexes. The
@@ -82,7 +86,7 @@ using Nordmann.LUI;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Services.AddLui("Data Source=app.db");
+builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"));
 
 using var host = builder.Build();
 host.Start();
@@ -105,7 +109,7 @@ runtime path. Both calls are on the catalog:
 using Nordmann.LUI;
 
 // The migration of the application creates the index.
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 var tags = catalog.Create("tags", index => index.SingleWord());
 tags.Upsert(1, "vegan", weight: 120);
@@ -122,7 +126,7 @@ happen — not the index, and not the code.
 using Nordmann.LUI;
 
 // The file decides what may happen — not the index.
-using var catalog = LuiCatalog.Open("Data Source=app.db;Mode=ReadOnly");
+using var catalog = LuiCatalog.OpenReadOnly("app.db");
 
 var tags = catalog.Index("tags");
 
@@ -144,8 +148,8 @@ refused: The catalog is read-only: the database was opened with Mode=ReadOnly, s
 ```
 
 The same application code therefore runs in the service that writes and in the
-service that only reads: `LuiCatalog.Open("Data Source=app.db")` and
-`LuiCatalog.Open("Data Source=app.db;Mode=ReadOnly")`. A read-only catalog
+service that only reads: `LuiCatalog.OpenOrCreate("app.db")` and
+`LuiCatalog.OpenReadOnly("app.db")`. A read-only catalog
 writes nothing at all — no write-ahead logging, no `lui_meta` — and every
 write is refused with a `LuiReadOnlyException`.
 
@@ -170,7 +174,7 @@ using Nordmann.LUI;
 
 var builder = Host.CreateApplicationBuilder(args);
 
-builder.Services.AddLui("Data Source=app.db");
+builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"));
 
 // The dictionaries are built while the host starts; the outbox is applied every 30 seconds.
 builder.Services.AddLuiWarmup(options => options.TypoDictionaryIndexes.Add("tags"));

@@ -12,9 +12,10 @@ internal static class SampleDatabase
     internal const string TagTable = "tag";
 
     /// <summary>Creates the <c>tag</c> table and fills it once. Runs before the host starts: an index linked to a table needs the table.</summary>
-    internal static void Initialize(string connectionString)
+    /// <param name="path">The file of the application (ADR-0066).</param>
+    internal static void Initialize(string path)
     {
-        using var connection = new SqliteConnection(connectionString);
+        using var connection = new SqliteConnection($"Data Source={path}");
         connection.Open();
 
         using (var create = connection.CreateCommand())

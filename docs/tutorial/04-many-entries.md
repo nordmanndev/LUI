@@ -20,7 +20,7 @@ written, or — on an error or a cancellation — none.
 ```csharp
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 var recipes = catalog.Create("recipes", index => index.MultiWord());
 
 // Ten thousand entries in one transaction — not ten thousand transactions.
@@ -57,7 +57,7 @@ get a chance between them. The batch size and the progress are yours to set.
 ```csharp
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 var recipes = catalog.Create("recipes", index => index.MultiWord());
 
 var report = recipes.Sync(
@@ -109,7 +109,7 @@ sound and what is wrong; `Rebuild` repairs what is below the content table.
 ```csharp
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 var recipes = catalog.Create("recipes", index => index.MultiWord());
 
 var report = recipes.Check(

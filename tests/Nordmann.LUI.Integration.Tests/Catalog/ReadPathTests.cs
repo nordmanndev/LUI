@@ -100,7 +100,7 @@ public sealed class ReadPathTests
         // the whole two seconds and fail; the write path waits them and fails. A loaded machine is slower, never faster —
         // the lower bound holds under any load, and the upper one leaves two seconds to open an index.
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(2) });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(2) } });
         catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
 
         // a writer holds the lock of the file
@@ -124,12 +124,13 @@ public sealed class ReadPathTests
     public void An_index_of_a_read_only_database_can_be_opened()
     {
         using var database = new TestDatabase();
-        using (var catalog = database.Open(new LuiCatalogOptions { WriteAheadLog = false }))
+        database.PrepareWithATable();
+        using (var catalog = database.Open())
         {
             catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
         }
 
-        using var reader = LuiCatalog.Open($"Data Source={database.FilePath};Mode=ReadOnly", new LuiCatalogOptions { WriteAheadLog = false });
+        using var reader = LuiCatalog.OpenReadOnly(database.FilePath);
 
         var index = reader.Index("tags");
         index.Search("vegan").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
@@ -194,7 +195,7 @@ public sealed class ReadPathTests
             writer.Create("tags", index => index.SingleWord()).Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("gruen") });
         }
 
-        using var reader = LuiCatalog.Open(database.ConnectionString);
+        using var reader = LuiCatalog.OpenOrCreate(database.FilePath);
         var hit = reader.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
 
         hit.HasPayload.ShouldBeTrue();

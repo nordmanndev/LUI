@@ -5,7 +5,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Concurrency;
 
 /// <summary>
-/// The busy timeout of the catalog (issue #70, ADR-0046): <c>LuiCatalogOptions.BusyTimeout</c> is how long a write waits
+/// The busy timeout of the catalog (issue #70, ADR-0046, ADR-0066): <c>LuiPragmas.BusyTimeout</c> is how long a write waits
 /// for a lock before SQLite reports <c>SQLITE_BUSY</c> — not the 30 seconds of the provider. Microsoft.Data.Sqlite
 /// retries a busy command on its own until the timeout of the command; the catalog sets that timeout to its floor of one
 /// second, so the wait is the busy timeout of the catalog, and at least about one second.
@@ -16,24 +16,26 @@ public sealed class BusyTimeoutTests(ITestOutputHelper output)
     // The bounds (issue #78). The lower bound is the claim — the write waited the busy timeout — and a loaded machine
     // only waits longer. The upper bound proves the order of magnitude: seconds, not the 30 s of the provider (#70). It
     // leaves five seconds above the timeout for a loaded runner; it is not a measurement of milliseconds.
+    // ADR-0066: the busy timeout of a connection is at least one second — below it, the catalogue is refused.
     [Theory]
     [InlineData(1_000, 1_000, 6_000)]
     [InlineData(2_000, 2_000, 7_000)]
-    [InlineData(200, 200, 6_000)]
+    [InlineData(1_500, 1_500, 6_500)]
     public void A_write_that_waits_for_a_lock_waits_the_busy_timeout_of_the_catalog(int busyMilliseconds, int atLeast, int below)
     {
         using var database = new TestDatabase();
 
-        // without the write-ahead log a reader that holds a snapshot keeps every writer out
-        using var reader = database.Open(new LuiCatalogOptions { WriteAheadLog = false });
+        // without the write-ahead log a reader that holds a snapshot keeps every writer out: the file has a table of its
+        // own, so LUI keeps its journal mode (ADR-0066)
+        database.PrepareWithATable();
+        using var reader = database.Open();
         var blocking = new BlockingSimilarity();
         var tags = reader.Create("tags", index => index.SingleWord().Similarity(blocking));
         tags.Upsert(1, "vegan");
 
         using var writer = database.Open(new LuiCatalogOptions
         {
-            WriteAheadLog = false,
-            BusyTimeout = TimeSpan.FromMilliseconds(busyMilliseconds),
+            Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromMilliseconds(busyMilliseconds) },
         });
         var written = writer.Index("tags");
 
@@ -67,7 +69,7 @@ public sealed class BusyTimeoutTests(ITestOutputHelper output)
         // the timeout of the command bounds the retries of a busy command, not the time a statement runs — a sync of a
         // million rows runs for minutes on the connections of the catalog
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(1) });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(1) } });
         using var connection = catalog.Database.OpenConnection();
         using var command = connection.CreateCommand();
         command.CommandText = """

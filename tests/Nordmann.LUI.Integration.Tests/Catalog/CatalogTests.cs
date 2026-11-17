@@ -163,7 +163,7 @@ public sealed class CatalogTests
             .ShouldStartWith("2026-11-02T12:00:00");
     }
 
-    // review of pull request 6, B6: the journal mode — and ADR-0066 §4
+    // review of pull request 6, B6: the journal mode — and ADR-0066
     [Fact]
     public void A_database_with_tables_keeps_its_journal_mode()
     {
@@ -183,7 +183,7 @@ public sealed class CatalogTests
         tags.Query("vegan").Execute().Hits.Count.ShouldBe(1);
     }
 
-    // ADR-0066 §4: the journal mode is set once, when LUI sets up a file whose schema is empty
+    // ADR-0066: the journal mode is set once, when LUI sets up a file whose schema is empty
     [Fact]
     public void OpenOrCreate_puts_a_file_it_creates_into_wal_mode()
     {
@@ -194,7 +194,7 @@ public sealed class CatalogTests
         database.Scalar<string>("PRAGMA journal_mode").ShouldBe("wal");
     }
 
-    // ADR-0066 §4: the journal mode is set once, when LUI sets up a file whose schema is empty
+    // ADR-0066: the journal mode is set once, when LUI sets up a file whose schema is empty
     [Fact]
     public void OpenOrCreate_puts_an_empty_file_into_wal_mode()
     {

@@ -67,7 +67,7 @@ using (var connection = new SqliteConnection("Data Source=app.db"))
     command.ExecuteNonQuery();
 }
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // A linked index: the text is the column "title", the key is the column "id",
 // the popularity is the column "views".
@@ -113,7 +113,7 @@ transaction if you like.
 using Microsoft.Data.Sqlite;
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 var articles = catalog.CreateLinked(
     "articles",
     index => index.MultiWord().LinkTo(table: "article", key: "id", text: "title", weight: "views"));
@@ -152,7 +152,7 @@ or let LUI create them:
 using Microsoft.Data.Sqlite;
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 var articles = catalog.CreateLinked(
     "articles",
     index => index.MultiWord().LinkTo(table: "article", key: "id", text: "title", weight: "views"));

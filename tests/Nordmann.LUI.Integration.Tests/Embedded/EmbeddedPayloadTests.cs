@@ -26,7 +26,7 @@ public sealed class EmbeddedPayloadTests
     public void A_payload_in_a_catalog_without_a_serialiser_is_refused_on_the_write()
     {
         using var database = new TestDatabase();
-        using var catalog = LuiCatalog.Open(database.ConnectionString);
+        using var catalog = LuiCatalog.OpenOrCreate(database.FilePath);
         var tags = catalog.Create("tags", index => index.SingleWord());
 
         var exception = Should.Throw<InvalidOperationException>(

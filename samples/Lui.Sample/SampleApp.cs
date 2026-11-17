@@ -13,19 +13,19 @@ namespace Nordmann.LUI.Sample;
 /// </summary>
 public static class SampleApp
 {
-    /// <summary>The configuration key of the SQLite connection string.</summary>
-    public const string ConnectionStringKey = "Sample:ConnectionString";
+    /// <summary>The configuration key of the path of the SQLite file (ADR-0066).</summary>
+    public const string PathKey = "Sample:Path";
 
     /// <summary>The configuration key of the German word list — where the sample looks for it before it downloads it.</summary>
     public const string WordListKey = "Sample:WordList";
 
     /// <summary>Builds the application, and fills the empty indexes.</summary>
-    /// <param name="args">The command line; <c>--Sample:ConnectionString=…</c> and <c>--urls=…</c> are the ones that matter.</param>
+    /// <param name="args">The command line; <c>--Sample:Path=…</c> and <c>--urls=…</c> are the ones that matter.</param>
     /// <returns>The application, not started.</returns>
     public static WebApplication Build(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
-        var connectionString = builder.Configuration[ConnectionStringKey] ?? "Data Source=lui-sample.db;Default Timeout=10";
+        var path = builder.Configuration[PathKey] ?? "lui-sample.db";
 
         // In code and not in an appsettings.json: a project that references the sample (the integration tests) would copy the
         // file into its output, and every host started there would read a log level that is not its own.
@@ -38,8 +38,8 @@ public static class SampleApp
         });
 
         // The application's own table exists before LUI is asked to link an index to it (ADR-0015, ADR-0017).
-        SampleDatabase.Initialize(connectionString);
-        AddServices(builder.Services, connectionString, builder.Configuration[WordListKey]);
+        SampleDatabase.Initialize(path);
+        AddServices(builder.Services, path, builder.Configuration[WordListKey]);
 
         var app = builder.Build();
         SampleSeed.Apply(app.Services.GetRequiredService<SampleIndexes>());
@@ -52,25 +52,26 @@ public static class SampleApp
         return app;
     }
 
-    private static void AddServices(IServiceCollection services, string connectionString, string? wordList)
+    private static void AddServices(IServiceCollection services, string path, string? wordList)
     {
         services
             // The catalog is configured the way the measurements of ADR-0020 measure it: a page cache of
-            // 512 MB and a memory-mapped file. A stock of a million entries is a bulk load — the settings are what make
+            // 512 MB. A stock of a million entries is a bulk load — the settings are what make
             // it a bulk load and not a million small writes.
             // The container holds the catalog and nothing else (ADR-0033): the indexes of the sample are its own.
-            .AddLui(connectionString, new LuiCatalogOptions
+            // The factory opens the catalog (ADR-0066): the way it is opened is the caller's, and the container
+            // holds what it gets.
+            .AddLui(_ => LuiCatalog.OpenOrCreate(path, new LuiCatalogOptions
             {
-                CacheSizeMegabytes = 512,
-                MemoryMapMegabytes = 2048,
+                Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 },
 
                 // one serialiser for the payloads of every embedded index (ADR-0035)
                 PayloadSerializer = LuiPayloadSerializer.Json(SampleJsonContext.Default),
-            });
+            }));
 
         services.AddSingleton<RequestStats>();
         services.AddSingleton<FillJobs>();
-        services.AddSingleton(provider => new SampleIndexes(Facades(provider, connectionString, wordList)));
+        services.AddSingleton(provider => new SampleIndexes(Facades(provider, path, wordList)));
 
         // The outbox of the linked index: the application keeps its index current (ADR-0015), the container does not
         // any more (ADR-0033).
@@ -78,7 +79,7 @@ public static class SampleApp
     }
 
     /// <summary>The indexes behind the page, each with the description the index panel shows.</summary>
-    private static List<ISampleIndex> Facades(IServiceProvider provider, string connectionString, string? wordList)
+    private static List<ISampleIndex> Facades(IServiceProvider provider, string path, string? wordList)
     {
         var catalog = provider.GetRequiredService<LuiCatalog>();
 
@@ -114,7 +115,7 @@ public static class SampleApp
             new LinkedSampleIndex(
                 tags,
                 hit => hit.GetPayload<TagPayload>(),
-                connectionString,
+                path,
                 payloadDescription: "columns kind, color — read from the table",
                 description: "Tags in the application's own table. 'vegan' has the priority System and comes first for every input it matches."),
             // The bulk indexes (ADR-0029): they hold what a source produces for the number the user asks for. They are not

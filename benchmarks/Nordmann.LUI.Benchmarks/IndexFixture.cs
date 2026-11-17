@@ -30,7 +30,7 @@ internal sealed class IndexFixture : IDisposable
         CorpusName = corpusName;
         Source = source;
         Corpus = Corpus.From(CorpusFile.Open(QuerySettings.FileOf(corpusName), entries, 0));
-        _catalog = _database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
+        _catalog = _database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
 
         Index = string.Equals(source, QuerySettings.Linked, StringComparison.Ordinal)
             ? CreateLinked(Corpus)

@@ -45,7 +45,7 @@ The two packages are released together, with one version; the core starts no thr
 
 ```csharp
 using Nordmann.LUI;
-using var lui = LuiCatalog.Open("Data Source=app.db");
+using var lui = LuiCatalog.OpenOrCreate("app.db");
 
 // an index of titles: the words in any order, the spaces optional, one typo forgiven
 var recipes = lui.Create("recipes", index => index.MultiWord().TypoTolerance());
@@ -81,7 +81,7 @@ to a set of entries: it reads them in batches, writes them in one transaction pe
 
 ```csharp
 // many records at once: Sync makes the index equal to the entries, in batches
-using var bulkCatalog = LuiCatalog.Open("Data Source=bulk.db");
+using var bulkCatalog = LuiCatalog.OpenOrCreate("bulk.db");
 var words = bulkCatalog.Create("words", index => index.SingleWord());
 
 var report = words.Sync(
@@ -331,7 +331,7 @@ your application, written by the **serialiser of the catalog** — source-genera
 
 ```csharp
 using Nordmann.LUI;
-using var withChips = LuiCatalog.Open("Data Source=chips.db", new LuiCatalogOptions
+using var withChips = LuiCatalog.OpenOrCreate("chips.db", new LuiCatalogOptions
 {
     PayloadSerializer = LuiPayloadSerializer.Json(TagJson.Default),   // one serialiser for every index of the catalog
 });
@@ -370,7 +370,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 var builder = Host.CreateApplicationBuilder();
-builder.Services.AddLui("Data Source=app.db");
+builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"));
 builder.Services.AddLuiWarmup();     // optional: the dictionaries at the start, the outbox every 30 s, told to the logger
 
 using var host = builder.Build();
@@ -396,11 +396,11 @@ phase is quiet.
 ## Only read
 
 Sometimes an application may only read: a replica, a file that is read-only. A catalog opened with
-`Mode=ReadOnly` writes nothing — no WAL, no `lui_meta` — and every write is refused with a `LuiReadOnlyException`.
+`OpenReadOnly` writes nothing — no WAL, no `lui_meta` — and every write is refused with a `LuiReadOnlyException`.
 
 ```csharp
 // the same file, opened for reading only: it reads and searches, and it writes nothing
-using var reader = LuiCatalog.Open("Data Source=app.db;Mode=ReadOnly");
+using var reader = LuiCatalog.OpenReadOnly("app.db");
 var opened = reader.Index("recipes");
 
 foreach (var hit in opened.Search("apfelkuch").Hits)

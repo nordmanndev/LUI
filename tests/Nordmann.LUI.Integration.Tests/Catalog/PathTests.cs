@@ -13,10 +13,13 @@ public sealed class PathTests
     public void A_bare_path_opens_the_catalogue()
     {
         using var database = new TestDatabase();
+        using (var created = LuiCatalog.OpenOrCreate(database.FilePath))
+        {
+            created.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+        }
 
         using var catalog = LuiCatalog.Open(database.FilePath);
 
-        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
         catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
     }
 
@@ -25,7 +28,7 @@ public sealed class PathTests
     {
         using var database = new TestDatabase();
 
-        using var catalog = LuiCatalog.Open(database.FilePath);
+        using var catalog = LuiCatalog.OpenOrCreate(database.FilePath);
 
         catalog.Path.ShouldBe(Path.GetFullPath(database.FilePath), "the path of the file is kept");
     }

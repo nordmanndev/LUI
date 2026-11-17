@@ -21,7 +21,7 @@ using System.Text.Json.Serialization;
 using Nordmann.LUI;
 
 // The catalog is opened with the serialiser — it belongs to the catalog.
-using var catalog = LuiCatalog.Open("Data Source=app.db", new LuiCatalogOptions
+using var catalog = LuiCatalog.OpenOrCreate("app.db", new LuiCatalogOptions
 {
     PayloadSerializer = LuiPayloadSerializer.Json(TagJson.Default),
 });
@@ -119,7 +119,7 @@ using (var connection = new SqliteConnection("Data Source=app.db"))
     command.ExecuteNonQuery();
 }
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // A linked index with a payload: the columns of the payload are named, the map builds it.
 var tags = catalog.CreateLinked(
@@ -149,7 +149,7 @@ map again:
 ```csharp
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // The map is code of the application — it is handed over when the index is opened.
 var tags = catalog.LinkedIndex<TagPayload>(
