@@ -107,6 +107,9 @@ still empty file of an application that had chosen its own mode.
 **LUI creates the file itself** (`FileMode.CreateNew`) instead of letting the provider do it, because "the file did not
 exist" cannot be observed after the provider's first connection has created it. Of two processes that open a missing
 file at the same time, one creates it and sets the mode; the other finds a file that is there and leaves it alone.
+If the opening fails after LUI created the file and the file is still empty — it has no mode yet — LUI deletes it
+(best effort), so that the next `OpenOrCreate` creates it again and sets the mode. LUI creates the file, not its
+directory: a missing directory is a `DirectoryNotFoundException`.
 
 ### 5. The pragmas are applied on every connection
 

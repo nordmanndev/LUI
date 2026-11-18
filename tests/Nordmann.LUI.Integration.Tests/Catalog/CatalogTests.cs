@@ -230,6 +230,54 @@ public sealed class CatalogTests
     }
 
     [Fact]
+    public void OpenReadOnly_refuses_an_empty_file_and_leaves_it_empty()
+    {
+        using var database = new TestDatabase();
+        File.WriteAllBytes(database.FilePath, []);
+
+        Should.Throw<LuiReadOnlyException>(() => LuiCatalog.OpenReadOnly(database.FilePath));
+
+        new FileInfo(database.FilePath).Length.ShouldBe(0, "a read-only catalog writes nothing");
+    }
+
+    [Fact]
+    public void OpenOrCreate_does_not_create_the_directory_of_the_file()
+    {
+        using var database = new TestDatabase();
+        var path = Path.Combine(Path.GetTempPath(), $"lui-missing-{Guid.NewGuid():N}", "app.db");
+
+        Should.Throw<DirectoryNotFoundException>(() => LuiCatalog.OpenOrCreate(path));
+
+        Directory.Exists(Path.GetDirectoryName(path)).ShouldBeFalse("LUI creates the file, not its directory");
+    }
+
+    // ADR-0066: of several processes that open a missing file at once, one creates it — all of them open it
+    [Fact]
+    public void Several_OpenOrCreate_on_a_missing_file_all_open_it_and_the_file_is_in_wal_mode()
+    {
+        using var database = new TestDatabase();
+
+        var catalogs = Enumerable.Range(0, 8)
+            .AsParallel()
+            .WithDegreeOfParallelism(8)
+            .Select(_ => LuiCatalog.OpenOrCreate(database.FilePath))
+            .ToArray();
+
+        try
+        {
+            catalogs.Length.ShouldBe(8);
+            database.Scalar<string>("PRAGMA journal_mode").ShouldBe("wal");
+        }
+        finally
+        {
+            foreach (var catalog in catalogs)
+            {
+                catalog.Dispose();
+            }
+        }
+    }
+
+    [Fact]
     public void Open_keeps_the_mode_of_the_file_it_opens()
     {
         using var database = new TestDatabase();

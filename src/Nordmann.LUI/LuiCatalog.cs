@@ -102,6 +102,7 @@ public sealed class LuiCatalog : IDisposable
     /// <returns>The catalog; dispose it when the application ends.</returns>
     /// <exception cref="ArgumentException">The path is empty, <c>:memory:</c>, a URI or a directory.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A value of <see cref="LuiCatalogOptions.Pragmas"/> is out of its bounds.</exception>
+    /// <exception cref="DirectoryNotFoundException">The directory of the file is missing: LUI creates the file, not its directory.</exception>
     /// <exception cref="LuiEnvironmentException">
     /// SQLite is too old, has no FTS5 trigram tokenizer, or folds text
     /// differently from the table the library was measured with.
@@ -149,7 +150,36 @@ public sealed class LuiCatalog : IDisposable
         catch
         {
             catalog.Dispose();
+            DiscardTheFileWhenItIsStillEmpty(fullPath, createdTheFile);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Takes back a file that LUI created and that is still empty when the opening failed (ADR-0066). A file that is
+    /// empty has not got its write-ahead logging yet, and the next <see cref="OpenOrCreate"/> would find a file that is
+    /// there and never set it. A file that has content already carries the mode LUI gave it, and stays. Best effort:
+    /// a file that cannot be deleted is left as it is.
+    /// </summary>
+    /// <param name="fullPath">The full path of the file.</param>
+    /// <param name="createdTheFile">Whether LUI created the file.</param>
+    private static void DiscardTheFileWhenItIsStillEmpty(string fullPath, bool createdTheFile)
+    {
+        if (!createdTheFile)
+        {
+            return;
+        }
+
+        try
+        {
+            if (new FileInfo(fullPath) is { Exists: true, Length: 0 })
+            {
+                File.Delete(fullPath);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // the opening failed already; the file stays, and the error of the opening is the one that is reported
         }
     }
 
