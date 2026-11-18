@@ -48,7 +48,7 @@ public static LuiCatalog OpenOrCreate(string path, LuiCatalogOptions? options = 
 public static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null);
 ```
 
-| Call | The file is missing | The file is no catalogue (no `lui_meta`, or no SQLite database) | The file is a catalogue |
+| Call | The file is missing | The file is a SQLite database without `lui_meta` | The file is a catalogue |
 |---|---|---|---|
 | `Open` | `LuiCatalogNotFoundException` | `LuiCatalogNotFoundException` | opened, read **and** write — **the open writes nothing** |
 | `OpenOrCreate` | **created and set up**: WAL, `lui_meta` | **set up**: `lui_meta`; the journal mode stays | opened, nothing written |
@@ -94,6 +94,11 @@ public static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = 
    does, with the same exception, and says the catalogue was opened with `OpenReadOnly`.
 
 ## Consequences
+
+- **Known limits of what SQLite reports.** A file of a few bytes that is no SQLite database is read by SQLite as an empty
+  database (under 100 bytes there is no header to refuse): `OpenOrCreate` then sets it up — it overwrites the file — and
+  `Open` names the missing `lui_meta`, not the missing database. A damaged database is SQLite's `SQLITE_CORRUPT`, a bare
+  `SqliteException`. A broken symbolic link is a problem of the file system and stays SQLite's error 14.
 
 - **The API of 0.3.0 breaks** (ADR-0069 (issue #172)): `Open(string connectionString,
   …)` becomes `Open(string path, …)`, `OpenOrCreate` and `OpenReadOnly` are new, `LuiCatalog.ConnectionString` becomes

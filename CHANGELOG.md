@@ -38,7 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Three ways to open a catalogue** (#171, [ADR-0068](.agents/adr/0068-three-ways-to-open-a-catalogue.md)) — **the
   first behaviour change comes first: `Open` no longer creates anything.**
 
-  | | the file is missing | the file is no catalogue | the file is a catalogue |
+  | | the file is missing | the file is a database without `lui_meta` | the file is a catalogue |
   |---|---|---|---|
   | `Open` | `LuiCatalogNotFoundException` | `LuiCatalogNotFoundException` | opened — **nothing is written** |
   | `OpenOrCreate` | created and set up (WAL, `lui_meta`) | `lui_meta` is added; the journal mode stays | opened |

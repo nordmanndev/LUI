@@ -428,17 +428,17 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
     {
         _database.RefuseTheTransactionOfTheApplication("writing to a linked index", Name, transaction);
 
-        if (transaction is not null)
-        {
-            var connection = transaction.Connection
-                ?? throw new ArgumentException("The transaction is complete.", nameof(transaction));
-            EnsureSameDatabase(connection, transaction);
-            write(connection, transaction);
-            return;
-        }
-
         try
         {
+            if (transaction is not null)
+            {
+                var connection = transaction.Connection
+                    ?? throw new ArgumentException("The transaction is complete.", nameof(transaction));
+                EnsureSameDatabase(connection, transaction);
+                write(connection, transaction);
+                return;
+            }
+
             lock (_database.WriterGate)
             {
                 using var own = _database.Writer.BeginTransaction(deferred: false);
