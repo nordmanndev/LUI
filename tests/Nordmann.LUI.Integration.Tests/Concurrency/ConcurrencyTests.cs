@@ -136,7 +136,7 @@ public sealed class ConcurrencyTests
         }
 
         // the writer waits a second for a lock: a conflict has to be an error, not a wait
-        using var writer = database.Open(new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(1) });
+        using var writer = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(1) } });
         var written = writer.Index("tags");
 
         const int Written = 500;

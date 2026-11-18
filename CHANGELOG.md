@@ -7,6 +7,57 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **The catalogue owns the connection: a path, and the settings are typed** (#169,
+  [ADR-0066](.agents/adr/0066-the-catalogue-owns-the-connection.md)): the entry points take the **path** of the file,
+  and LUI builds every connection itself — pooling on, a private cache, the mode of the method that opened it. The
+  application never hands LUI a connection string any more.
+
+  | before | after |
+  |---|---|
+  | `LuiCatalog.Open(connectionString, options?)` | `LuiCatalog.Open(path, options?)` |
+  | `LuiCatalog.ConnectionString` | `LuiCatalog.Path` — the full path of the file |
+  | `LuiCatalogOptions.BusyTimeout` | `LuiCatalogOptions.Pragmas.BusyTimeout` |
+  | `LuiCatalogOptions.CacheSizeMegabytes` | `LuiCatalogOptions.Pragmas.CacheSizeMegabytes` |
+  | `services.AddLui(connectionString, options?)` | `services.AddLui(_ => LuiCatalog.OpenOrCreate(path))` |
+  | `services.AddLui(sp => sp.GetRequiredService<IConfiguration>().GetConnectionString("app")!, options?)` | `services.AddLui(sp => LuiCatalog.OpenOrCreate(sp.GetRequiredService<IConfiguration>().GetValue<string>("App:Path")!))` |
+
+  A path is a **file path**: an empty path, `:memory:` and a URI (`file:…`) are refused with an `ArgumentException`.
+
+- **The values of the connections are checked when the catalogue is opened** — not when they are set. A value out of
+  range is an `ArgumentOutOfRangeException`, **before** a connection is opened: a file that is not written is not created
+  either. The busy timeout is **one second to ten minutes** (below a second, Microsoft.Data.Sqlite retries a busy
+  command until a second has passed anyway, [ADR-0046](.agents/adr/0046-the-busy-timeout-is-the-wait-for-a-lock.md)).
+
+- **The journal mode is set once, and only in a file LUI creates.** `OpenOrCreate` puts a file it creates itself into
+  WAL; a file that is there — the database of an application, a catalogue that is already there, even an empty file —
+  keeps the mode it has. `Open` and `OpenReadOnly` never set it. The mode is not a setting any more, and nothing
+  overrides it.
+
+- **`Open` and `OpenReadOnly` open a file that is there.** A missing file is a `LuiCatalogNotFoundException`; only
+  `OpenOrCreate` creates a file. (`Open` still creates `lui_meta` in a file that has none — that last write goes with
+  ADR-0068, #171.)
+
+### Added
+
+- **`LuiPragmas`** — the settings of the connections of a catalogue: `BusyTimeout` (5 s), `Synchronous` (`Normal` or
+  `Full`) and `CacheSizeMegabytes` (1 to 1024, **per connection**; without a value SQLite's own 2 MB).
+  **`LuiSynchronous`** — the two values of `synchronous` that make sense: `Off` would put the file at risk on a power
+  loss, `Extra` costs without a gain in the write-ahead log.
+- **`LuiCatalog.OpenOrCreate(path, options?)`** and **`LuiCatalog.OpenReadOnly(path, options?)`** — the ways to open a
+  catalogue that a path makes possible.
+- **`LuiCatalogNotFoundException`** (with `Path`) — there is no file at the path of `Open` or `OpenReadOnly`.
+
+### Removed
+
+- **`LuiCatalogOptions.MemoryMapMegabytes`** — measured: no gain (0,490 → 0,474 ms on a local disk, 3,440 → 3,305 ms on
+  a network mount, and 4 µs per opened connection).
+- **`LuiCatalogOptions.WriteAheadLog`** — the journal mode is a property of the file, and LUI sets it once.
+- **The two `AddLui` overloads with a connection string** — replaced by
+  `AddLui(this IServiceCollection services, Func<IServiceProvider, LuiCatalog> open)`. The container owns the catalogue
+  and disposes it; the way it is opened is the caller's.
+
 ## [0.2.0] — 2026-11-15
 
 The release of **0.2.0**: the round of the measured work — six pull requests, and every one of them ends in a number, with

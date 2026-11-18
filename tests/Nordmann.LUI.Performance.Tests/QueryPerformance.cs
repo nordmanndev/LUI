@@ -24,7 +24,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         var multi = corpus.Kind == CorpusKind.MultiWord;
         // the database of the scenario is kept between the runs: the build of three million entries takes minutes
         using var database = new TestDatabase(string.IsNullOrEmpty(Scenario.Database) ? null : Scenario.Database);
-        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         var tags = multi
             ? catalog.Create("tags", index => index.MultiWord())
             : catalog.Create("tags", index => index.SingleWord());

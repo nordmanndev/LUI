@@ -10,8 +10,8 @@ using Nordmann.LUI.Typos;
 namespace Nordmann.LUI;
 
 /// <summary>
-/// The entry point: knows the connection string and all indexes of a
-/// database (docs/api.md, docs/api.md). A catalog and its indexes are
+/// The entry point: knows the path of the file and all indexes of a
+/// database (docs/api.md, ADR-0066). A catalog and its indexes are
 /// meant to be singletons; they are safe to use from many threads.
 /// <para>
 /// Every operation opens its own connection from the pool of
@@ -26,8 +26,8 @@ namespace Nordmann.LUI;
 /// <para>
 /// It has two ways into an index (ADR-0033): <c>Create</c> creates one — once, in the migration of the application —
 /// and <see cref="Index(string)"/> or <see cref="LinkedIndex(string)"/> opens one that is there, without writing
-/// anything. Neither names a type (ADR-0035): the payload is read where it is used. Which of them may write is decided by the file: a catalog that was opened with
-/// <c>Mode=ReadOnly</c> refuses every write with a <see cref="LuiReadOnlyException"/>.
+/// anything. Neither names a type (ADR-0035): the payload is read where it is used. Which of them may write is decided by the file: a catalog that was opened
+/// read-only refuses every write with a <see cref="LuiReadOnlyException"/>.
 /// </para>
 /// </summary>
 public sealed class LuiCatalog : IDisposable
@@ -37,14 +37,14 @@ public sealed class LuiCatalog : IDisposable
 
     private readonly LuiCatalogOptions _options;
 
-    private LuiCatalog(string connectionString, LuiCatalogOptions options)
+    private LuiCatalog(string path, SqliteOpenMode mode, bool createdTheFile, LuiCatalogOptions options)
     {
         _options = options;
-        Database = new Database(this, connectionString, options);
+        Database = new Database(this, path, mode, createdTheFile, options);
     }
 
-    /// <summary>The connection string the catalog was opened with.</summary>
-    public string ConnectionString => Database.ConnectionString;
+    /// <summary>The path of the file the catalog was opened with (ADR-0066).</summary>
+    public string Path => Database.Path;
 
     internal TimeProvider TimeProvider => _options.TimeProvider;
 
@@ -58,39 +58,90 @@ public sealed class LuiCatalog : IDisposable
     internal TypoDictionaries TypoDictionaries { get; } = new();
 
     /// <summary>
-    /// Opens a catalog: checks the SQLite that is loaded, sets the pragmas
-    /// and creates <c>lui_meta</c> if it is missing.
+    /// Opens the catalog of a file that is there: checks the SQLite that is loaded and creates <c>lui_meta</c> if it is
+    /// missing. <b>A file that is not there is an error</b> — <c>Open</c> never creates a file; <see cref="OpenOrCreate"/>
+    /// does (ADR-0066, ADR-0068).
     /// <para>
-    /// <b>This switches the database to write-ahead logging</b> unless
-    /// <see cref="LuiCatalogOptions.WriteAheadLog"/> says otherwise. WAL is a
-    /// property of the file: it stays, adds <c>-wal</c> and <c>-shm</c> files and does
-    /// not work on network file systems. Turn it off when LUI shares the database of
-    /// an application that chose its own mode.
+    /// <b>The journal mode of the file stays what it is</b>: <c>Open</c> never sets it. LUI sets the write-ahead logging
+    /// only in the one case where it creates the file itself, in <see cref="OpenOrCreate"/>.
     /// </para>
     /// <para>
-    /// A file that may not be written (<c>Mode=ReadOnly</c>) is opened as it is: no write-ahead logging, and no
-    /// <c>lui_meta</c> — the table has to be there, and if it is not, the catalog says so (ADR-0033).
+    /// The path is a <b>file path</b> (ADR-0066): LUI builds every connection itself — pooling on, a private cache — and
+    /// the application never sees a connection string. An empty path, <c>:memory:</c>, a URI (<c>file:…</c>) and a
+    /// directory are refused.
     /// </para>
     /// </summary>
-    /// <param name="connectionString">The database: the one of the application, or a file of LUI's own (ADR-0014).</param>
+    /// <param name="path">The file of the catalog: the one of the application, or a file of LUI's own (ADR-0014).</param>
     /// <param name="options">The settings; <see langword="null"/> takes the defaults.</param>
     /// <returns>The catalog; dispose it when the application ends.</returns>
+    /// <exception cref="ArgumentException">The path is empty, <c>:memory:</c>, a URI or a directory.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A value of <see cref="LuiCatalogOptions.Pragmas"/> is out of its bounds.</exception>
+    /// <exception cref="LuiCatalogNotFoundException">There is no file at the path.</exception>
     /// <exception cref="LuiEnvironmentException">
     /// SQLite is too old, has no FTS5 trigram tokenizer, or folds text
     /// differently from the table the library was measured with.
     /// </exception>
-    /// <exception cref="LuiReadOnlyException">
-    /// The file may not be written and has no <c>lui_meta</c>: a read-only catalog cannot create it.
+    public static LuiCatalog Open(string path, LuiCatalogOptions? options = null) =>
+        OpenCatalog(path, options, SqliteOpenMode.ReadWrite, create: false);
+
+    /// <summary>
+    /// Opens a catalog, and creates the file when it is missing (ADR-0066).
+    /// <para>
+    /// <b>This sets the journal mode of the file — in one case only: when LUI creates the file itself.</b> A new file
+    /// is put into write-ahead logging, once. A file that is there keeps the mode it has, whether it is empty or not:
+    /// the file is the application's, and LUI does not change it.
+    /// </para>
+    /// <para>
+    /// The path is a <b>file path</b> (ADR-0066): LUI builds every connection itself — pooling on, a private cache — and
+    /// the application never sees a connection string. An empty path, <c>:memory:</c>, a URI (<c>file:…</c>) and a
+    /// directory are refused.
+    /// </para>
+    /// </summary>
+    /// <param name="path">The file of the catalog: the one of the application, or a file of LUI's own (ADR-0014).</param>
+    /// <param name="options">The settings; <see langword="null"/> takes the defaults.</param>
+    /// <returns>The catalog; dispose it when the application ends.</returns>
+    /// <exception cref="ArgumentException">The path is empty, <c>:memory:</c>, a URI or a directory.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A value of <see cref="LuiCatalogOptions.Pragmas"/> is out of its bounds.</exception>
+    /// <exception cref="DirectoryNotFoundException">The directory of the file is missing: LUI creates the file, not its directory.</exception>
+    /// <exception cref="LuiEnvironmentException">
+    /// SQLite is too old, has no FTS5 trigram tokenizer, or folds text
+    /// differently from the table the library was measured with.
     /// </exception>
-    public static LuiCatalog Open(string connectionString, LuiCatalogOptions? options = null)
+    public static LuiCatalog OpenOrCreate(string path, LuiCatalogOptions? options = null) =>
+        OpenCatalog(path, options, SqliteOpenMode.ReadWriteCreate, create: true);
+
+    /// <summary>
+    /// Opens a catalog on a file that may not be written: every connection of it is read-only, and every write is
+    /// refused with a <see cref="LuiReadOnlyException"/>. The file has to be there, and it needs a <c>lui_meta</c> — a
+    /// read-only catalog cannot create either. The journal mode is never touched.
+    /// </summary>
+    /// <param name="path">The file of the catalog.</param>
+    /// <param name="options">The settings; <see langword="null"/> takes the defaults.</param>
+    /// <returns>The catalog; dispose it when the application ends.</returns>
+    /// <exception cref="ArgumentException">The path is empty, <c>:memory:</c>, a URI or a directory.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A value of <see cref="LuiCatalogOptions.Pragmas"/> is out of its bounds.</exception>
+    /// <exception cref="LuiCatalogNotFoundException">There is no file at the path.</exception>
+    /// <exception cref="LuiReadOnlyException">The file has no <c>lui_meta</c>: a read-only catalog cannot create it.</exception>
+    public static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null) =>
+        OpenCatalog(path, options, SqliteOpenMode.ReadOnly, create: false);
+
+    /// <summary>
+    /// Opens the catalog: the path is checked, the settings are checked, the environment is checked — and only then the
+    /// file is touched. A value that is out of its bounds is refused <b>before</b> a connection is opened, so a file that
+    /// is not written is not created either (ADR-0066).
+    /// </summary>
+    private static LuiCatalog OpenCatalog(string path, LuiCatalogOptions? options, SqliteOpenMode mode, bool create)
     {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
+        var fullPath = ValidatePath(path);
         options ??= new LuiCatalogOptions();
+        ValidatePragmas(options.Pragmas);
 
         EnsureSqliteVersion(LoadedSqliteVersion());
         FoldProbe.EnsureVerified();
 
-        var catalog = new LuiCatalog(connectionString, options);
+        var createdTheFile = EnsureFile(fullPath, create);
+
+        var catalog = new LuiCatalog(fullPath, mode, createdTheFile, options);
         try
         {
             IndexStore.Initialize(catalog.Database);
@@ -99,7 +150,130 @@ public sealed class LuiCatalog : IDisposable
         catch
         {
             catalog.Dispose();
+            DiscardTheFileWhenItIsStillEmpty(fullPath, createdTheFile);
             throw;
+        }
+    }
+
+    /// <summary>
+    /// Takes back a file that LUI created and that is still empty when the opening failed (ADR-0066). A file that is
+    /// empty has not got its write-ahead logging yet, and the next <see cref="OpenOrCreate"/> would find a file that is
+    /// there and never set it. A file that has content already carries the mode LUI gave it, and stays. Best effort:
+    /// a file that cannot be deleted is left as it is.
+    /// </summary>
+    /// <param name="fullPath">The full path of the file.</param>
+    /// <param name="createdTheFile">Whether LUI created the file.</param>
+    private static void DiscardTheFileWhenItIsStillEmpty(string fullPath, bool createdTheFile)
+    {
+        if (!createdTheFile)
+        {
+            return;
+        }
+
+        try
+        {
+            if (new FileInfo(fullPath) is { Exists: true, Length: 0 })
+            {
+                File.Delete(fullPath);
+            }
+        }
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+        {
+            // the opening failed already; the file stays, and the error of the opening is the one that is reported
+        }
+    }
+
+    /// <summary>
+    /// The path of the file of the catalog (ADR-0066): a file path, resolved with <see cref="Path.GetFullPath(string)"/>.
+    /// An empty path, <c>:memory:</c>, a URI (<c>file:…</c>) and a directory are refused — deliberately: an encrypted
+    /// database, a VFS of its own and a URI file name are not supported.
+    /// </summary>
+    /// <param name="path">The path the application gave.</param>
+    /// <returns>The full path of the file.</returns>
+    /// <exception cref="ArgumentException">The path is empty, <c>:memory:</c>, a URI, a directory or no path at all.</exception>
+    private static string ValidatePath(string path)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+
+        if (path.Equals(":memory:", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                "The path of the catalog is a file path: ':memory:' is not one.",
+                nameof(path));
+        }
+
+        if (path.StartsWith("file:", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                "The path of the catalog is a file path: a URI ('file:…') is not one.",
+                nameof(path));
+        }
+
+        string fullPath;
+        try
+        {
+            fullPath = System.IO.Path.GetFullPath(path);
+        }
+        catch (Exception exception) when (exception is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            throw new ArgumentException($"The path of the catalog is a file path: '{path}' is not one.", nameof(path), exception);
+        }
+
+        return Directory.Exists(fullPath)
+            ? throw new ArgumentException($"The path of the catalog is a file path: '{path}' is a directory.", nameof(path))
+            : fullPath;
+    }
+
+    /// <summary>
+    /// Makes sure the file is there — or says it is not (ADR-0066). <b>Only <see cref="OpenOrCreate"/> creates it</b>,
+    /// and it creates it itself, before SQLite does: that is how LUI knows the file is its own to set up. The file is
+    /// created exclusively, so of two processes that open a missing file at the same time one creates it and sets
+    /// the journal mode, and the other finds a file that is there and leaves it alone.
+    /// </summary>
+    /// <param name="fullPath">The full path of the file.</param>
+    /// <param name="create">Whether a missing file is created.</param>
+    /// <returns>Whether LUI created the file.</returns>
+    /// <exception cref="LuiCatalogNotFoundException">The file is missing, and the catalog may not create it.</exception>
+    private static bool EnsureFile(string fullPath, bool create)
+    {
+        if (File.Exists(fullPath))
+        {
+            return false;
+        }
+
+        if (!create)
+        {
+            throw new LuiCatalogNotFoundException(fullPath);
+        }
+
+        try
+        {
+            using var file = new FileStream(fullPath, FileMode.CreateNew, FileAccess.Write, FileShare.ReadWrite);
+            return true;
+        }
+        catch (IOException) when (File.Exists(fullPath))
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// The bounds of the settings of the connections (ADR-0066): the busy timeout is one second to ten minutes, the
+    /// synchronous is one of the two values of <see cref="LuiSynchronous"/>, and the cache size is 1 to 1024 megabytes.
+    /// </summary>
+    /// <param name="pragmas">The settings of the connections.</param>
+    /// <exception cref="ArgumentNullException">The settings are missing.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">A value is out of its bounds.</exception>
+    private static void ValidatePragmas(LuiPragmas pragmas)
+    {
+        ArgumentNullException.ThrowIfNull(pragmas);
+
+        Setting.InRange(pragmas.BusyTimeout, TimeSpan.FromSeconds(1), TimeSpan.FromMinutes(10), nameof(LuiPragmas.BusyTimeout));
+        Setting.Defined(pragmas.Synchronous, nameof(LuiPragmas.Synchronous));
+
+        if (pragmas.CacheSizeMegabytes is { } cache)
+        {
+            Setting.InRange(cache, 1, 1024, nameof(LuiPragmas.CacheSizeMegabytes));
         }
     }
 

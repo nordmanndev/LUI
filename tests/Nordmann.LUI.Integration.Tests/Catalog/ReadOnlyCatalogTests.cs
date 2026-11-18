@@ -33,7 +33,8 @@ public sealed class ReadOnlyCatalogTests
     public void A_read_only_catalog_writes_nothing()
     {
         using var database = new TestDatabase();
-        using (var writer = database.Open(new LuiCatalogOptions { WriteAheadLog = false }))
+        database.PrepareWithATable();
+        using (var writer = database.Open())
         {
             writer.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
         }
@@ -159,9 +160,9 @@ public sealed class ReadOnlyCatalogTests
         exception.Message.ShouldContain("lui_meta");
     }
 
-    /// <summary>The catalog of the file that may not be written — the same file, a connection string that says so.</summary>
+    /// <summary>The catalog of the file that may not be written — the same file, opened read-only.</summary>
     private static LuiCatalog ReadOnly(TestDatabase database) =>
-        LuiCatalog.Open($"Data Source={database.FilePath};Mode=ReadOnly");
+        LuiCatalog.OpenReadOnly(database.FilePath);
 
     /// <summary>The mode of the write-ahead log of the file: "delete" or "wal".</summary>
     private static string JournalMode(TestDatabase database)

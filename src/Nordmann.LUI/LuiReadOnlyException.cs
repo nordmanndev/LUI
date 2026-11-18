@@ -7,7 +7,7 @@ namespace Nordmann.LUI;
 /// definition, no write lock.
 /// <para>
 /// The same application code runs in the service that writes and in the service that only reads: the second one
-/// opens the same file with a read-only connection string.
+/// opens the same file with <see cref="LuiCatalog.OpenReadOnly(string, LuiCatalogOptions?)"/>.
 /// </para>
 /// </summary>
 public sealed class LuiReadOnlyException : LuiException
@@ -17,7 +17,7 @@ public sealed class LuiReadOnlyException : LuiException
     public LuiReadOnlyException(string operation)
         : base(
             $"The catalog is read-only: the database was opened with Mode=ReadOnly, so {operation} is refused. "
-            + "Open the catalog with a connection string that may write (Data Source=app.db) to write; a read-only "
+            + "Open the catalog with LuiCatalog.Open or LuiCatalog.OpenOrCreate to write; a read-only "
             + "catalog reads and searches.")
     {
         Operation = operation;

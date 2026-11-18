@@ -38,7 +38,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
         var options = new LuiSyncOptions { BatchSize = batch };
 
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         var wordIndex = catalog.Create("words", index => index.SingleWord());
 
         var report = Timed("sync, empty index", () => wordIndex.Sync(source, options));
@@ -89,7 +89,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
         var source = corpus.Entries().ToList();
 
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         var wordIndex = catalog.Create("words", index => index.SingleWord().TypoTolerance());
         Timed("sync, empty index", () => wordIndex.Sync(source, new LuiSyncOptions { BatchSize = 1_000_000 }));
         Timed("warm-up of the typo dictionary", () =>

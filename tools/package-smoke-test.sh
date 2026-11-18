@@ -148,7 +148,7 @@ Console.WriteLine($"found {catalogType.FullName}");
 var path = Path.Combine(Path.GetTempPath(), $"lui-smoke-{Environment.ProcessId}.db");
 try
 {
-    using (var catalog = LuiCatalog.Open($"Data Source={path}"))
+    using (var catalog = LuiCatalog.OpenOrCreate(path))
     {
         var tags = catalog.Create("tags", index => index.SingleWord());
         tags.Upsert(1, "Apfelkuchen", weight: 10);

@@ -36,6 +36,7 @@ public sealed class TestDatabase : IDisposable
 
     public string FilePath => _path;
 
+    /// <summary>The connection string of the plain connections of the test — the catalog builds its own (ADR-0066).</summary>
     public string ConnectionString => $"Data Source={_path}";
 
     public LuiCatalog Open(LuiCatalogOptions? options = null)
@@ -45,9 +46,21 @@ public sealed class TestDatabase : IDisposable
         options ??= new LuiCatalogOptions();
         options = options.PayloadSerializer is null ? options with { PayloadSerializer = ChipSerializer } : options;
 
-        var catalog = LuiCatalog.Open(ConnectionString, options);
+        var catalog = LuiCatalog.OpenOrCreate(FilePath, options);
         _catalogs.Add(catalog);
         return catalog;
+    }
+
+    /// <summary>
+    /// Creates the file with a table of its own, as an application does: the file is there before LUI opens it, so LUI
+    /// keeps its journal mode — LUI sets the mode only in a file it creates itself (ADR-0066 — the journal mode).
+    /// </summary>
+    public void PrepareWithATable()
+    {
+        using var connection = Connect();
+        using var command = connection.CreateCommand();
+        command.CommandText = "CREATE TABLE app(id INTEGER PRIMARY KEY);";
+        command.ExecuteNonQuery();
     }
 
     /// <summary>A plain connection, for looking at what the library left in the file.</summary>

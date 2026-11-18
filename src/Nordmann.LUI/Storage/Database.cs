@@ -4,13 +4,17 @@ using Microsoft.Data.Sqlite;
 namespace Nordmann.LUI.Storage;
 
 /// <summary>
-/// The database of a catalog (ADR-0046, ADR-0015, ADR-0046): opens connections with the pragmas of the catalog, keeps
-/// the one long-lived connection of LUI's own writes and the lock that serialises them, and counts the operations
-/// that are running, so that <see cref="Dispose"/> waits for them. It knows no index — the layers above it ask it for
-/// connections (review DevEx D4: the catalog taken apart).
+/// The database of a catalog (ADR-0046, ADR-0015, ADR-0046, ADR-0066): opens connections with the pragmas of the
+/// catalog, keeps the one long-lived connection of LUI's own writes and the lock that serialises them, and counts the
+/// operations that are running, so that <see cref="Dispose"/> waits for them. It knows no index — the layers above it
+/// ask it for connections (review DevEx D4: the catalog taken apart).
 /// <para>
-/// It knows whether the file may be written (ADR-0033): the connection string says so. A file that may not be written
-/// has no writer and no write-ahead logging — the writes are refused with a <see cref="LuiReadOnlyException"/>.
+/// <b>LUI builds the connections</b> (ADR-0066): the path of the catalog, the mode of the method that opened it,
+/// pooling on and a private cache — the application cannot set any of it.
+/// </para>
+/// <para>
+/// It knows whether the file may be written (ADR-0033): the mode says so. A file that may not be written has no writer
+/// and no write-ahead logging — the writes are refused with a <see cref="LuiReadOnlyException"/>.
 /// </para>
 /// </summary>
 internal sealed class Database : IDisposable
@@ -22,25 +26,57 @@ internal sealed class Database : IDisposable
     private bool _disposed;
     private SqliteConnection? _writer;
 
+    /// <summary>Whether LUI created the file and sets its journal mode — once, in <see cref="Initialize"/>.</summary>
+    private readonly bool _setsJournalMode;
+
     /// <param name="owner">What an operation on a disposed database names: the catalog the application holds.</param>
-    /// <param name="connectionString">The connection string.</param>
+    /// <param name="path">The full path of the file of the catalog.</param>
+    /// <param name="mode">The mode of every connection of the catalog.</param>
+    /// <param name="createdTheFile">Whether LUI created the file itself — the one case in which it sets the journal mode.</param>
     /// <param name="options">The settings of the catalog.</param>
-    internal Database(object owner, string connectionString, LuiCatalogOptions options)
+    internal Database(object owner, string path, SqliteOpenMode mode, bool createdTheFile, LuiCatalogOptions options)
     {
         _owner = owner;
-        ConnectionString = connectionString;
         _options = options;
-        ReadOnly = IsReadOnly(connectionString);
+        _setsJournalMode = createdTheFile && mode != SqliteOpenMode.ReadOnly;
+        Path = path;
+        Mode = mode;
+        ConnectionString = BuildConnectionString(path, mode).ToString();
+        ReadOnly = mode == SqliteOpenMode.ReadOnly;
     }
 
-    /// <summary>The connection string the catalog was opened with.</summary>
+    /// <summary>The full path of the file of the catalog.</summary>
+    internal string Path { get; }
+
+    /// <summary>The mode of every connection of the catalog (ADR-0066).</summary>
+    internal SqliteOpenMode Mode { get; }
+
+    /// <summary>The connection string LUI built (ADR-0066) — the application never sees one.</summary>
     internal string ConnectionString { get; }
 
     /// <summary>
-    /// Whether the file may not be written (ADR-0033): the connection string says so — <c>Mode=ReadOnly</c>. The file
-    /// decides what may happen, not a switch in the options: a read-only catalog writes nothing.
+    /// Whether the file may not be written (ADR-0033): the mode says so — <c>Mode=ReadOnly</c>. The file decides what
+    /// may happen, not a switch in the options: a read-only catalog writes nothing.
     /// </summary>
     internal bool ReadOnly { get; }
+
+    /// <summary>
+    /// The plan of a connection (ADR-0066): the path of the file, the mode of the catalog, pooling on and a private
+    /// cache. Pooling and the cache mode are LUI's — an application that turned the pooling off would open a physical
+    /// connection per query (136,6 µs instead of 13,0 µs), and a shared cache would put the connections of a process into
+    /// SQLite's shared-cache mode, with table locks.
+    /// </summary>
+    /// <param name="path">The full path of the file of the catalog.</param>
+    /// <param name="mode">The mode of the connection.</param>
+    /// <returns>The plan; the connection string is what its <c>ToString</c> says.</returns>
+    internal static SqliteConnectionStringBuilder BuildConnectionString(string path, SqliteOpenMode mode) =>
+        new SqliteConnectionStringBuilder
+        {
+            DataSource = path,
+            Mode = mode,
+            Pooling = true,
+            Cache = SqliteCacheMode.Private,
+        };
 
     /// <summary>Refuses a write when the file may not be written.</summary>
     /// <param name="operation">What was refused, in words: "creating an index".</param>
@@ -52,10 +88,6 @@ internal sealed class Database : IDisposable
             throw new LuiReadOnlyException(operation);
         }
     }
-
-    /// <summary>Whether the connection string asks for a file that may not be written.</summary>
-    private static bool IsReadOnly(string connectionString) =>
-        new SqliteConnectionStringBuilder(connectionString).Mode == SqliteOpenMode.ReadOnly;
 
     /// <summary>
     /// How long Microsoft.Data.Sqlite retries a busy command, in seconds — its smallest value that is not "forever" (0).
@@ -127,13 +159,13 @@ internal sealed class Database : IDisposable
     }
 
     /// <summary>
-    /// Switches the file to write-ahead logging (ADR-0046), if the options ask for it. WAL is a property of the file; for
-    /// a database that cannot have it (in memory) SQLite keeps its mode. A file that may not be written keeps its mode
-    /// too: a read-only catalog writes nothing (ADR-0033).
+    /// Switches the file to write-ahead logging — once, and <b>only when LUI created the file itself</b> (ADR-0066 — the
+    /// journal mode). A file that was there keeps its mode, whether it holds tables or not: LUI neither switches it nor
+    /// resets it. A file that may not be written keeps its mode too: a read-only catalog writes nothing (ADR-0033).
     /// </summary>
     internal void Initialize(SqliteConnection connection)
     {
-        if (!_options.WriteAheadLog || ReadOnly)
+        if (!_setsJournalMode)
         {
             return;
         }
@@ -171,24 +203,38 @@ internal sealed class Database : IDisposable
         SqliteConnection.ClearPool(connection);
     }
 
-    private string Pragmas()
+    /// <summary>
+    /// The pragmas of a connection: the three that belong to it (ADR-0066) — the busy timeout, the synchronous and the
+    /// cache size. The journal mode is not among them: it is a property of the file, and a read-only connection cannot
+    /// set it.
+    /// </summary>
+    internal string Pragmas()
     {
-        var timeout = (long)_options.BusyTimeout.TotalMilliseconds;
-        var pragmas = string.Create(CultureInfo.InvariantCulture, $"PRAGMA busy_timeout = {timeout}; PRAGMA synchronous = NORMAL;");
+        var pragmas = _options.Pragmas;
+        var timeout = (long)pragmas.BusyTimeout.TotalMilliseconds;
+        var statement = string.Create(
+            CultureInfo.InvariantCulture,
+            $"PRAGMA busy_timeout = {timeout}; PRAGMA synchronous = {SqliteName(pragmas.Synchronous)};");
 
-        if (_options.CacheSizeMegabytes is { } cache)
+        if (pragmas.CacheSizeMegabytes is { } cache)
         {
             // a negative cache_size is a size in KiB
-            pragmas += string.Create(CultureInfo.InvariantCulture, $" PRAGMA cache_size = -{cache * 1024L};");
+            statement += string.Create(CultureInfo.InvariantCulture, $" PRAGMA cache_size = -{cache * 1024L};");
         }
 
-        if (_options.MemoryMapMegabytes is { } map)
-        {
-            pragmas += string.Create(CultureInfo.InvariantCulture, $" PRAGMA mmap_size = {map * 1024L * 1024L};");
-        }
-
-        return pragmas;
+        return statement;
     }
+
+    /// <summary>The name SQLite knows the value of the synchronous under.</summary>
+    private static string SqliteName(LuiSynchronous synchronous) => synchronous switch
+    {
+        LuiSynchronous.Normal => "NORMAL",
+        LuiSynchronous.Full => "FULL",
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(synchronous),
+            synchronous,
+            $"The synchronous of a connection is {string.Join(" or ", Enum.GetNames<LuiSynchronous>())}."),
+    };
 
     private void End()
     {
