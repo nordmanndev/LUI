@@ -188,6 +188,9 @@ internal sealed class Database : IDisposable
         }
     }
 
+    /// <summary>Opens the connection of the read path (ADR-0067) — for now the connection of the catalogue.</summary>
+    internal SqliteConnection OpenReadConnection() => OpenConnection();
+
     /// <summary>
     /// Switches the file to write-ahead logging — once, and <b>only when LUI created the file itself</b> (ADR-0066 — the
     /// journal mode). A file that was there keeps its mode, whether it holds tables or not: LUI neither switches it nor

@@ -108,6 +108,19 @@ public sealed class PublicApiShapeTests
     }
 
     [Fact]
+    public void The_statements_of_the_read_path_are_prepared()
+    {
+        // ADR-0067: the three statements of a query are prepared — an explicit Prepare() costs nothing (measured) and
+        // states the intent. The guard reads the sources: a command that is built and not prepared fails here.
+        foreach (var file in new[] { "Querying/CandidateReader.cs", "Querying/HitReader.cs", "Querying/TypoCorrection.cs" })
+        {
+            var source = File.ReadAllText(Path.Combine(Repository.RootPath, "src", "Nordmann.LUI", file));
+
+            source.Contains(".Prepare();", StringComparison.Ordinal).ShouldBeTrue($"{file} prepares its statement");
+        }
+    }
+
+    [Fact]
     public void The_catalogue_has_no_second_read_only_notion_and_no_connection_string()
     {
         // ADR-0068: the way a catalogue was opened is its only read-only notion; SQLite refuses a write and LUI translates
