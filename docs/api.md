@@ -26,9 +26,9 @@ using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 | Member | What it does |
 |---|---|
-| `static LuiCatalog Open(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there — a missing file is a `LuiCatalogNotFoundException`; `Open` never creates one and never sets the journal mode. It probes the SQLite it found (version, folding) and refuses a database it cannot search correctly. |
-| `static LuiCatalog OpenOrCreate(string path, LuiCatalogOptions? options = null)` | opens the catalog and creates the file when it is missing. **LUI sets the write-ahead logging only in a file it creates itself**; a file that is there keeps its journal mode, empty or not (ADR-0066). |
-| `static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there and may not be written (a missing file is a `LuiCatalogNotFoundException`): every connection of it is read-only, and every write is refused with a `LuiReadOnlyException`. |
+| `static LuiCatalog Open(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, and **writes nothing**: a file that is missing or is no catalog (no SQLite database, no `lui_meta`) is a `LuiCatalogNotFoundException`. It never creates a file, never creates `lui_meta` and never sets the journal mode. It probes the SQLite it found (version, folding) and refuses a database it cannot search correctly. |
+| `static LuiCatalog OpenOrCreate(string path, LuiCatalogOptions? options = null)` | opens the catalog and sets the file up: the file is created when it is missing, `lui_meta` is created when the file has none (the database of an application), and a catalog that is there is not written. **LUI sets the write-ahead logging only in a file it creates itself**; a file that is there keeps its journal mode, empty or not (ADR-0066, ADR-0068). |
+| `static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, **to read only**: every connection of it is read-only, and SQLite refuses every write, which LUI turns into a `LuiReadOnlyException`. A file that is missing or is no catalog is a `LuiCatalogNotFoundException`. |
 | `ILuiEmbeddedIndex Create(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)` | creates an **embedded** index — the content lives in the library's own table. It is the write path and belongs in the migration of the application. |
 | `ILuiLinkedIndex CreateLinked(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)` | creates a **linked** index — the content stays in the table of the application. The route is named in the call, as it is on the side of opening (`Index` / `LinkedIndex`). |
 | `ILuiEmbeddedIndex Index(string name)` | opens an embedded index that exists, and **writes nothing**: the definition is read out of the file, no table, no write lock. |
@@ -62,8 +62,8 @@ The settings of the catalog. Every one of them has a default; none of them has t
 | `ILuiPayloadSerializer? PayloadSerializer` | none | the serialiser of the payloads of this catalog — one for every index of it |
 | `TimeProvider TimeProvider` | `TimeProvider.System` | the clock of the catalog, for the timings and for tests |
 
-The file decides whether writing is allowed at all: a catalog opened with `OpenReadOnly` writes nothing, and every
-write throws a `LuiReadOnlyException`.
+The file decides whether writing is allowed at all: a catalog opened with `OpenReadOnly` writes nothing, and SQLite refuses
+every write — LUI turns the refusal into a `LuiReadOnlyException` that says why (ADR-0068).
 
 ### `LuiPragmas`
 
@@ -467,10 +467,10 @@ library.
 | `LuiEnvironmentException` | the environment is not what the library needs — the SQLite is too old, or it folds differently than the one the library was measured with |
 | `LuiDefinitionMismatchException` | the index in the file was written with another definition, another version of the schema or another folding. It carries `IndexName`, `Stored` and `Requested`. |
 | `LuiIndexNotFoundException` | there is no index of that name in the database. It carries `IndexName`. |
-| `LuiCatalogNotFoundException` | there is no file at the path of a catalog that is opened, not created. It carries `Path`. |
+| `LuiCatalogNotFoundException` | there is no catalog at the path: the file is missing, it is no SQLite database, or it has no lui_meta table. The ways to open a catalog that is there do not create one. It carries `Path`. |
 | `LuiLinkedTableException` | the table of the application is missing, or a column of it, or its key is not the `INTEGER PRIMARY KEY` |
 | `LuiPayloadException` | a payload cannot be read in the type asked for. It carries `IndexName`, `Key` and `RequestedType`. |
-| `LuiReadOnlyException` | the file may not be written. It carries `Operation`. |
+| `LuiReadOnlyException` | SQLite refused a write because the file may not be written. The message names the reason — the catalog was opened read-only, or the file and its directory may not be written — the operation and the index; the error of SQLite is the inner exception. It carries `Operation`. |
 
 ---
 

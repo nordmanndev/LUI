@@ -300,25 +300,32 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
         using var scope = _database.Begin();
         List<string> problems = [];
         var fits = false;
-        lock (_database.WriterGate)
+        try
         {
-            // the integrity check of FTS5 is an insert: it runs on the writer, and the transaction is rolled back
-            var writer = _database.Writer;
-            using var transaction = writer.BeginTransaction(deferred: false);
-            fits = IndexCheck.Definition(writer, transaction, _source, problems) && TableFits(writer, transaction, problems);
-            if (fits)
+            lock (_database.WriterGate)
             {
-                if (TriggerState(writer, transaction) == LuiTriggerState.Stale)
+                // the integrity check of FTS5 is an insert: it runs on the writer, and the transaction is rolled back
+                var writer = _database.Writer;
+                using var transaction = writer.BeginTransaction(deferred: false);
+                fits = IndexCheck.Definition(writer, transaction, _source, problems) && TableFits(writer, transaction, problems);
+                if (fits)
                 {
-                    problems.Add(
-                        $"The triggers of '{Name}' on the table '{_source.Link.Table}' are not the ones the index writes now: "
-                        + "CreateTriggers() creates them anew — or put TriggerScript() into a migration.");
+                    if (TriggerState(writer, transaction) == LuiTriggerState.Stale)
+                    {
+                        problems.Add(
+                            $"The triggers of '{Name}' on the table '{_source.Link.Table}' are not the ones the index writes now: "
+                            + "CreateTriggers() creates them anew — or put TriggerScript() into a migration.");
+                    }
+
+                    IndexCheck.SearchIndex(writer, transaction, _source, problems, "Sync() builds the index anew.");
                 }
 
-                IndexCheck.SearchIndex(writer, transaction, _source, problems, "Sync() builds the index anew.");
+                transaction.Rollback();
             }
-
-            transaction.Rollback();
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("checking an index", Name, exception);
         }
 
         if (!fits)
@@ -419,7 +426,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
     /// </summary>
     private void Write(SqliteTransaction? transaction, Action<SqliteConnection, SqliteTransaction> write)
     {
-        _database.ThrowIfReadOnly("writing to a linked index");
+        _database.RefuseTheTransactionOfTheApplication("writing to a linked index", Name, transaction);
 
         if (transaction is not null)
         {
@@ -430,11 +437,18 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
             return;
         }
 
-        lock (_database.WriterGate)
+        try
         {
-            using var own = _database.Writer.BeginTransaction(deferred: false);
-            write(_database.Writer, own);
-            own.Commit();
+            lock (_database.WriterGate)
+            {
+                using var own = _database.Writer.BeginTransaction(deferred: false);
+                write(_database.Writer, own);
+                own.Commit();
+            }
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("writing to a linked index", Name, exception);
         }
     }
 

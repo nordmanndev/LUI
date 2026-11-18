@@ -17,44 +17,51 @@ internal static class IndexStore
         "SELECT kind, source, definition, schema_version FROM lui_meta WHERE index_name = $name;";
 
     /// <summary>
-    /// Creates <c>lui_meta</c> if it is missing — and switches a file that LUI created itself to write-ahead logging.
-    /// <para>
-    /// A file that may not be written gets neither (ADR-0033): a read-only catalog creates no table and writes no
-    /// pragma. The table has to be there — the writer made it — and if it is not, the catalog says so.
-    /// </para>
+    /// Sets the file up — <c>OpenOrCreate</c> only (ADR-0068): the write-ahead logging, when LUI created the file itself
+    /// (ADR-0066 — the journal mode), and <c>lui_meta</c>, when the file has none — the database of an application, or a new file. A file
+    /// that is a catalogue already is not written at all.
     /// </summary>
-    internal static void Initialize(Database database)
+    /// <param name="database">The database.</param>
+    internal static void SetUp(Database database)
     {
-        if (database.ReadOnly)
-        {
-            EnsureMetaTable(database);
-            return;
-        }
-
         using var connection = database.OpenConnection();
         database.Initialize(connection);
+
+        if (HasMetaTable(connection))
+        {
+            return;
+        }
 
         using var meta = connection.CreateCommand();
         meta.CommandText = Meta.CreateTable;
         meta.ExecuteNonQuery();
     }
 
-    /// <summary>The table of the library has to be there: a read-only catalog cannot create it.</summary>
-    /// <exception cref="LuiReadOnlyException">The file has no <c>lui_meta</c>.</exception>
-    private static void EnsureMetaTable(Database database)
+    /// <summary>
+    /// Checks that the file is a catalogue — <c>Open</c> and <c>OpenReadOnly</c> (ADR-0068). It reads and writes nothing
+    /// else: a file without <c>lui_meta</c> is no catalogue, and it is not made one.
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <exception cref="LuiCatalogNotFoundException">The file has no <c>lui_meta</c>.</exception>
+    internal static void Verify(Database database)
     {
         using var connection = database.OpenConnection();
+
+        if (!HasMetaTable(connection))
+        {
+            throw new LuiCatalogNotFoundException(
+                database.Path,
+                $"The file '{database.Path}' is no catalog: it has no table 'lui_meta'. LuiCatalog.Open and LuiCatalog.OpenReadOnly "
+                + "open a catalog that is there and do not turn a file into one — LuiCatalog.OpenOrCreate sets the file up.",
+                inner: null);
+        }
+    }
+
+    private static bool HasMetaTable(SqliteConnection connection)
+    {
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'lui_meta';";
-
-        if ((long)command.ExecuteScalar()! == 0)
-        {
-            throw new LuiReadOnlyException(
-                "opening the catalog",
-                "The file has no table 'lui_meta': a read-only catalog cannot create it. Create the index with a "
-                + "writable catalog first (LuiCatalog.OpenOrCreate(\"app.db\") and Create(name, …)), or open the "
-                + "file that the writer wrote.");
-        }
+        return (long)command.ExecuteScalar()! != 0;
     }
 
     /// <summary>
@@ -74,8 +81,22 @@ internal static class IndexStore
         DateTimeOffset createdAt,
         Action<SqliteConnection, SqliteTransaction>? verify = null)
     {
-        database.ThrowIfReadOnly("creating an index");
+        try
+        {
+            CreateIndex(database, source, createdAt, verify);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw database.ReadOnlyRefusal("creating an index", source.IndexName, exception);
+        }
+    }
 
+    private static void CreateIndex(
+        Database database,
+        ContentSource source,
+        DateTimeOffset createdAt,
+        Action<SqliteConnection, SqliteTransaction>? verify)
+    {
         using var scope = database.Begin();
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
@@ -111,8 +132,18 @@ internal static class IndexStore
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     internal static bool Drop(Database database, string name, bool dropTriggers)
     {
-        database.ThrowIfReadOnly("dropping an index");
+        try
+        {
+            return DropIndex(database, name, dropTriggers);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw database.ReadOnlyRefusal("dropping an index", name, exception);
+        }
+    }
 
+    private static bool DropIndex(Database database, string name, bool dropTriggers)
+    {
         using var scope = database.Begin();
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);

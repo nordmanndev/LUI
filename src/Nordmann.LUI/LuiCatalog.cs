@@ -37,6 +37,12 @@ public sealed class LuiCatalog : IDisposable
 
     private readonly LuiCatalogOptions _options;
 
+    /// <summary>The primary result code of SQLite for a file that cannot be opened (<c>SQLITE_CANTOPEN</c>).</summary>
+    private const int SqliteCannotOpen = 14;
+
+    /// <summary>The primary result code of SQLite for a file that is no database (<c>SQLITE_NOTADB</c>).</summary>
+    private const int SqliteNotADatabase = 26;
+
     private LuiCatalog(string path, SqliteOpenMode mode, bool createdTheFile, LuiCatalogOptions options)
     {
         _options = options;
@@ -58,9 +64,10 @@ public sealed class LuiCatalog : IDisposable
     internal TypoDictionaries TypoDictionaries { get; } = new();
 
     /// <summary>
-    /// Opens the catalog of a file that is there: checks the SQLite that is loaded and creates <c>lui_meta</c> if it is
-    /// missing. <b>A file that is not there is an error</b> — <c>Open</c> never creates a file; <see cref="OpenOrCreate"/>
-    /// does (ADR-0066, ADR-0068).
+    /// Opens the catalog of a file that is there, and <b>writes nothing</b> (ADR-0068): it checks the SQLite that is loaded and
+    /// that the file is a catalog — a SQLite database with a <c>lui_meta</c>. A file that is not there, or is no catalog,
+    /// is a <see cref="LuiCatalogNotFoundException"/>: <c>Open</c> never creates a file and never turns one into a catalog;
+    /// <see cref="OpenOrCreate"/> does.
     /// <para>
     /// <b>The journal mode of the file stays what it is</b>: <c>Open</c> never sets it. LUI sets the write-ahead logging
     /// only in the one case where it creates the file itself, in <see cref="OpenOrCreate"/>.
@@ -76,7 +83,7 @@ public sealed class LuiCatalog : IDisposable
     /// <returns>The catalog; dispose it when the application ends.</returns>
     /// <exception cref="ArgumentException">The path is empty, <c>:memory:</c>, a URI or a directory.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A value of <see cref="LuiCatalogOptions.Pragmas"/> is out of its bounds.</exception>
-    /// <exception cref="LuiCatalogNotFoundException">There is no file at the path.</exception>
+    /// <exception cref="LuiCatalogNotFoundException">There is no file at the path, or the file is no catalog.</exception>
     /// <exception cref="LuiEnvironmentException">
     /// SQLite is too old, has no FTS5 trigram tokenizer, or folds text
     /// differently from the table the library was measured with.
@@ -85,7 +92,9 @@ public sealed class LuiCatalog : IDisposable
         OpenCatalog(path, options, SqliteOpenMode.ReadWrite, create: false);
 
     /// <summary>
-    /// Opens a catalog, and creates the file when it is missing (ADR-0066).
+    /// Opens a catalog and sets the file up completely (ADR-0068): the file is created when it is missing, and
+    /// <c>lui_meta</c> is created when the file has none — in a new file, and in the database of an application. A file
+    /// that is a catalog already is not written.
     /// <para>
     /// <b>This sets the journal mode of the file — in one case only: when LUI creates the file itself.</b> A new file
     /// is put into write-ahead logging, once. A file that is there keeps the mode it has, whether it is empty or not:
@@ -111,17 +120,17 @@ public sealed class LuiCatalog : IDisposable
         OpenCatalog(path, options, SqliteOpenMode.ReadWriteCreate, create: true);
 
     /// <summary>
-    /// Opens a catalog on a file that may not be written: every connection of it is read-only, and every write is
-    /// refused with a <see cref="LuiReadOnlyException"/>. The file has to be there, and it needs a <c>lui_meta</c> — a
-    /// read-only catalog cannot create either. The journal mode is never touched.
+    /// Opens a catalog that may only be read (ADR-0068): every connection of it is read-only, SQLite refuses every write,
+    /// and LUI turns the refusal into a <see cref="LuiReadOnlyException"/> that names the reason. Like <see cref="Open"/>
+    /// it checks the file and writes nothing: the file has to be there, and it has to be a catalog. The journal mode is
+    /// never touched.
     /// </summary>
     /// <param name="path">The file of the catalog.</param>
     /// <param name="options">The settings; <see langword="null"/> takes the defaults.</param>
     /// <returns>The catalog; dispose it when the application ends.</returns>
     /// <exception cref="ArgumentException">The path is empty, <c>:memory:</c>, a URI or a directory.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A value of <see cref="LuiCatalogOptions.Pragmas"/> is out of its bounds.</exception>
-    /// <exception cref="LuiCatalogNotFoundException">There is no file at the path.</exception>
-    /// <exception cref="LuiReadOnlyException">The file has no <c>lui_meta</c>: a read-only catalog cannot create it.</exception>
+    /// <exception cref="LuiCatalogNotFoundException">There is no file at the path, or the file is no catalog.</exception>
     public static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null) =>
         OpenCatalog(path, options, SqliteOpenMode.ReadOnly, create: false);
 
@@ -139,13 +148,27 @@ public sealed class LuiCatalog : IDisposable
         EnsureSqliteVersion(LoadedSqliteVersion());
         FoldProbe.EnsureVerified();
 
-        var createdTheFile = EnsureFile(fullPath, create);
+        var createdTheFile = create && CreateTheFile(fullPath);
 
         var catalog = new LuiCatalog(fullPath, mode, createdTheFile, options);
         try
         {
-            IndexStore.Initialize(catalog.Database);
+            if (create)
+            {
+                IndexStore.SetUp(catalog.Database);
+            }
+            else
+            {
+                IndexStore.Verify(catalog.Database);
+            }
+
             return catalog;
+        }
+        catch (SqliteException exception) when (MeansNoCatalog(exception, fullPath))
+        {
+            catalog.Dispose();
+            DiscardTheFileWhenItIsStillEmpty(fullPath, createdTheFile);
+            throw Translate(exception, fullPath);
         }
         catch
         {
@@ -154,6 +177,25 @@ public sealed class LuiCatalog : IDisposable
             throw;
         }
     }
+
+    /// <summary>
+    /// Whether SQLite's error says that there is no catalogue at the path (ADR-0068): the file is not there
+    /// (<c>SQLITE_CANTOPEN</c>, and no file at the path), or it is no database (<c>SQLITE_NOTADB</c>). Every other error
+    /// stays what it is.
+    /// </summary>
+    private static bool MeansNoCatalog(SqliteException exception, string fullPath) =>
+        exception.SqliteErrorCode == SqliteNotADatabase
+        || (exception.SqliteErrorCode == SqliteCannotOpen && !File.Exists(fullPath));
+
+    /// <summary>The exception of LUI for an error that <see cref="MeansNoCatalog"/> recognised.</summary>
+    private static LuiCatalogNotFoundException Translate(SqliteException exception, string fullPath) =>
+        exception.SqliteErrorCode == SqliteNotADatabase
+            ? new LuiCatalogNotFoundException(
+                fullPath,
+                $"The file '{fullPath}' is no SQLite database, so it is no catalog. Correct the path; LuiCatalog.OpenOrCreate creates "
+                + "a catalog in a file that does not exist yet, or in a SQLite database.",
+                exception)
+            : new LuiCatalogNotFoundException(fullPath);
 
     /// <summary>
     /// Takes back a file that LUI created and that is still empty when the opening failed (ADR-0066). A file that is
@@ -225,25 +267,19 @@ public sealed class LuiCatalog : IDisposable
     }
 
     /// <summary>
-    /// Makes sure the file is there — or says it is not (ADR-0066). <b>Only <see cref="OpenOrCreate"/> creates it</b>,
-    /// and it creates it itself, before SQLite does: that is how LUI knows the file is its own to set up. The file is
-    /// created exclusively, so of two processes that open a missing file at the same time one creates it and sets
-    /// the journal mode, and the other finds a file that is there and leaves it alone.
+    /// Creates the file — <see cref="OpenOrCreate"/> only (ADR-0068) — and it creates it itself, before SQLite does: that is
+    /// how LUI knows the file is its own to set up (ADR-0066 — the journal mode). The file is created exclusively, so of two processes that
+    /// open a missing file at the same time one creates it and sets the journal mode, and the other finds a file that is
+    /// there and leaves it alone. <c>Open</c> and <c>OpenReadOnly</c> do not call this: their connections never create a file,
+    /// and the refusal of SQLite is what says that it is missing.
     /// </summary>
     /// <param name="fullPath">The full path of the file.</param>
-    /// <param name="create">Whether a missing file is created.</param>
     /// <returns>Whether LUI created the file.</returns>
-    /// <exception cref="LuiCatalogNotFoundException">The file is missing, and the catalog may not create it.</exception>
-    private static bool EnsureFile(string fullPath, bool create)
+    private static bool CreateTheFile(string fullPath)
     {
         if (File.Exists(fullPath))
         {
             return false;
-        }
-
-        if (!create)
-        {
-            throw new LuiCatalogNotFoundException(fullPath);
         }
 
         try
