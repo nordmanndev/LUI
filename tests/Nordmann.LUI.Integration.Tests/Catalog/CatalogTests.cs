@@ -230,12 +230,13 @@ public sealed class CatalogTests
     }
 
     [Fact]
-    public void OpenReadOnly_refuses_an_empty_file_and_leaves_it_empty()
+    public void OpenReadOnly_refuses_an_empty_file_as_no_catalogue_and_leaves_it_empty()
     {
         using var database = new TestDatabase();
         File.WriteAllBytes(database.FilePath, []);
 
-        Should.Throw<LuiReadOnlyException>(() => LuiCatalog.OpenReadOnly(database.FilePath));
+        Should.Throw<LuiCatalogNotFoundException>(() => LuiCatalog.OpenReadOnly(database.FilePath))
+            .Message.ShouldContain("lui_meta");
 
         new FileInfo(database.FilePath).Length.ShouldBe(0, "a read-only catalog writes nothing");
     }
@@ -282,10 +283,14 @@ public sealed class CatalogTests
     {
         using var database = new TestDatabase();
         database.PrepareWithATable();
+        using (var setUp = LuiCatalog.OpenOrCreate(database.FilePath))
+        {
+            setUp.Create("tags", index => index.SingleWord());
+        }
 
         using (var catalog = LuiCatalog.Open(database.FilePath))
         {
-            catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+            catalog.Index("tags").Upsert(1, "vegan");
         }
 
         database.Scalar<string>("PRAGMA journal_mode").ShouldBe("delete", "Open never sets the journal mode");

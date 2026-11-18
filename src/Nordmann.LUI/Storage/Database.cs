@@ -13,8 +13,9 @@ namespace Nordmann.LUI.Storage;
 /// pooling on and a private cache — the application cannot set any of it.
 /// </para>
 /// <para>
-/// It knows whether the file may be written (ADR-0033): the mode says so. A file that may not be written has no writer
-/// and no write-ahead logging — the writes are refused with a <see cref="LuiReadOnlyException"/>.
+/// It does not guard the file (ADR-0068): a catalogue opened with <c>OpenReadOnly</c> has read-only connections, SQLite
+/// refuses every write on them, and <see cref="ReadOnlyRefusal"/> turns the refusal into a <see cref="LuiReadOnlyException"/>
+/// that says why.
 /// </para>
 /// </summary>
 internal sealed class Database : IDisposable
@@ -38,11 +39,10 @@ internal sealed class Database : IDisposable
     {
         _owner = owner;
         _options = options;
-        _setsJournalMode = createdTheFile && mode != SqliteOpenMode.ReadOnly;
+        _setsJournalMode = createdTheFile;
         Path = path;
         Mode = mode;
         ConnectionString = BuildConnectionString(path, mode).ToString();
-        ReadOnly = mode == SqliteOpenMode.ReadOnly;
     }
 
     /// <summary>The full path of the file of the catalog.</summary>
@@ -53,12 +53,6 @@ internal sealed class Database : IDisposable
 
     /// <summary>The connection string LUI built (ADR-0066) — the application never sees one.</summary>
     internal string ConnectionString { get; }
-
-    /// <summary>
-    /// Whether the file may not be written (ADR-0033): the mode says so — <c>Mode=ReadOnly</c>. The file decides what
-    /// may happen, not a switch in the options: a read-only catalog writes nothing.
-    /// </summary>
-    internal bool ReadOnly { get; }
 
     /// <summary>
     /// The plan of a connection (ADR-0066): the path of the file, the mode of the catalog, pooling on and a private
@@ -78,16 +72,53 @@ internal sealed class Database : IDisposable
             Cache = SqliteCacheMode.Private,
         };
 
-    /// <summary>Refuses a write when the file may not be written.</summary>
-    /// <param name="operation">What was refused, in words: "creating an index".</param>
-    /// <exception cref="LuiReadOnlyException">The file was opened read-only.</exception>
-    internal void ThrowIfReadOnly(string operation)
+    /// <summary>SQLite's primary result code for a write into a database that may not be written (<c>SQLITE_READONLY</c>).</summary>
+    private const int SqliteReadOnly = 8;
+
+    /// <summary>
+    /// Whether SQLite refused a write because the database may not be written (ADR-0068). <b>SQLite is the guard</b>: LUI
+    /// asks nothing beforehand, it translates the refusal — <see cref="ReadOnlyRefusal"/>.
+    /// </summary>
+    /// <param name="exception">The error of SQLite.</param>
+    /// <returns><see langword="true"/> when the write was refused for want of rights.</returns>
+    internal static bool IsReadOnlyRefusal(SqliteException exception) => exception.SqliteErrorCode == SqliteReadOnly;
+
+    /// <summary>
+    /// The exception for a write that SQLite refused (ADR-0068): it names the reason — the catalogue was opened with
+    /// <c>OpenReadOnly</c>, or the file or its directory may not be written — the operation and the index. The error of SQLite
+    /// is its inner exception.
+    /// </summary>
+    /// <param name="operation">What was refused, in words: "writing an entry".</param>
+    /// <param name="indexName">The index the write was meant for.</param>
+    /// <param name="refusal">The error of SQLite.</param>
+    /// <returns>The exception to throw.</returns>
+    internal LuiReadOnlyException ReadOnlyRefusal(string operation, string indexName, SqliteException refusal) =>
+        new(operation, Mode == SqliteOpenMode.ReadOnly ? OpenedReadOnly(operation, indexName) : FileRefused(operation, indexName), refusal);
+
+    /// <summary>
+    /// Refuses the transaction of the application on a catalogue that was opened with <c>OpenReadOnly</c> (ADR-0068). SQLite
+    /// cannot guard it: the transaction is on the connection of the application, which may write. Everything else is
+    /// SQLite's to refuse.
+    /// </summary>
+    /// <param name="operation">What is refused, in words: "writing an entry".</param>
+    /// <param name="indexName">The index the write was meant for.</param>
+    /// <param name="transaction">The transaction of the application, if there is one.</param>
+    /// <exception cref="LuiReadOnlyException">The catalogue was opened with <c>OpenReadOnly</c>.</exception>
+    internal void RefuseTheTransactionOfTheApplication(string operation, string indexName, SqliteTransaction? transaction)
     {
-        if (ReadOnly)
+        if (transaction is not null && Mode == SqliteOpenMode.ReadOnly)
         {
-            throw new LuiReadOnlyException(operation);
+            throw new LuiReadOnlyException(operation, OpenedReadOnly(operation, indexName), inner: null);
         }
     }
+
+    private string OpenedReadOnly(string operation, string indexName) =>
+        $"The catalog '{Path}' was opened with OpenReadOnly — {operation} (index '{indexName}') is not allowed. "
+        + "Open it with LuiCatalog.Open or LuiCatalog.OpenOrCreate to write.";
+
+    private string FileRefused(string operation, string indexName) =>
+        $"SQLite refuses to write to '{Path}' — {operation} (index '{indexName}') failed: the file or its directory may not "
+        + "be written (rights, a read-only medium, or the '-wal' and '-shm' files cannot be created).";
 
     /// <summary>
     /// How long Microsoft.Data.Sqlite retries a busy command, in seconds — its smallest value that is not "forever" (0).
@@ -100,8 +131,8 @@ internal sealed class Database : IDisposable
 
     /// <summary>
     /// The connection of the catalog's own writes. SQLite has one writer per file (ADR-0015, ADR-0046), so one long-lived connection
-    /// serves them all — and keeps the prepared statements (ADR-0009). A file that may not be written has no writer:
-    /// the write is refused before the connection is opened.
+    /// serves them all — and keeps the prepared statements (ADR-0009). A catalogue opened with <c>OpenReadOnly</c> has a
+    /// writer like any other, in the read-only mode of its connections: SQLite refuses what it writes (ADR-0068).
     /// </summary>
     internal SqliteConnection Writer
     {
@@ -110,7 +141,6 @@ internal sealed class Database : IDisposable
             lock (_lifetime)
             {
                 ThrowIfDisposed();
-                ThrowIfReadOnly("writing to the database");
                 return _writer ??= OpenConnection();
             }
         }
@@ -161,7 +191,7 @@ internal sealed class Database : IDisposable
     /// <summary>
     /// Switches the file to write-ahead logging — once, and <b>only when LUI created the file itself</b> (ADR-0066 — the
     /// journal mode). A file that was there keeps its mode, whether it holds tables or not: LUI neither switches it nor
-    /// resets it. A file that may not be written keeps its mode too: a read-only catalog writes nothing (ADR-0033).
+    /// resets it. <c>Open</c> and <c>OpenReadOnly</c> never create the file, so they never set the mode (ADR-0068).
     /// </summary>
     internal void Initialize(SqliteConnection connection)
     {

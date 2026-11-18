@@ -74,7 +74,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
     public void Upsert(LuiEntry entry, SqliteTransaction? transaction = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        _database.ThrowIfReadOnly("writing an entry");
+        _database.RefuseTheTransactionOfTheApplication("writing an entry", Name, transaction);
         var keyText = KeyText(entry.Key);
         var bytes = PayloadBytes(entry.Payload);
 
@@ -86,6 +86,10 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         catch (SqliteException exception) when (IsDocIdExhausted(exception))
         {
             throw DocIdsExhausted(exception);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("writing an entry", Name, exception);
         }
 
         // the new word beginnings join the typo dictionary, if it is built (ADR-0012)
@@ -106,7 +110,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        _database.ThrowIfReadOnly("writing entries");
+        _database.RefuseTheTransactionOfTheApplication("writing entries", Name, transaction);
 
         using var scope = _database.Begin();
         var written = new List<(string Text, int Weight)>();
@@ -124,6 +128,10 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         catch (SqliteException exception) when (IsDocIdExhausted(exception))
         {
             throw DocIdsExhausted(exception);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("writing entries", Name, exception);
         }
 
         // once, after the writes: the dictionary takes its write lock one time for the whole batch
@@ -205,7 +213,6 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         LuiSyncOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        _database.ThrowIfReadOnly("syncing an index");
         using var scope = _database.Begin();
         try
         {
@@ -214,6 +221,10 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         catch (SqliteException exception) when (IsDocIdExhausted(exception))
         {
             throw DocIdsExhausted(exception);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("syncing an index", Name, exception);
         }
     }
 
@@ -228,50 +239,102 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         return Sync(entries.ToBlockingEnumerable(cancellationToken), options, cancellationToken);
     }
 
-    public LuiIntegrityReport Check(IEnumerable<LuiEntry> entries, CancellationToken cancellationToken = default) =>
-        _check.Against(entries, cancellationToken);
+    public LuiIntegrityReport Check(IEnumerable<LuiEntry> entries, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return _check.Against(entries, cancellationToken);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("checking an index", Name, exception);
+        }
+    }
 
-    public LuiIntegrityReport Check() => _check.Itself();
+    public LuiIntegrityReport Check()
+    {
+        try
+        {
+            return _check.Itself();
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("checking an index", Name, exception);
+        }
+    }
 
     public void Rebuild()
     {
-        _database.ThrowIfReadOnly("rebuilding an index");
-        _check.Rebuild();
+        try
+        {
+            _check.Rebuild();
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("rebuilding an index", Name, exception);
+        }
     }
 
     public void Optimize()
     {
-        _database.ThrowIfReadOnly("optimizing an index");
-        _check.Optimize();
+        try
+        {
+            _check.Optimize();
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("optimizing an index", Name, exception);
+        }
     }
 
     public bool UpdateWeight(LuiKey key, int weight, SqliteTransaction? transaction = null)
     {
-        _database.ThrowIfReadOnly("changing the weight of an entry");
+        _database.RefuseTheTransactionOfTheApplication("changing the weight of an entry", Name, transaction);
         var keyText = KeyText(key);
         RowId.ValidateWeight(weight);
 
         using var scope = _database.Begin();
-        return StatementsFor(transaction).UpdateWeight(keyText, weight, transaction);
+        try
+        {
+            return StatementsFor(transaction).UpdateWeight(keyText, weight, transaction);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("changing the weight of an entry", Name, exception);
+        }
     }
 
     public bool UpdatePriority(LuiKey key, LuiPriority priority, SqliteTransaction? transaction = null)
     {
-        _database.ThrowIfReadOnly("changing the priority of an entry");
+        _database.RefuseTheTransactionOfTheApplication("changing the priority of an entry", Name, transaction);
         var keyText = KeyText(key);
         RowId.ValidatePriority(priority);
 
         using var scope = _database.Begin();
-        return StatementsFor(transaction).UpdatePriority(keyText, (int)priority, transaction);
+        try
+        {
+            return StatementsFor(transaction).UpdatePriority(keyText, (int)priority, transaction);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("changing the priority of an entry", Name, exception);
+        }
     }
 
     public bool Remove(LuiKey key, SqliteTransaction? transaction = null)
     {
-        _database.ThrowIfReadOnly("removing an entry");
+        _database.RefuseTheTransactionOfTheApplication("removing an entry", Name, transaction);
         var keyText = KeyText(key);
 
         using var scope = _database.Begin();
-        return StatementsFor(transaction).Remove(keyText, transaction);
+        try
+        {
+            return StatementsFor(transaction).Remove(keyText, transaction);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("removing an entry", Name, exception);
+        }
     }
 
     public void RebuildTypoDictionary(CancellationToken cancellationToken = default)

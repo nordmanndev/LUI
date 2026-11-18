@@ -87,7 +87,7 @@ public sealed class ReadOnlyCatalogTests
         var exception = Should.Throw<LuiReadOnlyException>(() => index.Upsert(2, "vegetarisch"));
 
         exception.Operation.ShouldBe("writing an entry");
-        exception.Message.ShouldContain("Mode=ReadOnly");
+        exception.Message.ShouldContain("OpenReadOnly");
         index.Count().ShouldBe(1, "the entry was not written");
     }
 
@@ -155,7 +155,7 @@ public sealed class ReadOnlyCatalogTests
             command.ExecuteNonQuery();
         }
 
-        var exception = Should.Throw<LuiReadOnlyException>(() => ReadOnly(database));
+        var exception = Should.Throw<LuiCatalogNotFoundException>(() => ReadOnly(database));
 
         exception.Message.ShouldContain("lui_meta");
     }

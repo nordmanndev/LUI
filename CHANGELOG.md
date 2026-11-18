@@ -35,9 +35,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keeps the mode it has. `Open` and `OpenReadOnly` never set it. The mode is not a setting any more, and nothing
   overrides it.
 
-- **`Open` and `OpenReadOnly` open a file that is there.** A missing file is a `LuiCatalogNotFoundException`; only
-  `OpenOrCreate` creates a file. (`Open` still creates `lui_meta` in a file that has none — that last write goes with
-  ADR-0068, #171.)
+- **Three ways to open a catalogue** (#171, [ADR-0068](.agents/adr/0068-three-ways-to-open-a-catalogue.md)) — **the
+  first behaviour change comes first: `Open` no longer creates anything.**
+
+  | | the file is missing | the file is a database without `lui_meta` | the file is a catalogue |
+  |---|---|---|---|
+  | `Open` | `LuiCatalogNotFoundException` | `LuiCatalogNotFoundException` | opened — **nothing is written** |
+  | `OpenOrCreate` | created and set up (WAL, `lui_meta`) | `lui_meta` is added; the journal mode stays | opened |
+  | `OpenReadOnly` | `LuiCatalogNotFoundException` | `LuiCatalogNotFoundException` | opened, read only |
+
+  An application that called `Open` on a new file **compiles and fails at its first start**: call `OpenOrCreate`. A file
+  that is no catalogue — an application's database without `lui_meta`, or a file that is no SQLite database — is no longer
+  turned into one by `Open`.
+
+- **A refused write is a `LuiReadOnlyException` that says why.** SQLite refuses (`SQLITE_READONLY`), LUI translates, and the
+  message names the reason: the catalogue was opened with `OpenReadOnly` (with the operation, the index, and how to write),
+  or the file or its directory may not be written. The error of SQLite is the inner exception. A write in the transaction
+  of the application on a catalogue opened with `OpenReadOnly` is refused the same way. **A write that has nothing to
+  write is no longer refused:** `Create` of an index that exists with the same definition, `ApplyPending` and `DropTriggers`
+  with nothing to do now return on a catalogue opened with `OpenReadOnly` — SQLite refuses a write, not a call.
 
 ### Added
 
@@ -47,7 +63,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   loss, `Extra` costs without a gain in the write-ahead log.
 - **`LuiCatalog.OpenOrCreate(path, options?)`** and **`LuiCatalog.OpenReadOnly(path, options?)`** — the ways to open a
   catalogue that a path makes possible.
-- **`LuiCatalogNotFoundException`** (with `Path`) — there is no file at the path of `Open` or `OpenReadOnly`.
+- **`LuiCatalogNotFoundException`** (with `Path`) — there is no catalogue at the path of `Open` or `OpenReadOnly`: the file is
+  missing, it is no SQLite database, or it has no `lui_meta`.
 
 ### Removed
 

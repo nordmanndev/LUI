@@ -108,6 +108,19 @@ public sealed class PublicApiShapeTests
     }
 
     [Fact]
+    public void The_catalogue_has_no_second_read_only_notion_and_no_connection_string()
+    {
+        // ADR-0068: the way a catalogue was opened is its only read-only notion; SQLite refuses a write and LUI translates
+        // the refusal. A bool and a guard beside it would be a second answer to the same question.
+        const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        var database = LibraryAssembly.GetType("Nordmann.LUI.Storage.Database").ShouldNotBeNull();
+
+        database.GetProperty("ReadOnly", all).ShouldBeNull("Database.ReadOnly is the second read-only notion");
+        database.GetMethod("ThrowIfReadOnly", all).ShouldBeNull("the refusal comes from SQLite, not from a guard of LUI");
+        typeof(LuiCatalog).GetProperty("ConnectionString", all).ShouldBeNull("the application never sees a connection string");
+    }
+
+    [Fact]
     public void Every_exception_the_library_exposes_is_a_LuiException()
     {
         // One type for "something LUI says about an index or its environment", still an InvalidOperationException
