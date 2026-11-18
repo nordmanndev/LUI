@@ -83,6 +83,13 @@ times the cache size* ([0066](./0066-the-catalogue-owns-the-connection.md) bound
   [0066](./0066-the-catalogue-owns-the-connection.md) does not carry. LUI translates the failure into a
   `LuiReadOnlyException` (a `LuiException`) that names the directory. A catalogue on a read-only medium is a file in the
   rollback journal, or a WAL file shipped with its `-shm`.
+- **The writer closes last.** `Dispose` clears the pool of the read connections first and closes the writer after it: only a
+  connection that may write checkpoints the write-ahead log into the file and removes the `-wal` and `-shm` when it is the
+  last one to close (a test copies the file alone after `Dispose` and reads it).
+- **A catalogue that was only read leaves its `-wal` and `-shm` behind.** No connection of it may write, so none of them can
+  remove the two files: they stay (the `-wal` empty) next to the file until a connection that may write closes last.
+- **A read-only connection cannot recover a hot rollback journal either.** After a crash of the writer the first connection
+  that may write rolls the journal back; a reader that only reads waits for it or fails with `SQLITE_BUSY`.
 - **A read-only connection cannot recover a hot WAL.** After a crash of the writer, the first connection with write
   access recovers it; a reader that only reads waits for it.
 - **The pragma statement runs per query** (11,2 µs). It is the price of the pool, and it is what makes the busy timeout of
@@ -104,4 +111,5 @@ numbers are for the comparison, not for the budgets of the README): before this 
 | corrected query, p50 / p95 / max | 0,56 ms / 2,08 ms / 6,1 ms | 0,58 ms / 2,11 ms / 6,3 ms |
 | allocation of a corrected query, p50 / p95 | 21 KB / 55 KB | 21 KB / 55 KB |
 
-The read path is no slower and allocates no more: the budget of the allocation (p50 ≤ 60 KB) and of the latency hold.
+`Prepare()` itself is a statement of intent: measured with and without it, a query takes the same time and allocates the
+same. The read path is no slower and allocates no more: the budget of the allocation (p50 ≤ 60 KB) and of the latency hold.

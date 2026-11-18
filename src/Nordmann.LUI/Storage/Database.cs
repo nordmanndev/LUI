@@ -243,16 +243,19 @@ internal sealed class Database : IDisposable
             }
         }
 
-        _writer?.Dispose();
-
-        // a file that stays locked by a pooled connection cannot be deleted: the pool of the writer and the pool of the read path
-        using (var connection = new SqliteConnection(ConnectionString))
+        // The read connections go first, the writer last (ADR-0067): only a connection that may write checkpoints the
+        // write-ahead log into the file and removes the '-wal' and '-shm' when it is the last one to close. A read-only
+        // connection cannot, so the writer must not close while one is still open.
+        using (var reader = new SqliteConnection(ReadConnectionString))
         {
-            SqliteConnection.ClearPool(connection);
+            SqliteConnection.ClearPool(reader);
         }
 
-        using var reader = new SqliteConnection(ReadConnectionString);
-        SqliteConnection.ClearPool(reader);
+        _writer?.Dispose();
+
+        // a file that stays locked by a pooled connection cannot be deleted
+        using var connection = new SqliteConnection(ConnectionString);
+        SqliteConnection.ClearPool(connection);
     }
 
     /// <summary>

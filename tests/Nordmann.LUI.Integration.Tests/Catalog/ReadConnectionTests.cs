@@ -87,6 +87,8 @@ public sealed class ReadConnectionTests
         transaction.Rollback();
     }
 
+    // a guard, not a proof of the change: SQLite falls back to read-only on a file without rights in the mode ReadWrite as
+    // well — what this keeps is that the read path answers from such a file whichever way the catalogue was opened
     [Fact]
     public void A_file_that_may_not_be_written_answers_a_query()
     {
@@ -115,6 +117,44 @@ public sealed class ReadConnectionTests
             {
                 File.SetUnixFileMode(database.FilePath, UnixFileMode.UserRead | UnixFileMode.UserWrite);
             }
+        }
+    }
+
+    [Fact]
+    public void A_catalogue_that_wrote_and_was_read_leaves_its_file_whole_when_it_is_disposed()
+    {
+        // the writer has to be the LAST connection to close: only a connection that may write checkpoints the write-ahead log
+        // into the file and removes the -wal and -shm. If the read connections close after it, the data stays in the -wal
+        // and the file alone is an empty database — a copy of it is no catalogue.
+        using var database = new TestDatabase();
+        var copy = database.FilePath + ".copy";
+
+        using (var catalog = LuiCatalog.OpenOrCreate(database.FilePath))
+        {
+            var tags = catalog.Create("tags", index => index.SingleWord());
+            for (var i = 1; i <= 50; i++)
+            {
+                tags.Upsert(i, $"tag{i}");
+            }
+
+            tags.Search("tag").Hits.ShouldNotBeEmpty();
+        }
+
+        try
+        {
+            File.Exists(database.FilePath + "-wal").ShouldBeFalse("the writer closed last, and checkpointed");
+            File.Copy(database.FilePath, copy);
+
+            using var reader = LuiCatalog.OpenReadOnly(copy);
+
+            reader.Index("tags").Count().ShouldBe(50, "the file alone holds what was written");
+        }
+        finally
+        {
+            SqliteConnection.ClearAllPools();
+            File.Delete(copy);
+            File.Delete(copy + "-wal");
+            File.Delete(copy + "-shm");
         }
     }
 

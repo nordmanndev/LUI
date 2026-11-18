@@ -54,6 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   may notice: a catalogue opened with `Open` or `OpenOrCreate` now has **two pools** (the writer's and the read path's), and
   a catalogue in write-ahead logging in a directory that may not be written is refused when it is opened, with a
   `LuiReadOnlyException` that names the directory (a read-only connection needs the `-wal` and `-shm` files even to read).
+  A catalogue in write-ahead logging that was **only read** leaves its `-wal` (empty) and `-shm` next to the file when it is
+  closed — a read-only connection cannot remove them; a catalogue that was written is checkpointed and clean, as before.
   Measured on the same corpus, the query is no slower and allocates no more.
 
 - **A refused write is a `LuiReadOnlyException` that says why.** SQLite refuses (`SQLITE_READONLY`), LUI translates, and the
