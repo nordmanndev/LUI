@@ -144,7 +144,7 @@ catch (LuiReadOnlyException e)
 
 ```text
 vegan
-refused: The catalog is read-only: the database was opened with Mode=ReadOnly, so writing an entry is refused. Open the catalog with a connection string that may write (Data Source=app.db) to write; a read-only catalog reads and searches.
+refused: The catalog '/srv/app/app.db' was opened with OpenReadOnly — writing an entry (index 'tags') is not allowed. Open it with LuiCatalog.Open or LuiCatalog.OpenOrCreate to write.
 ```
 
 The same application code therefore runs in the service that writes and in the

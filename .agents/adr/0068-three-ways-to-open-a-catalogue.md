@@ -58,8 +58,9 @@ public static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = 
    `:memory:`, a URI and a directory are an `ArgumentException`. LUI builds every connection itself
    ([0066](./0066-the-catalogue-owns-the-connection.md)).
 2. **`Open` checks and writes nothing.** Its connections carry `Mode=ReadWrite`, so the provider never creates a file: a
-   missing file is SQLite's refusal (`SQLITE_CANTOPEN`), translated into `LuiCatalogNotFoundException`. No `File.Exists`
-   stands between the check and the open. A file that is no SQLite database (`SQLITE_NOTADB`) is a
+   missing file is SQLite's refusal (`SQLITE_CANTOPEN`), translated into `LuiCatalogNotFoundException` — after the file
+   system confirms that the file is not there: a directory that may not be searched is a problem of rights and stays
+   SQLite's error. Nothing is asked **before** the open, so there is no window between the check and the open. A file that is no SQLite database (`SQLITE_NOTADB`) is a
    `LuiCatalogNotFoundException` with that message, not a bare `SqliteException`. A file without `lui_meta` is refused
    with a `LuiCatalogNotFoundException` that names the table; it is not turned into a catalogue.
 3. **`OpenOrCreate` creates and sets up completely.** It is the only method that creates, and **it creates the file
@@ -69,13 +70,16 @@ public static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = 
    |---|---|
    | is missing | creates it, `PRAGMA journal_mode = WAL`, `lui_meta` |
    | is there — with tables or empty — without `lui_meta` | `lui_meta`; **the journal mode stays** |
+   | is there and is no SQLite database | `LuiCatalogNotFoundException` — the file is not touched |
    | is a catalogue | nothing |
 
    **The journal mode is set once, and only in a file LUI creates itself** (the owner, 2026-11-18; it replaces the rule of
    [0066](./0066-the-catalogue-owns-the-connection.md) §4 as first written — "when the schema is empty"). Of two processes that
    open a missing file at the same time, one creates it and sets the mode; the other finds a file that is there and leaves
    it alone. If the open fails after LUI created the file and the file is still empty — it has no mode yet — LUI deletes it
-   (best effort), so that the next `OpenOrCreate` creates it again. LUI creates the file, not its directory.
+   (best effort, and the window in which another process has opened the empty file already is narrow), so that the next
+   `OpenOrCreate` creates it again. LUI creates the file, not its directory; a directory that may not be written is a
+   `LuiReadOnlyException`.
 4. **`OpenReadOnly` checks like `Open`, and every connection of the catalogue is read-only** (`Mode=ReadOnly`). It is
    the catalogue's only read-only notion: `Database.ReadOnly` and `ThrowIfReadOnly` disappear, and an architecture test
    says so.
@@ -83,7 +87,8 @@ public static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = 
    `LuiReadOnlyException` whose message names the reason: a catalogue opened with `OpenReadOnly` says so, with the operation
    and the index, and names `Open` and `OpenOrCreate`; any other refusal names the file and says that the file or its
    directory may not be written. The exception is derived from SQLite's refusal — it is its `InnerException` — and never
-   thrown ahead of it.
+   thrown ahead of it. **A catalogue in write-ahead logging in a directory that may not be written** is refused at the open
+   itself — SQLite needs the `-wal` and `-shm` files even to read — and is a `LuiReadOnlyException` as well.
 6. **One refusal is LUI's own:** a write in the **transaction of the application** on a catalogue that was opened with
    `OpenReadOnly`. The transaction is on the application's connection, which may write, so SQLite cannot refuse it; LUI
    does, with the same exception, and says the catalogue was opened with `OpenReadOnly`.

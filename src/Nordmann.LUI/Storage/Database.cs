@@ -113,11 +113,11 @@ internal sealed class Database : IDisposable
     }
 
     private string OpenedReadOnly(string operation, string indexName) =>
-        $"The catalog '{Path}' was opened with OpenReadOnly — {operation} on the index '{indexName}' is not allowed. "
+        $"The catalog '{Path}' was opened with OpenReadOnly — {operation} (index '{indexName}') is not allowed. "
         + "Open it with LuiCatalog.Open or LuiCatalog.OpenOrCreate to write.";
 
     private string FileRefused(string operation, string indexName) =>
-        $"SQLite refuses to write to '{Path}' — {operation} on the index '{indexName}' failed: the file or its directory may not "
+        $"SQLite refuses to write to '{Path}' — {operation} (index '{indexName}') failed: the file or its directory may not "
         + "be written (rights, a read-only medium, or the '-wal' and '-shm' files cannot be created).";
 
     /// <summary>

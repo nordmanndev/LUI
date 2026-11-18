@@ -51,7 +51,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **A refused write is a `LuiReadOnlyException` that says why.** SQLite refuses (`SQLITE_READONLY`), LUI translates, and the
   message names the reason: the catalogue was opened with `OpenReadOnly` (with the operation, the index, and how to write),
   or the file or its directory may not be written. The error of SQLite is the inner exception. A write in the transaction
-  of the application on a catalogue opened with `OpenReadOnly` is refused the same way.
+  of the application on a catalogue opened with `OpenReadOnly` is refused the same way. **A write that has nothing to
+  write is no longer refused:** `Create` of an index that exists with the same definition, `ApplyPending` and `DropTriggers`
+  with nothing to do now return on a catalogue opened with `OpenReadOnly` — SQLite refuses a write, not a call.
 
 ### Added
 

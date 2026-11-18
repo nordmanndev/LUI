@@ -84,6 +84,7 @@ public sealed class LuiCatalog : IDisposable
     /// <exception cref="ArgumentException">The path is empty, <c>:memory:</c>, a URI or a directory.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A value of <see cref="LuiCatalogOptions.Pragmas"/> is out of its bounds.</exception>
     /// <exception cref="LuiCatalogNotFoundException">There is no file at the path, or the file is no catalog.</exception>
+    /// <exception cref="LuiReadOnlyException">A catalog in write-ahead logging in a directory that may not be written.</exception>
     /// <exception cref="LuiEnvironmentException">
     /// SQLite is too old, has no FTS5 trigram tokenizer, or folds text
     /// differently from the table the library was measured with.
@@ -112,6 +113,8 @@ public sealed class LuiCatalog : IDisposable
     /// <exception cref="ArgumentException">The path is empty, <c>:memory:</c>, a URI or a directory.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A value of <see cref="LuiCatalogOptions.Pragmas"/> is out of its bounds.</exception>
     /// <exception cref="DirectoryNotFoundException">The directory of the file is missing: LUI creates the file, not its directory.</exception>
+    /// <exception cref="LuiCatalogNotFoundException">The file is there and is no SQLite database.</exception>
+    /// <exception cref="LuiReadOnlyException">The file or its directory may not be written.</exception>
     /// <exception cref="LuiEnvironmentException">
     /// SQLite is too old, has no FTS5 trigram tokenizer, or folds text
     /// differently from the table the library was measured with.
@@ -131,6 +134,7 @@ public sealed class LuiCatalog : IDisposable
     /// <exception cref="ArgumentException">The path is empty, <c>:memory:</c>, a URI or a directory.</exception>
     /// <exception cref="ArgumentOutOfRangeException">A value of <see cref="LuiCatalogOptions.Pragmas"/> is out of its bounds.</exception>
     /// <exception cref="LuiCatalogNotFoundException">There is no file at the path, or the file is no catalog.</exception>
+    /// <exception cref="LuiReadOnlyException">A catalog in write-ahead logging in a directory that may not be written: SQLite cannot create its <c>-wal</c> and <c>-shm</c> files.</exception>
     public static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null) =>
         OpenCatalog(path, options, SqliteOpenMode.ReadOnly, create: false);
 
@@ -168,7 +172,18 @@ public sealed class LuiCatalog : IDisposable
         {
             catalog.Dispose();
             DiscardTheFileWhenItIsStillEmpty(fullPath, createdTheFile);
-            throw Translate(exception, fullPath);
+            throw Translate(exception, fullPath, create);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            catalog.Dispose();
+            DiscardTheFileWhenItIsStillEmpty(fullPath, createdTheFile);
+            throw new LuiReadOnlyException(
+                "opening the catalog",
+                $"SQLite refuses to open '{fullPath}': the file or its directory may not be written, and a catalog in write-ahead "
+                + "logging needs its '-wal' and '-shm' files even to read. Give the process write access to the directory, or "
+                + "open a copy of the file.",
+                exception);
         }
         catch
         {
@@ -180,22 +195,47 @@ public sealed class LuiCatalog : IDisposable
 
     /// <summary>
     /// Whether SQLite's error says that there is no catalogue at the path (ADR-0068): the file is not there
-    /// (<c>SQLITE_CANTOPEN</c>, and no file at the path), or it is no database (<c>SQLITE_NOTADB</c>). Every other error
-    /// stays what it is.
+    /// (<c>SQLITE_CANTOPEN</c>, and the file system confirms that there is no file — a directory that may not be searched
+    /// is a problem of rights, not a missing file), or it is no database (<c>SQLITE_NOTADB</c>). Every other error stays what
+    /// it is.
     /// </summary>
     private static bool MeansNoCatalog(SqliteException exception, string fullPath) =>
         exception.SqliteErrorCode == SqliteNotADatabase
-        || (exception.SqliteErrorCode == SqliteCannotOpen && !File.Exists(fullPath));
+        || (exception.SqliteErrorCode == SqliteCannotOpen && FileIsMissing(fullPath));
+
+    /// <summary>
+    /// Asks the file system after SQLite refused: the file is missing, or it is not known (no rights, a broken link). Asked
+    /// <b>after</b> the refusal, never before the open — there is no window between the check and the open.
+    /// </summary>
+    private static bool FileIsMissing(string fullPath)
+    {
+        try
+        {
+            _ = File.GetAttributes(fullPath);
+            return false;
+        }
+        catch (Exception exception) when (exception is FileNotFoundException or DirectoryNotFoundException)
+        {
+            return true;
+        }
+        catch (Exception exception) when (exception is UnauthorizedAccessException or IOException or NotSupportedException or ArgumentException)
+        {
+            return false;
+        }
+    }
 
     /// <summary>The exception of LUI for an error that <see cref="MeansNoCatalog"/> recognised.</summary>
-    private static LuiCatalogNotFoundException Translate(SqliteException exception, string fullPath) =>
-        exception.SqliteErrorCode == SqliteNotADatabase
-            ? new LuiCatalogNotFoundException(
+    private static LuiCatalogNotFoundException Translate(SqliteException exception, string fullPath, bool create) =>
+        exception.SqliteErrorCode != SqliteNotADatabase
+            ? new LuiCatalogNotFoundException(fullPath)
+            : new LuiCatalogNotFoundException(
                 fullPath,
-                $"The file '{fullPath}' is no SQLite database, so it is no catalog. Correct the path; LuiCatalog.OpenOrCreate creates "
-                + "a catalog in a file that does not exist yet, or in a SQLite database.",
-                exception)
-            : new LuiCatalogNotFoundException(fullPath);
+                create
+                    ? $"The file '{fullPath}' exists and is no SQLite database, so LuiCatalog.OpenOrCreate cannot set it up. "
+                      + "Correct the path, or remove the file."
+                    : $"The file '{fullPath}' is no SQLite database, so it is no catalog. Correct the path; LuiCatalog.OpenOrCreate "
+                      + "creates a catalog in a file that does not exist yet, or in a SQLite database.",
+                exception);
 
     /// <summary>
     /// Takes back a file that LUI created and that is still empty when the opening failed (ADR-0066). A file that is
@@ -290,6 +330,13 @@ public sealed class LuiCatalog : IDisposable
         catch (IOException) when (File.Exists(fullPath))
         {
             return false;
+        }
+        catch (UnauthorizedAccessException exception)
+        {
+            throw new LuiReadOnlyException(
+                "creating the file of the catalog",
+                $"The catalog '{fullPath}' cannot be created: the process may not write to the directory.",
+                exception);
         }
     }
 
