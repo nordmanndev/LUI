@@ -25,9 +25,10 @@ public sealed class PragmasTests
         };
 
         using var catalog = database.Open(options);
+        using var writer = catalog.Database.OpenConnection();
 
         options.Pragmas.BusyTimeout.ShouldBe(TimeSpan.FromSeconds(3));
-        Scalar(catalog.Database.Writer, "PRAGMA busy_timeout;").ShouldBe(3000);
+        Scalar(writer, "PRAGMA busy_timeout;").ShouldBe(3000);
     }
 
     [Fact]
@@ -40,8 +41,9 @@ public sealed class PragmasTests
         };
 
         using var catalog = database.Open(options);
+        using var writer = catalog.Database.OpenConnection();
 
-        Scalar(catalog.Database.Writer, "PRAGMA synchronous;").ShouldBe(2, "FULL is the second value of SQLite");
+        Scalar(writer, "PRAGMA synchronous;").ShouldBe(2, "FULL is the second value of SQLite");
     }
 
     [Fact]
@@ -54,9 +56,10 @@ public sealed class PragmasTests
         };
 
         using var catalog = database.Open(options);
+        using var writer = catalog.Database.OpenConnection();
 
         // a negative cache_size is a size in KiB
-        Scalar(catalog.Database.Writer, "PRAGMA cache_size;").ShouldBe(-512L * 1024);
+        Scalar(writer, "PRAGMA cache_size;").ShouldBe(-512L * 1024);
     }
 
     [Fact]

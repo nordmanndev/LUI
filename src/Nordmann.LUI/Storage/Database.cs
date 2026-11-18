@@ -5,7 +5,7 @@ namespace Nordmann.LUI.Storage;
 
 /// <summary>
 /// The database of a catalog (ADR-0046, ADR-0015, ADR-0046, ADR-0066): opens connections with the pragmas of the
-/// catalog, keeps the one long-lived connection of LUI's own writes and the lock that serialises them, and counts the
+/// catalog, holds no connection (ADR-0070) — an operation takes one from the pool of the provider and gives it back — keeps the lock that serialises LUI's own writes, and counts the
 /// operations that are running, so that <see cref="Dispose"/> waits for them. It knows no index — the layers above it
 /// ask it for connections (review DevEx D4: the catalog taken apart).
 /// <para>
@@ -25,8 +25,6 @@ internal sealed class Database : IDisposable
     private readonly object _lifetime = new();
     private int _running;
     private bool _disposed;
-    private SqliteConnection? _writer;
-
     /// <summary>Whether LUI created the file and sets its journal mode — once, in <see cref="Initialize"/>.</summary>
     private readonly bool _setsJournalMode;
 
@@ -134,25 +132,8 @@ internal sealed class Database : IDisposable
     /// </summary>
     internal const int ProviderRetrySeconds = 1;
 
-    /// <summary>The lock that serialises the statements on <see cref="Writer"/>.</summary>
+    /// <summary>The lock that serialises the writes of LUI's own: a write takes a connection from the pool, and takes this lock for as long as it writes (one writer per file anyway, ADR-0015, ADR-0046).</summary>
     internal Lock WriterGate { get; } = new();
-
-    /// <summary>
-    /// The connection of the catalog's own writes. SQLite has one writer per file (ADR-0015, ADR-0046), so one long-lived connection
-    /// serves them all — and keeps the prepared statements (ADR-0009). A catalogue opened with <c>OpenReadOnly</c> has a
-    /// writer like any other, in the read-only mode of its connections: SQLite refuses what it writes (ADR-0068).
-    /// </summary>
-    internal SqliteConnection Writer
-    {
-        get
-        {
-            lock (_lifetime)
-            {
-                ThrowIfDisposed();
-                return _writer ??= OpenConnection();
-            }
-        }
-    }
 
     /// <summary>Marks the start of an operation. The returned scope has to be disposed when the operation ends.</summary>
     internal OperationScope Begin()
@@ -243,15 +224,14 @@ internal sealed class Database : IDisposable
             }
         }
 
-        // The read connections go first, the writer last (ADR-0067): only a connection that may write checkpoints the
-        // write-ahead log into the file and removes the '-wal' and '-shm' when it is the last one to close. A read-only
-        // connection cannot, so the writer must not close while one is still open.
+        // The pool of the read connections goes first, the pool of the writes last (ADR-0067, ADR-0070): only a connection
+        // that may write checkpoints the write-ahead log into the file and removes the '-wal' and '-shm' when it is the
+        // last one to close. A read-only connection cannot, so the connections that may write must not close while one of
+        // them is still open.
         using (var reader = new SqliteConnection(ReadConnectionString))
         {
             SqliteConnection.ClearPool(reader);
         }
-
-        _writer?.Dispose();
 
         // a file that stays locked by a pooled connection cannot be deleted
         using var connection = new SqliteConnection(ConnectionString);

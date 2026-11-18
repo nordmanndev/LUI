@@ -305,7 +305,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
             lock (_database.WriterGate)
             {
                 // the integrity check of FTS5 is an insert: it runs on the writer, and the transaction is rolled back
-                var writer = _database.Writer;
+                using var writer = _database.OpenConnection();
                 using var transaction = writer.BeginTransaction(deferred: false);
                 fits = IndexCheck.Definition(writer, transaction, _source, problems) && TableFits(writer, transaction, problems);
                 if (fits)
@@ -441,8 +441,9 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
 
             lock (_database.WriterGate)
             {
-                using var own = _database.Writer.BeginTransaction(deferred: false);
-                write(_database.Writer, own);
+                using var connection = _database.OpenConnection();
+                using var own = connection.BeginTransaction(deferred: false);
+                write(connection, own);
                 own.Commit();
             }
         }

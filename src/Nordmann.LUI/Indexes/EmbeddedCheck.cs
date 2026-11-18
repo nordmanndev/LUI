@@ -141,7 +141,7 @@ internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Fu
         List<string> problems = [];
         lock (database.WriterGate)
         {
-            var writer = database.Writer;
+            using var writer = database.OpenConnection();
             using var transaction = writer.BeginTransaction(deferred: false);
             if (IndexCheck.Definition(writer, transaction, source, problems))
             {
@@ -161,7 +161,7 @@ internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Fu
         using var scope = database.Begin();
         lock (database.WriterGate)
         {
-            var writer = database.Writer;
+            using var writer = database.OpenConnection();
             using var transaction = writer.BeginTransaction(deferred: false);
             Execute(writer, transaction, source.DropTriggersSql);
             foreach (var (_, sql) in source.TriggerStatements())
@@ -180,7 +180,7 @@ internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Fu
         using var scope = database.Begin();
         lock (database.WriterGate)
         {
-            var writer = database.Writer;
+            using var writer = database.OpenConnection();
             using var transaction = writer.BeginTransaction(deferred: false);
             Execute(writer, transaction, source.OptimizeSql);
             transaction.Commit();

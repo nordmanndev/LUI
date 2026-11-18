@@ -68,8 +68,8 @@ times the cache size* ([0066](./0066-the-catalogue-owns-the-connection.md) bound
 4. **The snapshot stays.** The read path keeps one transaction for the candidates and the hits — a writer that commits
    between the two statements could hand a hit the text of a freed entry and the key of a new one. The transaction is
    ended before the connection goes back to the pool (a test begins a transaction on the next connection of the pool).
-5. **No session, no pool of LUI's own, no dictionary of statements.** The pool of the provider is the pool. The one
-   connection the catalogue holds is the one of its own writes; a guard says so.
+5. **No session, no pool of LUI's own, no dictionary of statements.** The pool of the provider is the pool. The
+   catalogue holds no connection at all ([0070](./0070-the-catalogue-holds-no-connection.md)); a guard says so.
 
 ## Consequences
 
