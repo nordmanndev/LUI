@@ -41,6 +41,9 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
             command.Parameters.AddWithValue(ParameterName(i), docId);
         }
 
+        // the provider keeps the prepared statement per physical connection and reuses its plan (ADR-0067)
+        command.Prepare();
+
         var keys = new string?[ranked.Length];
         var payloads = new object?[ranked.Length];
 

@@ -65,14 +65,14 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
     public long Count()
     {
         using var scope = _database.Begin();
-        using var connection = _database.OpenConnection();
+        using var connection = _database.OpenReadConnection();
         return Scalar(connection, null, _source.CountSql);
     }
 
     public LuiTriggerState Triggers()
     {
         using var scope = _database.Begin();
-        using var connection = _database.OpenConnection();
+        using var connection = _database.OpenReadConnection();
         return TriggerState(connection, null);
     }
 
@@ -188,7 +188,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
     public long Pending()
     {
         using var scope = _database.Begin();
-        using var connection = _database.OpenConnection();
+        using var connection = _database.OpenReadConnection();
         return Guarded(() => Scalar(connection, null, _source.PendingCountSql));
     }
 
@@ -334,7 +334,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
         }
 
         // the comparison with the table only reads: a snapshot of its own, beside the writers (review of pull request 18, S3)
-        using var connection = _database.OpenConnection();
+        using var connection = _database.OpenReadConnection();
         using var snapshot = connection.BeginTransaction(deferred: true);
         return CompareWithTable(connection, snapshot, problems);
     }

@@ -64,6 +64,7 @@ The settings of the catalog. Every one of them has a default; none of them has t
 
 The file decides whether writing is allowed at all: a catalog opened with `OpenReadOnly` writes nothing, and SQLite refuses
 every write — LUI turns the refusal into a `LuiReadOnlyException` that says why (ADR-0068).
+Every read — a query, `Count`, the check against the table — runs on a read-only connection, whichever way the catalog was opened (ADR-0067).
 
 ### `LuiPragmas`
 

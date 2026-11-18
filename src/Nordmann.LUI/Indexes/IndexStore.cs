@@ -45,7 +45,7 @@ internal static class IndexStore
     /// <exception cref="LuiCatalogNotFoundException">The file has no <c>lui_meta</c>.</exception>
     internal static void Verify(Database database)
     {
-        using var connection = database.OpenConnection();
+        using var connection = database.OpenReadConnection();
 
         if (!HasMetaTable(connection))
         {
@@ -190,7 +190,7 @@ internal static class IndexStore
     /// <returns>What <c>lui_meta</c> holds, or <see langword="null"/> when there is no such index.</returns>
     internal static IndexStoreEntry? ReadIndex(Database database, string indexName)
     {
-        using var connection = database.OpenConnection();
+        using var connection = database.OpenReadConnection();
         using var command = connection.CreateCommand();
         command.CommandText = ReadSql;
         command.Parameters.AddWithValue("$name", indexName);
@@ -220,7 +220,7 @@ internal static class IndexStore
     /// <returns>The names, in the order of the table.</returns>
     internal static IReadOnlyList<string> ReadIndexNames(Database database)
     {
-        using var connection = database.OpenConnection();
+        using var connection = database.OpenReadConnection();
         using var command = connection.CreateCommand();
         command.CommandText = "SELECT index_name FROM lui_meta ORDER BY index_name;";
 

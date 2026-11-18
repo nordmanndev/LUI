@@ -183,9 +183,9 @@ public sealed class LuiCatalog : IDisposable
                 create
                     ? $"SQLite refuses to set up '{fullPath}': the file or its directory may not be written, so 'lui_meta' cannot be "
                       + "created. Give the process write access, or open the catalog with LuiCatalog.Open or LuiCatalog.OpenReadOnly."
-                    : $"SQLite refuses to open '{fullPath}': the file or its directory may not be written, and a catalog in write-ahead "
-                      + "logging needs its '-wal' and '-shm' files even to read. Give the process write access to the directory, or "
-                      + "open a copy of the file.",
+                    : $"SQLite refuses to open '{fullPath}': the directory '{System.IO.Path.GetDirectoryName(fullPath)}' (or the file) may not "
+                      + "be written, and a catalog in write-ahead logging needs its '-wal' and '-shm' files even to read. Give the "
+                      + "process write access to the directory, or open a copy of the file in a directory that may be written.",
                 exception);
         }
         catch

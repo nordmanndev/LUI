@@ -57,7 +57,7 @@ internal sealed class QueryRunner
             return new LuiResult { Query = input, Hits = [], Timings = Timings(options, started, started, started, started, started) };
         }
 
-        using var connection = _database.OpenConnection();
+        using var connection = _database.OpenReadConnection();
 
         // One snapshot for the candidates and for the hits. A deferred transaction pins the WAL snapshot
         // at its first read; without it a writer can commit between the two statements, and a freed

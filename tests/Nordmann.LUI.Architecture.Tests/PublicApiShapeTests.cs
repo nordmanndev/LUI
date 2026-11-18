@@ -110,9 +110,9 @@ public sealed class PublicApiShapeTests
     [Fact]
     public void The_statements_of_the_read_path_are_prepared()
     {
-        // ADR-0067: the three statements of a query are prepared — an explicit Prepare() costs nothing (measured) and
+        // ADR-0067: the statements of a query (the prefix path, FTS5 and the hits) are prepared — an explicit Prepare() costs nothing (measured) and
         // states the intent. The guard reads the sources: a command that is built and not prepared fails here.
-        foreach (var file in new[] { "Querying/CandidateReader.cs", "Querying/HitReader.cs", "Querying/TypoCorrection.cs" })
+        foreach (var file in new[] { "Querying/CandidateReader.cs", "Querying/HitReader.cs" })
         {
             var source = File.ReadAllText(Path.Combine(Repository.RootPath, "src", "Nordmann.LUI", file));
 

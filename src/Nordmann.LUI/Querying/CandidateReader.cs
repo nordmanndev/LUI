@@ -128,6 +128,9 @@ internal sealed class CandidateReader
         }
 
         command.Parameters.AddWithValue("$n", statementLimit);
+
+        // the provider keeps the prepared statement per physical connection and reuses its plan (ADR-0067)
+        command.Prepare();
         return command;
     }
 
