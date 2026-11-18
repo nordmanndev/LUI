@@ -83,7 +83,7 @@ times the cache size* ([0066](./0066-the-catalogue-owns-the-connection.md) bound
   [0066](./0066-the-catalogue-owns-the-connection.md) does not carry. LUI translates the failure into a
   `LuiReadOnlyException` (a `LuiException`) that names the directory. A catalogue on a read-only medium is a file in the
   rollback journal, or a WAL file shipped with its `-shm`.
-- **The writer closes last.** `Dispose` clears the pool of the read connections first and closes the writer after it: only a
+- **The connections that may write close last.** `Dispose` clears the pool of the read connections first and the pool of the writes after it ([0070](./0070-the-catalogue-holds-no-connection.md)): only a
   connection that may write checkpoints the write-ahead log into the file and removes the `-wal` and `-shm` when it is the
   last one to close (a test copies the file alone after `Dispose` and reads it).
 - **A catalogue that was only read leaves its `-wal` and `-shm` behind.** No connection of it may write, so none of them can

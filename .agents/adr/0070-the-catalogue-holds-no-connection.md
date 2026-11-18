@@ -2,7 +2,7 @@
 
 - **Status:** Accepted (owner, 2026-11-18)
 - **Date:** 2026-11-18
-- **Supersedes in part:** [0009](./0009-writes-use-prepared-statements.md) (the long-lived writer connection of the catalogue)
+- **Supersedes in part:** [0009](./0009-writes-use-prepared-statements.md) (the long-lived writer connection of the catalogue) and [0066](./0066-the-catalogue-owns-the-connection.md) (its table names "the writer, one per catalogue" as an owner of connections)
 - **Builds on:** [0015](./0015-the-linked-index-is-loosely-coupled.md), [0046](./0046-the-busy-timeout-is-the-wait-for-a-lock.md)
   (one writer per file; the busy timeout), [0066](./0066-the-catalogue-owns-the-connection.md) (the catalogue owns the
   connection), [0067](./0067-the-read-path-opens-a-read-only-connection.md) (the read path opens a read-only connection)
@@ -68,5 +68,10 @@ back.**
 - **The catalogue holds nothing that has to be closed in an order** — except the two pools, and `Dispose` knows their order.
 - **A write that does not finish before the catalogue is disposed** is waited for, as before (`Begin()` counts the running
   operations); no connection of the catalogue outlives `Dispose`.
+- **The budget is measured at 200,000 entries.** `docs/benchmarks.md` holds the one-at-a-time budget at one and three million
+  entries as missed already (p95 5,7 and 2,6 ms, with its own method); this change moves the 200,000-entry numbers from 0,12 to
+  0,21 ms at p95 and the others by about the same amount — the budgets of the large scenes stay as they were.
+- **The provider prunes pools that stay idle.** Which pool it closes first is its own business; the file is whole after `Dispose`
+  because `Dispose` clears the two pools in the order above, not because of the pruning.
 - **`PRAGMA` state set on a physical connection by the application** (for instance `wal_autocheckpoint`, which a test
   sets) belongs to that physical connection and goes to whoever the pool hands it to next.

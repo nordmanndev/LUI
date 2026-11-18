@@ -19,7 +19,7 @@ namespace Nordmann.LUI;
 /// <see cref="Dispose"/> waits for the operations that are running.
 /// </para>
 /// <para>
-/// The catalog is a facade (review DevEx D4): the connections, the writer and the lifetime are its
+/// The catalog is a facade (review DevEx D4): the connections (taken from the pool, ADR-0070) and the lifetime are its
 /// <see cref="Storage.Database"/>, the stored definitions and their statements <see cref="IndexStore"/>, the typo
 /// dictionaries <see cref="Typos.TypoDictionaries"/>. No layer below the public API knows the catalog.
 /// </para>
@@ -57,7 +57,7 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>The serialiser of the payloads (ADR-0035); <see langword="null"/> when the indexes store none.</summary>
     internal ILuiPayloadSerializer? PayloadSerializer => _options.PayloadSerializer;
 
-    /// <summary>The database: connections, the writer, the operations that are running.</summary>
+    /// <summary>The database: the connections it hands out, the lock of the writes, the operations that are running.</summary>
     internal Database Database { get; }
 
     /// <summary>The typo dictionaries of the indexes, one per index.</summary>

@@ -123,7 +123,7 @@ public sealed class ReadConnectionTests
     [Fact]
     public void A_catalogue_that_wrote_and_was_read_leaves_its_file_whole_when_it_is_disposed()
     {
-        // the writer has to be the LAST connection to close: only a connection that may write checkpoints the write-ahead log
+        // the connections that may write have to close LAST: only a connection that may write checkpoints the write-ahead log
         // into the file and removes the -wal and -shm. If the read connections close after it, the data stays in the -wal
         // and the file alone is an empty database — a copy of it is no catalogue.
         using var database = new TestDatabase();
@@ -177,7 +177,10 @@ public sealed class ReadConnectionTests
         }
 
         var database = library.GetType("Nordmann.LUI.Storage.Database").ShouldNotBeNull();
-        database.GetFields(all).Where(field => typeof(SqliteConnection).IsAssignableFrom(field.FieldType)).Select(field => field.Name)
+        // a connection, a Lazy of one, a list of them, a dictionary keyed by one — none of it
+        static bool HoldsAConnection(Type type) =>
+            typeof(SqliteConnection).IsAssignableFrom(type) || (type.IsGenericType && type.GetGenericArguments().Any(HoldsAConnection));
+        database.GetFields(all).Where(field => HoldsAConnection(field.FieldType)).Select(field => field.Name)
             .ShouldBeEmpty("the catalogue holds no connection: every operation takes one from the pool of the provider and gives it back");
         database.GetFields(all).Where(field => typeof(System.Collections.IDictionary).IsAssignableFrom(field.FieldType)).ShouldBeEmpty();
     }

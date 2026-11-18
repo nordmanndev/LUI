@@ -28,7 +28,7 @@ connection of its own to configure.
 | Layer | What it is | Its properties | Who owns it |
 |---|---|---|---|
 | **the file** | the SQLite database that holds the catalogue — or, in `Embedded` and `Linked`, the application's own database | `journal_mode`, the schema | the file outlives every connection; LUI sets the journal mode only of a file it creates itself (§4) |
-| **the connection** | a handle to the file, with its own state | the mode, the pooling, the cache mode, `busy_timeout`, `synchronous`, `cache_size`, the transaction | **LUI**: the **writer** (read-write, one per catalogue) and the **read connections** (read-only, one per query) |
+| **the connection** | a handle to the file, with its own state | the mode, the pooling, the cache mode, `busy_timeout`, `synchronous`, `cache_size`, the transaction | **LUI**: the **writes** (read-write, one per catalogue) and the **read connections** (read-only, one per query) |
 | **the statement** | one SQL statement with its parameters | the text, the prepared form, the bound values | the read path; three statements, constant |
 
 **Today the application hands LUI a connection string, and with it every knob of the provider.** Some of them are

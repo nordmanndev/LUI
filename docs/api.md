@@ -13,7 +13,7 @@ The table at the end is the whole surface. The sections before it explain what t
 
 ## The catalog — the entry point
 
-The catalog is the one thing an application opens. It holds the connection, the settings and the indexes of one
+The catalog is the one thing an application opens. It holds the settings and the indexes of one
 database file.
 
 ```csharp
@@ -39,7 +39,7 @@ using var catalog = LuiCatalog.OpenOrCreate("app.db");
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the outbox of **every** linked index: the rows the triggers noted come into the index. The table of the application is not touched. Returns the number of rows brought in. |
 | `bool DropIndex(string name, bool dropTriggers = false)` | drops the index. The triggers of a linked index are dropped with it only if you say so. |
 | `string Path { get; }` | the full path of the file the catalog was opened with. |
-| `void Dispose()` | closes the catalog. It holds the connection pool; the indexes hold no resource of their own. |
+| `void Dispose()` | closes the catalog: it waits for the operations that are running and clears the pools of the provider (the read connections first). The catalog holds no connection (ADR-0070); the indexes hold no resource of their own. |
 
 The path is a **file path** (ADR-0066): LUI builds every connection itself — pooling on, a private cache, the mode of the
 method that opened it. The application never sees a connection string. An empty path, `:memory:` and a URI (`file:…`) are

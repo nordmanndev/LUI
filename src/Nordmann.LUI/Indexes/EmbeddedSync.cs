@@ -7,7 +7,7 @@ namespace Nordmann.LUI.Indexes;
 
 /// <summary>
 /// The sync of an <c>Embedded</c> index with a source (ADR-0016, ADR-0016, ADR-0046, ADR-0016): batches of entries, each in a
-/// transaction of its own on the catalog's writer. A table of the writer's connection holds the keys that were in the
+/// transaction of its own on one connection that the run keeps (ADR-0070). A temporary table of that connection holds the keys that were in the
 /// index when the sync began; each one the source has is crossed off, and what is left at the end is removed. Then the
 /// search index is merged. A key the application adds while the sync runs is never removed.
 /// <para>
@@ -205,7 +205,9 @@ internal sealed class EmbeddedSync(
         }
         catch (SqliteException)
         {
-            // left behind on the writer's connection until it closes
+            // left behind on the connection of the run: the connection is not given back to the pool as it is — the pool is
+            // cleared, so that the keys of the index do not stay in a temporary table of a pooled connection
+            SqliteConnection.ClearPool(writer);
         }
         catch (ObjectDisposedException)
         {

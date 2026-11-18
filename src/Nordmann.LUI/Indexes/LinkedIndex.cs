@@ -304,7 +304,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
         {
             lock (_database.WriterGate)
             {
-                // the integrity check of FTS5 is an insert: it runs on the writer, and the transaction is rolled back
+                // the integrity check of FTS5 is an insert: it runs on a connection that may write, and the transaction is rolled back
                 using var writer = _database.OpenConnection();
                 using var transaction = writer.BeginTransaction(deferred: false);
                 fits = IndexCheck.Definition(writer, transaction, _source, problems) && TableFits(writer, transaction, problems);
@@ -420,8 +420,8 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
     }
 
     /// <summary>
-    /// Runs a write in the transaction of the application, or in one of LUI's own on the catalog's writer — then the
-    /// writer's lock is held for the whole of it (one writer per file anyway, ADR-0015, ADR-0046), and an error or a cancellation
+    /// Runs a write in the transaction of the application, or in one of LUI's own on a connection from the pool — then the
+    /// lock of the writes is held for the whole of it (one writer per file anyway, ADR-0015, ADR-0046), and an error or a cancellation
     /// rolls it back.
     /// </summary>
     private void Write(SqliteTransaction? transaction, Action<SqliteConnection, SqliteTransaction> write)

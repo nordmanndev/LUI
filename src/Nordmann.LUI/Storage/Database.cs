@@ -25,6 +25,7 @@ internal sealed class Database : IDisposable
     private readonly object _lifetime = new();
     private int _running;
     private bool _disposed;
+
     /// <summary>Whether LUI created the file and sets its journal mode — once, in <see cref="Initialize"/>.</summary>
     private readonly bool _setsJournalMode;
 
