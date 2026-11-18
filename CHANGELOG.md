@@ -48,6 +48,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   that is no catalogue — an application's database without `lui_meta`, or a file that is no SQLite database — is no longer
   turned into one by `Open`.
 
+- **The read path opens a read-only connection** (#170, [ADR-0067](.agents/adr/0067-the-read-path-opens-a-read-only-connection.md)):
+  every query, every `Count` and every check of the file runs on a connection with `Mode=ReadOnly`, **whichever way the
+  catalogue was opened** — SQLite refuses a write, not a convention. The statements of a query are prepared. Behaviour you
+  may notice: a catalogue opened with `Open` or `OpenOrCreate` now has **two pools** (the writer's and the read path's), and
+  a catalogue in write-ahead logging in a directory that may not be written is refused when it is opened, with a
+  `LuiReadOnlyException` that names the directory (a read-only connection needs the `-wal` and `-shm` files even to read).
+  A catalogue in write-ahead logging that was **only read** leaves its `-wal` (empty) and `-shm` next to the file when it is
+  closed — a read-only connection cannot remove them; a catalogue that was written is checkpointed and clean, as before.
+  Measured on the same corpus, the query is no slower and allocates no more.
+
 - **A refused write is a `LuiReadOnlyException` that says why.** SQLite refuses (`SQLITE_READONLY`), LUI translates, and the
   message names the reason: the catalogue was opened with `OpenReadOnly` (with the operation, the index, and how to write),
   or the file or its directory may not be written. The error of SQLite is the inner exception. A write in the transaction

@@ -352,7 +352,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
     public long Count()
     {
         using var scope = _database.Begin();
-        using var connection = _database.OpenConnection();
+        using var connection = _database.OpenReadConnection();
         using var command = connection.CreateCommand();
         command.CommandText = _source.CountSql;
         return (long)command.ExecuteScalar()!;

@@ -270,6 +270,7 @@ public sealed class OpenWaysTests
 
         readOnly.InnerException.ShouldBeOfType<SqliteException>().SqliteErrorCode.ShouldBe(8);
         readOnly.Message.ShouldContain("'-wal' and '-shm'");
+        readOnly.Message.ShouldContain(Path.GetDirectoryName(directory.FilePath)!, customMessage: "the message names the directory");
         open.Message.ShouldContain(Path.GetFileName(directory.FilePath));
     }
 

@@ -128,6 +128,9 @@ internal sealed class CandidateReader
         }
 
         command.Parameters.AddWithValue("$n", statementLimit);
+
+        // Prepare() states the intent and costs nothing: measured, with and without it the query takes the same (ADR-0067)
+        command.Prepare();
         return command;
     }
 

@@ -43,6 +43,7 @@ internal sealed class Database : IDisposable
         Path = path;
         Mode = mode;
         ConnectionString = BuildConnectionString(path, mode).ToString();
+        ReadConnectionString = BuildConnectionString(path, SqliteOpenMode.ReadOnly).ToString();
     }
 
     /// <summary>The full path of the file of the catalog.</summary>
@@ -53,6 +54,13 @@ internal sealed class Database : IDisposable
 
     /// <summary>The connection string LUI built (ADR-0066) — the application never sees one.</summary>
     internal string ConnectionString { get; }
+
+    /// <summary>
+    /// The connection string of the read path (ADR-0067): the same file, <c>Mode=ReadOnly</c>, pooling on, a private
+    /// cache — whichever way the catalogue was opened. It is a pool of its own only because the provider keeps one pool per
+    /// connection string.
+    /// </summary>
+    internal string ReadConnectionString { get; }
 
     /// <summary>
     /// The plan of a connection (ADR-0066): the path of the file, the mode of the catalog, pooling on and a private
@@ -161,10 +169,19 @@ internal sealed class Database : IDisposable
     /// <summary>Throws when the catalog is disposed.</summary>
     internal void ThrowIfDisposed() => ObjectDisposedException.ThrowIf(_disposed, _owner);
 
-    /// <summary>Opens a connection with the pragmas of the catalog applied.</summary>
-    internal SqliteConnection OpenConnection()
+    /// <summary>Opens a connection with the pragmas of the catalog applied, in the mode of the catalogue.</summary>
+    internal SqliteConnection OpenConnection() => Open(ConnectionString);
+
+    /// <summary>
+    /// Opens the connection of the read path (ADR-0067): <b>read-only</b>, always — the read path never writes
+    /// (ADR-0033), and a read-only connection says it to SQLite instead of a convention. The pragmas are the three of a
+    /// connection and not the journal mode, which a read-only connection cannot set.
+    /// </summary>
+    internal SqliteConnection OpenReadConnection() => Open(ReadConnectionString);
+
+    private SqliteConnection Open(string connectionString)
     {
-        var connection = new SqliteConnection(ConnectionString);
+        var connection = new SqliteConnection(connectionString);
         try
         {
             connection.Open();
@@ -224,6 +241,14 @@ internal sealed class Database : IDisposable
             {
                 Monitor.Wait(_lifetime);
             }
+        }
+
+        // The read connections go first, the writer last (ADR-0067): only a connection that may write checkpoints the
+        // write-ahead log into the file and removes the '-wal' and '-shm' when it is the last one to close. A read-only
+        // connection cannot, so the writer must not close while one is still open.
+        using (var reader = new SqliteConnection(ReadConnectionString))
+        {
+            SqliteConnection.ClearPool(reader);
         }
 
         _writer?.Dispose();

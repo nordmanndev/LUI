@@ -41,6 +41,9 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
             command.Parameters.AddWithValue(ParameterName(i), docId);
         }
 
+        // Prepare() states the intent and costs nothing: measured, with and without it the query takes the same (ADR-0067)
+        command.Prepare();
+
         var keys = new string?[ranked.Length];
         var payloads = new object?[ranked.Length];
 
