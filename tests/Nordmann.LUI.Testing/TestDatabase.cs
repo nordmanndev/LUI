@@ -52,8 +52,8 @@ public sealed class TestDatabase : IDisposable
     }
 
     /// <summary>
-    /// Gives the file a table of its own, so that LUI keeps the journal mode of the file: LUI sets the mode once, when
-    /// it sets up a file whose schema is empty, and a file with tables keeps its mode (ADR-0066 — the journal mode).
+    /// Creates the file with a table of its own, as an application does: the file is there before LUI opens it, so LUI
+    /// keeps its journal mode — LUI sets the mode only in a file it creates itself (ADR-0066 — the journal mode).
     /// </summary>
     public void PrepareWithATable()
     {

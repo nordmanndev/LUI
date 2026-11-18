@@ -125,7 +125,7 @@ public sealed class PublicApiShapeTests
         exceptions.Select(type => type.Name).Order(StringComparer.Ordinal)
             .ShouldBe(
             [
-                "LuiDefinitionMismatchException", "LuiEnvironmentException", "LuiException",
+                "LuiCatalogNotFoundException", "LuiDefinitionMismatchException", "LuiEnvironmentException", "LuiException",
                 "LuiIndexNotFoundException", "LuiLinkedTableException", "LuiPayloadException", "LuiReadOnlyException",
             ]);
     }

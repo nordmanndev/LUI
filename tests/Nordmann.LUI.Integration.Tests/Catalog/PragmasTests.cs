@@ -129,6 +129,40 @@ public sealed class PragmasTests
         File.Exists(database.FilePath).ShouldBeFalse("the value is refused before a connection is opened");
     }
 
+    [Fact]
+    public void Missing_settings_are_refused_when_the_catalog_is_opened()
+    {
+        using var database = new TestDatabase();
+        var options = new LuiCatalogOptions { Pragmas = null! };
+
+        Should.Throw<ArgumentNullException>(() => database.Open(options));
+
+        File.Exists(database.FilePath).ShouldBeFalse("the settings are refused before the file is touched");
+    }
+
+    [Fact]
+    public void Two_catalogs_on_one_file_keep_their_own_pragmas_although_they_share_a_pool()
+    {
+        using var database = new TestDatabase();
+        using var normal = database.Open();
+        using var full = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { Synchronous = LuiSynchronous.Full } });
+
+        using (var connection = normal.Database.OpenConnection())
+        {
+            Scalar(connection, "PRAGMA synchronous;").ShouldBe(1, "NORMAL is the first value of SQLite");
+        }
+
+        using (var connection = full.Database.OpenConnection())
+        {
+            Scalar(connection, "PRAGMA synchronous;").ShouldBe(2);
+        }
+
+        using (var connection = normal.Database.OpenConnection())
+        {
+            Scalar(connection, "PRAGMA synchronous;").ShouldBe(1, "the pragmas run on every opened connection");
+        }
+    }
+
     /// <summary>Reads one value of a pragma of a connection.</summary>
     private static long Scalar(SqliteConnection connection, string sql)
     {

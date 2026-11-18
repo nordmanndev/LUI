@@ -423,7 +423,7 @@ decides what may happen.
 | `LuiQueryOptions` | the same settings as a record, for the configuration of an application |
 | `LuiResult` | the answer of a query: the hits, the candidates it considered, the query it corrected |
 | `LuiHit` | one hit: the key, the text, the weight, the priority, the similarity — and `GetPayload<T>()` |
-| `LuiCatalogOptions` | the settings of the catalog: the cache, the memory map, the busy timeout, the WAL, the payload serialiser, the clock |
+| `LuiCatalogOptions` | the settings of the catalog: the pragmas of the connections (busy timeout, synchronous, cache size), the payload serialiser, the clock |
 
 **Every public type of the package is listed in [`docs/api.md`](./docs/api.md)** — the catalogue, the builders, the
 index, the entry, the query, the payload, the similarity, the enumerations, the exceptions and the hosting extension,

@@ -26,14 +26,19 @@ internal sealed class Database : IDisposable
     private bool _disposed;
     private SqliteConnection? _writer;
 
+    /// <summary>Whether LUI created the file and sets its journal mode — once, in <see cref="Initialize"/>.</summary>
+    private readonly bool _setsJournalMode;
+
     /// <param name="owner">What an operation on a disposed database names: the catalog the application holds.</param>
     /// <param name="path">The full path of the file of the catalog.</param>
     /// <param name="mode">The mode of every connection of the catalog.</param>
+    /// <param name="createdTheFile">Whether LUI created the file itself — the one case in which it sets the journal mode.</param>
     /// <param name="options">The settings of the catalog.</param>
-    internal Database(object owner, string path, SqliteOpenMode mode, LuiCatalogOptions options)
+    internal Database(object owner, string path, SqliteOpenMode mode, bool createdTheFile, LuiCatalogOptions options)
     {
         _owner = owner;
         _options = options;
+        _setsJournalMode = createdTheFile && mode != SqliteOpenMode.ReadOnly;
         Path = path;
         Mode = mode;
         ConnectionString = BuildConnectionString(path, mode).ToString();
@@ -154,13 +159,13 @@ internal sealed class Database : IDisposable
     }
 
     /// <summary>
-    /// Switches the file to write-ahead logging — once, and only when the schema of the file is empty (ADR-0066 — the journal mode).
-    /// <b>A file with tables keeps its mode</b>: LUI neither switches it nor resets it. A file that may not be written
-    /// keeps its mode too: a read-only catalog writes nothing (ADR-0033).
+    /// Switches the file to write-ahead logging — once, and <b>only when LUI created the file itself</b> (ADR-0066 — the
+    /// journal mode). A file that was there keeps its mode, whether it holds tables or not: LUI neither switches it nor
+    /// resets it. A file that may not be written keeps its mode too: a read-only catalog writes nothing (ADR-0033).
     /// </summary>
     internal void Initialize(SqliteConnection connection)
     {
-        if (ReadOnly || !SchemaIsEmpty(connection))
+        if (!_setsJournalMode)
         {
             return;
         }
@@ -168,15 +173,6 @@ internal sealed class Database : IDisposable
         using var wal = connection.CreateCommand();
         wal.CommandText = "PRAGMA journal_mode = WAL;";
         wal.ExecuteNonQuery();
-    }
-
-    /// <summary>Whether the file holds nothing: no table, no index, no trigger.</summary>
-    private static bool SchemaIsEmpty(SqliteConnection connection)
-    {
-        using var command = connection.CreateCommand();
-        command.CommandText = "SELECT count(*) FROM sqlite_master;";
-
-        return (long)command.ExecuteScalar()! == 0;
     }
 
     /// <summary>

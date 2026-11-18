@@ -30,9 +30,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   either. The busy timeout is **one second to ten minutes** (below a second, Microsoft.Data.Sqlite retries a busy
   command until a second has passed anyway, [ADR-0046](.agents/adr/0046-the-busy-timeout-is-the-wait-for-a-lock.md)).
 
-- **The journal mode is set once, and a file with tables keeps its mode.** LUI sets WAL when it sets up a file whose
-  schema is empty; a file that has tables — the database of an application, or a catalogue that is already there —
-  keeps the mode it has. The mode is not a setting any more, and nothing overrides it.
+- **The journal mode is set once, and only in a file LUI creates.** `OpenOrCreate` puts a file it creates itself into
+  WAL; a file that is there — the database of an application, a catalogue that is already there, even an empty file —
+  keeps the mode it has. `Open` and `OpenReadOnly` never set it. The mode is not a setting any more, and nothing
+  overrides it.
+
+- **`Open` and `OpenReadOnly` open a file that is there.** A missing file is a `LuiCatalogNotFoundException`; only
+  `OpenOrCreate` creates a file. (`Open` still creates `lui_meta` in a file that has none — that last write goes with
+  ADR-0068, #171.)
 
 ### Added
 
@@ -42,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   loss, `Extra` costs without a gain in the write-ahead log.
 - **`LuiCatalog.OpenOrCreate(path, options?)`** and **`LuiCatalog.OpenReadOnly(path, options?)`** — the ways to open a
   catalogue that a path makes possible.
+- **`LuiCatalogNotFoundException`** (with `Path`) — there is no file at the path of `Open` or `OpenReadOnly`.
 
 ### Removed
 

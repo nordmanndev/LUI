@@ -17,7 +17,7 @@ internal static class IndexStore
         "SELECT kind, source, definition, schema_version FROM lui_meta WHERE index_name = $name;";
 
     /// <summary>
-    /// Creates <c>lui_meta</c> if it is missing — and switches the file to write-ahead logging.
+    /// Creates <c>lui_meta</c> if it is missing — and switches a file that LUI created itself to write-ahead logging.
     /// <para>
     /// A file that may not be written gets neither (ADR-0033): a read-only catalog creates no table and writes no
     /// pragma. The table has to be there — the writer made it — and if it is not, the catalog says so.
@@ -52,7 +52,7 @@ internal static class IndexStore
             throw new LuiReadOnlyException(
                 "opening the catalog",
                 "The file has no table 'lui_meta': a read-only catalog cannot create it. Create the index with a "
-                + "writable catalog first (LuiCatalog.Open(\"Data Source=app.db\") and Create(name, …)), or open the "
+                + "writable catalog first (LuiCatalog.OpenOrCreate(\"app.db\") and Create(name, …)), or open the "
                 + "file that the writer wrote.");
         }
     }

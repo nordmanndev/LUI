@@ -45,6 +45,15 @@ public sealed class PathTests
     }
 
     [Fact]
+    public void A_directory_is_no_file_path()
+    {
+        using var database = new TestDatabase();
+        var directory = Path.GetDirectoryName(database.FilePath)!;
+
+        Should.Throw<ArgumentException>(() => LuiCatalog.OpenOrCreate(directory)).ParamName.ShouldBe("path");
+    }
+
+    [Fact]
     public void The_connections_lui_builds_pool_and_keep_their_cache_private()
     {
         using var database = new TestDatabase();

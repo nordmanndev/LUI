@@ -10,9 +10,9 @@ namespace Nordmann.LUI;
 /// is opened, so a file that is not written is not created either.
 /// </para>
 /// <para>
-/// Bound through <c>IConfiguration.Bind</c>, the options arrive wrapped in a
-/// <see cref="System.Reflection.TargetInvocationException"/>: the binder wraps what a setter throws; the inner exception
-/// is the one that says what is wrong.
+/// The values are not checked where they are set: a value out of range is refused when the catalog is opened, with an
+/// <see cref="ArgumentOutOfRangeException"/> that names the property — so the options can be bound from configuration
+/// without the binder wrapping anything.
 /// </para>
 /// </summary>
 public sealed record LuiCatalogOptions

@@ -5,8 +5,8 @@ namespace Nordmann.LUI.Schema;
 /// where the value is set, and names the property that was set — in the message and as its
 /// <see cref="ArgumentException.ParamName"/> (review of pull request 12).
 /// <para>
-/// The values of the connections are checked when the catalog is opened (ADR-0066) — the error names the property
-/// there, too, and comes before a connection is opened.
+/// The values of the connections (<c>LuiPragmas</c>) go through the same checks, but when the catalog is opened
+/// (ADR-0066) — the error names the property there, too, and comes before a connection is opened.
 /// </para>
 /// </summary>
 internal static class Setting

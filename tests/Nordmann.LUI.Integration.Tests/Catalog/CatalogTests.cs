@@ -183,7 +183,7 @@ public sealed class CatalogTests
         tags.Query("vegan").Execute().Hits.Count.ShouldBe(1);
     }
 
-    // ADR-0066: the journal mode is set once, when LUI sets up a file whose schema is empty
+    // ADR-0066: the journal mode is set once, when LUI creates the file
     [Fact]
     public void OpenOrCreate_puts_a_file_it_creates_into_wal_mode()
     {
@@ -194,16 +194,68 @@ public sealed class CatalogTests
         database.Scalar<string>("PRAGMA journal_mode").ShouldBe("wal");
     }
 
-    // ADR-0066: the journal mode is set once, when LUI sets up a file whose schema is empty
+    // ADR-0066: a file that is there keeps its mode — even when it is empty
     [Fact]
-    public void OpenOrCreate_puts_an_empty_file_into_wal_mode()
+    public void OpenOrCreate_keeps_the_mode_of_a_file_that_is_there_even_when_it_is_empty()
     {
         using var database = new TestDatabase();
         File.WriteAllBytes(database.FilePath, []);
 
         using var catalog = LuiCatalog.OpenOrCreate(database.FilePath);
 
-        database.Scalar<string>("PRAGMA journal_mode").ShouldBe("wal");
+        database.Scalar<string>("PRAGMA journal_mode").ShouldBe("delete", "LUI did not create the file, so it leaves the mode");
+        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+    }
+
+    // ADR-0066: Open opens a file that is there and never creates one
+    [Fact]
+    public void Open_refuses_a_file_that_is_not_there_and_creates_nothing()
+    {
+        using var database = new TestDatabase();
+
+        var exception = Should.Throw<LuiCatalogNotFoundException>(() => LuiCatalog.Open(database.FilePath));
+
+        exception.Path.ShouldBe(Path.GetFullPath(database.FilePath));
+        File.Exists(database.FilePath).ShouldBeFalse("Open does not create the file");
+    }
+
+    [Fact]
+    public void OpenReadOnly_refuses_a_file_that_is_not_there_and_creates_nothing()
+    {
+        using var database = new TestDatabase();
+
+        Should.Throw<LuiCatalogNotFoundException>(() => LuiCatalog.OpenReadOnly(database.FilePath));
+
+        File.Exists(database.FilePath).ShouldBeFalse("OpenReadOnly does not create the file");
+    }
+
+    [Fact]
+    public void Open_keeps_the_mode_of_the_file_it_opens()
+    {
+        using var database = new TestDatabase();
+        database.PrepareWithATable();
+
+        using (var catalog = LuiCatalog.Open(database.FilePath))
+        {
+            catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+        }
+
+        database.Scalar<string>("PRAGMA journal_mode").ShouldBe("delete", "Open never sets the journal mode");
+    }
+
+    [Fact]
+    public void Open_opens_a_catalog_that_OpenOrCreate_made()
+    {
+        using var database = new TestDatabase();
+        using (var created = LuiCatalog.OpenOrCreate(database.FilePath))
+        {
+            created.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+        }
+
+        using var catalog = LuiCatalog.Open(database.FilePath);
+
+        catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
+        database.Scalar<string>("PRAGMA journal_mode").ShouldBe("wal", "the file LUI created stays in the mode LUI gave it");
     }
 
     // review of pull request 6, the version check

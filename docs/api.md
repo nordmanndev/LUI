@@ -26,9 +26,9 @@ using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 | Member | What it does |
 |---|---|
-| `static LuiCatalog Open(string path, LuiCatalogOptions? options = null)` | opens the catalog of the file at the path. It probes the SQLite it found (version, folding) and refuses a database it cannot search correctly. |
-| `static LuiCatalog OpenOrCreate(string path, LuiCatalogOptions? options = null)` | opens the catalog and sets the file up: the file is created when it is missing, and the write-ahead logging is set when the schema of the file is empty (ADR-0066). |
-| `static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that may not be written: every connection of it is read-only, and every write is refused with a `LuiReadOnlyException`. |
+| `static LuiCatalog Open(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there — a missing file is a `LuiCatalogNotFoundException`; `Open` never creates one and never sets the journal mode. It probes the SQLite it found (version, folding) and refuses a database it cannot search correctly. |
+| `static LuiCatalog OpenOrCreate(string path, LuiCatalogOptions? options = null)` | opens the catalog and creates the file when it is missing. **LUI sets the write-ahead logging only in a file it creates itself**; a file that is there keeps its journal mode, empty or not (ADR-0066). |
+| `static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there and may not be written (a missing file is a `LuiCatalogNotFoundException`): every connection of it is read-only, and every write is refused with a `LuiReadOnlyException`. |
 | `ILuiEmbeddedIndex Create(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)` | creates an **embedded** index — the content lives in the library's own table. It is the write path and belongs in the migration of the application. |
 | `ILuiLinkedIndex CreateLinked(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)` | creates a **linked** index — the content stays in the table of the application. The route is named in the call, as it is on the side of opening (`Index` / `LinkedIndex`). |
 | `ILuiEmbeddedIndex Index(string name)` | opens an embedded index that exists, and **writes nothing**: the definition is read out of the file, no table, no write lock. |
@@ -467,6 +467,7 @@ library.
 | `LuiEnvironmentException` | the environment is not what the library needs — the SQLite is too old, or it folds differently than the one the library was measured with |
 | `LuiDefinitionMismatchException` | the index in the file was written with another definition, another version of the schema or another folding. It carries `IndexName`, `Stored` and `Requested`. |
 | `LuiIndexNotFoundException` | there is no index of that name in the database. It carries `IndexName`. |
+| `LuiCatalogNotFoundException` | there is no file at the path of a catalog that is opened, not created. It carries `Path`. |
 | `LuiLinkedTableException` | the table of the application is missing, or a column of it, or its key is not the `INTEGER PRIMARY KEY` |
 | `LuiPayloadException` | a payload cannot be read in the type asked for. It carries `IndexName`, `Key` and `RequestedType`. |
 | `LuiReadOnlyException` | the file may not be written. It carries `Operation`. |
@@ -565,6 +566,7 @@ Forty-five public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothin
 | `LuiEnvironmentException` | class | [the exceptions](#the-exceptions) |
 | `LuiDefinitionMismatchException` | class | [the exceptions](#the-exceptions) |
 | `LuiIndexNotFoundException` | class | [the exceptions](#the-exceptions) |
+| `LuiCatalogNotFoundException` | class | [the exceptions](#the-exceptions) |
 | `LuiLinkedTableException` | class | [the exceptions](#the-exceptions) |
 | `LuiPayloadException` | class | [the exceptions](#the-exceptions) |
 | `LuiReadOnlyException` | class | [the exceptions](#the-exceptions) |

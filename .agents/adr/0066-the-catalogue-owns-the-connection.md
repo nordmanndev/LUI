@@ -81,7 +81,7 @@ is opened.
 | Class | Pragmas | When |
 |---|---|---|
 | **the connection** | `busy_timeout`, `synchronous`, `cache_size` | on every connection LUI opens, once |
-| **the file** | `journal_mode = WAL` — **not a parameter** | once, when `OpenOrCreate` sets up a file whose schema is empty (§4) |
+| **the file** | `journal_mode = WAL` — **not a parameter** | once, when `OpenOrCreate` creates the file itself (§4) |
 
 **A read-only connection cannot set the journal mode.** Measured (`probes/lui_probe8/Program.cs`, part C): `PRAGMA
 journal_mode = WAL` on a read-only connection fails with *SQLite Error 8: 'attempt to write a readonly database'*, and
@@ -89,17 +89,24 @@ it would take the working pragmas of the statement with it. The read path opens 
 (ADR-0067) ⇒ **the file pragma is never in the pragma statement of a
 connection.**
 
-### 4. The journal mode is set once, when `OpenOrCreate` sets up a file whose schema is empty
+### 4. The journal mode is set once, when LUI creates the file
 
-**LUI starts SQLite in WAL mode — when it sets up a file whose schema is empty. A file with tables keeps its mode.** LUI
-sets it once and never changes it again; there is no parameter, and nothing overrides it.
+**LUI starts SQLite in WAL mode — when it creates the file itself. A file that is there keeps its mode, empty or not.**
+LUI sets it once and never changes it again; there is no parameter, and nothing overrides it. The rule is the owner's
+(2026-11-18): it replaces the earlier one ("when the schema of the file is empty"), which put WAL into the fresh,
+still empty file of an application that had chosen its own mode.
 
 | Case | What happens |
 |---|---|
-| `OpenOrCreate`, the file is missing | the file is created, the journal mode is set: WAL |
-| `OpenOrCreate`, the file is there and its schema is empty | the journal mode is set: WAL |
-| the file has tables (the application's database, or a catalogue already) | the mode stays what it is |
-| `Open`, `OpenReadOnly` | nothing is written (ADR-0068) |
+| `OpenOrCreate`, the file is missing | LUI creates the file (exclusively, before SQLite does) and sets the journal mode: WAL |
+| `OpenOrCreate`, the file is there — with tables, or empty | the mode stays what it is |
+| `Open`, the file is there | the mode stays what it is |
+| `Open`, `OpenReadOnly`, the file is missing | `LuiCatalogNotFoundException` — nothing is created |
+| `OpenReadOnly`, the file is there | nothing is written (ADR-0068) |
+
+**LUI creates the file itself** (`FileMode.CreateNew`) instead of letting the provider do it, because "the file did not
+exist" cannot be observed after the provider's first connection has created it. Of two processes that open a missing
+file at the same time, one creates it and sets the mode; the other finds a file that is there and leaves it alone.
 
 ### 5. The pragmas are applied on every connection
 
