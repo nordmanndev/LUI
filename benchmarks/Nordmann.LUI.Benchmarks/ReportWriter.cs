@@ -115,7 +115,7 @@ internal static class ReportWriter
 
         // the hits the query FOUND: `Hits` is the upper limit of the answer (20),
         // `CandidatesConsidered` the number of hits that were ranked
-        return settings.Run(fixture.Index).CandidatesConsidered.ToString(CultureInfo.InvariantCulture);
+        return settings.RunChecked(fixture.Index).CandidatesConsidered.ToString(CultureInfo.InvariantCulture);
     }
 
     /// <summary>The record of the run: the date, the measurements per case, the machine and the journal mode.</summary>
