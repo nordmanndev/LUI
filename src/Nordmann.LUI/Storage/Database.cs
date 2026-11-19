@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Microsoft.Data.Sqlite;
 
 namespace Nordmann.LUI.Storage;
@@ -20,7 +21,20 @@ namespace Nordmann.LUI.Storage;
 /// </summary>
 internal sealed class Database : IDisposable
 {
+    /// <summary>
+    /// The pragmas that a physical connection already has, by its handle (issue #237). The three pragmas stay with the
+    /// physical connection — the pool of the provider hands it out again as it was — so a write that takes a connection out of
+    /// the pool does not apply them again: that was a command and two statements, a kilobyte on every write. The table
+    /// is the memory of the physical connections and it is <b>static</b>, because the pool belongs to the connection string and
+    /// not to the catalogue: another catalogue of the same file with other pragmas gets the same physical connection, and the
+    /// statement it finds there is not its own. The handle is held weakly; a connection that is closed takes its entry with it.
+    /// An application that builds the same connection string itself shares the pool and could change a pragma of a physical
+    /// connection behind LUI's back — that is not a case the catalogue guards.
+    /// </summary>
+    private static readonly ConditionalWeakTable<object, string> Configured = new();
+
     private readonly LuiCatalogOptions _options;
+    private readonly string _pragmaStatement;
     private readonly object _owner;
     private readonly object _lifetime = new();
     private int _running;
@@ -38,6 +52,7 @@ internal sealed class Database : IDisposable
     {
         _owner = owner;
         _options = options;
+        _pragmaStatement = Pragmas();
         _setsJournalMode = createdTheFile;
         Path = path;
         Mode = mode;
@@ -175,9 +190,28 @@ internal sealed class Database : IDisposable
             // a busy command, not the time a statement runs (ADR-0046). Commands created afterwards inherit it.
             connection.DefaultTimeout = ProviderRetrySeconds;
 
+            // a physical connection of the pool that has these pragmas already (issue #237) is not given them again
+            var handle = connection.Handle;
+            if (handle is not null && Configured.TryGetValue(handle, out var applied) && string.Equals(applied, _pragmaStatement, StringComparison.Ordinal))
+            {
+                return connection;
+            }
+
+            // the entry goes first and comes back after the statement ran: a statement that fails half-way leaves no entry that
+            // would let the next checkout skip it
+            if (handle is not null)
+            {
+                Configured.Remove(handle);
+            }
+
             using var command = connection.CreateCommand();
-            command.CommandText = Pragmas();
+            command.CommandText = _pragmaStatement;
             command.ExecuteNonQuery();
+            if (handle is not null)
+            {
+                Configured.AddOrUpdate(handle, _pragmaStatement);
+            }
+
             return connection;
         }
         catch

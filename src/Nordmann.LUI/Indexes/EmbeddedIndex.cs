@@ -406,8 +406,9 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
 
     /// <summary>
     /// The statements for a write of LUI's own, on a connection that the caller took from the pool (ADR-0070): they live
-    /// as long as that connection is in the caller's hands. The provider keeps the plan of a statement per physical
-    /// connection, so the next write on the same physical connection does not compile it again. The lock of the writes is
+    /// as long as that connection is in the caller's hands. The statement objects are made again for every write
+    /// (issue #237 measured about a kilobyte for the command, the parameters and the checkout; issue #248); whether the provider keeps the
+    /// compiled plan per physical connection is not measured. The lock of the writes is
     /// the lock of the catalogue: two indexes of one catalogue write one after the other.
     /// </summary>
     private WriteStatements OwnStatements(SqliteConnection connection) => new(connection, _source, _database.WriterGate);
