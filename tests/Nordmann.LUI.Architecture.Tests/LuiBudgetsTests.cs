@@ -101,7 +101,7 @@ public sealed class LuiBudgetsTests
 
         // the measured value of the row of TwoErrors of the record: an observation that stays, and a reserve under the limit
         var row = File.ReadAllLines(Path.Combine(Repository.RootPath, "docs", "typo-dictionary.md"))
-            .Single(line => line.StartsWith("| `TwoErrors`", StringComparison.Ordinal));
+            .Single(line => line.StartsWith("| `TwoErrors` | built", StringComparison.Ordinal));
         var measured = double.Parse(System.Text.RegularExpressions.Regex.Match(row, @"\*\*(?<mb>\d+) MB\*\*", System.Text.RegularExpressions.RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1)).Groups["mb"].Value, System.Globalization.CultureInfo.InvariantCulture);
 
         (measured == 240d).ShouldBeTrue($"the measured value of the dictionary of two errors stays in the record: {row}");
