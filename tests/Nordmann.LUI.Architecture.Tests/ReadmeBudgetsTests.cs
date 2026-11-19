@@ -80,7 +80,16 @@ public sealed class ReadmeBudgetsTests
 
             foreach (var table in tables)
             {
-                var limits = LimitsOf(table.Skip(1).Select(row => row[2]));
+                var rows = table.Skip(1).ToList();
+                rows.ShouldAllBe(row => row.Length == 3, $"{Path.GetFileName(path)}: a row of the table '{string.Join(" | ", table[0])}' has not three cells");
+
+                // a row whose limit does not parse (`<= 300 MB`, `max 300 MB`) would pass as an empty list
+                foreach (var row in rows)
+                {
+                    LimitsOf([row[2]]).ShouldNotBeEmpty($"{Path.GetFileName(path)}: the row '{row[0]}' shows no limit of the form '≤ 300 MB'");
+                }
+
+                var limits = LimitsOf(rows.Select(row => row[2]));
 
                 IsSubsequence(limits, expected).ShouldBeTrue(
                     $"{Path.GetFileName(path)}: the table '{string.Join(" | ", table[0])}' shows {string.Join(", ", limits)}; "
@@ -98,6 +107,9 @@ public sealed class ReadmeBudgetsTests
             ["Target", "Measured", "Limit"],
             ["Measurement", "Scenario", "Target"],
             ["Target", "Measured at the scenario", "Limit"],
+            ["", "Result", "Target (ADR-0020)"],
+            ["Kind of target", "On the machine of the record", "On the lane"], // which kind is asserted where: no number of a limit
+            ["Entries", "p50", "p95", "target p95"], // the run of the first scale test: a dated record with the target of its day
 
             // the runs of 2026-11-04 with the targets of their day: a dated record, not a promise of today — its limits are the history
             ["Target", "Run 1", "Run 2", "Run 3 (batches of 1,000,000)", "Run 4 (as committed)", "Limit"],
@@ -108,7 +120,8 @@ public sealed class ReadmeBudgetsTests
             foreach (var table in TablesOf(path))
             {
                 var header = table[0];
-                var shows = header.Any(cell => string.Equals(cell, "Target", StringComparison.OrdinalIgnoreCase) || string.Equals(cell, "Limit", StringComparison.OrdinalIgnoreCase));
+                var shows = header.Any(cell => cell.Contains("Target", StringComparison.OrdinalIgnoreCase) || cell.Contains("Limit", StringComparison.OrdinalIgnoreCase)
+                    || cell.Contains("Budget", StringComparison.OrdinalIgnoreCase) || cell.Contains("Maximum", StringComparison.OrdinalIgnoreCase));
 
                 if (shows)
                 {
