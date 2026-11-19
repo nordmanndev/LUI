@@ -98,6 +98,43 @@ public sealed class PrefixPathTests
         return kind == LuiIndexKind.SingleWord ? [.. entries.Where(entry => !entry.Text.Contains(' ', StringComparison.Ordinal)).DistinctBy(entry => entry.Text, StringComparer.Ordinal)] : entries;
     }
 
+    [Fact]
+    public void A_source_whose_text_can_change_under_the_index_reads_the_text_on_the_prefix_path()
+    {
+        // the coupling of the two flags: a linked index checks the text against the table, so it needs it on every path
+        var linked = typeof(LinkedSource);
+        var source = System.Runtime.CompilerServices.RuntimeHelpers.GetUninitializedObject(linked);
+        var changes = (bool)linked.GetProperty("TextCanChangeUnderTheIndex", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(source)!;
+        var reads = (bool)linked.GetProperty("PrefixReadsText", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!.GetValue(source)!;
+
+        changes.ShouldBeTrue();
+        reads.ShouldBeTrue("a source that checks the text against the table reads it on the prefix path too");
+    }
+
+    [Fact]
+    public void A_long_text_and_a_truncated_prefix_path_give_the_hit_its_own_text_and_word_start()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var index = catalog.Create("words", builder => builder.MultiWord());
+        var longText = "Ärger " + string.Join(' ', Enumerable.Repeat("fragment", 40));
+        var entries = Enumerable.Range(1, 60).Select(i => new LuiEntry(i, i == 1 ? longText : "ärger " + i.ToString(CultureInfo.InvariantCulture)) { Weight = i == 1 ? 1 : 100 + i }).ToList();
+        index.UpsertMany(entries);
+
+        var result = index.Search("ä", new LuiQueryOptions { Candidates = 10, MaxResults = 20 });
+
+        result.Truncated.ShouldBeTrue("the candidates are fewer than the entries");
+        result.Hits.ShouldAllBe(hit => hit.AtWordStart && hit.Text.Length > 0);
+        foreach (var hit in result.Hits)
+        {
+            hit.Text.ShouldBe(entries.Single(entry => entry.Key.Equals(hit.Key)).Text, "the text of the hit is the stored one");
+        }
+
+        var longHit = index.Search("ä", new LuiQueryOptions { Candidates = 200, MaxResults = 60 }).Hits.Single(hit => hit.Text.Length > 100);
+        longHit.Text.ShouldBe(longText);
+        longHit.AtWordStart.ShouldBeTrue();
+    }
+
     private static class Golden
     {
         internal static string[] For(LuiIndexKind kind) => kind == LuiIndexKind.SingleWord ? SingleWord : MultiWord;

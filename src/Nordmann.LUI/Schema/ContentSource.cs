@@ -9,8 +9,9 @@ namespace Nordmann.LUI.Schema;
 /// (<c>Linked</c>, a table of the application) is a second subclass, not a second query path (ADR-0014).
 /// <para>
 /// Every statement keeps the columns the query path reads in the same places, whatever the source calls
-/// them: the candidates <c>(rowid, text)</c>, the prefix path <c>(rowid, text)</c>, the hits
-/// <c>(doc_id, key, payload …)</c>, the typo dictionary <c>(text, weight)</c>. Every name that reaches a
+/// them: the candidates <c>(rowid, text)</c>, the prefix path <c>(rowid, text)</c> — or <c>(rowid)</c> alone when
+/// <see cref="PrefixReadsText"/> is false —, the hits <c>(doc_id, key, payload …)</c> — and, last, <c>text</c> for the
+/// prefix path that did not read it —, the typo dictionary <c>(text, weight)</c>. Every name that reaches a
 /// statement has been checked against <see cref="Identifier.Pattern"/>.
 /// </para>
 /// </summary>
@@ -51,7 +52,7 @@ internal abstract class ContentSource
     /// <summary>The statements that create the index, in the order they have to run.</summary>
     internal abstract IReadOnlyList<string> CreateStatements();
 
-    /// <summary>The prefix path (ADR-0008): <c>(rowid, text)</c> of the best entries whose text begins with one or two characters.</summary>
+    /// <summary>The prefix path (ADR-0008): <c>(rowid, text)</c> — <c>(rowid)</c> alone when <see cref="PrefixReadsText"/> is false — of the best entries whose text begins with one or two characters.</summary>
     internal abstract string PrefixSql(int length);
 
     /// <summary>
