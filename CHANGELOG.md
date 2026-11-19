@@ -75,13 +75,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the text as before: it checks it against the table.
 
 - **The word start is made when the ranking needs it** (#174, R4 of the audit): the search form of each of up to 500 candidates
-  was made for a word start that only two things use — a ranking that sorts by it (`WordStartThenSimilarity`,
-  `WordStartThenWeight`) and a typo correction that asks whether any candidate has one. Otherwise the hits make it, for the
-  twenty that are left, from the one search form they make anyway for their similarity (the prefix path made two for each hit
-  before). The answer is the same. Measured (200,000 entries, 4 cores, 2026-11-19, base and branch alternating, two rounds): with
-  `Rank = WeightOnly` and no typo tolerance the median of three and four characters goes from 0,61–0,65 to 0,49–0,52 ms, with
-  `SimilarityOnly` from 0,73–0,76 to 0,63–0,66 ms; with the default ranking and the typo tolerance on nothing changes — both need
-  the word start. A `Linked` index makes it as before: it makes the search form to check the text against the table.
+  was made for a word start that only the ranking and the typo correction use — every ranking but `WeightOnly` (it sorts by the
+  word start, or it measures the similarity from it) and a typo correction that asks whether any candidate has one. With
+  `WeightOnly` and no typo tolerance the hits make it instead, for the twenty that are left, from the one search form they make
+  anyway for their similarity (the prefix path made two for each hit before). The answer is the same. Measured (200,000 entries,
+  4 cores, 2026-11-19, base and branch alternating, two rounds): with `Rank = WeightOnly` and no typo tolerance the median of
+  three and four characters goes from 0,61–0,66 to 0,49–0,52 ms; with every other ranking, and with the typo tolerance on,
+  nothing changes. A `Linked` index makes it as before: it makes the search form to check the text against the table.
 
 - **A refused write is a `LuiReadOnlyException` that says why.** SQLite refuses (`SQLITE_READONLY`), LUI translates, and the
   message names the reason: the catalogue was opened with `OpenReadOnly` (with the operation, the index, and how to write),

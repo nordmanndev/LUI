@@ -46,29 +46,44 @@ public sealed class WordStartDemandTests
     }
 
     [Fact]
-    public void The_search_index_leaves_the_word_start_to_the_hits_when_nothing_ranks_by_it_and_the_answer_is_the_same()
+    public void The_search_index_leaves_the_word_start_to_the_hits_when_the_ranking_measures_no_similarity_and_the_answer_is_the_same()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var index = Entries(catalog);
 
-        foreach (var rank in new[] { LuiRankingOrder.WeightOnly, LuiRankingOrder.SimilarityOnly })
+        // only the weight alone ranks without a similarity — and the similarity is measured from the word start
+        var cheap = default(LuiResult);
+        var made = SearchForms(() => cheap = index.Search("apf", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = false }));
+
+        // a correction may ask for the word start of every candidate: with the typo tolerance on, the word starts are made
+        var asked = default(LuiResult);
+        var madeForCorrection = SearchForms(() => asked = index.Search("apf", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = true }));
+
+        var preparation = SearchForms(() => index.Search("qxz", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = false }));
+        made.ShouldBe(preparation + cheap!.Hits.Count, "WeightOnly measures nothing for the candidates: no candidate makes a search form, each hit makes one");
+        madeForCorrection.ShouldBeGreaterThanOrEqualTo(asked!.CandidatesConsidered, "the typo tolerance may ask for the word start of every candidate");
+        Describe(cheap).ShouldBe(Describe(asked), "the hits, their order, their word starts and similarities do not change");
+    }
+
+    [Theory]
+    [InlineData(LuiRankingOrder.SimilarityOnly)]
+    [InlineData(LuiRankingOrder.WordStartThenSimilarity)]
+    [InlineData(LuiRankingOrder.WordStartThenWeight)]
+    public void A_ranking_that_measures_a_similarity_measures_it_from_the_word_start_with_or_without_the_typo_tolerance(LuiRankingOrder rank)
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var index = Names(catalog);
+
+        // the match stands in a later word: measured from the word start and measured from the start of the text differ
+        foreach (var input in new[] { "must", "mus", "pet", "mayer" })
         {
-            var cheap = default(LuiResult);
-            var made = SearchForms(() => cheap = index.Search("apf", new LuiQueryOptions { Rank = rank, TypoTolerance = false }));
+            var without = index.Search(input, new LuiQueryOptions { Rank = rank, TypoTolerance = false, Candidates = 40 });
+            var with = index.Search(input, new LuiQueryOptions { Rank = rank, TypoTolerance = true, Candidates = 40 });
 
-            // a correction may ask for the word start of every candidate: with the typo tolerance on, the word starts are made
-            var asked = default(LuiResult);
-            var madeForCorrection = SearchForms(() => asked = index.Search("apf", new LuiQueryOptions { Rank = rank, TypoTolerance = true }));
-
-            // the search form of each candidate is made once for the similarity, where the ranking measures it — and not a second
-            // time for a word start nothing sorts by; each hit makes one, for its word start (and for its similarity, where the
-            // ranking left that to the hit)
-            var preparation = SearchForms(() => index.Search("qxz", new LuiQueryOptions { Rank = rank, TypoTolerance = false }));
-            var measuredByTheRanking = rank == LuiRankingOrder.SimilarityOnly ? cheap!.CandidatesConsidered : 0;
-            made.ShouldBe(preparation + measuredByTheRanking + cheap!.Hits.Count, $"{rank} does not sort by the word start: no candidate makes one");
-            madeForCorrection.ShouldBeGreaterThanOrEqualTo(asked!.CandidatesConsidered, "the typo tolerance may ask for the word start of every candidate");
-            Describe(cheap).ShouldBe(Describe(asked), $"{rank}: the hits, their order, their word starts and similarities do not change");
+            without.Hits.ShouldNotBeEmpty(input);
+            Describe(without).ShouldBe(Describe(with), $"{rank} '{input}': the similarity is measured from the word start, whether or not a typo correction may ask for it");
         }
     }
 
@@ -80,6 +95,28 @@ public sealed class WordStartDemandTests
         var before = Normalizer.SearchFormsWritten;
         query();
         return Normalizer.SearchFormsWritten - before;
+    }
+
+    private static ILuiEmbeddedIndex Names(LuiCatalog catalog)
+    {
+        var index = catalog.Create("names", builder => builder.MultiWord().TypoTolerance());
+        string[] firstNames = ["Max", "Anna", "Hans-Peter", "Ärger", "Straße", "Maria", "Jan"];
+        string[] lastNames = ["Mustermann", "Muster", "Mustafa", "Maier", "Mayer", "Petersen", "Peters"];
+        var entries = new List<LuiEntry>();
+        var key = 1;
+        foreach (var first in firstNames)
+        {
+            foreach (var last in lastNames)
+            {
+                entries.Add(new LuiEntry(key, $"{first} {last}") { Weight = (key * 5) % 31, Priority = key % 9 == 0 ? LuiPriority.High : LuiPriority.Normal });
+                key++;
+                entries.Add(new LuiEntry(key, $"{last}, {first} {last}") { Weight = (key * 5) % 31 });
+                key++;
+            }
+        }
+
+        index.UpsertMany(entries);
+        return index;
     }
 
     private static ILuiEmbeddedIndex Entries(LuiCatalog catalog)

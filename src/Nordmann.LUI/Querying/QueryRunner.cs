@@ -68,9 +68,9 @@ internal sealed class QueryRunner
         var similarity = options.Similarity ?? _defaultSimilarity;
 
         // the buffers of the candidates are reused between the queries of a thread (issue #30)
-        // A word start costs a search form for each candidate, and only two things use it: a ranking that sorts by it, and a typo
-        // correction that asks whether any candidate has one (issue #174). Otherwise the hits make it — for the twenty that are
-        // left, from the one search form they make for their similarity.
+        // A word start costs a search form for each candidate. The weight alone, with no typo correction that may ask for it, needs
+        // none (issue #174): the hits make it — for the twenty that are left, from the one search form they make anyway for
+        // their similarity. Every other ranking measures its similarity from the word start.
         var order = query.IsPrefixPath ? LuiRankingOrder.WeightOnly : options.Rank;
         var wordStarts = NeedsWordStarts(query, options, order);
         var candidates = _candidates.Read(connection, snapshot, query, options, variant: 0, wordStarts, cancellationToken, out var count, out var truncated);
@@ -107,11 +107,12 @@ internal sealed class QueryRunner
     }
 
     /// <summary>
-    /// Whether the candidates get their word start (issue #174): the ranking sorts by it, or a typo correction may ask whether
-    /// any candidate has one.
+    /// Whether the candidates get their word start (issue #174). Three things use it: a ranking that sorts by it, a ranking that
+    /// measures the similarity — it is measured <b>from the word start</b>, so every order but <see cref="LuiRankingOrder.WeightOnly"/>
+    /// — and a typo correction, which asks whether any candidate has one. The weight alone needs none: the hits make it.
     /// </summary>
     private bool NeedsWordStarts(PreparedQuery query, LuiQueryOptions options, LuiRankingOrder order) =>
-        order is LuiRankingOrder.WordStartThenSimilarity or LuiRankingOrder.WordStartThenWeight
+        order != LuiRankingOrder.WeightOnly
         || (!query.IsPrefixPath && (options.TypoTolerance ?? (_typoDefault != LuiTypoDistance.None)));
 
     /// <summary>
