@@ -64,6 +64,22 @@ public sealed class OneFileTests
     }
 
     [Fact]
+    public void A_file_that_is_already_there_keeps_its_mode_even_if_it_is_empty()
+    {
+        // ADR-0066, section 4 (2026-11-18): WAL only when OpenOrCreate creates the file itself — not when the schema is empty
+        using var database = new TestDatabase();
+        File.WriteAllBytes(database.FilePath, []);
+
+        using (var catalog = LuiCatalog.OpenOrCreate(database.FilePath))
+        {
+            catalog.Create("labels", index => index.SingleWord()).Upsert(1, "vegan");
+        }
+
+        SqliteConnection.ClearAllPools();
+        database.Scalar<string>("PRAGMA journal_mode").ShouldBe("delete", "an empty file that is there has the mode it has — the rollback journal");
+    }
+
+    [Fact]
     public void A_file_that_the_application_set_up_first_keeps_its_mode_when_LUI_comes_after()
     {
         using var database = new TestDatabase();

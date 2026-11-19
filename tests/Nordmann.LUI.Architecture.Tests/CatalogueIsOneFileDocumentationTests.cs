@@ -34,8 +34,10 @@ public sealed class CatalogueIsOneFileDocumentationTests
 
         flat.ShouldContain("file of the application becomes a catalogue with `OpenOrCreate`", Case.Insensitive,
             "docs/api.md says how the file of the application becomes a catalogue");
-        flat.ShouldContain("write-ahead logging if its schema was empty", Case.Insensitive,
+        flat.ShouldContain("only when `OpenOrCreate` **creates the file itself**", Case.Insensitive,
             "docs/api.md says when LUI sets the journal mode (ADR-0066, ADR-0068)");
-        flat.ShouldContain("keeps its mode", Case.Insensitive, "docs/api.md says that a file with tables keeps its mode");
+        flat.ShouldContain("already there — with tables or empty — keeps its mode", Case.Insensitive,
+            "docs/api.md says that a file that is there keeps its mode, empty or not");
+        flat.ShouldNotContain("schema was empty", Case.Insensitive, "the rule of 'an empty schema' was replaced (ADR-0066, 2026-11-18)");
     }
 }

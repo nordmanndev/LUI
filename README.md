@@ -423,8 +423,8 @@ decides what may happen.
 | `LuiCatalogOptions` | the settings of the catalog: the pragmas of the connections (busy timeout, synchronous, cache size), the payload serialiser, the clock |
 
 One catalogue is one file: the file of your application becomes a catalogue with `OpenOrCreate`, and its tables lie beside
-the tables of LUI. LUI sets write-ahead logging only when the schema of the file was empty; a file that already had tables
-keeps its mode.
+the tables of LUI. LUI sets write-ahead logging only when `OpenOrCreate` creates the file itself; a file that is already there, with tables
+or empty, keeps its mode.
 
 **Every public type of the package is listed in [`docs/api.md`](./docs/api.md)** — the catalogue, the builders, the
 index, the entry, the query, the payload, the similarity, the enumerations, the exceptions and the hosting extension,
