@@ -42,6 +42,12 @@ internal sealed class CandidateReader
     internal bool CarriesText(PreparedQuery query) => !query.IsPrefixPath || _prefixReadsText;
 
     /// <summary>
+    /// Whether the candidates check their text against the table (<c>Linked</c>): they make the search form for that, and the
+    /// word start comes with it.
+    /// </summary>
+    internal bool Verifies => _verify;
+
+    /// <summary>
     /// The candidates of <paramref name="query"/>: at most <c>Candidates</c>.
     /// <paramref name="truncated"/> says whether there were more.
     /// <para>
@@ -57,6 +63,7 @@ internal sealed class CandidateReader
         PreparedQuery query,
         LuiQueryOptions options,
         byte variant,
+        bool wordStarts,
         CancellationToken cancellationToken,
         out int count,
         out bool truncated)
@@ -93,7 +100,7 @@ internal sealed class CandidateReader
             // the prefix path of a source whose texts cannot change reads the rowid and nothing else (issue #173)
             var text = withText ? reader.GetString(1) : string.Empty;
             var outdated = false;
-            var start = withText ? StartOf(text, query, out outdated) : -1;
+            var start = withText && (wordStarts || _verify) ? StartOf(text, query, out outdated) : -1;
 
             // an outdated row is not a candidate and does not count against the budget — up to a budget of them; and only
             // a row that is a candidate past the budget makes the answer truncated (review of main after #23, finding 4)

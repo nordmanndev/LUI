@@ -61,7 +61,12 @@ public sealed class WordStartDemandTests
             var asked = default(LuiResult);
             var madeForCorrection = SearchForms(() => asked = index.Search("apf", new LuiQueryOptions { Rank = rank, TypoTolerance = true }));
 
-            made.ShouldBeLessThan(cheap!.CandidatesConsidered, $"{rank} does not sort by the word start: the candidates make none");
+            // the search form of each candidate is made once for the similarity, where the ranking measures it — and not a second
+            // time for a word start nothing sorts by; each hit makes one, for its word start (and for its similarity, where the
+            // ranking left that to the hit)
+            var preparation = SearchForms(() => index.Search("qxz", new LuiQueryOptions { Rank = rank, TypoTolerance = false }));
+            var measuredByTheRanking = rank == LuiRankingOrder.SimilarityOnly ? cheap!.CandidatesConsidered : 0;
+            made.ShouldBe(preparation + measuredByTheRanking + cheap!.Hits.Count, $"{rank} does not sort by the word start: no candidate makes one");
             madeForCorrection.ShouldBeGreaterThanOrEqualTo(asked!.CandidatesConsidered, "the typo tolerance may ask for the word start of every candidate");
             Describe(cheap).ShouldBe(Describe(asked), $"{rank}: the hits, their order, their word starts and similarities do not change");
         }

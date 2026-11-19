@@ -164,29 +164,48 @@ internal static class Ranker
         NormalizationOptions normalization,
         ref char[] buffer)
     {
-        if (similarity is ISpanSimilarity span)
+        if (similarity is ISpanSimilarity)
         {
-            var needed = (candidate.Text.Length * 3) + 1;
-            if (buffer.Length < needed)
-            {
-                ArrayPool<char>.Shared.Return(buffer);
-                buffer = ArrayPool<char>.Shared.Rent(needed);
-            }
-
-            if (!Normalizer.TryWriteSearchForm(candidate.Text, buffer, out var written, normalization))
-            {
-                // the transliteration at most doubles a text (ä → ae, ß → ss); the buffer holds three times
-                throw new UnreachableException("The search form of a text is longer than three times the text.");
-            }
-
-            var form = buffer.AsSpan(0, written);
-            var from = candidate.WordStart > 0 && candidate.WordStart < form.Length ? form[candidate.WordStart..] : form;
-            return span.Similarity(queries[candidate.Variant].AsSpan(), from);
+            var form = SearchForm(candidate.Text, normalization, ref buffer);
+            return MeasureForm(candidate, form, queries, similarity);
         }
 
-        var text = Normalizer.ToSearchForm(candidate.Text, normalization);
-        var fromString = candidate.WordStart > 0 && candidate.WordStart < text.Length ? text[candidate.WordStart..] : text;
-        return similarity.Similarity(queries[candidate.Variant], fromString);
+        return MeasureForm(candidate, Normalizer.ToSearchForm(candidate.Text, normalization), queries, similarity);
+    }
+
+    /// <summary>
+    /// The text in its search form, in the buffer — which grows when the text needs it (the transliteration at most doubles a
+    /// text; the buffer holds three times).
+    /// </summary>
+    internal static ReadOnlySpan<char> SearchForm(string text, NormalizationOptions normalization, ref char[] buffer)
+    {
+        var needed = (text.Length * 3) + 1;
+        if (buffer.Length < needed)
+        {
+            ArrayPool<char>.Shared.Return(buffer);
+            buffer = ArrayPool<char>.Shared.Rent(needed);
+        }
+
+        if (!Normalizer.TryWriteSearchForm(text, buffer, out var written, normalization))
+        {
+            // the transliteration at most doubles a text (ä → ae, ß → ss); the buffer holds three times
+            throw new UnreachableException("The search form of a text is longer than three times the text.");
+        }
+
+        return buffer.AsSpan(0, written);
+    }
+
+    /// <summary>
+    /// The similarity of a candidate whose search form is made already (issue #174): from its word start on, against the
+    /// input it was found with.
+    /// </summary>
+    internal static double MeasureForm(in Scored candidate, ReadOnlySpan<char> form, IReadOnlyList<string> queries, ILuiSimilarity similarity)
+    {
+        var from = candidate.WordStart > 0 && candidate.WordStart < form.Length ? form[candidate.WordStart..] : form;
+
+        return similarity is ISpanSimilarity span
+            ? span.Similarity(queries[candidate.Variant].AsSpan(), from)
+            : similarity.Similarity(queries[candidate.Variant], new string(from));
     }
 
     /// <summary>The length of the buffer of the search form to start with.</summary>
