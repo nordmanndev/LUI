@@ -5,16 +5,18 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** the round of the measured work is released. What is left is the next round: the epic of the audit
-([#166](https://github.com/nordmanndev/LUI/issues/166)) with its issues #168–#183 — the connection of the catalogue, the
-read-only path, the opening of a catalogue, the freeze of 0.1.0 and the six findings of the audit. Two issues of the round
-of the measured work are still open: [#165](https://github.com/nordmanndev/LUI/issues/165) (the file and the line of the
-runtime of the one-off) and [#192](https://github.com/nordmanndev/LUI/issues/192) (the window of the unit layer).
-**Branch:** `dev` is at `9ba74e3` (the merge of PR #196, the release), `main` at `f4ef3c4` — the tag `v0.2.0` is on the
-commit of `main`.
-**Decision:** the plan
-([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)) — D1 to D8, on the owner's
-behalf, 2026-11-13.
+**Issue:** the round of **0.3.0** — the epic [#166](https://github.com/nordmanndev/LUI/issues/166) and its issues
+#169–#183: the catalogue owns the connection (a path and typed options, ADR-0066), the read path read-only (ADR-0067),
+three ways to open a catalogue (ADR-0068), the freeze of 0.1.0 lifted for 0.3.0 (ADR-0069), and the findings of the audit
+of 2026-11-13/14. **Nothing else comes into 0.3.0** (the owner, 2026-11-15).
+**Branch:** `0.3.0` — branched from `main` at `f4ef3c4` (the release of 0.2.0), with the three state pull requests of
+`dev` merged into it. **Every pull request of the round branches from `0.3.0` and targets `0.3.0`**, one per issue, in the
+order of the plan.
+**Decision:** the plan ([the round of 0.3.0](./../plan/2026-11-15-the-round-of-0-3-0.md)) and the epic #166 — every
+decision of the round was taken by the owner on 2026-11-14 and 2026-11-15.
+**Status:** **the round is open.** The owner merged the plan into `0.3.0` on 2026-11-15 (PR #201, the merge commit
+`64e0efb`) — that was the go. **The next step is #169** (ADR-0066): a branch from `0.3.0`, a pull request against `0.3.0`.
+Before it, read the index of the records: the numbers 0066–0069 have to be free.
 
 ## What is done
 
@@ -133,11 +135,21 @@ of the plan:
 Then the release of `0.2.0` — **done** (PR #196, the release pull request #197, the tag `v0.2.0` on the commit `f4ef3c4`
 of `main`, the packages on nuget.org).
 
-**The next round** is the audit of 2026-11-13/14: the epic [#166](https://github.com/nordmanndev/LUI/issues/166) with its
-issues #168–#183 — the four records of the epic are ADR-0066 (the catalogue owns the connection), ADR-0067 (the read
-path), ADR-0068 (three ways to open a catalogue) and ADR-0069 (the freeze of 0.1.0 is lifted for 0.3.0). Two issues of the
-round of the measured work stay open: **#165** (the file and the line of the runtime of the one-off) and **#192** (the
-window of the unit layer).
+**The next round is 0.3.0** — [the plan](./../plan/2026-11-15-the-round-of-0-3-0.md), on the branch `0.3.0`. Fifteen
+pull requests, one per issue, then the release:
+
+1. **#169** — ADR-0066: the catalogue owns the connection (`LuiPragmas`, the path, `AddLui` with a factory) — **the first
+   pull request of the round, and the next step.**
+2. **#171** — ADR-0068: `Open`, `OpenOrCreate`, `OpenReadOnly`.
+3. **#170** — ADR-0067: the read path opens read-only.
+4. **#173** — the prefix path reads only the rowid.
+5. **#174** — no word start on the prefix path.
+6. **#172** — ADR-0069: the freeze of 0.1.0 is lifted, the guard that the old API is gone, the migration note.
+7. to 15. **#181, #182, #179, #178, #180, #177, #176, #183, #175** — the findings of the audit, in this order.
+16. The release of 0.3.0 into the branch; then `0.3.0` → `dev`, `dev` → `main`, the tag `v0.3.0`.
+
+**Not in 0.3.0:** #165 (the file and the line of the runtime of the one-off) and #192 (the window of the unit layer) stay
+open for the round after.
 
 **The trap of the release:** the merge of the release pull request can take `dev` with it — its head *is* `dev`, and the
 button **Delete branch** next to the merge deletes the head. It happened on 2026-11-15 (after PR #197); nothing was lost,

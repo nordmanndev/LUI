@@ -65,14 +65,14 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
     public long Count()
     {
         using var scope = _database.Begin();
-        using var connection = _database.OpenConnection();
+        using var connection = _database.OpenReadConnection();
         return Scalar(connection, null, _source.CountSql);
     }
 
     public LuiTriggerState Triggers()
     {
         using var scope = _database.Begin();
-        using var connection = _database.OpenConnection();
+        using var connection = _database.OpenReadConnection();
         return TriggerState(connection, null);
     }
 
@@ -188,7 +188,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
     public long Pending()
     {
         using var scope = _database.Begin();
-        using var connection = _database.OpenConnection();
+        using var connection = _database.OpenReadConnection();
         return Guarded(() => Scalar(connection, null, _source.PendingCountSql));
     }
 
@@ -300,25 +300,32 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
         using var scope = _database.Begin();
         List<string> problems = [];
         var fits = false;
-        lock (_database.WriterGate)
+        try
         {
-            // the integrity check of FTS5 is an insert: it runs on the writer, and the transaction is rolled back
-            var writer = _database.Writer;
-            using var transaction = writer.BeginTransaction(deferred: false);
-            fits = IndexCheck.Definition(writer, transaction, _source, problems) && TableFits(writer, transaction, problems);
-            if (fits)
+            lock (_database.WriterGate)
             {
-                if (TriggerState(writer, transaction) == LuiTriggerState.Stale)
+                // the integrity check of FTS5 is an insert: it runs on a connection that may write, and the transaction is rolled back
+                using var writer = _database.OpenConnection();
+                using var transaction = writer.BeginTransaction(deferred: false);
+                fits = IndexCheck.Definition(writer, transaction, _source, problems) && TableFits(writer, transaction, problems);
+                if (fits)
                 {
-                    problems.Add(
-                        $"The triggers of '{Name}' on the table '{_source.Link.Table}' are not the ones the index writes now: "
-                        + "CreateTriggers() creates them anew — or put TriggerScript() into a migration.");
+                    if (TriggerState(writer, transaction) == LuiTriggerState.Stale)
+                    {
+                        problems.Add(
+                            $"The triggers of '{Name}' on the table '{_source.Link.Table}' are not the ones the index writes now: "
+                            + "CreateTriggers() creates them anew — or put TriggerScript() into a migration.");
+                    }
+
+                    IndexCheck.SearchIndex(writer, transaction, _source, problems, "Sync() builds the index anew.");
                 }
 
-                IndexCheck.SearchIndex(writer, transaction, _source, problems, "Sync() builds the index anew.");
+                transaction.Rollback();
             }
-
-            transaction.Rollback();
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("checking an index", Name, exception);
         }
 
         if (!fits)
@@ -327,7 +334,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
         }
 
         // the comparison with the table only reads: a snapshot of its own, beside the writers (review of pull request 18, S3)
-        using var connection = _database.OpenConnection();
+        using var connection = _database.OpenReadConnection();
         using var snapshot = connection.BeginTransaction(deferred: true);
         return CompareWithTable(connection, snapshot, problems);
     }
@@ -413,28 +420,36 @@ internal sealed class LinkedIndex : ILuiLinkedIndex
     }
 
     /// <summary>
-    /// Runs a write in the transaction of the application, or in one of LUI's own on the catalog's writer — then the
-    /// writer's lock is held for the whole of it (one writer per file anyway, ADR-0015, ADR-0046), and an error or a cancellation
+    /// Runs a write in the transaction of the application, or in one of LUI's own on a connection from the pool — then the
+    /// lock of the writes is held for the whole of it (one writer per file anyway, ADR-0015, ADR-0046), and an error or a cancellation
     /// rolls it back.
     /// </summary>
     private void Write(SqliteTransaction? transaction, Action<SqliteConnection, SqliteTransaction> write)
     {
-        _database.ThrowIfReadOnly("writing to a linked index");
+        _database.RefuseTheTransactionOfTheApplication("writing to a linked index", Name, transaction);
 
-        if (transaction is not null)
+        try
         {
-            var connection = transaction.Connection
-                ?? throw new ArgumentException("The transaction is complete.", nameof(transaction));
-            EnsureSameDatabase(connection, transaction);
-            write(connection, transaction);
-            return;
+            if (transaction is not null)
+            {
+                var connection = transaction.Connection
+                    ?? throw new ArgumentException("The transaction is complete.", nameof(transaction));
+                EnsureSameDatabase(connection, transaction);
+                write(connection, transaction);
+                return;
+            }
+
+            lock (_database.WriterGate)
+            {
+                using var connection = _database.OpenConnection();
+                using var own = connection.BeginTransaction(deferred: false);
+                write(connection, own);
+                own.Commit();
+            }
         }
-
-        lock (_database.WriterGate)
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
         {
-            using var own = _database.Writer.BeginTransaction(deferred: false);
-            write(_database.Writer, own);
-            own.Commit();
+            throw _database.ReadOnlyRefusal("writing to a linked index", Name, exception);
         }
     }
 

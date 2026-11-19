@@ -6,8 +6,10 @@ name: Performance
 
 # The targets of ADR-0020 run on a schedule of their own: the sizes are asserted on
 # every runner, the times are reported with the machine they were measured on
-# (ADR-0041). The record of the numbers stays docs/benchmarks.md — a lane that
-# runs without writing down what it measured proves nothing.
+# (ADR-0041). The record of the numbers is docs/benchmarks.md; what THIS run measured is written down by the lane itself
+# (issue #177): tools/perf-record.sh makes docs/benchmarks-latest.md of the [perf] lines — with the date, the iteration and
+# the disk of the run — and the job `record` publishes it on the branch perf/latest. A lane that runs without writing down
+# what it measured proves nothing, and the step summary is gone after the run.
 on:
   schedule:
     # 03:17 UTC on Monday — one number of the week, not every night (issue #124): the schedule runs on the
@@ -38,6 +40,9 @@ jobs:
     # sized by the first run (issue #99): the tests took 8.3 minutes on a hosted runner (4 cores, 15 GB, 85 GB of disk),
     # the whole job about 9 — thirty minutes are three times that
     timeout-minutes: 30
+    outputs:
+      # the record of the run as text: the job `record` has the token to write and runs no code of the repository
+      record: ${{ steps.record.outputs.text }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
@@ -114,3 +119,69 @@ jobs:
             grep -F '[perf]' artifacts/test-results/budgets.log || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
+
+      # The record of this run (issue #177): the [perf] lines with the date, the iteration and the disk. It is the output of
+      # the job — a text of a few kilobytes — and the job `record` writes it down.
+      - name: The record of the run
+        id: record
+        if: ${{ !cancelled() }}
+        env:
+          LUI_PERF_RUN: run ${{ github.run_number }}, attempt ${{ github.run_attempt }}
+          LUI_PERF_COMMIT: ${{ github.sha }}
+          LUI_PERF_REF: ${{ github.ref }}
+          LUI_PERF_MACHINE: ${{ inputs.machine || 'other' }}
+          LUI_PERF_SCENARIO: prefixLength ${{ inputs.prefixLength || '3000000' }}
+          LUI_PERF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          LUI_PERF_RESULT: ${{ job.status == 'success' && 'passed' || 'failed' }}
+          LUI_PERF_DIR: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          bash tools/perf-record.sh artifacts/test-results/budgets.log artifacts/benchmarks-latest.md
+          # a delimiter nobody can guess: a line of the text can not end the output early
+          delimiter="LUI_RECORD_$(openssl rand -hex 16)"
+          {
+            echo "text<<${delimiter}"
+            cat artifacts/benchmarks-latest.md
+            echo "${delimiter}"
+          } >> "$GITHUB_OUTPUT"
+
+  # The record is written by a job of its own (issue #177): this job has the token to write and runs nothing of the repository —
+  # it takes the text the job above made and puts it in a file on the branch perf/latest, for a person to look at. It never
+  # touches main, dev or the branch of a release.
+  record:
+    name: The record of the run · perf/latest
+    needs: budgets
+    if: ${{ !cancelled() && needs.budgets.outputs.record != '' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # one writer at a time: the weekly run and a run by hand do not push at the same moment (the second would be refused)
+    concurrency:
+      group: perf-latest
+      cancel-in-progress: false
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Publish docs/benchmarks-latest.md on perf/latest
+        env:
+          # the text goes through the environment, never into the script
+          RECORD: ${{ needs.budgets.outputs.record }}
+          RUN: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          if git ls-remote --exit-code --heads origin refs/heads/perf/latest > /dev/null; then
+            git fetch --depth=1 origin perf/latest
+            git switch -C perf/latest FETCH_HEAD
+          else
+            # the branch of the record holds the record and nothing else: it is born empty, not as a copy of the measured commit
+            git switch --orphan perf/latest
+            git rm -rf --quiet . || true
+          fi
+          mkdir -p docs
+          printf '%s\n' "$RECORD" > docs/benchmarks-latest.md
+          git add docs/benchmarks-latest.md
+          git commit -m "perf: the record of run ${RUN} of the lane"
+          git push origin perf/latest

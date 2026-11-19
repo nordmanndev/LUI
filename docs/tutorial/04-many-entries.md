@@ -20,7 +20,7 @@ written, or — on an error or a cancellation — none.
 ```csharp
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 var recipes = catalog.Create("recipes", index => index.MultiWord());
 
 // Ten thousand entries in one transaction — not ten thousand transactions.
@@ -57,7 +57,7 @@ get a chance between them. The batch size and the progress are yours to set.
 ```csharp
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 var recipes = catalog.Create("recipes", index => index.MultiWord());
 
 var report = recipes.Sync(
@@ -109,7 +109,7 @@ sound and what is wrong; `Rebuild` repairs what is below the content table.
 ```csharp
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 var recipes = catalog.Create("recipes", index => index.MultiWord());
 
 var report = recipes.Check(
@@ -183,7 +183,7 @@ for three million entries, and the number at three million is the one of
 its search index in the file; a linked index holds the text only in your own
 table — that is the argument for step 2 when the stock is large.
 
-**The typo dictionary**: 685,829 words take **138 MB** and **4.1–4.8 s** to
+**The typo dictionary**: 685,829 words take **194 MB** and **4.0–5.2 s** to
 build (limits: ≤ 200 MB, ≤ 10 s). A query never builds it: the application
 asks for it with `WarmUpTypoDictionary()` — at the start, or after a load — and
 until then the index answers without corrections (`CorrectionSkipped`).

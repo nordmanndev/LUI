@@ -249,7 +249,7 @@ public sealed class LuiWarmupTests
             warmup: true,
             configure: options => options.WarmUpTypoDictionaries = false,
             logger: logger,
-            catalogOptions: new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(5) });
+            catalogOptions: new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(5) } });
         var service = host.Services.GetServices<IHostedService>().OfType<global::Nordmann.LUI.Hosting.LuiWarmupService>().Single();
 
         // the host is not started: no timer runs, and the row waits in the outbox under the lock of the test
@@ -300,7 +300,7 @@ public sealed class LuiWarmupTests
             database,
             warmup: true,
             configure: options => options.WarmUpTypoDictionaries = false,
-            catalogOptions: new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(1) });
+            catalogOptions: new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(1) } });
 
         // the host is not started: no timer runs, and the round is started by hand — it waits for the lock
         var service = host.Services.GetServices<IHostedService>().OfType<global::Nordmann.LUI.Hosting.LuiWarmupService>().Single();
@@ -342,7 +342,7 @@ public sealed class LuiWarmupTests
             database,
             warmup: true,
             configure: options => options.WarmUpTypoDictionaries = false,
-            catalogOptions: new LuiCatalogOptions { BusyTimeout = TimeSpan.FromMilliseconds(100) });
+            catalogOptions: new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(1) } });
 
         var service = host.Services.GetServices<IHostedService>().OfType<global::Nordmann.LUI.Hosting.LuiWarmupService>().Single();
         var round = Task.Factory.StartNew(
@@ -377,7 +377,7 @@ public sealed class LuiWarmupTests
         LuiCatalogOptions? catalogOptions = null)
     {
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
-        builder.Services.AddLui(database.ConnectionString, catalogOptions);
+        builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate(database.FilePath, catalogOptions));
         if (warmup)
         {
             builder.Services.AddLuiWarmup(configure);

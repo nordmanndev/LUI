@@ -26,13 +26,13 @@ public enum LuiTypoDistance
 
     /// <summary>
     /// One error is forgiven: a letter left out, one too many, one wrong, two swapped. The dictionary
-    /// of the word beginnings costs 138 MB for 685,739 words.
+    /// of the word beginnings costs 194 MB for 685,739 words.
     /// </summary>
     OneError = 1,
 
     /// <summary>
     /// Two errors are forgiven. The dictionary holds the delete variants of two deletions, so it costs
-    /// 1.7 times the memory and twice the time of <see cref="OneError"/> — 240 MB for 685,739 words,
+    /// twice the memory and about 2.5 times the time of <see cref="OneError"/> — 388 MB for 685,739 words,
     /// and more than the budget of ADR-0020 allows. Measured, see <c>docs/typo-dictionary.md</c>.
     /// </summary>
     TwoErrors = 2,

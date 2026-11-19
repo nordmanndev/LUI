@@ -91,7 +91,7 @@ public sealed class TypoDistanceTests
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt, "the memory of a dictionary would buy no correction");
         (after - before).ShouldBeLessThan(
             HeapGrowthOfARebuildWithoutCorrection,
-            $"a rebuild that forgives nothing takes no memory, and the dictionary of the whole list is 138 MB ({(after - before) / 1_048_576.0:F1} MB)");
+            $"a rebuild that forgives nothing takes no memory, and the dictionary of the whole list is 194 MB ({(after - before) / 1_048_576.0:F1} MB)");
     }
 
     [Fact]

@@ -52,7 +52,7 @@
   contract.
 - ❌ Never let the README show an API the code does not have. Every C# block
   in the README is compiled and executed by the package smoke test.
-- ❌ Never break the public API from the tag `v0.1.0` on without a new minor version, a migration note in `CHANGELOG.md`
+- ❌ Never break the public API from the tag `v0.1.0` on (lifted once, in named places, for 0.3.0 — ADR-0069; it holds again from `v0.3.0`) without a new minor version, a migration note in `CHANGELOG.md`
   and an ADR (ADR-0026). That includes a new optional parameter on an existing method (it is a new overload), a new
   abstract member of an interface (it is a default member, or a break), a renamed enum value, a renumbered enum value and a
   new positional parameter of a record. Before the tag, a change of a name still needs its ADR.
@@ -98,6 +98,23 @@ Every pull request has:
 
 The branches of the series target `dev`; `dev` → `main` is a release pull
 request with its own review.
+
+**The round of 0.3.0 is the exception, and it has its own branch** (the owner,
+2026-11-15 — [the plan](./.agents/plan/2026-11-15-the-round-of-0-3-0.md)):
+
+- every pull request of the round branches from **`0.3.0`** and targets
+  **`0.3.0`** — not `dev`, not `main`;
+- **one pull request per issue**, in the order of the plan, and the next one
+  starts when the one before it is merged;
+- **nothing else comes into 0.3.0** — only the issues of the epic
+  [#166](https://github.com/nordmanndev/LUI/issues/166). A finding on the way
+  gets an issue of its own and waits for the next round;
+- **the implementation starts when the owner merges the pull request that
+  brings the plan into `0.3.0`** — not before;
+- at the end: `0.3.0` → `dev`, then the release pull request `dev` → `main`
+  ([the release](./.agents/release.md)).
+
+Until 0.3.0 is released, this rule wins over the line above it.
 
 ## The one rule that is specific to this repository
 

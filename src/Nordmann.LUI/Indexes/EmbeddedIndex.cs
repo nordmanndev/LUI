@@ -37,8 +37,6 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
 
     // The statements of the application's own connections, one set per connection.
     private readonly ConditionalWeakTable<SqliteConnection, WriteStatements> _applicationStatements = [];
-    private readonly Lock _ownGate = new();
-    private WriteStatements? _ownStatements;
 
     internal EmbeddedIndex(
         Database database,
@@ -74,18 +72,30 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
     public void Upsert(LuiEntry entry, SqliteTransaction? transaction = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        _database.ThrowIfReadOnly("writing an entry");
+        _database.RefuseTheTransactionOfTheApplication("writing an entry", Name, transaction);
         var keyText = KeyText(entry.Key);
         var bytes = PayloadBytes(entry.Payload);
 
         using var scope = _database.Begin();
         try
         {
-            StatementsFor(transaction).Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, bytes, transaction);
+            if (transaction is null)
+            {
+                using var connection = _database.OpenConnection();
+                OwnStatements(connection).Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, bytes, null);
+            }
+            else
+            {
+                StatementsFor(transaction).Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, bytes, transaction);
+            }
         }
         catch (SqliteException exception) when (IsDocIdExhausted(exception))
         {
             throw DocIdsExhausted(exception);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("writing an entry", Name, exception);
         }
 
         // the new word beginnings join the typo dictionary, if it is built (ADR-0012)
@@ -106,7 +116,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        _database.ThrowIfReadOnly("writing entries");
+        _database.RefuseTheTransactionOfTheApplication("writing entries", Name, transaction);
 
         using var scope = _database.Begin();
         var written = new List<(string Text, int Weight)>();
@@ -125,6 +135,10 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         {
             throw DocIdsExhausted(exception);
         }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("writing entries", Name, exception);
+        }
 
         // once, after the writes: the dictionary takes its write lock one time for the whole batch
         _typos.AddRange(written);
@@ -132,7 +146,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
     }
 
     /// <summary>
-    /// A batch in a transaction of LUI's own, on the catalog's writer: the writer's lock is held for the whole
+    /// A batch in a transaction of LUI's own, on a connection from the pool: the lock of the writes is held for the whole
     /// batch, so no single write of another index slips into the transaction (there is one writer per file
     /// anyway, ADR-0015, ADR-0046).
     /// </summary>
@@ -141,11 +155,11 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         List<(string Text, int Weight)> written,
         CancellationToken cancellationToken)
     {
-        var statements = Volatile.Read(ref _ownStatements) ?? CreateOwnStatements();
         lock (_database.WriterGate)
         {
-            using var transaction = _database.Writer.BeginTransaction(deferred: false);
-            WriteBatch(statements, entries, transaction, written, cancellationToken);
+            using var connection = _database.OpenConnection();
+            using var transaction = connection.BeginTransaction(deferred: false);
+            WriteBatch(OwnStatements(connection), entries, transaction, written, cancellationToken);
             transaction.Commit();
         }
     }
@@ -205,7 +219,6 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         LuiSyncOptions? options = null,
         CancellationToken cancellationToken = default)
     {
-        _database.ThrowIfReadOnly("syncing an index");
         using var scope = _database.Begin();
         try
         {
@@ -214,6 +227,10 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         catch (SqliteException exception) when (IsDocIdExhausted(exception))
         {
             throw DocIdsExhausted(exception);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("syncing an index", Name, exception);
         }
     }
 
@@ -228,50 +245,120 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         return Sync(entries.ToBlockingEnumerable(cancellationToken), options, cancellationToken);
     }
 
-    public LuiIntegrityReport Check(IEnumerable<LuiEntry> entries, CancellationToken cancellationToken = default) =>
-        _check.Against(entries, cancellationToken);
+    public LuiIntegrityReport Check(IEnumerable<LuiEntry> entries, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return _check.Against(entries, cancellationToken);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("checking an index", Name, exception);
+        }
+    }
 
-    public LuiIntegrityReport Check() => _check.Itself();
+    public LuiIntegrityReport Check()
+    {
+        try
+        {
+            return _check.Itself();
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("checking an index", Name, exception);
+        }
+    }
 
     public void Rebuild()
     {
-        _database.ThrowIfReadOnly("rebuilding an index");
-        _check.Rebuild();
+        try
+        {
+            _check.Rebuild();
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("rebuilding an index", Name, exception);
+        }
     }
 
     public void Optimize()
     {
-        _database.ThrowIfReadOnly("optimizing an index");
-        _check.Optimize();
+        try
+        {
+            _check.Optimize();
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("optimizing an index", Name, exception);
+        }
     }
 
     public bool UpdateWeight(LuiKey key, int weight, SqliteTransaction? transaction = null)
     {
-        _database.ThrowIfReadOnly("changing the weight of an entry");
+        _database.RefuseTheTransactionOfTheApplication("changing the weight of an entry", Name, transaction);
         var keyText = KeyText(key);
         RowId.ValidateWeight(weight);
 
         using var scope = _database.Begin();
-        return StatementsFor(transaction).UpdateWeight(keyText, weight, transaction);
+        try
+        {
+            if (transaction is not null)
+            {
+                return StatementsFor(transaction).UpdateWeight(keyText, weight, transaction);
+            }
+
+            using var connection = _database.OpenConnection();
+            return OwnStatements(connection).UpdateWeight(keyText, weight, null);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("changing the weight of an entry", Name, exception);
+        }
     }
 
     public bool UpdatePriority(LuiKey key, LuiPriority priority, SqliteTransaction? transaction = null)
     {
-        _database.ThrowIfReadOnly("changing the priority of an entry");
+        _database.RefuseTheTransactionOfTheApplication("changing the priority of an entry", Name, transaction);
         var keyText = KeyText(key);
         RowId.ValidatePriority(priority);
 
         using var scope = _database.Begin();
-        return StatementsFor(transaction).UpdatePriority(keyText, (int)priority, transaction);
+        try
+        {
+            if (transaction is not null)
+            {
+                return StatementsFor(transaction).UpdatePriority(keyText, (int)priority, transaction);
+            }
+
+            using var connection = _database.OpenConnection();
+            return OwnStatements(connection).UpdatePriority(keyText, (int)priority, null);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("changing the priority of an entry", Name, exception);
+        }
     }
 
     public bool Remove(LuiKey key, SqliteTransaction? transaction = null)
     {
-        _database.ThrowIfReadOnly("removing an entry");
+        _database.RefuseTheTransactionOfTheApplication("removing an entry", Name, transaction);
         var keyText = KeyText(key);
 
         using var scope = _database.Begin();
-        return StatementsFor(transaction).Remove(keyText, transaction);
+        try
+        {
+            if (transaction is not null)
+            {
+                return StatementsFor(transaction).Remove(keyText, transaction);
+            }
+
+            using var connection = _database.OpenConnection();
+            return OwnStatements(connection).Remove(keyText, null);
+        }
+        catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
+        {
+            throw _database.ReadOnlyRefusal("removing an entry", Name, exception);
+        }
     }
 
     public void RebuildTypoDictionary(CancellationToken cancellationToken = default)
@@ -289,7 +376,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
     public long Count()
     {
         using var scope = _database.Begin();
-        using var connection = _database.OpenConnection();
+        using var connection = _database.OpenReadConnection();
         using var command = connection.CreateCommand();
         command.CommandText = _source.CountSql;
         return (long)command.ExecuteScalar()!;
@@ -304,17 +391,11 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         _runner.Execute(text, options ?? DefaultOptions, cancellationToken);
 
     /// <summary>
-    /// The statements for a write: those of the application's connection when
-    /// it brought a transaction, otherwise those of the catalog's own writer
-    /// (one writer per file anyway, ADR-0015, ADR-0046).
+    /// The statements for a write in the transaction of the application: one set per connection of the application,
+    /// kept as long as the connection lives (ADR-0009).
     /// </summary>
-    private WriteStatements StatementsFor(SqliteTransaction? transaction)
+    private WriteStatements StatementsFor(SqliteTransaction transaction)
     {
-        if (transaction is null)
-        {
-            return Volatile.Read(ref _ownStatements) ?? CreateOwnStatements();
-        }
-
         var connection = transaction.Connection
             ?? throw new ArgumentException("The transaction is complete.", nameof(transaction));
 
@@ -322,6 +403,15 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
             ? statements
             : _applicationStatements.GetValue(connection, c => ForApplication(c, transaction));
     }
+
+    /// <summary>
+    /// The statements for a write of LUI's own, on a connection that the caller took from the pool (ADR-0070): they live
+    /// as long as that connection is in the caller's hands. The statement objects are made again for every write
+    /// (issue #237 measured about a kilobyte for the command, the parameters and the checkout; issue #248); whether the provider keeps the
+    /// compiled plan per physical connection is not measured. The lock of the writes is
+    /// the lock of the catalogue: two indexes of one catalogue write one after the other.
+    /// </summary>
+    private WriteStatements OwnStatements(SqliteConnection connection) => new(connection, _source, _database.WriterGate);
 
     /// <summary>
     /// The statements for a connection of the application. The first use on a connection checks that
@@ -344,13 +434,5 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex
         }
 
         return new WriteStatements(connection, _source, new Lock());
-    }
-
-    private WriteStatements CreateOwnStatements()
-    {
-        lock (_ownGate)
-        {
-            return _ownStatements ??= new WriteStatements(_database.Writer, _source, _database.WriterGate);
-        }
     }
 }

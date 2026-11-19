@@ -50,6 +50,9 @@ public class CorrectionBenchmarks
     {
         _fixture = IndexFixture.Of(Corpus, Entries, Source);
         _fixture.WarmUp(Correction);
+
+        // the run stops before the first measurement if the case corrects nothing (issue #179)
+        Settings.RunChecked(_fixture.Index);
     }
 
     [Benchmark]

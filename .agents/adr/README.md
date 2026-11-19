@@ -68,7 +68,7 @@ decided about the query path" without opening 36 files.
 | [0006](./0006-the-single-word-index.md) | The single-word index: one rowid, three indexes, one external-content FTS5 table | Storage | Accepted |
 | [0007](./0007-the-catalog-checks-the-sqlite-it-runs-on.md) | The catalog checks the SQLite it runs on | Probe | Accepted |
 | [0008](./0008-the-query-path.md) | The query path: groups, a lazy similarity, and what the result reserves | Query path | Accepted |
-| [0009](./0009-writes-use-prepared-statements.md) | Writes use prepared statements on one writer connection | Storage | Accepted |
+| [0009](./0009-writes-use-prepared-statements.md) | Writes use prepared statements on one writer connection | Storage | Accepted (the writer connection superseded 2026-11-18, ADR-0070) |
 | [0010](./0010-the-query-budget-at-three-million-entries.md) | The query budget of ADR-0020 does not hold at three million entries on FTS5 alone | Measurement | Accepted (owner, 2026-11-04: the budget per input length) |
 | [0011](./0011-the-multi-word-index.md) | The multi-word index: one indexed column, one expression, a Dice that allocates nothing | Storage | Accepted |
 | [0012](./0012-typo-tolerance.md) | Typo tolerance: SymSpell over the word beginnings, corrected when nothing stands at a word start | Typo tolerance | Accepted |
@@ -85,7 +85,7 @@ decided about the query path" without opening 36 files.
 | [0023](./0023-owned-becomes-embedded.md) | `Owned` becomes `Embedded`: the name of the content source in LUI's own table | API | Accepted |
 | [0024](./0024-the-api-polish-before-the-freeze.md) | The API polish before the freeze: `AddLinkedIndex`, `entries`, `CandidateRead`, `LuiPayloadRow`, `LuiException`, a read interface that only reads | API | Accepted |
 | [0025](./0025-the-typo-dictionary-only-grows.md) | The typo dictionary only grows: no `Stale`, no background rebuild, one dictionary per index | Typo tolerance | Accepted |
-| [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) | The public API from 0.1.0 on grows only additively: a breaking change needs a minor version, a migration note and an ADR | API | Accepted |
+| [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) | The public API from 0.1.0 on grows only additively: a breaking change needs a minor version, a migration note and an ADR | API | Superseded by 0069 |
 | [0027](./0027-the-sample-flexdatalist-modular-client-one-fetch-boundary.md) | The sample: flexdatalist against the whole API, a modular client, one fetch boundary | Sample | Accepted (restated 2026-11-12, issue #121, ADR-0057) |
 | [0028](./0028-lui-has-no-highlight-a-correction-is-shown-as-a-question.md) | LUI has no Highlight: a correction is shown as a question (#20 struck) | API | Accepted |
 | [0029](./0029-the-sample-fills-its-own-bulk-indexes-on-demand.md) | The sample fills its own bulk indexes on demand: a word list, Bogus names and tags, behind a button | Sample | Accepted |
@@ -125,3 +125,8 @@ decided about the query path" without opening 36 files.
 | [0063](./0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied.md) | The surface of 0.1.0 is the review of 2026-11-04, applied: every point of the review, and the type or the member that carries it today | API | Accepted |
 | [0064](./0064-the-dependency-on-symspell-stays.md) | SymSpell stays, and the contract with it is measured: the rules of the contract are a test, and the whole word list carries the numbers | Packages | Accepted (owner, 2026-11-14) |
 | [0065](./0065-the-first-load-keeps-its-path-and-its-budget-is-three-minutes.md) | The first load keeps its path, and its budget is three minutes again: the lever of the issue is measured and rejected, the others are moot | Measurement | Accepted (owner, 2026-11-15) |
+| [0066](./0066-the-catalogue-owns-the-connection.md) | The catalogue owns the connection: a path, and the settings are typed — LUI builds the connections, the pragmas are typed, the host takes a factory | API | Accepted (owner, 2026-11-15) |
+| [0067](./0067-the-read-path-opens-a-read-only-connection.md) | The read path opens a read-only connection: the statements are prepared, the pool of the provider is the pool — no session, no pool of LUI's own | Query path | Accepted (owner, 2026-11-18) |
+| [0068](./0068-three-ways-to-open-a-catalogue.md) | Three ways to open a catalogue: `Open` checks and writes nothing, `OpenOrCreate` sets the file up and sets the journal mode only in a file it creates, `OpenReadOnly` only reads — and a refused write says why | API | Accepted (owner, 2026-11-18) |
+| [0069](./0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md) | The freeze of 0.1.0 is lifted for 0.3.0 — in named places, with a migration note — and holds again from 0.3.0 on | API | Accepted (owner, 2026-11-15) |
+| [0070](./0070-the-catalogue-holds-no-connection.md) | The catalogue holds no connection: a write takes one from the pool of the provider and gives it back, a sync keeps one for its run — measured: a single write is slower and far inside its budget | Storage | Accepted (owner, 2026-11-18) |

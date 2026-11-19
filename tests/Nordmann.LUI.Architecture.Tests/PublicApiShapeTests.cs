@@ -108,6 +108,32 @@ public sealed class PublicApiShapeTests
     }
 
     [Fact]
+    public void The_statements_of_the_read_path_are_prepared()
+    {
+        // ADR-0067: the statements of a query (the prefix path, FTS5 and the hits) are prepared — an explicit Prepare() costs nothing (measured) and
+        // states the intent. The guard reads the sources: a command that is built and not prepared fails here.
+        foreach (var file in new[] { "Querying/CandidateReader.cs", "Querying/HitReader.cs" })
+        {
+            var source = File.ReadAllText(Path.Combine(Repository.RootPath, "src", "Nordmann.LUI", file));
+
+            source.Contains(".Prepare();", StringComparison.Ordinal).ShouldBeTrue($"{file} prepares its statement");
+        }
+    }
+
+    [Fact]
+    public void The_catalogue_has_no_second_read_only_notion_and_no_connection_string()
+    {
+        // ADR-0068: the way a catalogue was opened is its only read-only notion; SQLite refuses a write and LUI translates
+        // the refusal. A bool and a guard beside it would be a second answer to the same question.
+        const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic;
+        var database = LibraryAssembly.GetType("Nordmann.LUI.Storage.Database").ShouldNotBeNull();
+
+        database.GetProperty("ReadOnly", all).ShouldBeNull("Database.ReadOnly is the second read-only notion");
+        database.GetMethod("ThrowIfReadOnly", all).ShouldBeNull("the refusal comes from SQLite, not from a guard of LUI");
+        typeof(LuiCatalog).GetProperty("ConnectionString", all).ShouldBeNull("the application never sees a connection string");
+    }
+
+    [Fact]
     public void Every_exception_the_library_exposes_is_a_LuiException()
     {
         // One type for "something LUI says about an index or its environment", still an InvalidOperationException
@@ -125,7 +151,7 @@ public sealed class PublicApiShapeTests
         exceptions.Select(type => type.Name).Order(StringComparer.Ordinal)
             .ShouldBe(
             [
-                "LuiDefinitionMismatchException", "LuiEnvironmentException", "LuiException",
+                "LuiCatalogNotFoundException", "LuiDefinitionMismatchException", "LuiEnvironmentException", "LuiException",
                 "LuiIndexNotFoundException", "LuiLinkedTableException", "LuiPayloadException", "LuiReadOnlyException",
             ]);
     }
@@ -311,7 +337,7 @@ public sealed class PublicApiShapeTests
             .SelectMany(type => type.GetMethods(declared))
             .Where(method => method.Name.StartsWith("Add", StringComparison.Ordinal))
             .ToArray();
-        registrations.Length.ShouldBe(3, "AddLui, AddLui with the connection string from the container, and AddLuiWarmup");
+        registrations.Length.ShouldBe(2, "AddLui and AddLuiWarmup — the hosting takes a factory (ADR-0066)");
         registrations.ShouldAllBe(method => method.Name == "AddLui" || method.Name == "AddLuiWarmup");
         registrations.ShouldAllBe(method => method.ReturnType == typeof(IServiceCollection));
     }

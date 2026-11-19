@@ -45,7 +45,7 @@ The two packages are released together, with one version; the core starts no thr
 
 ```csharp
 using Nordmann.LUI;
-using var lui = LuiCatalog.Open("Data Source=app.db");
+using var lui = LuiCatalog.OpenOrCreate("app.db");
 
 // an index of titles: the words in any order, the spaces optional, one typo forgiven
 var recipes = lui.Create("recipes", index => index.MultiWord().TypoTolerance());
@@ -81,7 +81,7 @@ to a set of entries: it reads them in batches, writes them in one transaction pe
 
 ```csharp
 // many records at once: Sync makes the index equal to the entries, in batches
-using var bulkCatalog = LuiCatalog.Open("Data Source=bulk.db");
+using var bulkCatalog = LuiCatalog.OpenOrCreate("bulk.db");
 var words = bulkCatalog.Create("words", index => index.SingleWord());
 
 var report = words.Sync(
@@ -111,51 +111,42 @@ Two measurements, two machines — and both name the machine they stand on.
 
 **The budgets** below are the promises of the repository: they live in one file
 ([`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json), ADR-0056), and
-each of them carries its scenario, its limit, its unit and its kind. They are measured in their scenario — three
-million single words of the German word list and one million titles — on the CI machine: Intel Xeon 2.10 GHz, 4 cores,
-15 GB, Ubuntu 24.04, .NET 10.0.14. Every target is asserted by a test in its scenario; the method and the corpus are
-in [`docs/benchmarks.md`](./docs/benchmarks.md).
+each of them carries its scenario, its limit, its unit and its kind. The scenario of the latency budgets is three million
+single words of the German word list — and the list has 1,908,798 entries, so that scenario is **not reached yet** (#176):
+the lane reports those numbers for the entries it has and asserts the sizes (ADR-0041). The numbers in the table are the
+lane of 2026-11-19 on a hosted runner (Ubuntu 24.04, 4 cores, .NET 10.0.15) — **not the machine of the budgets**; the method
+and the corpus are in [`docs/benchmarks.md`](./docs/benchmarks.md).
 
 | Target | Measured | Limit |
 |---|---:|---:|
-| query p50 | 1.34–1.71 ms | ≤ 2 ms |
-| query p95, 1–4 characters | ≤ 3.1 ms | ≤ 5 ms |
-| query p95, 5–8 characters | 13.4–17.5 ms | ≤ 20 ms |
-| query with a typo correction, p95 | 27.9–32.5 ms | ≤ 35 ms |
-| allocation per query, p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
-| `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms | ≤ 1 ms |
-| first load of 3 M entries (`Sync`) | 120.4–172.9 s | ≤ 3 min (#32) |
-| typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
-| typo dictionary of two errors, 685,739 words | 240 MB | ≤ 240 MB |
-| file of 1 M titles | 457 MB | ≤ 500 MB |
-The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
-(ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
-values** are the numbers of the last measurement of each row: the latencies and the size of the file from
-the CI machine (2026-11-05, before the allocation was lowered — so they are an upper bound); the allocation in bytes,
-and therefore independent of the machine (2026-11-06, the current code); the build from the lane of 2026-11-14 (**120.4 s**,
-on the machine of the record) and the machine of the report (**165.1–172.9 s**) — a time belongs to the machine it was
-measured on ([ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The build was measured against the
-whole corpus of the repository (1,908,798 entries): the corpus does not have three million entries yet, so the number at
-three million is the one of 2026-11-04 (172.5–205.9 s), and it is measured again when the corpus grows (#176).
-A measured value does **not** live in the
-file: it belongs to a run and to its machine, and a file that carried it would be a second truth beside the promise.
+| query p50 | 0.87 ms | ≤ 2 ms |
+| query p95, 1–4 characters | ≤ 1.7 ms | ≤ 5 ms |
+| query p95, 5–8 characters | ≤ 4.5 ms | ≤ 20 ms |
+| query with a typo correction, p95 | 8.4 ms | ≤ 35 ms |
+| allocation per query, p50 / p95 | 20 / 44 KB | ≤ 60 / ≤ 100 KB |
+| `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms (2026-11-05) | ≤ 1 ms |
+| first load of 3 M entries (`Sync`) | 67.0 s for 1.9 M entries | ≤ 3 min (#32) |
+| typo dictionary of 685,739 words | 194 MB, 4.0–5.2 s | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of two errors, 685,739 words | 388 MB | ≤ 420 MB |
+| file of 1 M titles | 243 MB | ≤ 500 MB |
 
 The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
 (ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
-values** are the numbers of the last measurement of each row: the latencies and the size of the file from
-the CI machine (2026-11-05, before the allocation was lowered — so they are an upper bound); the allocation in bytes,
-and therefore independent of the machine (2026-11-06, the current code); the build from the lane of 2026-11-14 (**120.4 s**,
-on the machine of the record) and the machine of the report (**165.1–172.9 s**) — a time belongs to the machine it was
-measured on ([ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The build was measured against the
-whole corpus of the repository (1,908,798 entries): the corpus does not have three million entries yet, so the number at
-three million is the one of 2026-11-04 (172.5–205.9 s), and it is measured again when the corpus grows (#176); the typo
-dictionary in bytes and in seconds
-(2026-11-06, the machine of the record — a time belongs to the machine it was measured on,
-[ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured again on
-2026-11-12 — **4.3 s** for the same **138 MB** ([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)): a time belongs
-to the machine and the date it was measured on (ADR-0041), the memory is the claim that does not depend on the machine.
+values** are the numbers of the last measurement of each row, with its date and its machine: the query, the allocation, the
+build, the file and the dictionary of one error are from the lane of 2026-11-19 (run 9, the entries of the word list — not three million), a write from the CI of
+2026-11-05 (the lane does not report it for the entries it has); a time belongs to the machine it was measured on
+([ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured again on
+2026-11-19 — **4.0–5.2 s** for **194 MB** with one error, **10.7–12.2 s** for **388 MB** with two
+([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)). The 138 MB and 240 MB that stood here before could not be
+reproduced — the same code of `0.1.1`, `0.2.0` and this version gives 194 and 388 MB here (a Linux container and a hosted
+runner); why the first measurements were lower is not known.
 A measured value does **not** live in the file: it belongs to a run and to its machine, and a file that carried it would
 be a second truth beside the promise.
+
+**A write waits for the disk**, so every report names the disk its databases lived on, and a test fails on a report that was
+measured on a network drive: on the local disk (ext4) of the run of 2026-11-19 a single write — `Upsert`, `UpdateWeight`,
+one transaction each — takes **0.13–0.33 ms** on average (the container of the round, not the machine of the budgets;
+issue #178).
 
 **The tables** below are the output of [BenchmarkDotNet](https://benchmarkdotnet.org/) — the code on the corpus of the
 measurement, not the scenario of the budgets. They are rendered from the reports of the run in
@@ -168,98 +159,99 @@ healthy (the input `ka` found nothing in the report of the day), and a line that
 <!-- generated by ReadmeBenchmarksTests from benchmarks/results/ — do not edit by hand -->
 
 ```text
-BenchmarkDotNet v0.15.8, Linux Debian GNU/Linux 12 (bookworm)
-Intel Xeon Platinum 2.50GHz, 1 CPU, 2 logical and 2 physical cores
-.NET SDK 10.0.403
+BenchmarkDotNet v0.15.8, Linux Ubuntu 24.04.5 LTS (Noble Numbat)
+Intel Xeon Processor 2.30GHz, 1 CPU, 4 logical and 4 physical cores
+.NET SDK 10.0.114
   [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
   DefaultJob : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
-  [Run]      : 2026-11-13, the measurements per case: 23–95
-  [Machine]  : Intel Xeon Platinum 2.50GHz, 1 CPU, 2 logical and 2 physical cores
+  [Run]      : 2026-11-19, the measurements per case: 13–80
+  [Machine]  : Intel Xeon Processor 2.30GHz, 1 CPU, 4 logical and 4 physical cores
   [Journal]  : wal
+  [Disk]     : ext4, local — /tmp/lui-bench.leE5Mc/tmp
 ```
 
 #### A query
 
 One query through the whole pipeline: the prefix path for one and two characters, FTS5 from three — Entries = 200000, Candidates = 500, Order = Start/Sim, Similarity = JaroWinkler, Correction = False. `QueryBenchmarks`.
 
-| Method | Corpus | Input | Source | Mean | Error | Allocated | Hits |
+| Method | Corpus | Input | Source | Mean | CI 99.9 % | Allocated | Hits |
 |---|---|---|---|---:|---:|---:|---:|
-| Search | titles | apfelkuc | Embedded | 131.5 μs | 2.61 μs | 5.78 KB | 0 |
-| Search | titles | apfelkuc | Linked | 133.5 μs | 2.65 μs | 5.83 KB | 0 |
-| Search | titles | b | Embedded | 495.0 μs | 9.86 μs | 43.62 KB | 500 |
-| Search | titles | b | Linked | 540.3 μs | 10.79 μs | 43.76 KB | 500 |
-| Search | titles | haus | Embedded | 736.8 μs | 14.45 μs | 51.57 KB | 500 |
-| Search | titles | haus | Linked | 842.5 μs | 16.80 μs | 114.3 KB | 500 |
-| Search | titles | ka | Embedded | 525.9 μs | 10.45 μs | 43.04 KB | 500 |
-| Search | titles | ka | Linked | 565.3 μs | 11.22 μs | 43.18 KB | 500 |
-| Search | words | apfelkuc | Embedded | 191.2 μs | 3.78 μs | 7.07 KB | 1 |
-| Search | words | apfelkuc | Linked | 184.7 μs | 3.69 μs | 7.11 KB | 1 |
-| Search | words | b | Embedded | 476.4 μs | 9.48 μs | 40.02 KB | 500 |
-| Search | words | b | Linked | 490.5 μs | 9.52 μs | 40.16 KB | 500 |
-| Search | words | haus | Embedded | 809.7 μs | 15.95 μs | 42.03 KB | 500 |
-| Search | words | haus | Linked | 808.9 μs | 15.86 μs | 42.13 KB | 500 |
-| Search | words | ka | Embedded | 517.5 μs | 10.29 μs | 40.09 KB | 500 |
-| Search | words | ka | Linked | 519.4 μs | 10.36 μs | 40.22 KB | 500 |
+| Search | titles | apfelkuc | Embedded | 80.49 μs | 1.589 μs | 5.2 KB | 0 |
+| Search | titles | apfelkuc | Linked | 81.04 μs | 1.598 μs | 5.24 KB | 0 |
+| Search | titles | b | Embedded | 138.73 μs | 2.344 μs | 14.88 KB | 500 |
+| Search | titles | b | Linked | 346.38 μs | 6.175 μs | 43.22 KB | 500 |
+| Search | titles | haus | Embedded | 489.59 μs | 8.890 μs | 51.03 KB | 500 |
+| Search | titles | haus | Linked | 564.32 μs | 8.047 μs | 113.76 KB | 500 |
+| Search | titles | ka | Embedded | 139.17 μs | 0.329 μs | 14.73 KB | 500 |
+| Search | titles | ka | Linked | 366.86 μs | 7.253 μs | 42.64 KB | 500 |
+| Search | words | apfelkuc | Embedded | 116.70 μs | 2.260 μs | 6.53 KB | 1 |
+| Search | words | apfelkuc | Linked | 116.57 μs | 2.299 μs | 6.57 KB | 1 |
+| Search | words | b | Embedded | 143.17 μs | 2.768 μs | 14.63 KB | 500 |
+| Search | words | b | Linked | 312.43 μs | 5.459 μs | 39.62 KB | 500 |
+| Search | words | haus | Embedded | 597.45 μs | 11.865 μs | 41.49 KB | 500 |
+| Search | words | haus | Linked | 537.39 μs | 2.658 μs | 41.59 KB | 500 |
+| Search | words | ka | Embedded | 138.76 μs | 1.600 μs | 14.57 KB | 500 |
+| Search | words | ka | Linked | 345.86 μs | 6.887 μs | 39.68 KB | 500 |
 
 #### The settings of a query
 
 The budget of the candidates, the order of the ranking, the measure of the similarity and the correction on and off — each of them is measured, not described — Corpus = words, Entries = 200000, Input = haus, Source = Embedded. `SettingsBenchmarks`.
 
-| Method | Candidates | Order | Similarity | Correction | Mean | Error | Allocated | Hits |
+| Method | Candidates | Order | Similarity | Correction | Mean | CI 99.9 % | Allocated | Hits |
 |---|---|---|---|---|---:|---:|---:|---:|
-| Search | 500 | Start/Sim | JaroWinkler | False | 811.6 μs | 16.10 μs | 42.03 KB | 500 |
-| Search | 500 | Start/Sim | JaroWinkler | True | 827.9 μs | 16.45 μs | 42.03 KB | 500 |
-| Search | 500 | Start/Sim | Levenshtein | False | 847.7 μs | 16.89 μs | 42.03 KB | 500 |
-| Search | 500 | Start/Sim | Levenshtein | True | 840.5 μs | 16.72 μs | 42.03 KB | 500 |
-| Search | 500 | WeightOnly | JaroWinkler | False | 773.0 μs | 14.11 μs | 41.29 KB | 500 |
-| Search | 500 | WeightOnly | JaroWinkler | True | 757.3 μs | 15.07 μs | 41.29 KB | 500 |
-| Search | 500 | WeightOnly | Levenshtein | False | 767.1 μs | 15.31 μs | 41.29 KB | 500 |
-| Search | 500 | WeightOnly | Levenshtein | True | 765.1 μs | 15.30 μs | 41.29 KB | 500 |
-| Search | 2000 | Start/Sim | JaroWinkler | False | 1,712.7 μs | 33.40 μs | 185.22 KB | 1090 |
-| Search | 2000 | Start/Sim | JaroWinkler | True | 1,686.9 μs | 33.40 μs | 185.22 KB | 1090 |
-| Search | 2000 | Start/Sim | Levenshtein | False | 1,807.9 μs | 35.87 μs | 185.22 KB | 1090 |
-| Search | 2000 | Start/Sim | Levenshtein | True | 1,810.0 μs | 36.14 μs | 185.22 KB | 1090 |
-| Search | 2000 | WeightOnly | JaroWinkler | False | 1,587.5 μs | 31.42 μs | 184.36 KB | 1090 |
-| Search | 2000 | WeightOnly | JaroWinkler | True | 1,594.7 μs | 31.51 μs | 184.36 KB | 1090 |
-| Search | 2000 | WeightOnly | Levenshtein | False | 1,581.9 μs | 31.31 μs | 184.36 KB | 1090 |
-| Search | 2000 | WeightOnly | Levenshtein | True | 1,602.5 μs | 31.76 μs | 184.36 KB | 1090 |
+| Search | 500 | Start/Sim | JaroWinkler | False | 587.7 μs | 11.69 μs | 41.49 KB | 500 |
+| Search | 500 | Start/Sim | JaroWinkler | True | 585.8 μs | 11.57 μs | 41.49 KB | 500 |
+| Search | 500 | Start/Sim | Levenshtein | False | 624.6 μs | 12.39 μs | 41.49 KB | 500 |
+| Search | 500 | Start/Sim | Levenshtein | True | 621.1 μs | 12.39 μs | 41.49 KB | 500 |
+| Search | 500 | WeightOnly | JaroWinkler | False | 489.1 μs | 9.74 μs | 40.75 KB | 500 |
+| Search | 500 | WeightOnly | JaroWinkler | True | 518.2 μs | 9.33 μs | 40.75 KB | 500 |
+| Search | 500 | WeightOnly | Levenshtein | False | 488.0 μs | 9.72 μs | 40.75 KB | 500 |
+| Search | 500 | WeightOnly | Levenshtein | True | 541.4 μs | 12.10 μs | 40.75 KB | 500 |
+| Search | 2000 | Start/Sim | JaroWinkler | False | 1,497.6 μs | 33.96 μs | 184.68 KB | 1090 |
+| Search | 2000 | Start/Sim | JaroWinkler | True | 1,573.6 μs | 47.77 μs | 184.68 KB | 1090 |
+| Search | 2000 | Start/Sim | Levenshtein | False | 1,621.1 μs | 17.95 μs | 184.68 KB | 1090 |
+| Search | 2000 | Start/Sim | Levenshtein | True | 1,630.3 μs | 44.72 μs | 184.68 KB | 1090 |
+| Search | 2000 | WeightOnly | JaroWinkler | False | 1,212.6 μs | 31.49 μs | 183.82 KB | 1090 |
+| Search | 2000 | WeightOnly | JaroWinkler | True | 1,401.5 μs | 42.56 μs | 183.82 KB | 1090 |
+| Search | 2000 | WeightOnly | Levenshtein | False | 1,236.7 μs | 31.28 μs | 183.82 KB | 1090 |
+| Search | 2000 | WeightOnly | Levenshtein | True | 1,435.7 μs | 41.06 μs | 183.82 KB | 1090 |
 
 #### A query with a typo correction
 
 A single-word index with typo tolerance, the dictionary built; the input has one typo — Corpus = words, Entries = 200000, Candidates = 500, Order = Start/Sim, Similarity = JaroWinkler, Correction = True, Source = Embedded. `CorrectionBenchmarks`.
 
-| Method | Input | Mean | Error | Allocated | Hits |
+| Method | Input | Mean | CI 99.9 % | Allocated | Hits |
 |---|---|---:|---:|---:|---:|
-| Search | bahmhof | 57.91 μs | 1.156 μs | 5.52 KB | 0 |
-| Search | fusbal | 125.30 μs | 2.447 μs | 5.52 KB | 0 |
-| Search | kartofel | 281.90 μs | 5.553 μs | 5.53 KB | 0 |
-| Search | strasee | 329.98 μs | 6.509 μs | 5.52 KB | 0 |
+| Search | bahmhof | 276.8 μs | 5.51 μs | 25.53 KB | 99 |
+| Search | fusbal | 561.9 μs | 9.36 μs | 27.98 KB | 118 |
+| Search | kartofel | 591.6 μs | 11.83 μs | 23.71 KB | 72 |
+| Search | strasee | 1,320.7 μs | 26.40 μs | 42.86 KB | 402 |
 
 #### A single write
 
 One write in a transaction of its own — Entries = 200000. `WriteBenchmarks`.
 
-| Method | Mean | Error | Allocated | Hits |
+| Method | Mean | CI 99.9 % | Allocated | Hits |
 |---|---:|---:|---:|---:|
-| UpdateWeight | 2,037.0 μs | 40.30 μs | 436 B | — |
-| UpsertTheSame | 699.1 μs | 10.20 μs | 820 B | — |
-| UpsertAnotherText | 2,148.9 μs | 42.38 μs | 820 B | — |
+| UpdateWeight | 334.6 μs | 12.54 μs | 2.73 KB | — |
+| UpsertTheSame | 131.0 μs | 2.60 μs | 3.96 KB | — |
+| UpsertAnotherText | 306.9 μs | 23.53 μs | 3.96 KB | — |
 
 #### The search form and the similarity
 
 Per text, no database: the normalisation of ADR-0005 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln", `Größe(...)nahme [23]` „Größenänderungsmaßnahme". `TextBenchmarks`.
 
-| Method | Text | Mean | Error | Allocated | Hits |
+| Method | Text | Mean | CI 99.9 % | Allocated | Hits |
 |---|---|---:|---:|---:|---:|
-| SearchForm | Apfelkuchen | 50.28 ns | 1.072 ns | 144 B | — |
-| JaroWinkler | Apfelkuchen | 56.23 ns | 1.155 ns | - | — |
-| NgramDice | Apfelkuchen | 140.19 ns | 2.634 ns | - | — |
-| SearchForm | Gedec(...)useln [35] | 113.71 ns | 2.311 ns | 240 B | — |
-| JaroWinkler | Gedec(...)useln [35] | 92.13 ns | 1.582 ns | - | — |
-| NgramDice | Gedec(...)useln [35] | 330.39 ns | 6.620 ns | - | — |
-| SearchForm | Größe(...)nahme [23] | 113.51 ns | 2.237 ns | 320 B | — |
-| JaroWinkler | Größe(...)nahme [23] | 93.69 ns | 1.479 ns | - | — |
-| NgramDice | Größe(...)nahme [23] | 227.96 ns | 4.578 ns | - | — |
+| SearchForm | Apfelkuchen | 46.64 ns | 0.980 ns | 144 B | — |
+| JaroWinkler | Apfelkuchen | 46.61 ns | 0.959 ns | - | — |
+| NgramDice | Apfelkuchen | 97.39 ns | 1.580 ns | - | — |
+| SearchForm | Gedec(...)useln [35] | 110.36 ns | 2.260 ns | 240 B | — |
+| JaroWinkler | Gedec(...)useln [35] | 69.94 ns | 1.397 ns | - | — |
+| NgramDice | Gedec(...)useln [35] | 240.97 ns | 4.597 ns | - | — |
+| SearchForm | Größe(...)nahme [23] | 109.29 ns | 2.154 ns | 320 B | — |
+| JaroWinkler | Größe(...)nahme [23] | 71.28 ns | 1.460 ns | - | — |
+| NgramDice | Größe(...)nahme [23] | 163.47 ns | 3.304 ns | - | — |
 
 <!-- benchmarks:end -->
 
@@ -279,7 +271,7 @@ not have to know it.
 
 ### The four combinations
 
-The typo tolerance is a decision of the application: the dictionary of the words of an index costs 138 MB for 685,739
+The typo tolerance is a decision of the application: the dictionary of the words of an index costs 194 MB for 685,739
 words, so it is **off by default** and switched on with `TypoTolerance()`.
 
 | | **Typo tolerance off** (the default) | **Typo tolerance on** |
@@ -292,7 +284,7 @@ find hits in the middle of other words. The dictionary belongs to the index: a q
 towards the words of a name index.
 
 **The dictionary is built on request.** `WarmUpTypoDictionary()` reads the content table and builds it — at three million
-entries that is seconds and 138 MB, which the application should not pay at the start. A query never builds it: it
+entries that is seconds and 194 MB, which the application should not pay at the start. A query never builds it: it
 answers with what the input found, sets `CorrectionSkipped` and waits for the application to ask for the build.
 
 ## Embedded or linked
@@ -318,9 +310,11 @@ decide it.
 | **A copy of the text** | yes | **no** |
 | **Your schema** | untouched | untouched — no column, no index, no trigger unless you ask for one |
 | **A hit reads** | the copy in the index | your row, live |
-| **Your own file** | possible | not possible — the index is in the file of your table |
+| **Your own file** | possible — a catalogue of embedded indexes alone | not possible — the index is in the file of your table |
 
-The two are independent of the kind of the index: every combination of them exists. A `Linked` index keeps the
+The two are independent of the kind of the index: every combination of them exists. **One catalogue is one file**: an
+`Embedded` and a `Linked` index live side by side in it (mixing them is defined), and what separates them is **who owns
+the content table** — the library (`lui_<index>`) or your application. A `Linked` index keeps the
 normalised text in the search index and the weight and the priority in the order of the candidates — your row itself
 is never copied.
 
@@ -331,7 +325,7 @@ your application, written by the **serialiser of the catalog** — source-genera
 
 ```csharp
 using Nordmann.LUI;
-using var withChips = LuiCatalog.Open("Data Source=chips.db", new LuiCatalogOptions
+using var withChips = LuiCatalog.OpenOrCreate("chips.db", new LuiCatalogOptions
 {
     PayloadSerializer = LuiPayloadSerializer.Json(TagJson.Default),   // one serialiser for every index of the catalog
 });
@@ -370,7 +364,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 var builder = Host.CreateApplicationBuilder();
-builder.Services.AddLui("Data Source=app.db");
+builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"));
 builder.Services.AddLuiWarmup();     // optional: the dictionaries at the start, the outbox every 30 s, told to the logger
 
 using var host = builder.Build();
@@ -396,11 +390,11 @@ phase is quiet.
 ## Only read
 
 Sometimes an application may only read: a replica, a file that is read-only. A catalog opened with
-`Mode=ReadOnly` writes nothing — no WAL, no `lui_meta` — and every write is refused with a `LuiReadOnlyException`.
+`OpenReadOnly` writes nothing — no WAL, no `lui_meta` — and every write is refused with a `LuiReadOnlyException`.
 
 ```csharp
 // the same file, opened for reading only: it reads and searches, and it writes nothing
-using var reader = LuiCatalog.Open("Data Source=app.db;Mode=ReadOnly");
+using var reader = LuiCatalog.OpenReadOnly("app.db");
 var opened = reader.Index("recipes");
 
 foreach (var hit in opened.Search("apfelkuch").Hits)
@@ -423,7 +417,11 @@ decides what may happen.
 | `LuiQueryOptions` | the same settings as a record, for the configuration of an application |
 | `LuiResult` | the answer of a query: the hits, the candidates it considered, the query it corrected |
 | `LuiHit` | one hit: the key, the text, the weight, the priority, the similarity — and `GetPayload<T>()` |
-| `LuiCatalogOptions` | the settings of the catalog: the cache, the memory map, the busy timeout, the WAL, the payload serialiser, the clock |
+| `LuiCatalogOptions` | the settings of the catalog: the pragmas of the connections (busy timeout, synchronous, cache size), the payload serialiser, the clock |
+
+One catalogue is one file: the file of your application becomes a catalogue with `OpenOrCreate`, and its tables lie beside
+the tables of LUI. LUI sets write-ahead logging only when `OpenOrCreate` creates the file itself; a file that is already there, with tables
+or empty, keeps its mode.
 
 **Every public type of the package is listed in [`docs/api.md`](./docs/api.md)** — the catalogue, the builders, the
 index, the entry, the query, the payload, the similarity, the enumerations, the exceptions and the hosting extension,
@@ -460,15 +458,18 @@ are **created on demand** — the page fills them when you ask for it, and shows
 
 ## Status
 
-LUI is **released as `0.2.0`**, and the public API has been frozen since `0.1.0`
-([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)). The design is specified, and the
-implementation follows it; every decision of the repository is written down and dated.
+LUI is at **`0.3.0`**. The public API was frozen from `0.1.0`
+([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)); the freeze was lifted for this
+version, and its breaks are named in the migration note of the [CHANGELOG](./CHANGELOG.md)
+([ADR-0069](.agents/adr/0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md)). It holds again from `0.3.0` on. The design is
+specified, and the implementation follows it; every decision of the repository is written down and dated.
 
 Two packages, one version: `Nordmann.LUI` (the library) and `Nordmann.LUI.Hosting` (the dependency injection). The core
 takes `Microsoft.Data.Sqlite` and `symspell` and nothing else; the target framework is `net10.0`, the licence is MIT.
-From `0.1.0` on the public API grows only additively: a new type, a new method, a new overload, a new `init` property.
+From `0.3.0` on the public API grows only additively: a new type, a new method, a new overload, a new `init` property.
 A breaking change — a removed or renamed member, a changed signature — needs a new minor version, a migration note in
-the [CHANGELOG](./CHANGELOG.md) and an ADR. Before `0.1.0` such a change was free; now it is a promise.
+the [CHANGELOG](./CHANGELOG.md) and an ADR. Before `0.1.0` such a change was free; `0.3.0` was the one exception, by decision
+of the owner; now it is a promise again.
 
 ## Working on LUI
 

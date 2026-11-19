@@ -11,7 +11,7 @@ internal static class TypoSource
     /// <summary>The texts and weights of the index, one row at a time, on a connection of their own.</summary>
     internal static IEnumerable<(string Text, int Weight)> Read(Database database, string sql)
     {
-        using var connection = database.OpenConnection();
+        using var connection = database.OpenReadConnection();
         using var command = connection.CreateCommand();
         command.CommandText = sql;
 
