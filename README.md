@@ -461,15 +461,18 @@ are **created on demand** — the page fills them when you ask for it, and shows
 
 ## Status
 
-LUI is **released as `0.2.0`**, and the public API has been frozen since `0.1.0`
-([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)). The design is specified, and the
-implementation follows it; every decision of the repository is written down and dated.
+LUI is at **`0.3.0`**. The public API was frozen from `0.1.0`
+([ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md)); the freeze was lifted for this
+version, and its breaks are named in the migration note of the [CHANGELOG](./CHANGELOG.md)
+([ADR-0069](.agents/adr/0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md)). It holds again from `0.3.0` on. The design is
+specified, and the implementation follows it; every decision of the repository is written down and dated.
 
 Two packages, one version: `Nordmann.LUI` (the library) and `Nordmann.LUI.Hosting` (the dependency injection). The core
 takes `Microsoft.Data.Sqlite` and `symspell` and nothing else; the target framework is `net10.0`, the licence is MIT.
-From `0.1.0` on the public API grows only additively: a new type, a new method, a new overload, a new `init` property.
+From `0.3.0` on the public API grows only additively: a new type, a new method, a new overload, a new `init` property.
 A breaking change — a removed or renamed member, a changed signature — needs a new minor version, a migration note in
-the [CHANGELOG](./CHANGELOG.md) and an ADR. Before `0.1.0` such a change was free; now it is a promise.
+the [CHANGELOG](./CHANGELOG.md) and an ADR. Before `0.1.0` such a change was free; `0.3.0` was the one exception, by decision
+of the owner; now it is a promise again.
 
 ## Working on LUI
 
