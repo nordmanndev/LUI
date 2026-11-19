@@ -52,4 +52,4 @@ which describe *application shape* — and therefore do not".
 | The performance budgets are tests, not prose | the numbers of `docs/benchmarks.md` are measurements on a machine that is not the consumer's machine |
 | The dependency set is asserted | a library's dependency list is a public contract (ADR-0004) |
 | The SQL ↔ C# normalisation parity is a test over the whole word list | the rule exists twice (ADR-0005); a drift between the two sides is a silent search miss |
-| The public API grows only additively from `v0.1.0` on | a library's signatures are its contract with every application built against it; a break costs a minor version, a migration note and an ADR (ADR-0026) |
+| The public API grows only additively from `v0.1.0` on | a library's signatures are its contract with every application built against it; a break costs a minor version, a migration note and an ADR (ADR-0026; lifted once, in named places, for 0.3.0 by ADR-0069 — it holds again from `v0.3.0`) |

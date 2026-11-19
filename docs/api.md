@@ -6,6 +6,9 @@
 >
 > **One namespace, one prefix, one way in.** Everything lives in `Nordmann.LUI`; every type begins with `Lui`. The
 > catalog is the entry point, the index is what it hands out, and the rest stays on the index.
+>
+> **This page describes version 0.3.0.** The freeze of 0.1.0 was lifted once, for 0.3.0 ([ADR-0069](../.agents/adr/0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md)); the
+> members that moved are in the migration note of the [changelog](../CHANGELOG.md), and the API grows only additively again from here.
 
 The table at the end is the whole surface. The sections before it explain what the parts are for.
 

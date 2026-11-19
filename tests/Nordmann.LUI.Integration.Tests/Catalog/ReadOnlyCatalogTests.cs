@@ -3,7 +3,7 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Catalog;
 
 /// <summary>
-/// The catalog on a file that may not be written (ADR-0033): the connection string says so, and the catalog reads and
+/// The catalog opened with <c>OpenReadOnly</c> (ADR-0033, ADR-0068): the method says so, and the catalog reads and
 /// searches — and refuses every write with a <see cref="LuiReadOnlyException"/>. The file decides what may happen,
 /// not the index and not a switch in the options.
 /// </summary>

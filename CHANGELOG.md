@@ -7,6 +7,64 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — unreleased
+
+The round of **0.3.0**: the catalogue takes a **path** and owns its connections, there are **three ways** to open it, the read
+path is read-only, and the findings of the audit are in. **The public API breaks in named places** — the freeze of
+[ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) is lifted for this version and holds again
+from it ([ADR-0069](.agents/adr/0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md)); the migration note comes first.
+
+### Migration from 0.2.x
+
+**Two breaks the compiler does not see — read them first.**
+
+1. **`Open` no longer creates or sets up anything.** It opens a catalogue that is there, and a file that is missing or has no
+   `lui_meta` is a `LuiCatalogNotFoundException` that names `OpenOrCreate`. An application that called `Open` on a new file
+   compiles — and fails at its first start on a new machine. Call `OpenOrCreate`:
+
+   ```csharp
+   // before (0.2.x): created the file, switched it to WAL, created lui_meta
+   var catalog = LuiCatalog.Open("Data Source=app.db");
+
+   // after (0.3.0)
+   var catalog = LuiCatalog.OpenOrCreate("app.db");
+   ```
+
+   **The argument is a path now.** A connection string still compiles — the parameter is a `string` — and is taken as a file
+   name: `OpenOrCreate("Data Source=app.db")` creates a file that is called exactly that. Change the argument, not only the
+   method.
+
+2. **Read-only is the method `OpenReadOnly`.** There is no connection string left to say `Mode=ReadOnly`. A write on such a
+   catalogue is a `LuiReadOnlyException` whose message names the reason:
+
+   ```csharp
+   // before (0.2.x)
+   var catalog = LuiCatalog.Open("Data Source=app.db;Mode=ReadOnly");
+
+   // after (0.3.0)
+   var catalog = LuiCatalog.OpenReadOnly("app.db");
+   ```
+
+**Every moved member**, with the old and the new form:
+
+| before (0.2.x) | after (0.3.0) |
+|---|---|
+| `LuiCatalog.Open(string connectionString, LuiCatalogOptions? options = null)` | `LuiCatalog.Open(string path, …)`, and the new `OpenOrCreate(string path, …)` and `OpenReadOnly(string path, …)` |
+| `LuiCatalog.ConnectionString` | `LuiCatalog.Path` — the full path of the file |
+| `new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(2) }` | `new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(2) } }` — one second to ten minutes |
+| `new LuiCatalogOptions { CacheSizeMegabytes = 64 }` | `new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 64 } }` — 1 to 1024, per connection |
+| `LuiCatalogOptions.MemoryMapMegabytes` | **gone** — measured: no gain |
+| `LuiCatalogOptions.WriteAheadLog` | **gone** — the journal mode is not a setting: LUI sets WAL once, in a file it creates itself |
+| `services.AddLui("Data Source=app.db", options)` and `services.AddLui(sp => connectionString, sp => options)` | `services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db", options))` — one `AddLui`, which takes a factory |
+
+**New:** `LuiPragmas` (`BusyTimeout`, `Synchronous`, `CacheSizeMegabytes`), `LuiSynchronous` (`Normal`, `Full`) and
+`LuiCatalogNotFoundException` (with `Path`). `LuiReadOnlyException` stays and means less: SQLite refused a write, and the
+message says why.
+
+**Not supported any more, on purpose:** an encrypted database (`Password`), a VFS of your own, a URI file name and `:memory:` —
+the path is a file path, and LUI builds every connection itself (pooling on, a private cache). An application that needs one of
+them cannot upgrade to 0.3.0.
+
 ### Changed
 
 - **The catalogue owns the connection: a path, and the settings are typed** (#169,
