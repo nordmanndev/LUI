@@ -113,6 +113,9 @@ internal static class ReportWriter
         var fixture = IndexFixture.Of(settings.Corpus, settings.Entries, settings.Source);
         JournalModes.Add(fixture.JournalMode);
 
+        // the dictionary of the correction is built as the setup of the case builds it: the host process has its own fixture
+        fixture.WarmUp(settings.Correction);
+
         // the hits the query FOUND: `Hits` is the upper limit of the answer (20),
         // `CandidatesConsidered` the number of hits that were ranked
         return settings.RunChecked(fixture.Index).CandidatesConsidered.ToString(CultureInfo.InvariantCulture);
