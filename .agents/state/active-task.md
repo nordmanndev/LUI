@@ -5,18 +5,27 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** the round of **0.3.0** — the epic [#166](https://github.com/nordmanndev/LUI/issues/166) and its issues
-#169–#183: the catalogue owns the connection (a path and typed options, ADR-0066), the read path read-only (ADR-0067),
-three ways to open a catalogue (ADR-0068), the freeze of 0.1.0 lifted for 0.3.0 (ADR-0069), and the findings of the audit
-of 2026-11-13/14. **Nothing else comes into 0.3.0** (the owner, 2026-11-15).
-**Branch:** `0.3.0` — branched from `main` at `f4ef3c4` (the release of 0.2.0), with the three state pull requests of
-`dev` merged into it. **Every pull request of the round branches from `0.3.0` and targets `0.3.0`**, one per issue, in the
-order of the plan.
-**Decision:** the plan ([the round of 0.3.0](./../plan/2026-11-15-the-round-of-0-3-0.md)) and the epic #166 — every
-decision of the round was taken by the owner on 2026-11-14 and 2026-11-15.
-**Status:** **the round is open.** The owner merged the plan into `0.3.0` on 2026-11-15 (PR #201, the merge commit
-`64e0efb`) — that was the go. **The next step is #169** (ADR-0066): a branch from `0.3.0`, a pull request against `0.3.0`.
-Before it, read the index of the records: the numbers 0066–0069 have to be free.
+**Issue:** the round of **0.3.0** is **done** (2026-11-19): the tag `v0.3.0` is cut, the round is merged into `dev`
+([PR #252](https://github.com/nordmanndev/LUI/pull/252)) and into `main`
+([PR #253](https://github.com/nordmanndev/LUI/pull/253)), and the issues #169–#183 are closed. What is open: **the sample is
+a page per dataset** ([#218](https://github.com/nordmanndev/LUI/issues/218)) — the plan is merged
+([PR #219](https://github.com/nordmanndev/LUI/pull/219)), the first pull request
+([#220](https://github.com/nordmanndev/LUI/pull/220)) is open and green, and the next pull request of the series is
+[#213](https://github.com/nordmanndev/LUI/issues/213); **the dependencies stay on the LTS line**
+([#223](https://github.com/nordmanndev/LUI/issues/223)) — the patch line 10.0.15 is the one movement; the findings of the round
+are open (#233, #246, #248, #251, #229) and the alignment with the standards
+([#221](https://github.com/nordmanndev/LUI/issues/221)).
+**Branch:** the next work branches from `dev`. The round's branch `0.3.0` is merged into `dev` and into `main` (the tag
+`v0.3.0`).
+**Decision:** the plan of the round ([the round of 0.3.0](./../plan/2026-11-15-the-round-of-0-3-0.md)) and the epic #166 —
+every decision of the round was taken by the owner on 2026-11-14 and 2026-11-15; the plan of the sample
+([the plan of 2026-11-16](./../plan/2026-11-16-the-sample-a-page-per-dataset.md)) — D1 to D10, the owner's decisions of
+2026-11-16.
+**Status:** the sample series is **no longer on hold**. The hold was "until the round of 0.3.0 is done" (the owner,
+2026-11-16), and the round is released: PR #220 waits for the merge, the next pull request of the series is #213, and the
+record of the client is **ADR-0071** — ADR-0070 went to the round (`the catalogue holds no connection`). The freeze of
+[ADR-0026](../adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) holds again from 0.3.0 on
+([ADR-0069](../adr/0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md)): the sample does not touch the public API.
 
 ## What is done
 
@@ -30,6 +39,13 @@ Before it, read the index of the records: the numbers 0066–0069 have to be fre
   `Nordmann.LUI` and `Nordmann.LUI.Hosting` at the version `0.2.0` on nuget.org, and the round of the measured work
   with it — six pull requests, every one of them ending in a number. The public API did not move: the freeze of
   [ADR-0026](../adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) holds, and there is no migration note.
+- **LUI 0.3.0 is released** (2026-11-19): the tag `v0.3.0` on `main` (the merge of PR #253), the packages `Nordmann.LUI` and
+  `Nordmann.LUI.Hosting` at the version `0.3.0` on nuget.org, and the round of 0.3.0 with it — the catalogue owns the
+  connection (ADR-0066), the read path is read-only (ADR-0067), three ways to open a catalogue (ADR-0068), the freeze of
+  0.1.0 lifted for 0.3.0 (ADR-0069) and the catalogue that holds no connection (ADR-0070). **The public API breaks in named
+  places in this version** — the freeze of
+  [ADR-0026](../adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) is lifted for it and holds again from it
+  ([ADR-0069](../adr/0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md)); the migration note comes before the release.
 - **The whole series is merged**: the public API of the review of 2026-11-04 (ADR-0063), the route named in the call
   (ADR-0062), the chapter that says why the tests are built this way (#81), the warm-up that leaves nothing running
   (#148), and the repository English throughout (ADR-0057).
