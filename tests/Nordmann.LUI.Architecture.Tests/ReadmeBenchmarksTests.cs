@@ -44,7 +44,10 @@ public sealed class ReadmeBenchmarksTests
     /// The columns of BenchmarkDotNet's table that the README shows besides the parameters: the statistics and the
     /// number of hits the query found (issue #124) — a line without it can measure nothing and look healthy.
     /// </summary>
-    private static readonly string[] Measured = ["Mean", "Error", "Allocated", "Hits"];
+    private static readonly string[] Measured = ["Mean", ConfidenceColumn, "Allocated", "Hits"];
+
+    /// <summary>The column of the half width of the 99.9 % confidence interval of the mean — BenchmarkDotNet calls it "Error" (issue #180).</summary>
+    private const string ConfidenceColumn = "CI 99.9 %";
 
     /// <summary>The first column of every table.</summary>
     private static readonly string[] MethodColumn = ["Method"];
@@ -140,7 +143,7 @@ public sealed class ReadmeBenchmarksTests
                 ["Method"] = "Search",
                 ["Input"] = "ka",
                 ["Mean"] = "16.46 μs",
-                ["Error"] = "0.275 μs",
+                [ConfidenceColumn] = "0.275 μs",
                 ["Allocated"] = "4.94 KB",
                 ["Hits"] = "0"
             }]);
@@ -193,6 +196,31 @@ public sealed class ReadmeBenchmarksTests
         script.ShouldContain("--exclude='./*/*/obj'", Case.Sensitive);
         script.ShouldNotContain("--exclude='bin'", Case.Sensitive, "an exclude that is not anchored also drops a source directory called bin");
         script.ShouldContain("stat -f", Case.Sensitive, "the script asks the file system what it is, before it copies");
+    }
+
+    [Fact]
+    public void No_table_of_benchmarks_has_a_column_called_error_and_every_report_names_the_confidence_interval()
+    {
+        // issue #180: the column "Error" of BenchmarkDotNet is the half width of the 99.9 % confidence interval of the mean —
+        // not a spread and not a percentile. The name invites a misreading (the ±48 µs of an assignment); the column says what it is.
+        foreach (var (name, _, _) in Sections)
+        {
+            var report = Report.Read(ReportPath(name));
+
+            report.Rows[0].ContainsKey("Error").ShouldBeFalse($"the report of {name} has a column called Error — it is the confidence interval of the mean");
+            report.Rows[0].ContainsKey(ConfidenceColumn).ShouldBeTrue($"the report of {name} names the column '{ConfidenceColumn}'");
+        }
+
+        var documents = new[] { Path.Combine(Repository.RootPath, "README.md") }
+            .Concat(Directory.EnumerateFiles(Path.Combine(Repository.RootPath, "docs"), "*.md", SearchOption.AllDirectories));
+        foreach (var document in documents)
+        {
+            foreach (var line in File.ReadLines(document).Where(line => line.StartsWith('|') && line.Contains("| Mean |", StringComparison.Ordinal)))
+            {
+                line.Contains("| Error |", StringComparison.Ordinal)
+                    .ShouldBeFalse($"{Path.GetRelativePath(Repository.RootPath, document)}: a table of benchmarks has a column called Error — it is '{ConfidenceColumn}': {line}");
+            }
+        }
     }
 
     [Fact]
@@ -333,7 +361,7 @@ public sealed class ReadmeBenchmarksTests
     private sealed record Report(string Environment, IReadOnlyList<string> Parameters, IReadOnlyList<IReadOnlyDictionary<string, string>> Rows)
     {
         /// <summary>The columns between the method and the statistics that are not parameters.</summary>
-        private static readonly string[] Statistics = ["Mean", "Error", "StdDev", "Median", "Ratio", "RatioSD", "Gen0", "Gen1", "Gen2", "Allocated", "Alloc Ratio"];
+        private static readonly string[] Statistics = ["Mean", "Error", ConfidenceColumn, "StdDev", "Median", "Ratio", "RatioSD", "Gen0", "Gen1", "Gen2", "Allocated", "Alloc Ratio"];
 
         internal static Report Read(string path)
         {
