@@ -20,7 +20,7 @@ public sealed class DependencyInjectionTests
         var catalog = host.Services.GetRequiredService<LuiCatalog>();
 
         catalog.ShouldNotBeNull();
-        catalog.ConnectionString.ShouldBe(database.ConnectionString);
+        catalog.Path.ShouldBe(Path.GetFullPath(database.FilePath));
     }
 
     [Fact]
@@ -70,6 +70,25 @@ public sealed class DependencyInjectionTests
     }
 
     [Fact]
+    public void The_hosting_takes_a_factory()
+    {
+        using var database = new TestDatabase();
+        var services = new ServiceCollection();
+
+        services.AddLui(_ => LuiCatalog.OpenOrCreate(database.FilePath));
+
+        Should.Throw<InvalidOperationException>(() => services.AddLui(_ => LuiCatalog.OpenOrCreate(database.FilePath)));
+
+        using var provider = services.BuildServiceProvider();
+        var catalog = provider.GetRequiredService<LuiCatalog>();
+
+        provider.GetRequiredService<LuiCatalog>().ShouldBeSameAs(catalog, "the container holds one catalog");
+
+        provider.Dispose();
+        Should.Throw<ObjectDisposedException>(() => catalog.Index("words"), "the catalog goes with the container");
+    }
+
+    [Fact]
     public async Task The_catalog_goes_with_the_host()
     {
         using var database = new TestDatabase();
@@ -88,11 +107,11 @@ public sealed class DependencyInjectionTests
     public void The_registration_refuses_what_cannot_work()
     {
         var services = new ServiceCollection();
-        services.AddLui("Data Source=unused.db");
+        var unused = Path.Combine(Path.GetTempPath(), "lui-unused.db");
+        services.AddLui(_ => LuiCatalog.OpenOrCreate(unused));
 
-        Should.Throw<InvalidOperationException>(() => services.AddLui("Data Source=other.db"));
-        Should.Throw<ArgumentException>(() => new ServiceCollection().AddLui(" "));
-        Should.Throw<ArgumentNullException>(() => new ServiceCollection().AddLui((string)null!));
+        Should.Throw<InvalidOperationException>(() => services.AddLui(_ => LuiCatalog.OpenOrCreate(unused)));
+        Should.Throw<ArgumentNullException>(() => new ServiceCollection().AddLui((Func<IServiceProvider, LuiCatalog>)null!));
     }
 
     private static IHost Host(
@@ -101,7 +120,7 @@ public sealed class DependencyInjectionTests
         Action<HostApplicationBuilder>? more = null)
     {
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
-        builder.Services.AddLui(database.ConnectionString, options);
+        builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate(database.FilePath, options));
         more?.Invoke(builder);
         return builder.Build();
     }

@@ -62,7 +62,7 @@ internal sealed class TypoCorrection(TypoDictionary typos, CandidateReader candi
 
             queries.Add(variant.Search);
             var items = candidates.Read(
-                connection, snapshot, variant, options, (byte)(queries.Count - 1), cancellationToken, out var itemCount, out var itemsTruncated);
+                connection, snapshot, variant, options, (byte)(queries.Count - 1), wordStarts: true, cancellationToken, out var itemCount, out var itemsTruncated);
 
             truncated |= itemsTruncated;
             if (itemCount > 0)

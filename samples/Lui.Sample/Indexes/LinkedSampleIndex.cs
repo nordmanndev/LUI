@@ -13,10 +13,13 @@ namespace Nordmann.LUI.Sample.Indexes;
 internal sealed class LinkedSampleIndex(
     ILuiLinkedIndex index,
     Func<LuiHit, object?> payload,
-    string connectionString,
+    string path,
     string payloadDescription,
     string description) : ILinkedSampleIndex
 {
+    /// <summary>The connection to the table of the application — LUI's own connections do not write to it (ADR-0066).</summary>
+    private string ConnectionString => $"Data Source={path}";
+
     public string Name => index.Name;
 
     public IndexInfo Describe() => new(
@@ -38,7 +41,7 @@ internal sealed class LinkedSampleIndex(
     {
         Validate(request);
 
-        using var connection = new SqliteConnection(connectionString);
+        using var connection = new SqliteConnection(ConnectionString);
         connection.Open();
         using var command = connection.CreateCommand();
         command.CommandText = $"""
@@ -60,7 +63,7 @@ internal sealed class LinkedSampleIndex(
 
     public bool DeleteRow(long id)
     {
-        using var connection = new SqliteConnection(connectionString);
+        using var connection = new SqliteConnection(ConnectionString);
         connection.Open();
         using var command = connection.CreateCommand();
         command.CommandText = $"DELETE FROM {SampleDatabase.TagTable} WHERE id = $id";

@@ -289,7 +289,7 @@ expect_caught "package-readme-missing" "${ARCHITECTURE_PROJECT}" \
 # 8. The query path reaches up to the catalog — the named exception of ADR-0014 is gone (review DevEx D4, PR-007).
 expect_caught "query-path-uses-the-catalog" "${ARCHITECTURE_PROJECT}" \
   "No_layer_goes_up_through_the_facade" \
-  "printf 'namespace Nordmann.LUI.Querying;\n\ninternal static class Probe\n{\n    internal static string Name(LuiCatalog catalog) => catalog.ConnectionString;\n}\n' > src/Nordmann.LUI/Querying/Probe.cs"
+  "printf 'namespace Nordmann.LUI.Querying;\n\ninternal static class Probe\n{\n    internal static string Name(LuiCatalog catalog) => catalog.Path;\n}\n' > src/Nordmann.LUI/Querying/Probe.cs"
 
 # 9. The connections reach up to the schema: Storage is the bottom layer.
 expect_caught "storage-knows-the-schema" "${ARCHITECTURE_PROJECT}" \
@@ -319,7 +319,7 @@ expect_caught "map-row-without-a-file" "${ARCHITECTURE_PROJECT}" \
 # 13b. A unit test that opens a database (ADR-0019) — the unit layer is the rules on their own.
 expect_caught "unit-test-opens-a-database" "${ARCHITECTURE_PROJECT}" \
   "The_unit_layer_opens_no_database" \
-  "printf 'namespace Nordmann.LUI.Unit.Tests;\n\ninternal static class Probe\n{\n    internal static object Open() => LuiCatalog.Open(\"Data Source=probe.db\");\n}\n' > tests/Nordmann.LUI.Unit.Tests/Probe.cs"
+  "printf 'namespace Nordmann.LUI.Unit.Tests;\n\ninternal static class Probe\n{\n    internal static object Open() => LuiCatalog.Open(\"probe.db\");\n}\n' > tests/Nordmann.LUI.Unit.Tests/Probe.cs"
 
 # 13c. A test file whose only test is skipped is still a test file the map has to list (review of PR #25).
 expect_caught "skipped-test-file-missing-from-the-map" "${ARCHITECTURE_PROJECT}" \

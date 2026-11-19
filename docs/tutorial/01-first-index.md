@@ -5,7 +5,7 @@ index, three entries, one query.
 
 ## The catalog
 
-Everything starts with the catalog. It knows the connection string, the
+Everything starts with the catalog. It knows the path of the file, the
 indexes of the database and the lifetime of both. You open it, use it, and
 dispose it when the application ends.
 
@@ -13,7 +13,7 @@ dispose it when the application ends.
 using Nordmann.LUI;
 
 // The catalog is the entry point: one database, every index in it.
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 ```
 
 That is the whole ceremony. The file does not exist yet — LUI creates it, and
@@ -39,7 +39,7 @@ description — the kind of the index — and does the creating itself.
 using Nordmann.LUI;
 
 // The catalog is the entry point: one database, every index in it.
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // An index of single words: tags, hashtags, names of things.
 var tags = catalog.Create("tags", index => index.SingleWord());
@@ -81,7 +81,7 @@ the cases where the defaults are not what you want.
 ```csharp
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // The index of the step before — the runtime path opens it.
 var tags = catalog.Index("tags");
@@ -152,7 +152,7 @@ the correction says.
 ```csharp
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // An index that forgives one typo in an input that no word begins with.
 var places = catalog.Create("places", index => index.SingleWord().TypoTolerance());
@@ -211,7 +211,7 @@ lock.
 ```csharp
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // The migration of the application creates the index.
 var created = catalog.Create("tags", index => index.SingleWord());
@@ -245,7 +245,7 @@ said once, when the index is created.
 ```csharp
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // A key that is not a number: a slug, a ULID, a GUID as text.
 var slugs = catalog.Create("slugs", index => index.SingleWord().WithKey(LuiKeyKind.Text));

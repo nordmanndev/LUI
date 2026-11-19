@@ -7,6 +7,244 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] — 2026-11-19
+
+The round of **0.3.0**: the catalogue takes a **path** and owns its connections, there are **three ways** to open it, the read
+path is read-only, and the findings of the audit are in. **The public API breaks in named places** — the freeze of
+[ADR-0026](.agents/adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) is lifted for this version and holds again
+from it ([ADR-0069](.agents/adr/0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md)); the migration note comes first.
+
+### Migration from 0.2.x
+
+**Two breaks the compiler does not see — read them first.**
+
+1. **`Open` no longer creates or sets up anything.** It opens a catalogue that is there, and a file that is missing or has no
+   `lui_meta` is a `LuiCatalogNotFoundException` that names `OpenOrCreate`. An application that called `Open` on a new file
+   compiles — and fails at its first start on a new machine. Call `OpenOrCreate`:
+
+   ```csharp
+   // before (0.2.x): created the file, switched it to WAL, created lui_meta
+   var catalog = LuiCatalog.Open("Data Source=app.db");
+
+   // after (0.3.0)
+   var catalog = LuiCatalog.OpenOrCreate("app.db");
+   ```
+
+   **The argument is a path now.** A connection string still compiles — the parameter is a `string` — and is taken as a file
+   name: `OpenOrCreate("Data Source=app.db")` creates a file that is called exactly that. Change the argument, not only the
+   method.
+
+2. **Read-only is the method `OpenReadOnly`.** There is no connection string left to say `Mode=ReadOnly`. A write on such a
+   catalogue is a `LuiReadOnlyException` whose message names the reason:
+
+   ```csharp
+   // before (0.2.x)
+   var catalog = LuiCatalog.Open("Data Source=app.db;Mode=ReadOnly");
+
+   // after (0.3.0)
+   var catalog = LuiCatalog.OpenReadOnly("app.db");
+   ```
+
+**Every moved member**, with the old and the new form:
+
+| before (0.2.x) | after (0.3.0) |
+|---|---|
+| `LuiCatalog.Open(string connectionString, LuiCatalogOptions? options = null)` | `LuiCatalog.Open(string path, …)`, and the new `OpenOrCreate(string path, …)` and `OpenReadOnly(string path, …)` |
+| `LuiCatalog.ConnectionString` | `LuiCatalog.Path` — the full path of the file |
+| `new LuiCatalogOptions { BusyTimeout = TimeSpan.FromSeconds(2) }` | `new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(2) } }` — one second to ten minutes |
+| `new LuiCatalogOptions { CacheSizeMegabytes = 64 }` | `new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 64 } }` — 1 to 1024, per connection |
+| `LuiCatalogOptions.MemoryMapMegabytes` | **gone** — measured: no gain |
+| `LuiCatalogOptions.WriteAheadLog` | **gone** — the journal mode is not a setting: LUI sets WAL once, in a file it creates itself |
+| `services.AddLui("Data Source=app.db", options)` and `services.AddLui(sp => connectionString, sp => options)` | `services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db", options))` — one `AddLui`, which takes a factory |
+
+**New:** `LuiPragmas` (`BusyTimeout`, `Synchronous`, `CacheSizeMegabytes`), `LuiSynchronous` (`Normal`, `Full`) and
+`LuiCatalogNotFoundException` (with `Path`). `LuiReadOnlyException` stays and means less: SQLite refused a write, and the
+message says why.
+
+**Not supported any more, on purpose:** an encrypted database (`Password`), a VFS of your own, a URI file name and `:memory:` —
+the path is a file path, and LUI builds every connection itself (pooling on, a private cache). An application that needs one of
+them cannot upgrade to 0.3.0.
+
+### Changed
+
+- **The catalogue owns the connection: a path, and the settings are typed** (#169,
+  [ADR-0066](.agents/adr/0066-the-catalogue-owns-the-connection.md)): the entry points take the **path** of the file,
+  and LUI builds every connection itself — pooling on, a private cache, the mode of the method that opened it. The
+  application never hands LUI a connection string any more.
+
+  | before | after |
+  |---|---|
+  | `LuiCatalog.Open(connectionString, options?)` | `LuiCatalog.Open(path, options?)` |
+  | `LuiCatalog.ConnectionString` | `LuiCatalog.Path` — the full path of the file |
+  | `LuiCatalogOptions.BusyTimeout` | `LuiCatalogOptions.Pragmas.BusyTimeout` |
+  | `LuiCatalogOptions.CacheSizeMegabytes` | `LuiCatalogOptions.Pragmas.CacheSizeMegabytes` |
+  | `services.AddLui(connectionString, options?)` | `services.AddLui(_ => LuiCatalog.OpenOrCreate(path))` |
+  | `services.AddLui(sp => sp.GetRequiredService<IConfiguration>().GetConnectionString("app")!, options?)` | `services.AddLui(sp => LuiCatalog.OpenOrCreate(sp.GetRequiredService<IConfiguration>().GetValue<string>("App:Path")!))` |
+
+  A path is a **file path**: an empty path, `:memory:` and a URI (`file:…`) are refused with an `ArgumentException`.
+
+- **The values of the connections are checked when the catalogue is opened** — not when they are set. A value out of
+  range is an `ArgumentOutOfRangeException`, **before** a connection is opened: a file that is not written is not created
+  either. The busy timeout is **one second to ten minutes** (below a second, Microsoft.Data.Sqlite retries a busy
+  command until a second has passed anyway, [ADR-0046](.agents/adr/0046-the-busy-timeout-is-the-wait-for-a-lock.md)).
+
+- **The journal mode is set once, and only in a file LUI creates.** `OpenOrCreate` puts a file it creates itself into
+  WAL; a file that is there — the database of an application, a catalogue that is already there, even an empty file —
+  keeps the mode it has. `Open` and `OpenReadOnly` never set it. The mode is not a setting any more, and nothing
+  overrides it.
+
+- **Three ways to open a catalogue** (#171, [ADR-0068](.agents/adr/0068-three-ways-to-open-a-catalogue.md)) — **the
+  first behaviour change comes first: `Open` no longer creates anything.**
+
+  | | the file is missing | the file is a database without `lui_meta` | the file is a catalogue |
+  |---|---|---|---|
+  | `Open` | `LuiCatalogNotFoundException` | `LuiCatalogNotFoundException` | opened — **nothing is written** |
+  | `OpenOrCreate` | created and set up (WAL, `lui_meta`) | `lui_meta` is added; the journal mode stays | opened |
+  | `OpenReadOnly` | `LuiCatalogNotFoundException` | `LuiCatalogNotFoundException` | opened, read only |
+
+  An application that called `Open` on a new file **compiles and fails at its first start**: call `OpenOrCreate`. A file
+  that is no catalogue — an application's database without `lui_meta`, or a file that is no SQLite database — is no longer
+  turned into one by `Open`.
+
+- **The read path opens a read-only connection** (#170, [ADR-0067](.agents/adr/0067-the-read-path-opens-a-read-only-connection.md)):
+  every query, every `Count` and every check of the file runs on a connection with `Mode=ReadOnly`, **whichever way the
+  catalogue was opened** — SQLite refuses a write, not a convention. The statements of a query are prepared. Behaviour you
+  may notice: a catalogue opened with `Open` or `OpenOrCreate` now has **two pools** (the writer's and the read path's), and
+  a catalogue in write-ahead logging in a directory that may not be written is refused when it is opened, with a
+  `LuiReadOnlyException` that names the directory (a read-only connection needs the `-wal` and `-shm` files even to read).
+  A catalogue in write-ahead logging that was **only read** leaves its `-wal` (empty) and `-shm` next to the file when it is
+  closed — a read-only connection cannot remove them; a catalogue that was written is checkpointed and clean, as before.
+  Measured on the same corpus, the query is no slower and allocates no more.
+
+- **The catalogue holds no connection** (#227, [ADR-0070](.agents/adr/0070-the-catalogue-holds-no-connection.md)): a write takes a
+  connection from the pool of the provider and gives it back (`Sync` keeps one for its run), instead of the long-lived writer
+  connection of ADR-0009. Behaviour you may notice: a **single** `Upsert`, `UpdateWeight` or `Remove` is slower — measured, the
+  median of an `Upsert` goes from 0,03 ms to 0,09 ms, p95 from 0,12 ms to 0,21 ms, far inside the budget of p95 ≤ 1 ms — while
+  a batch (`UpsertMany`) and `Sync` take as long as before. Nothing in the API changes.
+
+- **The prefix path reads only the rowid of its candidates** (#173, R3 of the audit): the statement of the prefix path of an
+  `Embedded` index (one or two characters) no longer reads the text of up to 500 candidates; the ranking there is the weight
+  alone, and the text of a hit — and its word start — comes from the statement that reads the hits anyway. The answer is the
+  same (a test holds the hits of fifteen prefixes against the output of the code before). Measured on the same corpus and
+  machine (200,000 entries, 4 cores, 2026-11-19): one and two characters p50 0,46 / 0,52 ms → 0,23 / 0,23 ms, the allocation
+  of a query that spends its budget of candidates p50 40 KB → 15 KB, all queries p50 24 KB → 15 KB. The search index (three
+  characters and more) is unchanged — measured alone and mixed in, base and branch alternating, its median (three characters
+  0,6–0,7 ms, five to eight 0,3–0,4 ms) does not move beyond the noise. A `Linked` index reads
+  the text as before: it checks it against the table.
+
+- **The word start is made when the ranking needs it** (#174, R4 of the audit): the search form of each of up to 500 candidates
+  was made for a word start that only the ranking and the typo correction use — every ranking but `WeightOnly` (it sorts by the
+  word start, or it measures the similarity from it) and a typo correction that asks whether any candidate has one. With
+  `WeightOnly` and no typo tolerance the hits make it instead, for the twenty that are left, from the one search form they make
+  anyway for their similarity (the prefix path made two for each hit before). The answer is the same. Measured (200,000 entries,
+  4 cores, 2026-11-19, base and branch alternating, two rounds): with `Rank = WeightOnly` and no typo tolerance the median of
+  three and four characters goes from 0,61–0,66 to 0,49–0,52 ms; with every other ranking, and with the typo tolerance on,
+  nothing changes. A `Linked` index makes it as before: it makes the search form to check the text against the table.
+
+- **A refused write is a `LuiReadOnlyException` that says why.** SQLite refuses (`SQLITE_READONLY`), LUI translates, and the
+  message names the reason: the catalogue was opened with `OpenReadOnly` (with the operation, the index, and how to write),
+  or the file or its directory may not be written. The error of SQLite is the inner exception. A write in the transaction
+  of the application on a catalogue opened with `OpenReadOnly` is refused the same way. **A write that has nothing to
+  write is no longer refused:** `Create` of an index that exists with the same definition, `ApplyPending` and `DropTriggers`
+  with nothing to do now return on a catalogue opened with `OpenReadOnly` — SQLite refuses a write, not a call.
+
+- **The benchmark of the correction measures the correction** (#179, D7/R2 of the audit): the fixture of the benchmarks built its
+  indexes without `.TypoTolerance()` — the distance was `None`, there was no dictionary, a query with the correction on skipped
+  it and found nothing (`Hits = 0` in all four lines of the report). The lines measured the path without the correction, and
+  the price of the typo tolerance was measured nowhere. The fixture has the tolerance now; the run **stops** if a case with the
+  correction on ranks no candidate, and a test holds the committed reports to the same rule. The four corrected queries find
+  72–402 candidates and cost 266–1,315 μs with 24–43 KB (the lines of before: 58–330 μs, 5.5 KB, uncorrected). **All five
+  reports are measured again on one machine** (a test requires it): the container of this round, 4 cores, .NET 10.0.14 —
+  not the machine of the earlier reports. The new reports differ from the old in three things at once — the machine, the code
+  of the round (#173, #174, #170) and the fixture — so no line is a comparison with the line of before. The tolerance of the
+  fixture is not the cause of the higher allocation of the write benchmarks (436 B → 2.7 KB, 820 B → 4 KB): measured with and
+  without it in one run, the allocation is the same (2.73 / 3.96 KB); where it comes from in the code of the round is not
+  examined here. The guard is narrow: the harness stops a case that corrects and ranks no candidate, and the Hits of the
+  lines of `SettingsBenchmarks` with the correction on (prefix inputs that hit without it) do not prove that the correction ran.
+
+- **The write benchmark runs on a local disk, and every report names its disk** (#178, R1 of the audit): the 2.04 ms of the
+  write benchmark against the ≤ 1 ms of the budget were an artifact of the file system — measured per entry (p95), the same
+  write took 1.85 ms on the network drive of the audit's workplace and 0.225 ms on a local disk (those numbers are of the
+  audit, not of a report of this repository). Every report now carries a `[Disk]` line (the file system
+  of the directory of the databases, `local` or `network`, and the directory), and a test fails on a report that was measured
+  on a network disk. `tools/benchmarks.sh` puts `TMPDIR` on a local disk and, if the repository is on a network file system,
+  copies the **whole** tree there first (with `tar`, without `bin/`, `obj/` and `.git`; a part of the tree is a build that
+  breaks), and a failed run keeps its files instead of throwing an hour of measurements away. New reports (ext4, local,
+  2026-11-19, the container of the round — not the machine of the record): `Upsert` 0.13–0.31 ms, `UpdateWeight` 0.33 ms,
+  the mean of one write in a transaction of its own.
+
+- **The column "Error" of the benchmark tables is called "CI 99.9 %"** (#180, D6/D8 of the audit): it is the half width of the
+  99.9 % confidence interval of the mean (BenchmarkDotNet's own legend), not a spread and not a percentile — the old name
+  invited a misreading. The report writer renames it, the committed reports and the tables of the README carry the new name, and
+  a test fails on a table of benchmarks with a column "Error". The audit (#168) found two runs of the same class on the same class of machine that differed
+  by 1.55–1.66× in the latency with the allocation equal to the byte, so a latency line is quoted with its run (date, number
+  of measurements, machine, journal mode and disk — all in the report since #124 and #178); `docs/benchmarks.md` says so.
+  The name is written with a dot (`99.9`), as the English text of the repository writes numbers.
+
+- **The lane of the schedule leaves its numbers behind** (#177, D3/R5 of the audit): the lane wrote its `[perf]` lines only
+  into the step summary of the run, which is gone after the run — the last record in the repository was of 2026-11-12.
+  `tools/perf-record.sh` now makes a file of them with the date, the iteration and the disk of the run, and a job of its own
+  (`record`, the only one with the token to write; it runs no code of the repository) publishes it as
+  `docs/benchmarks-latest.md` on the branch `perf/latest` — not on `main`, `dev` or the branch of a release, so a person looks
+  at it before it goes anywhere. A run without a `[perf]` line writes no record. Where the file lives is a decision of the
+  owner that can change in one line (the branch, or a pull request); this is the narrowest one.
+
+- **The limit of the dictionary of two errors is 260 MB** (#175, decision of the owner, 2026-11-14): it was 240 MB — exactly what
+  was measured, 100 % of the limit, no reserve. The limit moves to 260 MB (+ 8.3 %) in the file of the budgets, the README and
+  `docs/benchmarks.md`; the measured 240 MB stays in `docs/typo-dictionary.md` as an observation. A test holds the number in
+  the file and the tables against it (#181). Superseded by #242 (below): the limit is 420 MB.
+
+- **The dictionary of two errors is measured against its limit — and the numbers of the record were wrong** (#242): no test held
+  a size against the limit of 240, then 260 MB; now one does (`BudgetPerformance`, on every run of the lane, and a test that holds
+  every budget of the file to a measurement). It measured **388 MB**, and the dictionary of one error **194 MB** — not the
+  240 MB and 138 MB of the record of 2026-11-12, which could not be reproduced: the code of `0.1.1`, `0.2.0` and this version
+  gives the same sizes, on the container and on a hosted runner. The limit of the dictionary of two errors is now **420 MB**
+  (+ 8 % over the measurement, decision of the owner), the record and the documentation of the public API carry 194 and
+  388 MB (times: 4.0–5.2 s and 10.7–12.2 s, the container of the round). The limit of one error stays at 200 MB — it is met
+  with 194 MB, **a reserve of 3 %**.
+
+- **A catalogue is one file** (#183): `docs/api.md` and the README say that `Embedded` and `Linked` indexes live side by side in
+  one catalogue — mixing them is defined — with the tables of the application beside the tables of LUI, that what separates
+  them is **who owns the content table**, and that the file of the application becomes a catalogue with `OpenOrCreate` (write-ahead
+  logging only if `OpenOrCreate` creates the file itself, otherwise the mode of the file stays — empty or not; LUI never
+  switches it again). A test per document
+  holds the sentences; integration tests hold the behaviour in both orders (LUI first, the application first) and that a later
+  `Open` writes nothing. The behaviour itself is the one of #169 to #172 — nothing in the library changed for this issue.
+
+- **A write no longer applies the pragmas of its connection again** (#237): since the catalogue holds no connection (ADR-0070) every write
+  takes one from the pool of the provider, and every one of them ran the pragma statement again — a command and two
+  statements, about a kilobyte per write: `UpdateWeight` allocated 2,430 B and `Upsert` 3,693 B (0.2.0: 422 B and 869 B). The
+  pragmas stay with the physical connection, so a connection that comes out of the pool is not given them again (a
+  connection of another catalogue with other pragmas still is). Now: 1,494 B and 2,733 B. **A kilobyte per write remains
+  compared with 0.2.0** — not the checkout of the connection (about 170 B) but the write path, which makes its statement objects
+  again on every write; that is not changed here (#248). The settings do not change; tests read them back from the connections of the
+  pool, also for two catalogues of one file with other pragmas.
+
+- **The README carries the measurements of the round** (2026-11-19): the table of the budgets names the lane of 2026-11-19 (a hosted
+  runner, not the machine of the budgets): query p50 0.87 ms, p95 ≤ 1.7 ms (1–4 characters) and ≤ 4.5 ms (5–8), with a
+  correction 8.4 ms, 20 / 44 KB per query, 67.0 s for the 1.9 million entries of the word list, 243 MB for a million titles. It no
+  longer says that every target is asserted in its scenario: the three-million scenario is not reached yet (#176).
+
+### Added
+
+- **`LuiPragmas`** — the settings of the connections of a catalogue: `BusyTimeout` (5 s), `Synchronous` (`Normal` or
+  `Full`) and `CacheSizeMegabytes` (1 to 1024, **per connection**; without a value SQLite's own 2 MB).
+  **`LuiSynchronous`** — the two values of `synchronous` that make sense: `Off` would put the file at risk on a power
+  loss, `Extra` costs without a gain in the write-ahead log.
+- **`LuiCatalog.OpenOrCreate(path, options?)`** and **`LuiCatalog.OpenReadOnly(path, options?)`** — the ways to open a
+  catalogue that a path makes possible.
+- **`LuiCatalogNotFoundException`** (with `Path`) — there is no catalogue at the path of `Open` or `OpenReadOnly`: the file is
+  missing, it is no SQLite database, or it has no `lui_meta`.
+
+### Removed
+
+- **`LuiCatalogOptions.MemoryMapMegabytes`** — measured: no gain (0,490 → 0,474 ms on a local disk, 3,440 → 3,305 ms on
+  a network mount, and 4 µs per opened connection).
+- **`LuiCatalogOptions.WriteAheadLog`** — the journal mode is a property of the file, and LUI sets it once.
+- **The two `AddLui` overloads with a connection string** — replaced by
+  `AddLui(this IServiceCollection services, Func<IServiceProvider, LuiCatalog> open)`. The container owns the catalogue
+  and disposes it; the way it is opened is the caller's.
+
 ## [0.2.0] — 2026-11-15
 
 The release of **0.2.0**: the round of the measured work — six pull requests, and every one of them ends in a number, with
@@ -756,7 +994,8 @@ The sections below are the changes made on the way to it.
   - The package no longer depends on `Microsoft.Extensions.DependencyInjection.Abstractions`,
     `Microsoft.Extensions.Hosting.Abstractions` and `Microsoft.Extensions.Logging.Abstractions`: no code used them.
 
-[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/nordmanndev/LUI/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/nordmanndev/LUI/compare/v0.2.0...v0.3.0
 [0.2.0]: https://github.com/nordmanndev/LUI/compare/v0.1.1...v0.2.0
 [0.1.1]: https://github.com/nordmanndev/LUI/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/nordmanndev/LUI/compare/v0.1.0-alpha...v0.1.0

@@ -123,8 +123,8 @@ public sealed class LuiEmbeddedIndexBuilder
     /// <summary>
     /// Typo tolerance (ADR-0012): an input without a word start is corrected, with a dictionary of the word
     /// beginnings of the index. The distance says <b>how many errors</b> are forgiven — an enumeration, not a
-    /// number, because the dictionary grows with every additional error (138 MB for one error and 685,739 words,
-    /// 240 MB for two; <c>docs/typo-dictionary.md</c>). Off unless it is asked for, and built when the
+    /// number, because the dictionary grows with every additional error (194 MB for one error and 685,739 words,
+    /// 388 MB for two; <c>docs/typo-dictionary.md</c>). Off unless it is asked for, and built when the
     /// first input needs it (or by <c>WarmUpTypoDictionary()</c>). The distance belongs to the <b>index</b> and
     /// is part of its stored definition; a query can only switch the correction on or off. The dictionary
     /// itself belongs to the index of the catalog and is shared by all its instances.

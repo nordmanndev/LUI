@@ -6,6 +6,9 @@
 >
 > **One namespace, one prefix, one way in.** Everything lives in `Nordmann.LUI`; every type begins with `Lui`. The
 > catalog is the entry point, the index is what it hands out, and the rest stays on the index.
+>
+> **This page describes version 0.3.0.** The freeze of 0.1.0 was lifted once, for 0.3.0 ([ADR-0069](../.agents/adr/0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md)); the
+> members that moved are in the migration note of the [changelog](../CHANGELOG.md), and the API grows only additively again from here.
 
 The table at the end is the whole surface. The sections before it explain what the parts are for.
 
@@ -13,31 +16,47 @@ The table at the end is the whole surface. The sections before it explain what t
 
 ## The catalog — the entry point
 
-The catalog is the one thing an application opens. It holds the connection, the settings and the indexes of one
+The catalog is the one thing an application opens. It holds the settings and the indexes of one
 database file.
 
 ```csharp
 using Nordmann.LUI;
 
-using var catalog = LuiCatalog.Open("Data Source=app.db");
+using var catalog = LuiCatalog.OpenOrCreate("app.db");
 ```
+
+**One catalogue is one file.** `Embedded` and `Linked` indexes live side by side in it — mixing them is defined — and the
+tables of the application lie beside the tables of LUI (`lui_meta`, `lui_<index>…`) in the same file. What separates the two
+kinds is not *which file* but **who owns the content table**: an embedded index owns it (`lui_<index>`), a linked index
+reads a table of the application. The file of the application becomes a catalogue with `OpenOrCreate`. LUI puts a file in
+write-ahead logging only when `OpenOrCreate` **creates the file itself**; a file that is already there — with tables or
+empty — keeps its mode: the application decides, and should choose write-ahead logging (in the rollback journal a read
+blocks the writes of the application). LUI never switches the mode of a file again, and `Open` and `OpenReadOnly` write nothing
+([ADR-0066](../.agents/adr/0066-the-catalogue-owns-the-connection.md),
+[ADR-0068](../.agents/adr/0068-three-ways-to-open-a-catalogue.md)).
 
 ### `LuiCatalog`
 
 | Member | What it does |
 |---|---|
-| `static LuiCatalog Open(string connectionString, LuiCatalogOptions? options = null)` | opens the catalog. It probes the SQLite it found (version, folding) and refuses a database it cannot search correctly. |
+| `static LuiCatalog Open(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, and **writes nothing**: a file that is missing or is no catalog (no SQLite database, no `lui_meta`) is a `LuiCatalogNotFoundException`. It never creates a file, never creates `lui_meta` and never sets the journal mode. It probes the SQLite it found (version, folding) and refuses a database it cannot search correctly. |
+| `static LuiCatalog OpenOrCreate(string path, LuiCatalogOptions? options = null)` | opens the catalog and sets the file up: the file is created when it is missing, `lui_meta` is created when the file has none (the database of an application), and a catalog that is there is not written. **LUI sets the write-ahead logging only in a file it creates itself**; a file that is there keeps its journal mode, empty or not (ADR-0066, ADR-0068). |
+| `static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, **to read only**: every connection of it is read-only, and SQLite refuses every write, which LUI turns into a `LuiReadOnlyException`. A file that is missing or is no catalog is a `LuiCatalogNotFoundException`. |
 | `ILuiEmbeddedIndex Create(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)` | creates an **embedded** index — the content lives in the library's own table. It is the write path and belongs in the migration of the application. |
 | `ILuiLinkedIndex CreateLinked(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)` | creates a **linked** index — the content stays in the table of the application. The route is named in the call, as it is on the side of opening (`Index` / `LinkedIndex`). |
 | `ILuiEmbeddedIndex Index(string name)` | opens an embedded index that exists, and **writes nothing**: the definition is read out of the file, no table, no write lock. |
 | `ILuiLinkedIndex LinkedIndex(string name)` | opens a linked index without payload columns. |
 | `ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)` | opens a linked index with payload columns; the map builds the payload from the row of the table. |
 | `void WarmUpTypoDictionaries(CancellationToken cancellationToken = default)` | builds the typo dictionary of **every** index of the catalog — the warm-up of a host in one call (ADR-0043). The dictionary belongs to the index of the catalog: an index you open later sees it and reports it as built. |
-| `void WarmUpTypoDictionaries(IEnumerable<string> names, CancellationToken cancellationToken = default)` | the same for the **named** indexes — a dictionary costs memory (138 MB for 685,739 words), and an index whose queries correct no typos needs none. Every name is checked before the first build: an unknown one is a `LuiIndexNotFoundException`. |
+| `void WarmUpTypoDictionaries(IEnumerable<string> names, CancellationToken cancellationToken = default)` | the same for the **named** indexes — a dictionary costs memory (194 MB for 685,739 words), and an index whose queries correct no typos needs none. Every name is checked before the first build: an unknown one is a `LuiIndexNotFoundException`. |
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the outbox of **every** linked index: the rows the triggers noted come into the index. The table of the application is not touched. Returns the number of rows brought in. |
 | `bool DropIndex(string name, bool dropTriggers = false)` | drops the index. The triggers of a linked index are dropped with it only if you say so. |
-| `string ConnectionString { get; }` | the connection string the catalog was opened with. |
-| `void Dispose()` | closes the catalog. It holds the connection pool; the indexes hold no resource of their own. |
+| `string Path { get; }` | the full path of the file the catalog was opened with. |
+| `void Dispose()` | closes the catalog: it waits for the operations that are running and clears the pools of the provider (the read connections first). The catalog holds no connection (ADR-0070); the indexes hold no resource of their own. |
+
+The path is a **file path** (ADR-0066): LUI builds every connection itself — pooling on, a private cache, the mode of the
+method that opened it. The application never sees a connection string. An empty path, `:memory:` and a URI (`file:…`) are
+refused with an `ArgumentException`.
 
 `Create` and `CreateLinked` are **idempotent**: they create the index if it is missing, and compare the stored
 definition with the one that was described if it is there. A difference is a `LuiDefinitionMismatchException` — never a
@@ -52,15 +71,39 @@ The settings of the catalog. Every one of them has a default; none of them has t
 
 | Member | Default | What it is for |
 |---|---|---|
-| `int? CacheSizeMegabytes` | the SQLite default | the page cache of the file |
-| `int? MemoryMapMegabytes` | the SQLite default | the memory map of the file |
-| `TimeSpan BusyTimeout` | 5 s | how long a writer waits for the lock of the file — then `SqliteException` with `SQLITE_BUSY`. At least about one second: below it, Microsoft.Data.Sqlite retries until a second has passed (ADR-0046). It bounds the wait for a lock, not the time a statement runs. |
-| `bool WriteAheadLog` | `true` | the WAL — readers do not block the writer |
+| `LuiPragmas Pragmas` | `new LuiPragmas()` | the settings of the connections of the catalog — see below |
 | `ILuiPayloadSerializer? PayloadSerializer` | none | the serialiser of the payloads of this catalog — one for every index of it |
 | `TimeProvider TimeProvider` | `TimeProvider.System` | the clock of the catalog, for the timings and for tests |
 
-The file decides whether writing is allowed at all: a catalog opened with `Mode=ReadOnly` writes nothing, and every
-write throws a `LuiReadOnlyException`.
+The file decides whether writing is allowed at all: a catalog opened with `OpenReadOnly` writes nothing, and SQLite refuses
+every write — LUI turns the refusal into a `LuiReadOnlyException` that says why (ADR-0068).
+Every read — a query, `Count`, the check against the table — runs on a read-only connection, whichever way the catalog was opened (ADR-0067).
+
+### `LuiPragmas`
+
+The settings of the connections of a catalog (ADR-0066). They belong to the catalog: an index has no connection of its own
+to configure, and the application never holds one.
+
+| Member | Default | What it is for |
+|---|---|---|
+| `TimeSpan BusyTimeout` | 5 s | how long a connection waits for the lock of the file — then `SqliteException` with `SQLITE_BUSY`. At least one second, at most ten minutes. It is checked when the catalog is opened. |
+| `LuiSynchronous Synchronous` | `LuiSynchronous.Normal` | how the connections write: `Normal` or `Full` |
+| `int? CacheSizeMegabytes` | the SQLite default | the page cache of **every** connection, in megabytes; 1 to 1024. It holds per connection: the upper bound of the read path is the number of parallel queries times this value. |
+
+Every value is checked when the catalog is opened: a value out of range is an `ArgumentOutOfRangeException`, before a
+connection is opened — so a file that is not written is not created either.
+
+### `LuiSynchronous`
+
+How the connections of a catalog write (ADR-0066).
+
+| Value | What it is for |
+|---|---|
+| `Normal` | the usual one: the write-ahead log carries the durability of the file |
+| `Full` | every write is flushed to the disk: the safest, and the slowest |
+
+`Off` would put the file at risk on a power loss, and `Extra` would cost without a gain in the write-ahead log — a setting
+that makes no sense does not exist.
 
 ---
 
@@ -84,7 +127,7 @@ and does the creating itself. Every builder method returns the builder, so the c
 | `LuiLinkedIndexBuilder LinkTo(string table, string key, string text, string? weight = null, string? priority = null)` | turns the description into a linked one: the table of the application, its `INTEGER PRIMARY KEY`, the column with the text, and — optional — the columns with the weight and the priority |
 | `LuiEmbeddedIndexBuilder Similarity(ILuiSimilarity similarity)` | the measure of the ranking. The default of the kind is used when it is left out. |
 | `LuiEmbeddedIndexBuilder GermanTransliteration(bool enabled)` | `ä` → `ae`, `ü` → `ue`, `ß` → `ss`. On by default. |
-| `LuiEmbeddedIndexBuilder TypoTolerance(LuiTypoDistance distance = LuiTypoDistance.OneError)` | how many errors are forgiven: `None`, `OneError` or `TwoErrors`. Off by default — the dictionary of the word beginnings costs 138 MB for 685,739 words with one error (the list of the repository has 685,829 words; the measurement uses the ones of three letters or more, without a digit), and more with two ([`docs/typo-dictionary.md`](./typo-dictionary.md)). The distance is part of the stored definition: an index that is opened again forgives what it forgave before. |
+| `LuiEmbeddedIndexBuilder TypoTolerance(LuiTypoDistance distance = LuiTypoDistance.OneError)` | how many errors are forgiven: `None`, `OneError` or `TwoErrors`. Off by default — the dictionary of the word beginnings costs 194 MB for 685,739 words with one error (the list of the repository has 685,829 words; the measurement uses the ones of three letters or more, without a digit), and more with two ([`docs/typo-dictionary.md`](./typo-dictionary.md)). The distance is part of the stored definition: an index that is opened again forgives what it forgave before. |
 | `ILuiEmbeddedIndex Create()` | creates the index. The catalog calls this; an application does not. |
 
 ### `LuiLinkedIndexBuilder`
@@ -438,9 +481,10 @@ library.
 | `LuiEnvironmentException` | the environment is not what the library needs — the SQLite is too old, or it folds differently than the one the library was measured with |
 | `LuiDefinitionMismatchException` | the index in the file was written with another definition, another version of the schema or another folding. It carries `IndexName`, `Stored` and `Requested`. |
 | `LuiIndexNotFoundException` | there is no index of that name in the database. It carries `IndexName`. |
+| `LuiCatalogNotFoundException` | there is no catalog at the path: the file is missing, it is no SQLite database, or it has no lui_meta table. The ways to open a catalog that is there do not create one; the way that creates one refuses a file that is no SQLite database. It carries `Path`. |
 | `LuiLinkedTableException` | the table of the application is missing, or a column of it, or its key is not the `INTEGER PRIMARY KEY` |
 | `LuiPayloadException` | a payload cannot be read in the type asked for. It carries `IndexName`, `Key` and `RequestedType`. |
-| `LuiReadOnlyException` | the file may not be written. It carries `Operation`. |
+| `LuiReadOnlyException` | SQLite refused a write because the file may not be written. The message names the reason — the catalog was opened read-only, or the file and its directory may not be written — the operation and the index; the error of SQLite is the inner exception. It carries `Operation`. |
 
 ---
 
@@ -453,8 +497,7 @@ one service of the host (ADR-0043). It tells the logger of the host what it did 
 
 | Member | What it does |
 |---|---|
-| `IServiceCollection AddLui(this IServiceCollection services, string connectionString, LuiCatalogOptions? options = null)` | puts the **catalog** into the container |
-| `IServiceCollection AddLui(this IServiceCollection services, Func<IServiceProvider, string> connectionString, Func<IServiceProvider, LuiCatalogOptions>? options = null)` | the same, with the connection string and the settings resolved from the container |
+| `IServiceCollection AddLui(this IServiceCollection services, Func<IServiceProvider, LuiCatalog> open)` | puts the **catalog** into the container: it opens it when it is first needed and disposes it with the container. The way the catalog is opened is the caller's — `services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"))` (ADR-0066). Once per container: a second call throws. |
 | `IServiceCollection AddLuiWarmup(this IServiceCollection services, Action<LuiWarmupOptions>? configure = null)` | registers the **warm-up** as a service of the host: the outbox of every linked index is applied and the typo dictionaries are built at the start of the host, and the outbox is applied again on an interval. **Off by default** — without this call the host starts nothing of LUI (ADR-0043). Once per container: a second call throws. |
 
 ### `LuiWarmupOptions`
@@ -491,12 +534,14 @@ The warm-up is a service of the host, not a thread of the library: the host star
 
 ## The whole surface
 
-Forty-three public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing else is public.
+Forty-six public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|
 | `LuiCatalog` | class | [the entry point](#the-catalog--the-entry-point) |
 | `LuiCatalogOptions` | record | [the entry point](#the-catalog--the-entry-point) |
+| `LuiPragmas` | record | [the entry point](#the-catalog--the-entry-point) |
+| `LuiSynchronous` | enum | [the entry point](#the-catalog--the-entry-point) |
 | `LuiIndexKindBuilder` | class | [creating an index](#creating-an-index--the-description) |
 | `LuiEmbeddedIndexBuilder` | class | [creating an index](#creating-an-index--the-description) |
 | `LuiLinkedIndexBuilder` | class | [creating an index](#creating-an-index--the-description) |
@@ -535,6 +580,7 @@ Forty-three public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothi
 | `LuiEnvironmentException` | class | [the exceptions](#the-exceptions) |
 | `LuiDefinitionMismatchException` | class | [the exceptions](#the-exceptions) |
 | `LuiIndexNotFoundException` | class | [the exceptions](#the-exceptions) |
+| `LuiCatalogNotFoundException` | class | [the exceptions](#the-exceptions) |
 | `LuiLinkedTableException` | class | [the exceptions](#the-exceptions) |
 | `LuiPayloadException` | class | [the exceptions](#the-exceptions) |
 | `LuiReadOnlyException` | class | [the exceptions](#the-exceptions) |

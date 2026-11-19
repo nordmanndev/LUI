@@ -26,7 +26,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
         Report($"  {words.Count:N0} words of the corpus");
 
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         var wordIndex = catalog.Create("words", index => index.SingleWord().TypoTolerance());
 
         var random = new Random(5);
@@ -83,7 +83,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
         foreach (var distance in new[] { LuiTypoDistance.None, LuiTypoDistance.OneError, LuiTypoDistance.TwoErrors })
         {
             using var database = new TestDatabase();
-            using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512, MemoryMapMegabytes = 2048 });
+            using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
             var wordIndex = catalog.Create("words", index => index.SingleWord().TypoTolerance(distance));
 
             var random = new Random(5);

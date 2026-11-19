@@ -10,7 +10,7 @@
 > of the owner stands: there is no `LuiIndexRegistrations` either. The surface of 0.1.0, written against the review of
 > 2026-11-04, is in [ADR-0063](./0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied.md).
 
-- **Status:** Accepted (owner's decision, 2026-11-04, epic #39 step G)
+- **Status:** Superseded by [0069](./0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md) (the owner, 2026-11-15: the freeze is lifted for 0.3.0, in named places, and holds again from 0.3.0 on)
 - **Date:** 2026-11-04
 - **Issue:** #43, the last step of epic #39 (the public API before the freeze of 0.1.0)
 - **Builds on:** [0018](./0018-two-packages-core-and-hosting.md) (two packages, one version), [0023](./0023-owned-becomes-embedded.md),

@@ -30,7 +30,7 @@ Everything else in LUI is machinery for those four rules.
 
 | Term | Meaning |
 |---|---|
-| **Catalog** (`LuiCatalog`) | The entry point. Knows the connection string and every index of one database. |
+| **Catalog** (`LuiCatalog`) | The entry point. Knows the path of the file and every index of one database. |
 | **Index** | A searchable stock with a name, exactly one kind and exactly one content source. |
 | **Entry** | A searchable element: key, text, weight, priority, optional payload. |
 | **Key** | The entry's identity *in the application* — a recipe id, a tag id. Not LUI's business. |

@@ -67,8 +67,8 @@ before it. Delete the file and you start over.
 You will see these again in every step. They are the shape of the API, not
 opinions.
 
-1. **One catalog per database.** `LuiCatalog.Open(connectionString)` is the
-   entry point. The catalog knows the connection string, the indexes and the
+1. **One catalog per database.** `LuiCatalog.OpenOrCreate(path)` is the
+   entry point. The catalog knows the path of the file, the indexes and the
    lifetime; an index is asked for, never registered.
 2. **`Create` writes, `Index` does not.** `Create` belongs in the migration of
    your application — it creates the tables of the index and compares the
@@ -82,7 +82,7 @@ opinions.
 
 > **Why so?**
 > The catalog is the entry point because an index is a table in *your* file:
-> whoever knows the connection string has to be the one that owns the indexes
+> whoever knows the path of the file has to be the one that owns the indexes
 > in it. Splitting it — a catalog that opens the file, an index service that
 > holds the indexes — would mean two things that have to agree on the file.
 > The decisions behind it are ADR-0033 and ADR-0035 — the records of the work.

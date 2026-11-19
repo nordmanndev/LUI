@@ -29,7 +29,7 @@ public sealed class SampleHost : IAsyncLifetime
     {
         _app = SampleApp.Build(
         [
-            $"--{SampleApp.ConnectionStringKey}={_database.ConnectionString};Default Timeout=10",
+            $"--{SampleApp.PathKey}={_database.FilePath}",
             // The curated word list of the tests: the sample must not download 5.5 MB in a test.
             $"--{SampleApp.WordListKey}={WordList}",
             "--urls=http://127.0.0.1:0",

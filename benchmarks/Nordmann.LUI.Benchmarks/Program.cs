@@ -10,7 +10,7 @@ namespace Nordmann.LUI.Benchmarks;
 /// <para>
 /// After the run the reports are rewritten: every line gets the number of hits of its
 /// query, and the report gets the record of the run — the date, the measurements per
-/// case, the machine and the journal mode (issue #124, ADR-0060). A report that names
+/// case, the machine, the journal mode and the disk (issues #124, #178, ADR-0060). A report that names
 /// a number without the place it was measured at is a rumour.
 /// </para>
 /// </summary>

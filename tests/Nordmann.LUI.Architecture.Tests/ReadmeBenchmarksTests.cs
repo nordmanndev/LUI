@@ -44,7 +44,10 @@ public sealed class ReadmeBenchmarksTests
     /// The columns of BenchmarkDotNet's table that the README shows besides the parameters: the statistics and the
     /// number of hits the query found (issue #124) — a line without it can measure nothing and look healthy.
     /// </summary>
-    private static readonly string[] Measured = ["Mean", "Error", "Allocated", "Hits"];
+    private static readonly string[] Measured = ["Mean", ConfidenceColumn, "Allocated", "Hits"];
+
+    /// <summary>The column of the half width of the 99.9 % confidence interval of the mean — BenchmarkDotNet calls it "Error" (issue #180).</summary>
+    private const string ConfidenceColumn = "CI 99.9 %";
 
     /// <summary>The first column of every table.</summary>
     private static readonly string[] MethodColumn = ["Method"];
@@ -140,7 +143,7 @@ public sealed class ReadmeBenchmarksTests
                 ["Method"] = "Search",
                 ["Input"] = "ka",
                 ["Mean"] = "16.46 μs",
-                ["Error"] = "0.275 μs",
+                [ConfidenceColumn] = "0.275 μs",
                 ["Allocated"] = "4.94 KB",
                 ["Hits"] = "0"
             }]);
@@ -154,7 +157,7 @@ public sealed class ReadmeBenchmarksTests
     }
 
     [Fact]
-    public void Every_report_names_the_date_the_measurements_the_machine_and_the_journal_mode()
+    public void Every_report_names_the_date_the_measurements_the_machine_the_journal_mode_and_the_disk()
     {
         foreach (var (name, _, _) in Sections)
         {
@@ -168,6 +171,61 @@ public sealed class ReadmeBenchmarksTests
                 .ShouldBeTrue($"the report of {name} names the machine it was measured on");
             environment.Contains("[Journal]", StringComparison.Ordinal)
                 .ShouldBeTrue($"the report of {name} names the journal mode of the database");
+
+            // issue #178: the write benchmark on the network file system of a workplace measured 1.85 ms where the local disk
+            // measured 0.225 ms — a number of a write without the disk it was measured on is a rumour
+            var disk = environment.Split('\n').FirstOrDefault(line => line.Contains("[Disk]", StringComparison.Ordinal));
+            disk.ShouldNotBeNull($"the report of {name} names the disk the database lived on");
+            disk.Contains(", local", StringComparison.Ordinal)
+                .ShouldBeTrue($"the report of {name} does not say that its disk is a local one (unidentified is not local): {disk.Trim()}");
+            disk.Contains("network", StringComparison.OrdinalIgnoreCase)
+                .ShouldBeFalse($"the report of {name} was measured on a network file system — the writes belong on a local disk: {disk.Trim()}");
+        }
+    }
+
+    [Fact]
+    public void The_script_of_the_benchmarks_measures_on_a_local_disk_and_copies_the_whole_tree()
+    {
+        // issue #178: on a network file system the run is copied to a local disk first — the whole tree, because the run
+        // builds the repository; the build output of the other machine (`bin/`, `obj/`) stays behind
+        var script = File.ReadAllText(Path.Combine(Repository.RootPath, "tools", "benchmarks.sh"));
+
+        script.ShouldContain("export TMPDIR=", Case.Sensitive, "the database of the benchmarks lives in TMPDIR — the script puts it on a local disk");
+        script.ShouldContain("tar ", Case.Sensitive, "the tree is copied with tar (the sandbox has no rsync)");
+        script.ShouldContain("--exclude='./*/*/bin'", Case.Sensitive, "the copy leaves out the build output of the projects — and only that");
+        script.ShouldContain("--exclude='./*/*/obj'", Case.Sensitive);
+        script.ShouldNotContain("--exclude='bin'", Case.Sensitive, "an exclude that is not anchored also drops a source directory called bin");
+        script.ShouldContain("stat -f", Case.Sensitive, "the script asks the file system what it is, before it copies");
+    }
+
+    [Fact]
+    public void No_table_of_benchmarks_has_a_column_called_error_and_every_report_names_the_confidence_interval()
+    {
+        // issue #180: the column "Error" of BenchmarkDotNet is the half width of the 99.9 % confidence interval of the mean —
+        // not a spread and not a percentile. The name invites a misreading (the ±48 µs of an assignment); the column says what it is.
+        foreach (var (name, _, _) in Sections)
+        {
+            var report = Report.Read(ReportPath(name));
+
+            report.Rows.ShouldAllBe(row => !row.ContainsKey("Error"), $"the report of {name} has a column called Error — it is the confidence interval of the mean");
+            report.Rows[0].ContainsKey(ConfidenceColumn).ShouldBeTrue($"the report of {name} names the column '{ConfidenceColumn}'");
+        }
+
+        // every table of the documents of the repository (the history — the changelog and the decisions — keeps its words)
+        var documents = Directory.EnumerateFiles(Repository.RootPath, "*.md", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}.agents{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}.git{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !string.Equals(Path.GetFileName(path), "CHANGELOG.md", StringComparison.Ordinal));
+        foreach (var document in documents)
+        {
+            foreach (var line in File.ReadLines(document).Where(line => line.StartsWith('|')))
+            {
+                var cells = line.Trim().Trim('|').Split('|').Select(cell => cell.Trim()).ToArray();
+                (cells.Contains("Error", StringComparer.Ordinal) && cells.Any(cell => cell is "Mean" or "Allocated"))
+                    .ShouldBeFalse($"{Path.GetRelativePath(Repository.RootPath, document)}: a table of benchmarks has a column called Error — it is '{ConfidenceColumn}': {line}");
+            }
         }
     }
 
@@ -189,6 +247,27 @@ public sealed class ReadmeBenchmarksTests
                     .ShouldBeTrue($"the hits of a line are a number or the dash of a line that measures no query — not '{hits}'");
             }
         }
+    }
+
+    [Fact]
+    public void Every_line_that_corrects_found_something_to_correct()
+    {
+        // issue #179: the corrections benchmark measured an index without the typo tolerance — the correction was skipped, the
+        // query found nothing (Hits = 0) and the line measured the uncorrected path under the name of the correction. A line
+        // with `Correction = True` that ranked no candidate measures nothing it claims to measure.
+        var corrects = 0;
+
+        foreach (var (name, _, _) in Sections)
+        {
+            foreach (var row in Report.Read(ReportPath(name)).Rows.Where(row => row.TryGetValue("Correction", out var flag) && string.Equals(flag, "True", StringComparison.Ordinal)))
+            {
+                corrects++;
+                int.Parse(row["Hits"], System.Globalization.CultureInfo.InvariantCulture)
+                    .ShouldBeGreaterThan(0, $"a line of the report of {name} with the correction on found no candidate: '{row["Input"]}' — the line measures the path without the correction");
+            }
+        }
+
+        corrects.ShouldBeGreaterThan(0, "the reports have lines with the correction on");
     }
 
     [Fact]
@@ -288,7 +367,7 @@ public sealed class ReadmeBenchmarksTests
     private sealed record Report(string Environment, IReadOnlyList<string> Parameters, IReadOnlyList<IReadOnlyDictionary<string, string>> Rows)
     {
         /// <summary>The columns between the method and the statistics that are not parameters.</summary>
-        private static readonly string[] Statistics = ["Mean", "Error", "StdDev", "Median", "Ratio", "RatioSD", "Gen0", "Gen1", "Gen2", "Allocated", "Alloc Ratio"];
+        private static readonly string[] Statistics = ["Mean", "Error", ConfidenceColumn, "StdDev", "Median", "Ratio", "RatioSD", "Gen0", "Gen1", "Gen2", "Allocated", "Alloc Ratio"];
 
         internal static Report Read(string path)
         {

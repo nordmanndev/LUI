@@ -11,7 +11,8 @@
 
 ## Status
 
-**Every target of ADR-0020 is measured in its scenario and met** (PR-009,
+**Every target of ADR-0020 is met by what was measured** — the latency targets in the scenario of the entries the word list has (1,908,798,
+not the three million of the scenario, #176) (PR-009,
 ADR-0020) — three of them as draft 2 set them, five as the owner
 stated them anew after the measurement (2026-11-04, ADR-0010, ADR-0020). The table is the output of
 `BudgetPerformance`, which asserts every row. The allocation was lowered to its target (ADR-0032) and measured again
@@ -20,16 +21,20 @@ corpus.
 
 | Target | Measured at the scenario | Limit |
 |---|---:|---:|
-| query p50 | 1.34–1.71 ms | ≤ 2 ms |
-| query p95, 1–4 characters | ≤ 3.1 ms | ≤ 5 ms |
-| query p95, 5–8 characters | 13.4–17.5 ms | ≤ 20 ms |
-| query with correction p95 | 27.9–32.5 ms | ≤ 35 ms |
-| allocation p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
-| single write p95 | 0.51–0.78 ms | ≤ 1 ms |
+| query p50 | 0.87 ms (the lane of 2026-11-19, run 9) | ≤ 2 ms |
+| query p95, 1–4 characters | ≤ 1.7 ms (2026-11-19) | ≤ 5 ms |
+| query p95, 5–8 characters | ≤ 4.5 ms (2026-11-19) | ≤ 20 ms |
+| query with correction p95 | 8.4 ms (2026-11-19) | ≤ 35 ms |
+| allocation p50 / p95 | 20 / 44 KB (2026-11-19) | ≤ 60 / ≤ 100 KB |
+| single write p95 | 0.51–0.78 ms (2026-11-05) | ≤ 1 ms |
 | build of 3 M | 120.4 s on the machine of the record, 165.1–172.9 s on the machine of the report (1,908,798 entries — the whole corpus of the repository); at 3 M on 2026-11-04: 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 180 s (#32) |
-| typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s (the machine of the record), 4.3 s (the run of 2026-11-12) | ≤ 200 MB, ≤ 10 s |
-| typo dictionary of two errors, 685,739 words | 240 MB (2026-11-12) | ≤ 240 MB |
-| file of 1 M titles | 457 MB | ≤ 500 MB |
+| typo dictionary of 685,739 words | 194 MB, 4.0–5.2 s (2026-11-19, the container of the round) | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of two errors, 685,739 words | 388 MB (2026-11-19) | ≤ 420 MB |
+| file of 1 M titles | 243 MB (2026-11-19) | ≤ 500 MB |
+
+The lane of 2026-11-19 ran on a hosted runner (Ubuntu 24.04, 4 cores, .NET 10.0.15) with the scenario `other`: the sizes are
+asserted, the times are reported. The earlier numbers of this table (the CI machine, 1.34–1.71 ms and so on) stand in the
+older records below.
 
 **The numbers below were measured on the corpus that was generated.** Since ADR-0059 the corpus is a file in the
 repository, and the corpora have their own sizes: the words corpus has 1,908,798 entries, so the **scenario of three
@@ -39,10 +44,13 @@ against the measured corpora in the next round**. Nothing here is quietly lowere
 3,000,000 entries, and the run says that it did not reach them.
 
 The dictionary of two errors is the one the **distance `TwoErrors`** builds (ADR-0054): the promise of 200 MB belongs to
-the dictionary of one error, and the two-error dictionary measured **240 MB** — 40 MB more than the target of ADR-0020 allows
+the dictionary of one error, and the two-error dictionary measures **388 MB** — 188 MB more than the target of ADR-0020 allows
 (≤ 200 MB). That is a **miss of the old promise** — it is written down as one, in the ADR of the typo distance and in
-[`docs/typo-dictionary.md`](typo-dictionary.md), and no limit is lowered quietly here: the file states 240 MB, the number
-that was measured.
+[`docs/typo-dictionary.md`](typo-dictionary.md). The limit of the file was first set to the 240 MB that were believed to be measured, then to 260 MB
+(owner, 2026-11-14, issue #175). The first measurement against it (issue #242, 2026-11-19) gave **388 MB** — and the same
+code gives 194 MB for one error, not the 138 MB of the record: the numbers of 2026-11-12 could not be reproduced (the code of
+`0.1.1`, `0.2.0` and this version agree). The owner set the limit to the measurement, **420 MB** (+ 8 %), and the record to
+194 and 388 MB. The older records below keep the numbers of their day.
 
 ## The targets
 
@@ -57,7 +65,7 @@ the measurement has something to contradict.
 | `Upsert` / `UpdateWeight` / `Remove` | one at a time, own transaction | p95 ≤ 1 ms |
 | Build-up | 3 M entries, `Embedded`, a first load by `Sync` | ≤ 3 min |
 | Typo dictionary | 685,739 distinct words | ≤ 200 MB, build ≤ 10 s |
-| Typo dictionary, two errors | 685,739 distinct words | ≤ 240 MB |
+| Typo dictionary, two errors | 685,739 distinct words | ≤ 420 MB |
 | File size | 1 M titles of 36 characters on average, `MultiWord` | ≤ 500 MB including the content table |
 
 The query p95, the correction, the allocation, the file size and the build were stated anew by the owner on 2026-11-04
@@ -138,6 +146,28 @@ the database in the page cache.
 The numbers this repository publishes come from the machine the CI ran on —
 which is a smaller one. The difference is stated, not hidden.
 
+The five reports of `benchmarks/results/` were measured again on **2026-11-19** in one run on one machine (a test requires
+it): the container of the round of 0.3.0 — an Intel Xeon 2.3 GHz, 4 cores, Ubuntu 24.04, .NET 10.0.14 — **not** the machine
+of the earlier reports. They differ from those in three things at once: the machine, the code of the round (#173, #174, #170),
+and the fixture, which has the typo tolerance since #179 (the lines of the correction found nothing before: `Hits = 0`, the
+uncorrected path). A line of the new reports is not a comparison with a line of the old ones. The corrected query of the
+older runs below (97 / 257 / 481 / 117 µs) is from the days of 2026-11-04, when the correction was measured on another
+fixture.
+
+**What the column "CI 99.9 %" is.** BenchmarkDotNet calls it "Error"; its legend says "Half of 99.9% confidence interval". It is
+the half width of the confidence interval of the **mean** — how well the mean of this run is known — and **not** a spread of
+the single measurements and not a percentile (a `Mean` of 300 µs with `CI 99.9 %` 12 µs is "the mean of this run lies between
+288 and 312 µs with 99.9 % confidence", not "a query takes 300 ± 12 µs"). It says nothing about the next run: the performance audit of
+2026-11-13/14 (issue #168) found two runs of the same benchmark class on the same class of machine that differed by a factor
+of 1.55–1.66 in the latency, with the allocation equal to the byte (that is its finding — the reports of this repository
+do not hold both runs). A latency line is therefore quoted with its run — the report names the date, the number of
+measurements per case, the machine, the journal mode and the disk, and the number is quoted with them.
+
+Every report names the **disk** its databases lived on (`[Disk]`, since #178): a write waits for the disk — the write
+benchmark measured 1.85 ms per entry on a network file system and 0.225 ms on a local disk — and a test fails on a report
+that was measured on a network disk. `tools/benchmarks.sh` puts the databases on a local disk (and copies the whole
+repository there first, if it is on a network file system).
+
 ## The lane
 
 The targets of ADR-0020 run on a schedule of their own
@@ -149,6 +179,16 @@ ADR-0060). The lane writes the scenario of the run into
 measurement layer (ADR-0058). It fetches nothing: the corpora are files in the repository (ADR-0059), so the lane
 measures the files that are checked in. The word list of the parity is a different thing — the lane of the CI fetches
 it, and the fetch is the guard that fails loudly when the list is not the one of 685,829 lines.
+
+**The lane leaves its numbers behind** (issue #177). The step summary of a run is gone after the run, and the last record of
+the repository was the one of 2026-11-12 — nobody noticed. Now `tools/perf-record.sh` makes a file of the `[perf]` lines of
+the run, with the **date**, the **iteration** (the number of the run and its attempt), the commit, the machine of the scenario
+and the **disk**, and a job of its own, `record`, puts it in `docs/benchmarks-latest.md` on the branch **`perf/latest`** — a
+branch for a person to look at, not `main`, `dev` or the branch of a release. The job that runs the code of the repository
+can only read; the job that can write runs none of it and takes the text of the run through the environment. A run without a
+single `[perf]` line writes no record (the old one stays), and a test holds all of this. The file is the record of the
+**last** run; the history of the lane is the history of that branch. `docs/benchmarks.md` stays the record of what the numbers
+mean; `docs/benchmarks-latest.md` is the number of the week.
 
 The lane runs on a shared runner — not on the machine of the record. That changes what a target means there:
 
@@ -257,7 +297,7 @@ journal mode) change nothing.
 
 ### The write
 
-One call, own transaction (the writer connection of the catalog), over the
+One call, own transaction (a connection from the pool of the provider, ADR-0070: before it the catalog held a writer connection — a single `Upsert` was about 2,5 times faster then, a batch and a sync the same), over the
 index above; 500 calls, a third each `UpdateWeight`, `Upsert` of an existing
 key and `UpdatePriority`:
 
@@ -482,11 +522,11 @@ The two scenarios of their own:
 | Target | Measured | Limit |
 |---|---:|---:|
 | typo dictionary of 685,739 distinct words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
-| file of 1,000,000 titles, `MultiWord`, built by `Sync` in 88.1 s | 457 MB | ≤ 300 MB |
+| file of 1,000,000 titles, `MultiWord`, built by `Sync` in 88.1 s | 457 MB | ≤ 500 MB |
 
 ### The benchmarks
 
-BenchmarkDotNet 0.15.8, `ShortRun` (3 iterations — the error column is wide; the means are what to compare), 200,000
+BenchmarkDotNet 0.15.8, `ShortRun` (3 iterations — the confidence interval is wide; the means are what to compare), 200,000
 entries of the same corpus.
 
 ```text
@@ -511,7 +551,7 @@ the **default job** (not `ShortRun`), every benchmark, 34 min 40 s. Intel Xeon 2
 [`benchmarks/results/`](../benchmarks/results/) and the tables below are rendered from them by `ReadmeBenchmarksTests`
 (ADR-0022).
 
-Against the `ShortRun` above (mean, µs; the error of the default job is 2–8 % of the mean, that of `ShortRun` was up to
+Against the `ShortRun` above (mean, µs; the confidence interval of the default job is 2–8 % of the mean, that of `ShortRun` was up to
 260 % of it):
 
 | Benchmark | `ShortRun` (PR-009) | default job (PR-010) |
@@ -723,8 +763,10 @@ and the **numbers** over the whole word list.
 | the method | the dictionary of LUI (`TypoDictionary`), built over the whole list; the corrections of every word with one letter wrong (the third one), hashed into a SHA-256 — the same number in every run |
 | machine | AMD Ryzen 7 4800U, 8 cores (16 threads), 15.4 GB RAM, Windows 11 Pro 10.0.26300, .NET 10.0.404 (runtime 10.0.15), Microsoft.Data.Sqlite 10.0.14 |
 
-The **memory** is the number that does not depend on the machine, and it is the number of the record of 2026-11-12: 138 MB
-([the typo dictionary](./typo-dictionary.md)). The **fingerprint** is what an own implementation of the dictionary would
+The **memory** of this record is 138 MB — the number of the record of 2026-11-12 ([the typo dictionary](./typo-dictionary.md)).
+It was **not reproduced** on 2026-11-19: the same code (`TypoDictionary` over the whole list) gives **194 MB** on a Linux
+container and on a hosted runner; why the first measurements gave 138 MB is not known (issue #242). The record keeps the
+number of its day. The **fingerprint** is what an own implementation of the dictionary would
 have to reproduce — and the reason the decision could be made with numbers and not with an impression.
 
 ## The write lock of a linked sync (issue #31)
@@ -769,7 +811,7 @@ Issue #32 asked for the three minutes back and named four levers.
 **The lever that was measured** — the checkpoint interval of the write-ahead log
 ([`BudgetPerformance`](../tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs),
 `The_first_load_with_a_longer_write_ahead_log`): SQLite checkpoints the log every thousand pages, a larger interval means
-fewer checkpoints — and a log of up to 400 MB. The pragma stands on the connection of the writer, which is the connection
+fewer checkpoints — and a log of up to 400 MB. The pragma stands on the physical connection that the pool hands out to the sync, which is the connection
 the sync writes through.
 
 | The run | the machine of the record | the machine of the report |

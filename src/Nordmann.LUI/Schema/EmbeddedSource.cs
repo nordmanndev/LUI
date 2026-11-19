@@ -64,7 +64,7 @@ internal sealed class EmbeddedSource : ContentSource
         + $"FROM {ContentTable} WHERE key = $key;";
 
     /// <summary>
-    /// The table of a sync, on the writer's connection: the keys that were in the index when the sync began, and that it
+    /// The table of a sync, on the connection of the run (a temporary table lives and dies with its connection, ADR-0070): the keys that were in the index when the sync began, and that it
     /// has not found in the source yet. What is left at the end is removed — by key, so the outcome does not depend on
     /// the document ids: a key the application adds meanwhile stays, a key that was there and is not in the source goes.
     /// </summary>
@@ -142,7 +142,12 @@ internal sealed class EmbeddedSource : ContentSource
         $"DROP TRIGGER IF EXISTS {ContentTable}_ai; DROP TRIGGER IF EXISTS {ContentTable}_ad; DROP TRIGGER IF EXISTS {ContentTable}_au;";
 
     internal override string PrefixSql(int length) =>
-        $"SELECT s_rowid, text FROM {ContentTable} WHERE s_p{length} = $q ORDER BY s_rowid LIMIT $n;";
+        $"SELECT s_rowid FROM {ContentTable} WHERE s_p{length} = $q ORDER BY s_rowid LIMIT $n;";
+
+    internal override bool PrefixReadsText => false;
+
+    internal override string HitsWithTextSql(string parameters, IReadOnlyList<string> payloadColumns) =>
+        $"SELECT doc_id, key{string.Concat(payloadColumns.Select(column => ", " + column))}, text FROM {ContentTable} WHERE doc_id IN ({parameters});";
 
     internal override string HitsSql(string parameters, IReadOnlyList<string> payloadColumns) =>
         $"SELECT doc_id, key{string.Concat(payloadColumns.Select(column => ", " + column))} FROM {ContentTable} WHERE doc_id IN ({parameters});";

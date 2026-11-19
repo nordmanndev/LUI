@@ -7,7 +7,7 @@ namespace Nordmann.LUI.Indexes;
 
 /// <summary>
 /// The sync of an <c>Embedded</c> index with a source (ADR-0016, ADR-0016, ADR-0046, ADR-0016): batches of entries, each in a
-/// transaction of its own on the catalog's writer. A table of the writer's connection holds the keys that were in the
+/// transaction of its own on one connection that the run keeps (ADR-0070). A temporary table of that connection holds the keys that were in the
 /// index when the sync began; each one the source has is crossed off, and what is left at the end is removed. Then the
 /// search index is merged. A key the application adds while the sync runs is never removed.
 /// <para>
@@ -34,23 +34,27 @@ internal sealed class EmbeddedSync(
         ArgumentNullException.ThrowIfNull(entries);
         ArgumentNullException.ThrowIfNull(options);
 
-        // a table of its own per run: two syncs on the writer's connection do not share one
+        // The run holds one connection from the pool for its whole length (ADR-0070): the table of the run is temporary, and a
+        // temporary table lives and dies with its connection. It is the connection of the operation, not of the catalogue.
+        using var writer = database.OpenConnection();
+
+        // a table of its own per run: two syncs on one connection do not share one
         var start = $"lui_sync_{Interlocked.Increment(ref _startTables)}";
-        Write(EmbeddedSource.CreateStartSql(start), source.SnapshotSql(start));
+        Write(writer, EmbeddedSource.CreateStartSql(start), source.SnapshotSql(start));
         try
         {
             var report = new LuiSyncReport();
             foreach (var chunk in entries.Chunk(options.BatchSize))
             {
-                report = WriteBatch(chunk, start, report, cancellationToken);
+                report = WriteBatch(writer, chunk, start, report, cancellationToken);
                 options.Progress?.Report(report);
             }
 
-            report = RemoveNotFound(start, options.BatchSize, report, cancellationToken);
+            report = RemoveNotFound(writer, start, options.BatchSize, report, cancellationToken);
 
             if (report.Added + report.Changed + report.Removed > 0)
             {
-                Write(source.OptimizeSql);
+                Write(writer, source.OptimizeSql);
                 report = report with { Merged = true };
             }
 
@@ -62,12 +66,12 @@ internal sealed class EmbeddedSync(
         }
         finally
         {
-            Forget(start);
+            Forget(writer, start);
         }
     }
 
     /// <summary>Writes one batch: what is missing or different, in the order of the search index.</summary>
-    private LuiSyncReport WriteBatch(LuiEntry[] chunk, string start, LuiSyncReport report, CancellationToken cancellationToken)
+    private LuiSyncReport WriteBatch(SqliteConnection writer, LuiEntry[] chunk, string start, LuiSyncReport report, CancellationToken cancellationToken)
     {
         var batch = Prepare(chunk);
         var learned = new List<(string Text, int Weight)>();
@@ -75,7 +79,6 @@ internal sealed class EmbeddedSync(
 
         lock (database.WriterGate)
         {
-            var writer = database.Writer;
             using var transaction = writer.BeginTransaction(deferred: false);
             using var statements = new Statements(writer, transaction, source, start);
             Execute(writer, transaction, source.AutomergeSql(0));
@@ -143,7 +146,7 @@ internal sealed class EmbeddedSync(
     }
 
     /// <summary>Removes the keys the source did not have, a batch at a time, in their order.</summary>
-    private LuiSyncReport RemoveNotFound(string start, int batchSize, LuiSyncReport report, CancellationToken cancellationToken)
+    private LuiSyncReport RemoveNotFound(SqliteConnection writer, string start, int batchSize, LuiSyncReport report, CancellationToken cancellationToken)
     {
         var after = 0L;
         while (true)
@@ -151,7 +154,6 @@ internal sealed class EmbeddedSync(
             cancellationToken.ThrowIfCancellationRequested();
             lock (database.WriterGate)
             {
-                var writer = database.Writer;
                 using var transaction = writer.BeginTransaction(deferred: false);
                 var keys = new List<(long Row, string Key)>(batchSize);
                 using (var notFound = Command(writer, transaction, EmbeddedSource.NotFoundSql(start)))
@@ -190,20 +192,22 @@ internal sealed class EmbeddedSync(
     /// does not cover the exception that ended the sync: the table is the connection's own and has a name of its own, so
     /// a rest of it is harmless (review of pull request 18, N6).
     /// </summary>
-    private void Forget(string start)
+    private void Forget(SqliteConnection writer, string start)
     {
         try
         {
             lock (database.WriterGate)
             {
-                using var drop = database.Writer.CreateCommand();
+                using var drop = writer.CreateCommand();
                 drop.CommandText = EmbeddedSource.DropTempSql(start);
                 drop.ExecuteNonQuery();
             }
         }
         catch (SqliteException)
         {
-            // left behind on the writer's connection until it closes
+            // left behind on the connection of the run: the connection is not given back to the pool as it is — the pool is
+            // cleared, so that the keys of the index do not stay in a temporary table of a pooled connection
+            SqliteConnection.ClearPool(writer);
         }
         catch (ObjectDisposedException)
         {
@@ -211,12 +215,11 @@ internal sealed class EmbeddedSync(
         }
     }
 
-    /// <summary>Statements on the writer, in a transaction of their own.</summary>
-    private void Write(params string[] statements)
+    /// <summary>Statements on the connection of the run, in a transaction of their own.</summary>
+    private void Write(SqliteConnection writer, params string[] statements)
     {
         lock (database.WriterGate)
         {
-            var writer = database.Writer;
             using var transaction = writer.BeginTransaction(deferred: false);
             foreach (var sql in statements)
             {

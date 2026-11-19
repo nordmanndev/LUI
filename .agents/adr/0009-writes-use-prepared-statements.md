@@ -4,7 +4,7 @@
 > `ILuiEmbeddedIndex`, `LuiIndexBuilder` is `LuiEmbeddedIndexBuilder`, and `OwnedIndex`, `OwnedSource`, `OwnedSync` and
 > `OwnedCheck` are `Embedded…`. The text below is history and stays as it was written.
 
-- **Status:** Accepted
+- **Status:** Accepted — the long-lived writer connection is superseded by [ADR-0070](./0070-the-catalogue-holds-no-connection.md) (2026-11-18)
 - **Date:** 2026-11-02
 - **Supersedes:** —
 - **Affects:** `src/Nordmann.LUI/Indexing/WriteStatements.cs`, `src/Nordmann.LUI/Indexing/OwnedIndex.cs`,

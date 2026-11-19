@@ -44,7 +44,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
             .ToList();
 
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         CreateTable(database, rows);
 
         var linked = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
@@ -134,7 +134,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
             .ToList();
 
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { CacheSizeMegabytes = 512 });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         CreateTable(database, rows);
 
         var linked = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));

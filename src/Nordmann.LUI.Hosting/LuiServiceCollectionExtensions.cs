@@ -18,36 +18,22 @@ namespace Nordmann.LUI;
 public static class LuiServiceCollectionExtensions
 {
     /// <summary>
-    /// Registers the catalog of a database. The container opens it on first use and disposes it with itself. Once per
-    /// container: LUI keeps one catalog per database.
+    /// Registers the catalog of the application (ADR-0066): the container opens it on first use and disposes it with
+    /// itself. Once per container: LUI keeps one catalog per database.
+    /// <para>
+    /// <b>The way the catalog is opened is the caller's</b>: <c>services.AddLui(_ =&gt; LuiCatalog.OpenOrCreate("app.db"))</c>.
+    /// The container does not mirror the ways to open a catalog — it holds the catalog and nothing else, and the
+    /// connection settings of the catalog travel with the call that opens it.
+    /// </para>
     /// </summary>
     /// <param name="services">The services of the application.</param>
-    /// <param name="connectionString">The database.</param>
-    /// <param name="options">The settings of the catalog; <see langword="null"/> takes the defaults.</param>
+    /// <param name="open">Opens the catalog when it is first needed.</param>
     /// <returns>The services of the application; the catalog is in them.</returns>
     /// <exception cref="InvalidOperationException">LUI is registered already.</exception>
-    public static IServiceCollection AddLui(this IServiceCollection services, string connectionString, LuiCatalogOptions? options = null)
-    {
-        ArgumentException.ThrowIfNullOrWhiteSpace(connectionString);
-        return services.AddLui(_ => connectionString, options is null ? null : _ => options);
-    }
-
-    /// <summary>
-    /// Registers the catalog of a database whose connection string — and settings — come from the container, for instance
-    /// from the configuration: <c>AddLui(sp => sp.GetRequiredService&lt;IConfiguration&gt;().GetConnectionString("app")!)</c>.
-    /// </summary>
-    /// <param name="services">The services of the application.</param>
-    /// <param name="connectionString">Gives the connection string when the catalog is first needed.</param>
-    /// <param name="options">Gives the settings; <see langword="null"/> takes the defaults.</param>
-    /// <returns>The services of the application; the catalog is in them.</returns>
-    /// <exception cref="InvalidOperationException">LUI is registered already.</exception>
-    public static IServiceCollection AddLui(
-        this IServiceCollection services,
-        Func<IServiceProvider, string> connectionString,
-        Func<IServiceProvider, LuiCatalogOptions>? options = null)
+    public static IServiceCollection AddLui(this IServiceCollection services, Func<IServiceProvider, LuiCatalog> open)
     {
         ArgumentNullException.ThrowIfNull(services);
-        ArgumentNullException.ThrowIfNull(connectionString);
+        ArgumentNullException.ThrowIfNull(open);
 
         if (services.Any(service => service.ServiceType == typeof(LuiCatalog)))
         {
@@ -55,8 +41,7 @@ public static class LuiServiceCollectionExtensions
                 "LUI is registered already: AddLui is called once per container, and the catalog is the only thing it holds.");
         }
 
-        services.AddSingleton(provider => new CatalogSettings(options?.Invoke(provider) ?? new LuiCatalogOptions()));
-        services.AddSingleton(provider => LuiCatalog.Open(connectionString(provider), provider.GetRequiredService<CatalogSettings>().Options));
+        services.AddSingleton(open);
 
         return services;
     }
@@ -71,7 +56,7 @@ public static class LuiServiceCollectionExtensions
     /// </para>
     /// <para>
     /// The start of the host waits for the dictionaries — so that the first query already corrects a typo. A dictionary
-    /// costs seconds and memory (138 MB for 685,739 words, ADR-0021): name the indexes that correct typos in
+    /// costs seconds and memory (194 MB for 685,739 words, ADR-0021): name the indexes that correct typos in
     /// <see cref="LuiWarmupOptions.TypoDictionaryIndexes"/>, or none, and every index gets one.
     /// </para>
     /// </summary>
