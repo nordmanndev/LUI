@@ -102,8 +102,9 @@ public sealed class PerformanceLaneTests
         workflow.ShouldContain("perf/latest", Case.Sensitive, "the record goes to a branch of its own");
 
         var jobs = workflow[(workflow.IndexOf("\njobs:", StringComparison.Ordinal))..];
-        var budgets = jobs[jobs.IndexOf("  budgets:", StringComparison.Ordinal)..jobs.IndexOf("  record:", StringComparison.Ordinal)];
-        var record = jobs[jobs.IndexOf("  record:", StringComparison.Ordinal)..];
+        // a job stands at two spaces: "\n  record:" is the job, "      record:" an output of the job before it
+        var budgets = jobs[jobs.IndexOf("\n  budgets:", StringComparison.Ordinal)..jobs.IndexOf("\n  record:", StringComparison.Ordinal)];
+        var record = jobs[jobs.IndexOf("\n  record:", StringComparison.Ordinal)..];
 
         budgets.ShouldNotContain("contents: write", Case.Sensitive, "the job that runs the code of the repository can only read");
         record.ShouldContain("contents: write", Case.Sensitive, "the job that publishes the record can write — and only that");

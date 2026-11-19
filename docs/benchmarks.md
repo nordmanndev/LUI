@@ -172,6 +172,16 @@ measurement layer (ADR-0058). It fetches nothing: the corpora are files in the r
 measures the files that are checked in. The word list of the parity is a different thing — the lane of the CI fetches
 it, and the fetch is the guard that fails loudly when the list is not the one of 685,829 lines.
 
+**The lane leaves its numbers behind** (issue #177). The step summary of a run is gone after the run, and the last record of
+the repository was the one of 2026-11-12 — nobody noticed. Now `tools/perf-record.sh` makes a file of the `[perf]` lines of
+the run, with the **date**, the **iteration** (the number of the run and its attempt), the commit, the machine of the scenario
+and the **disk**, and a job of its own, `record`, puts it in `docs/benchmarks-latest.md` on the branch **`perf/latest`** — a
+branch for a person to look at, not `main`, `dev` or the branch of a release. The job that runs the code of the repository
+can only read; the job that can write runs none of it and takes the text of the run through the environment. A run without a
+single `[perf]` line writes no record (the old one stays), and a test holds all of this. The file is the record of the
+**last** run; the history of the lane is the history of that branch. `docs/benchmarks.md` stays the record of what the numbers
+mean; `docs/benchmarks-latest.md` is the number of the week.
+
 The lane runs on a shared runner — not on the machine of the record. That changes what a target means there:
 
 | Kind of target | On the machine of the record | On the lane |

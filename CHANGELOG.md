@@ -181,6 +181,14 @@ them cannot upgrade to 0.3.0.
   of measurements, machine, journal mode and disk — all in the report since #124 and #178); `docs/benchmarks.md` says so.
   The name is written with a dot (`99.9`), as the English text of the repository writes numbers.
 
+- **The lane of the schedule leaves its numbers behind** (#177, D3/R5 of the audit): the lane wrote its `[perf]` lines only
+  into the step summary of the run, which is gone after the run — the last record in the repository was of 2026-11-12.
+  `tools/perf-record.sh` now makes a file of them with the date, the iteration and the disk of the run, and a job of its own
+  (`record`, the only one with the token to write; it runs no code of the repository) publishes it as
+  `docs/benchmarks-latest.md` on the branch `perf/latest` — not on `main`, `dev` or the branch of a release, so a person looks
+  at it before it goes anywhere. A run without a `[perf]` line writes no record. Where the file lives is a decision of the
+  owner that can change in one line (the branch, or a pull request); this is the narrowest one.
+
 ### Added
 
 - **`LuiPragmas`** — the settings of the connections of a catalogue: `BusyTimeout` (5 s), `Synchronous` (`Normal` or
