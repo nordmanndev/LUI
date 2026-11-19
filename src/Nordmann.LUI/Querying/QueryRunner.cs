@@ -68,7 +68,12 @@ internal sealed class QueryRunner
         var similarity = options.Similarity ?? _defaultSimilarity;
 
         // the buffers of the candidates are reused between the queries of a thread (issue #30)
-        var candidates = _candidates.Read(connection, snapshot, query, options, variant: 0, cancellationToken, out var count, out var truncated);
+        // A word start costs a search form for each candidate. The weight alone, with no typo correction that may ask for it, needs
+        // none (issue #174): the hits make it — for the twenty that are left, from the one search form they make anyway for
+        // their similarity. Every other ranking measures its similarity from the word start.
+        var order = query.IsPrefixPath ? LuiRankingOrder.WeightOnly : options.Rank;
+        var wordStarts = NeedsWordStarts(query, options, order);
+        var candidates = _candidates.Read(connection, snapshot, query, options, variant: 0, wordStarts, cancellationToken, out var count, out var truncated);
         var original = candidates;
         Scored[]? ranked = null;
 
@@ -82,12 +87,15 @@ internal sealed class QueryRunner
 
             // A one- or two-character input carries no similarity worth ranking by: the
             // candidates all begin with it, and "the most popular first" is the answer (ADR-0028).
-            var order = query.IsPrefixPath ? LuiRankingOrder.WeightOnly : options.Rank;
             ranked = Ranker.Rank(
                 candidates, count, queries, order, options.PriorityMode, similarity, _source.Normalization, options.MaxResults, cancellationToken);
             var rankedAt = Stopwatch.GetTimestamp();
 
-            var hits = _hits.Read(connection, snapshot, ranked, queries, similarity, order, textFromHits: !_candidates.CarriesText(query), query.Compact);
+            var hits = _hits.Read(
+                connection, snapshot, ranked, queries, similarity, order,
+                textFromHits: !_candidates.CarriesText(query),
+                wordStartFromHits: !wordStarts && !_candidates.Verifies,
+                query.Compact);
             var done = Stopwatch.GetTimestamp();
 
             return Result(input, hits, count, truncated, corrected, skipped, Timings(options, started, read, corrections, rankedAt, done));
@@ -97,6 +105,15 @@ internal sealed class QueryRunner
             ReturnBuffers(original, candidates, ranked);
         }
     }
+
+    /// <summary>
+    /// Whether the candidates get their word start (issue #174). Three things use it: a ranking that sorts by it, a ranking that
+    /// measures the similarity — it is measured <b>from the word start</b>, so every order but <see cref="LuiRankingOrder.WeightOnly"/>
+    /// — and a typo correction, which asks whether any candidate has one. The weight alone needs none: the hits make it.
+    /// </summary>
+    private bool NeedsWordStarts(PreparedQuery query, LuiQueryOptions options, LuiRankingOrder order) =>
+        order != LuiRankingOrder.WeightOnly
+        || (!query.IsPrefixPath && (options.TypoTolerance ?? (_typoDefault != LuiTypoDistance.None)));
 
     /// <summary>
     /// Gives the buffers of the candidates back to the thread (issue #30).

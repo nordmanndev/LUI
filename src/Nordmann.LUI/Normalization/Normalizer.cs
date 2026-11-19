@@ -15,6 +15,14 @@ namespace Nordmann.LUI.Normalization;
 internal static class Normalizer
 {
     /// <summary>
+    /// How many search forms this thread has made (issue #174): a hook of the tests, which count the normalisations of a
+    /// query — the prefix path makes one for each hit and none for the five hundred candidates. A thread-static counter: no
+    /// lock, no contention, and a query runs on the thread that asks.
+    /// </summary>
+    [ThreadStatic]
+    internal static int SearchFormsWritten;
+
+    /// <summary>
     /// The characters the compact form drops: the ASCII punctuation, the
     /// control characters that separate words, and the Unicode spaces, dashes
     /// and quotes. The SQL side strips exactly the same set — see
@@ -69,6 +77,7 @@ internal static class Normalizer
     public static string ToSearchForm(string text, NormalizationOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(text);
+        SearchFormsWritten++;
 
         var german = (options ?? NormalizationOptions.Default).GermanTransliteration;
         var search = new StringBuilder(text.Length);
@@ -108,6 +117,7 @@ internal static class Normalizer
         out int written,
         NormalizationOptions? options = null)
     {
+        SearchFormsWritten++;
         var german = (options ?? NormalizationOptions.Default).GermanTransliteration;
 
         return TryWrite(source, destination, german, out written);

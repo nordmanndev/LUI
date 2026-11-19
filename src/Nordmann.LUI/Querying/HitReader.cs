@@ -24,6 +24,7 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
         ILuiSimilarity similarity,
         LuiRankingOrder order,
         bool textFromHits,
+        bool wordStartFromHits,
         string compactQuery)
     {
         var hits = new List<LuiHit>(ranked.Length);
@@ -32,20 +33,7 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
             return hits;
         }
 
-        using var command = connection.CreateCommand();
-        command.Transaction = snapshot;
-        command.CommandText = textFromHits ? HitsWithTextSql(ranked.Length) : HitsSql(ranked.Length);
-
-        var slot = new Dictionary<long, int>(ranked.Length);
-        for (var i = 0; i < ranked.Length; i++)
-        {
-            var docId = RowId.DocIdOf(ranked[i].RowId);
-            slot[docId] = i;
-            command.Parameters.AddWithValue(ParameterName(i), docId);
-        }
-
-        // Prepare() states the intent and costs nothing: measured, with and without it the query takes the same (ADR-0067)
-        command.Prepare();
+        using var command = HitsCommand(connection, snapshot, ranked, textFromHits, out var slot);
 
         var keys = new string?[ranked.Length];
         var payloads = new object?[ranked.Length];
@@ -67,11 +55,19 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
                 }
 
                 ref var entry = ref ranked[i];
-                CompleteFromTheHit(ref entry, texts?[i], compactQuery);
+                if (texts is not null)
+                {
+                    // the candidates carried the rowid alone (issue #173): the text comes with the hit
+                    entry.Text = texts[i]!;
+                }
 
-                var measured = order == LuiRankingOrder.WeightOnly
-                    ? Ranker.Measure(entry, queries, similarity, _normalization, ref buffer)
-                    : entry.Similarity;
+                // the word start was not made for the candidates (issue #174): the hit makes it, from the one search form it
+                // makes anyway for its similarity
+                var measured = textFromHits || wordStartFromHits
+                    ? CompleteWordStart(ref entry, order, queries, similarity, compactQuery, ref buffer)
+                    : order == LuiRankingOrder.WeightOnly
+                        ? Ranker.Measure(entry, queries, similarity, _normalization, ref buffer)
+                        : entry.Similarity;
 
                 hits.Add(Hit(entry, key, payloads[i], measured));
             }
@@ -85,18 +81,23 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
     }
 
     /// <summary>
-    /// The candidates of the prefix path carried the rowid alone (issue #173): the text comes with the hit, and so does the
-    /// word start — for the twenty hits, instead of for the five hundred candidates.
+    /// The word start of a hit whose candidate did not get one — for the twenty hits, instead of for the five hundred
+    /// candidates (issues #173, #174) — and its similarity when the ranking left it to the hit: both from one search form.
     /// </summary>
-    private void CompleteFromTheHit(ref Scored entry, string? text, string compactQuery)
+    private double CompleteWordStart(
+        ref Scored entry,
+        LuiRankingOrder order,
+        IReadOnlyList<string> queries,
+        ILuiSimilarity similarity,
+        string compactQuery,
+        ref char[] buffer)
     {
-        if (text is null)
-        {
-            return;
-        }
+        var form = Ranker.SearchForm(entry.Text, _normalization, ref buffer);
+        entry.WordStart = WordStart.Find(form, compactQuery);
 
-        entry.Text = text;
-        entry.WordStart = WordStart.Of(text, compactQuery, _normalization);
+        return order == LuiRankingOrder.WeightOnly
+            ? Ranker.MeasureForm(entry, form, queries, similarity)
+            : entry.Similarity;
     }
 
     private LuiHit Hit(in Scored entry, string key, object? stored, double similarity) =>
@@ -111,6 +112,25 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
             Similarity = similarity,
             AtWordStart = entry.WordStart >= 0,
         };
+
+    private SqliteCommand HitsCommand(SqliteConnection connection, SqliteTransaction snapshot, Scored[] ranked, bool textFromHits, out Dictionary<long, int> slot)
+    {
+        var command = connection.CreateCommand();
+        command.Transaction = snapshot;
+        command.CommandText = textFromHits ? HitsWithTextSql(ranked.Length) : HitsSql(ranked.Length);
+
+        slot = new Dictionary<long, int>(ranked.Length);
+        for (var i = 0; i < ranked.Length; i++)
+        {
+            var docId = RowId.DocIdOf(ranked[i].RowId);
+            slot[docId] = i;
+            command.Parameters.AddWithValue(ParameterName(i), docId);
+        }
+
+        // Prepare() states the intent and costs nothing: measured, with and without it the query takes the same (ADR-0067)
+        command.Prepare();
+        return command;
+    }
 
     private static string ParameterName(int index) => $"$d{index}";
 
