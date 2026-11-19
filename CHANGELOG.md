@@ -162,6 +162,16 @@ them cannot upgrade to 0.3.0.
   examined here. The guard is narrow: the harness stops a case that corrects and ranks no candidate, and the Hits of the
   lines of `SettingsBenchmarks` with the correction on (prefix inputs that hit without it) do not prove that the correction ran.
 
+- **The write benchmark runs on a local disk, and every report names its disk** (#178, R1 of the audit): the 2.04 ms of the
+  write benchmark against the ≤ 1 ms of the budget were an artifact of the file system — the same write measured 1.85 ms on
+  the network drive of the workplace and 0.225 ms on a local disk. Every report now carries a `[Disk]` line (the file system
+  of the directory of the databases, `local` or `network`, and the directory), and a test fails on a report that was measured
+  on a network disk. `tools/benchmarks.sh` puts `TMPDIR` on a local disk and, if the repository is on a network file system,
+  copies the **whole** tree there first (with `tar`, without `bin/`, `obj/` and `.git`; a part of the tree is a build that
+  breaks), and a failed run keeps its files instead of throwing an hour of measurements away. New reports (ext4, local,
+  2026-11-19, the container of the round — not the machine of the record): `Upsert` 0.13–0.31 ms, `UpdateWeight` 0.33 ms,
+  the mean of one write in a transaction of its own.
+
 ### Added
 
 - **`LuiPragmas`** — the settings of the connections of a catalogue: `BusyTimeout` (5 s), `Synchronous` (`Normal` or

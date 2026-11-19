@@ -162,9 +162,10 @@ Intel Xeon Processor 2.30GHz, 1 CPU, 4 logical and 4 physical cores
 .NET SDK 10.0.114
   [Host]     : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
   DefaultJob : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
-  [Run]      : 2026-11-19, the measurements per case: 14–85
+  [Run]      : 2026-11-19, the measurements per case: 13–80
   [Machine]  : Intel Xeon Processor 2.30GHz, 1 CPU, 4 logical and 4 physical cores
   [Journal]  : wal
+  [Disk]     : ext4, local — /tmp/lui-bench.leE5Mc/tmp
 ```
 
 #### A query
@@ -173,22 +174,22 @@ One query through the whole pipeline: the prefix path for one and two characters
 
 | Method | Corpus | Input | Source | Mean | Error | Allocated | Hits |
 |---|---|---|---|---:|---:|---:|---:|
-| Search | titles | apfelkuc | Embedded | 82.58 μs | 1.641 μs | 5.2 KB | 0 |
-| Search | titles | apfelkuc | Linked | 81.96 μs | 1.400 μs | 5.24 KB | 0 |
-| Search | titles | b | Embedded | 139.52 μs | 2.655 μs | 14.88 KB | 500 |
-| Search | titles | b | Linked | 338.98 μs | 6.389 μs | 43.22 KB | 500 |
-| Search | titles | haus | Embedded | 471.70 μs | 8.726 μs | 51.03 KB | 500 |
-| Search | titles | haus | Linked | 561.43 μs | 11.126 μs | 113.76 KB | 500 |
-| Search | titles | ka | Embedded | 145.83 μs | 2.827 μs | 14.73 KB | 500 |
-| Search | titles | ka | Linked | 377.23 μs | 7.463 μs | 42.64 KB | 500 |
-| Search | words | apfelkuc | Embedded | 120.07 μs | 2.379 μs | 6.53 KB | 1 |
-| Search | words | apfelkuc | Linked | 114.99 μs | 2.145 μs | 6.57 KB | 1 |
-| Search | words | b | Embedded | 140.72 μs | 2.746 μs | 14.63 KB | 500 |
-| Search | words | b | Linked | 305.48 μs | 4.567 μs | 39.62 KB | 500 |
-| Search | words | haus | Embedded | 598.66 μs | 11.937 μs | 41.49 KB | 500 |
-| Search | words | haus | Linked | 564.52 μs | 11.252 μs | 41.59 KB | 500 |
-| Search | words | ka | Embedded | 143.50 μs | 2.856 μs | 14.57 KB | 500 |
-| Search | words | ka | Linked | 341.88 μs | 6.738 μs | 39.68 KB | 500 |
+| Search | titles | apfelkuc | Embedded | 80.49 μs | 1.589 μs | 5.2 KB | 0 |
+| Search | titles | apfelkuc | Linked | 81.04 μs | 1.598 μs | 5.24 KB | 0 |
+| Search | titles | b | Embedded | 138.73 μs | 2.344 μs | 14.88 KB | 500 |
+| Search | titles | b | Linked | 346.38 μs | 6.175 μs | 43.22 KB | 500 |
+| Search | titles | haus | Embedded | 489.59 μs | 8.890 μs | 51.03 KB | 500 |
+| Search | titles | haus | Linked | 564.32 μs | 8.047 μs | 113.76 KB | 500 |
+| Search | titles | ka | Embedded | 139.17 μs | 0.329 μs | 14.73 KB | 500 |
+| Search | titles | ka | Linked | 366.86 μs | 7.253 μs | 42.64 KB | 500 |
+| Search | words | apfelkuc | Embedded | 116.70 μs | 2.260 μs | 6.53 KB | 1 |
+| Search | words | apfelkuc | Linked | 116.57 μs | 2.299 μs | 6.57 KB | 1 |
+| Search | words | b | Embedded | 143.17 μs | 2.768 μs | 14.63 KB | 500 |
+| Search | words | b | Linked | 312.43 μs | 5.459 μs | 39.62 KB | 500 |
+| Search | words | haus | Embedded | 597.45 μs | 11.865 μs | 41.49 KB | 500 |
+| Search | words | haus | Linked | 537.39 μs | 2.658 μs | 41.59 KB | 500 |
+| Search | words | ka | Embedded | 138.76 μs | 1.600 μs | 14.57 KB | 500 |
+| Search | words | ka | Linked | 345.86 μs | 6.887 μs | 39.68 KB | 500 |
 
 #### The settings of a query
 
@@ -196,22 +197,22 @@ The budget of the candidates, the order of the ranking, the measure of the simil
 
 | Method | Candidates | Order | Similarity | Correction | Mean | Error | Allocated | Hits |
 |---|---|---|---|---|---:|---:|---:|---:|
-| Search | 500 | Start/Sim | JaroWinkler | False | 581.9 μs | 11.43 μs | 41.49 KB | 500 |
-| Search | 500 | Start/Sim | JaroWinkler | True | 572.1 μs | 11.20 μs | 41.49 KB | 500 |
-| Search | 500 | Start/Sim | Levenshtein | False | 622.3 μs | 11.40 μs | 41.49 KB | 500 |
-| Search | 500 | Start/Sim | Levenshtein | True | 615.0 μs | 12.22 μs | 41.49 KB | 500 |
-| Search | 500 | WeightOnly | JaroWinkler | False | 473.2 μs | 8.36 μs | 40.75 KB | 500 |
-| Search | 500 | WeightOnly | JaroWinkler | True | 526.2 μs | 10.33 μs | 40.75 KB | 500 |
-| Search | 500 | WeightOnly | Levenshtein | False | 494.6 μs | 9.69 μs | 40.75 KB | 500 |
-| Search | 500 | WeightOnly | Levenshtein | True | 533.7 μs | 10.54 μs | 40.75 KB | 500 |
-| Search | 2000 | Start/Sim | JaroWinkler | False | 1,440.0 μs | 34.64 μs | 184.68 KB | 1090 |
-| Search | 2000 | Start/Sim | JaroWinkler | True | 1,533.9 μs | 42.42 μs | 184.68 KB | 1090 |
-| Search | 2000 | Start/Sim | Levenshtein | False | 1,545.7 μs | 31.21 μs | 184.68 KB | 1090 |
-| Search | 2000 | Start/Sim | Levenshtein | True | 1,562.6 μs | 53.37 μs | 184.68 KB | 1090 |
-| Search | 2000 | WeightOnly | JaroWinkler | False | 1,127.2 μs | 20.94 μs | 183.82 KB | 1090 |
-| Search | 2000 | WeightOnly | JaroWinkler | True | 1,371.2 μs | 47.21 μs | 183.82 KB | 1090 |
-| Search | 2000 | WeightOnly | Levenshtein | False | 1,307.2 μs | 12.74 μs | 183.82 KB | 1090 |
-| Search | 2000 | WeightOnly | Levenshtein | True | 1,433.8 μs | 44.20 μs | 183.82 KB | 1090 |
+| Search | 500 | Start/Sim | JaroWinkler | False | 587.7 μs | 11.69 μs | 41.49 KB | 500 |
+| Search | 500 | Start/Sim | JaroWinkler | True | 585.8 μs | 11.57 μs | 41.49 KB | 500 |
+| Search | 500 | Start/Sim | Levenshtein | False | 624.6 μs | 12.39 μs | 41.49 KB | 500 |
+| Search | 500 | Start/Sim | Levenshtein | True | 621.1 μs | 12.39 μs | 41.49 KB | 500 |
+| Search | 500 | WeightOnly | JaroWinkler | False | 489.1 μs | 9.74 μs | 40.75 KB | 500 |
+| Search | 500 | WeightOnly | JaroWinkler | True | 518.2 μs | 9.33 μs | 40.75 KB | 500 |
+| Search | 500 | WeightOnly | Levenshtein | False | 488.0 μs | 9.72 μs | 40.75 KB | 500 |
+| Search | 500 | WeightOnly | Levenshtein | True | 541.4 μs | 12.10 μs | 40.75 KB | 500 |
+| Search | 2000 | Start/Sim | JaroWinkler | False | 1,497.6 μs | 33.96 μs | 184.68 KB | 1090 |
+| Search | 2000 | Start/Sim | JaroWinkler | True | 1,573.6 μs | 47.77 μs | 184.68 KB | 1090 |
+| Search | 2000 | Start/Sim | Levenshtein | False | 1,621.1 μs | 17.95 μs | 184.68 KB | 1090 |
+| Search | 2000 | Start/Sim | Levenshtein | True | 1,630.3 μs | 44.72 μs | 184.68 KB | 1090 |
+| Search | 2000 | WeightOnly | JaroWinkler | False | 1,212.6 μs | 31.49 μs | 183.82 KB | 1090 |
+| Search | 2000 | WeightOnly | JaroWinkler | True | 1,401.5 μs | 42.56 μs | 183.82 KB | 1090 |
+| Search | 2000 | WeightOnly | Levenshtein | False | 1,236.7 μs | 31.28 μs | 183.82 KB | 1090 |
+| Search | 2000 | WeightOnly | Levenshtein | True | 1,435.7 μs | 41.06 μs | 183.82 KB | 1090 |
 
 #### A query with a typo correction
 
@@ -219,10 +220,10 @@ A single-word index with typo tolerance, the dictionary built; the input has one
 
 | Method | Input | Mean | Error | Allocated | Hits |
 |---|---|---:|---:|---:|---:|
-| Search | bahmhof | 265.9 μs | 4.45 μs | 25.53 KB | 99 |
-| Search | fusbal | 563.6 μs | 9.87 μs | 27.98 KB | 118 |
-| Search | kartofel | 582.3 μs | 11.63 μs | 23.71 KB | 72 |
-| Search | strasee | 1,315.1 μs | 24.58 μs | 42.9 KB | 402 |
+| Search | bahmhof | 276.8 μs | 5.51 μs | 25.53 KB | 99 |
+| Search | fusbal | 561.9 μs | 9.36 μs | 27.98 KB | 118 |
+| Search | kartofel | 591.6 μs | 11.83 μs | 23.71 KB | 72 |
+| Search | strasee | 1,320.7 μs | 26.40 μs | 42.86 KB | 402 |
 
 #### A single write
 
@@ -230,9 +231,9 @@ One write in a transaction of its own — Entries = 200000. `WriteBenchmarks`.
 
 | Method | Mean | Error | Allocated | Hits |
 |---|---:|---:|---:|---:|
-| UpdateWeight | 319.5 μs | 14.99 μs | 2.73 KB | — |
-| UpsertTheSame | 121.3 μs | 2.32 μs | 3.96 KB | — |
-| UpsertAnotherText | 288.4 μs | 26.24 μs | 3.96 KB | — |
+| UpdateWeight | 334.6 μs | 12.54 μs | 2.73 KB | — |
+| UpsertTheSame | 131.0 μs | 2.60 μs | 3.96 KB | — |
+| UpsertAnotherText | 306.9 μs | 23.53 μs | 3.96 KB | — |
 
 #### The search form and the similarity
 
@@ -240,15 +241,15 @@ Per text, no database: the normalisation of ADR-0005 and two similarity measures
 
 | Method | Text | Mean | Error | Allocated | Hits |
 |---|---|---:|---:|---:|---:|
-| SearchForm | Apfelkuchen | 45.57 ns | 0.906 ns | 144 B | — |
-| JaroWinkler | Apfelkuchen | 41.65 ns | 0.802 ns | - | — |
-| NgramDice | Apfelkuchen | 97.93 ns | 1.921 ns | - | — |
-| SearchForm | Gedec(...)useln [35] | 105.44 ns | 2.171 ns | 240 B | — |
-| JaroWinkler | Gedec(...)useln [35] | 72.27 ns | 1.456 ns | - | — |
-| NgramDice | Gedec(...)useln [35] | 233.50 ns | 3.137 ns | - | — |
-| SearchForm | Größe(...)nahme [23] | 111.81 ns | 2.313 ns | 320 B | — |
-| JaroWinkler | Größe(...)nahme [23] | 68.86 ns | 0.920 ns | - | — |
-| NgramDice | Größe(...)nahme [23] | 161.88 ns | 2.108 ns | - | — |
+| SearchForm | Apfelkuchen | 46.64 ns | 0.980 ns | 144 B | — |
+| JaroWinkler | Apfelkuchen | 46.61 ns | 0.959 ns | - | — |
+| NgramDice | Apfelkuchen | 97.39 ns | 1.580 ns | - | — |
+| SearchForm | Gedec(...)useln [35] | 110.36 ns | 2.260 ns | 240 B | — |
+| JaroWinkler | Gedec(...)useln [35] | 69.94 ns | 1.397 ns | - | — |
+| NgramDice | Gedec(...)useln [35] | 240.97 ns | 4.597 ns | - | — |
+| SearchForm | Größe(...)nahme [23] | 109.29 ns | 2.154 ns | 320 B | — |
+| JaroWinkler | Größe(...)nahme [23] | 71.28 ns | 1.460 ns | - | — |
+| NgramDice | Größe(...)nahme [23] | 163.47 ns | 3.304 ns | - | — |
 
 <!-- benchmarks:end -->
 

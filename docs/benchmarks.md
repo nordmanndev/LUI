@@ -146,6 +146,11 @@ uncorrected path). A line of the new reports is not a comparison with a line of 
 older runs below (97 / 257 / 481 / 117 µs) is from the days of 2026-11-04, when the correction was measured on another
 fixture.
 
+Every report names the **disk** its databases lived on (`[Disk]`, since #178): a write waits for the disk — the write
+benchmark measured 1.85 ms per entry on a network file system and 0.225 ms on a local disk — and a test fails on a report
+that was measured on a network disk. `tools/benchmarks.sh` puts the databases on a local disk (and copies the whole
+repository there first, if it is on a network file system).
+
 ## The lane
 
 The targets of ADR-0020 run on a schedule of their own
