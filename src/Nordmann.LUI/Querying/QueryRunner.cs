@@ -87,7 +87,7 @@ internal sealed class QueryRunner
                 candidates, count, queries, order, options.PriorityMode, similarity, _source.Normalization, options.MaxResults, cancellationToken);
             var rankedAt = Stopwatch.GetTimestamp();
 
-            var hits = _hits.Read(connection, snapshot, ranked, queries, similarity, order);
+            var hits = _hits.Read(connection, snapshot, ranked, queries, similarity, order, textFromHits: !_candidates.CarriesText(query), query.Compact);
             var done = Stopwatch.GetTimestamp();
 
             return Result(input, hits, count, truncated, corrected, skipped, Timings(options, started, read, corrections, rankedAt, done));

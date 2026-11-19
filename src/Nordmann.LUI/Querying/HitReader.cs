@@ -14,6 +14,7 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
     private readonly LuiKeyKind _keyKind = KeyCodec.KindOf(source.Definition.KeyType);
     private readonly NormalizationOptions _normalization = source.Normalization;
     private readonly string?[] _hitsSql = new string?[LuiQueryOptions.MaxResultsLimit + 1];
+    private readonly string?[] _hitsWithTextSql = new string?[LuiQueryOptions.MaxResultsLimit + 1];
 
     internal List<LuiHit> Read(
         SqliteConnection connection,
@@ -21,7 +22,9 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
         Scored[] ranked,
         IReadOnlyList<string> queries,
         ILuiSimilarity similarity,
-        LuiRankingOrder order)
+        LuiRankingOrder order,
+        bool textFromHits,
+        string compactQuery)
     {
         var hits = new List<LuiHit>(ranked.Length);
         if (ranked.Length == 0)
@@ -31,7 +34,7 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
 
         using var command = connection.CreateCommand();
         command.Transaction = snapshot;
-        command.CommandText = HitsSql(ranked.Length);
+        command.CommandText = textFromHits ? HitsWithTextSql(ranked.Length) : HitsSql(ranked.Length);
 
         var slot = new Dictionary<long, int>(ranked.Length);
         for (var i = 0; i < ranked.Length; i++)
@@ -46,8 +49,9 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
 
         var keys = new string?[ranked.Length];
         var payloads = new object?[ranked.Length];
+        var texts = textFromHits ? new string?[ranked.Length] : null;
 
-        ReadKeysAndPayloads(command, slot, keys, payloads);
+        ReadKeysAndPayloads(command, slot, keys, payloads, texts);
 
         // the measure of a hit whose rank was the weight alone: the ranking did not measure it (issue #30)
         var buffer = ArrayPool<char>.Shared.Rent(256);
@@ -63,6 +67,8 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
                 }
 
                 ref var entry = ref ranked[i];
+                CompleteFromTheHit(ref entry, texts?[i], compactQuery);
+
                 var measured = order == LuiRankingOrder.WeightOnly
                     ? Ranker.Measure(entry, queries, similarity, _normalization, ref buffer)
                     : entry.Similarity;
@@ -76,6 +82,21 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
         }
 
         return hits;
+    }
+
+    /// <summary>
+    /// The candidates of the prefix path carried the rowid alone (issue #173): the text comes with the hit, and so does the
+    /// word start — for the twenty hits, instead of for the five hundred candidates.
+    /// </summary>
+    private void CompleteFromTheHit(ref Scored entry, string? text, string compactQuery)
+    {
+        if (text is null)
+        {
+            return;
+        }
+
+        entry.Text = text;
+        entry.WordStart = WordStart.Of(text, compactQuery, _normalization);
     }
 
     private LuiHit Hit(in Scored entry, string key, object? stored, double similarity) =>
@@ -97,7 +118,8 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
         SqliteCommand command,
         Dictionary<long, int> slot,
         string?[] keys,
-        object?[] payloads)
+        object?[] payloads,
+        string?[]? texts)
     {
         using var reader = command.ExecuteReader();
         while (reader.Read())
@@ -105,7 +127,24 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
             var i = slot[reader.GetInt64(0)];
             keys[i] = reader.GetString(1);
             payloads[i] = payload.Read(reader);
+            if (texts is not null)
+            {
+                texts[i] = reader.GetString(reader.FieldCount - 1);
+            }
         }
+    }
+
+    private string HitsWithTextSql(int count)
+    {
+        var sql = _hitsWithTextSql[count];
+        if (sql is not null)
+        {
+            return sql;
+        }
+
+        sql = source.HitsWithTextSql(string.Join(',', Enumerable.Range(0, count).Select(ParameterName)), payload.Columns);
+        _hitsWithTextSql[count] = sql;
+        return sql;
     }
 
     private string HitsSql(int count)

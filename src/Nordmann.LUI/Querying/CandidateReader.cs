@@ -8,7 +8,8 @@ namespace Nordmann.LUI.Querying;
 
 /// <summary>
 /// The first stage of a query (ADR-0008, ADR-0008): the candidates of one input out of SQLite, in
-/// the order of the rowid, each with its word start (ADR-0008). The statements come from the content source.
+/// the order of the rowid, each with its word start (ADR-0008) — except the candidates of a prefix path that reads the rowid alone
+/// (issue #173): their text and word start are filled in for the hits. The statements come from the content source.
 /// </summary>
 internal sealed class CandidateReader
 {
@@ -18,6 +19,7 @@ internal sealed class CandidateReader
     private readonly NormalizationOptions _normalization;
     private readonly IndexKindRules _rules;
     private readonly bool _verify;
+    private readonly bool _prefixReadsText;
     private readonly string _prefix1Sql;
     private readonly string _prefix2Sql;
     private readonly string _candidatesSql;
@@ -27,10 +29,17 @@ internal sealed class CandidateReader
         _normalization = source.Normalization;
         _rules = source.Rules;
         _verify = source.TextCanChangeUnderTheIndex;
+        _prefixReadsText = source.PrefixReadsText;
         _prefix1Sql = source.PrefixSql(1);
         _prefix2Sql = source.PrefixSql(2);
         _candidatesSql = source.CandidateSql;
     }
+
+    /// <summary>
+    /// Whether the candidates of <paramref name="query"/> carry their text. The prefix path of a source that does not read it
+    /// leaves it to the hits (issue #173): the hits take it from the statement that reads them anyway.
+    /// </summary>
+    internal bool CarriesText(PreparedQuery query) => !query.IsPrefixPath || _prefixReadsText;
 
     /// <summary>
     /// The candidates of <paramref name="query"/>: at most <c>Candidates</c>.
@@ -65,6 +74,7 @@ internal sealed class CandidateReader
         truncated = false;
         count = 0;
 
+        var withText = CarriesText(query);
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
@@ -80,8 +90,10 @@ internal sealed class CandidateReader
                 break;
             }
 
-            var text = reader.GetString(1);
-            var start = StartOf(text, query, out var outdated);
+            // the prefix path of a source whose texts cannot change reads the rowid and nothing else (issue #173)
+            var text = withText ? reader.GetString(1) : string.Empty;
+            var outdated = false;
+            var start = withText ? StartOf(text, query, out outdated) : -1;
 
             // an outdated row is not a candidate and does not count against the budget — up to a budget of them; and only
             // a row that is a candidate past the budget makes the answer truncated (review of main after #23, finding 4)
