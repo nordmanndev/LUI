@@ -211,6 +211,14 @@ them cannot upgrade to 0.3.0.
   holds the sentences; integration tests hold the behaviour in both orders (LUI first, the application first) and that a later
   `Open` writes nothing. The behaviour itself is the one of #169 to #172 — nothing in the library changed for this issue.
 
+- **A write no longer applies the pragmas of its connection again** (#237): since the catalogue holds no connection (ADR-0070) every write
+  takes one from the pool of the provider, and every one of them ran the pragma statement again — a command and two
+  statements, about a kilobyte per write: `UpdateWeight` allocated 2,430 B and `Upsert` 3,693 B (0.2.0: 422 B and 869 B). The
+  pragmas stay with the physical connection, so a connection that comes out of the pool is not given them again (a
+  connection of another catalogue with other pragmas still is). Now: 1,494 B and 2,733 B. **The rest of the difference to
+  0.2.0, about a kilobyte per write, is the price of taking a connection for every write** (ADR-0070) — measured, not removed.
+  The settings do not change; a test reads them back from a connection of the pool.
+
 ### Added
 
 - **`LuiPragmas`** — the settings of the connections of a catalogue: `BusyTimeout` (5 s), `Synchronous` (`Normal` or

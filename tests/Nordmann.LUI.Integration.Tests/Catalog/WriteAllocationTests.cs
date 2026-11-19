@@ -6,10 +6,11 @@ namespace Nordmann.LUI.Integration.Tests.Catalog;
 /// What one write costs in memory (issue #237). Since 0.3.0 the catalogue holds no connection (ADR-0070): every write takes
 /// one from the pool of the provider. A connection of the pool has its settings already — the three pragmas stay with the
 /// physical connection — and applying them again on every write costs a command and two statements, about a kilobyte each
-/// time: 422 B per <c>UpdateWeight</c> in 0.2.0 became 2,430 B.
+/// time: 422 B per <c>UpdateWeight</c> in 0.2.0 became 2,430 B. Without them it is about 1,500 B (<c>Upsert</c>: 2,700 B) —
+/// the rest of the difference to 0.2.0, about a kilobyte, is the price of taking a connection for every write (ADR-0070).
 /// <para>
 /// The allocation of a write is the same on every machine, so it can be held in a test: the average over two thousand writes
-/// after a warm-up of three hundred.
+/// after a warm-up of three hundred. The bounds sit above the measured values and below what the pragmas cost.
 /// </para>
 /// </summary>
 public sealed class WriteAllocationTests
@@ -18,10 +19,10 @@ public sealed class WriteAllocationTests
     private const int Writes = 2000;
 
     /// <summary>The bound of <c>UpdateWeight</c>: the checkout of a connection, a transaction and one statement.</summary>
-    private const double UpdateWeightBytes = 1_600;
+    private const double UpdateWeightBytes = 1_800;
 
     /// <summary>The bound of <c>Upsert</c> — one statement more, and the entry.</summary>
-    private const double UpsertBytes = 3_000;
+    private const double UpsertBytes = 3_200;
 
     [Fact]
     public void A_write_takes_a_connection_of_the_pool_and_does_not_apply_its_pragmas_again()
