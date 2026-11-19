@@ -30,6 +30,12 @@ public sealed class ReadmeProseTests
         RegexOptions.CultureInvariant | RegexOptions.Singleline,
         TimeSpan.FromSeconds(1));
 
+    /// <summary>A heading ("# Title", "## Title") — and not a line that wraps before "#176".</summary>
+    private static readonly Regex Heading = new(@"^\s*#{1,6}\s", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
+    /// <summary>The mark of a list item or a quote: the same sentence in a list and in a paragraph is the same sentence.</summary>
+    private static readonly Regex Marker = new(@"^\s*(?:>\s*)*(?:[-*+]|\d+\.)?\s+", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1));
+
     private static readonly Regex Fence = new(@"^```.*?^```", RegexOptions.CultureInvariant | RegexOptions.Multiline | RegexOptions.Singleline, TimeSpan.FromSeconds(1));
 
     [Fact]
@@ -71,7 +77,7 @@ public sealed class ReadmeProseTests
 
         foreach (var block in text.Split("\n\n", StringSplitOptions.RemoveEmptyEntries))
         {
-            var lines = block.Split('\n').Where(line => !line.TrimStart().StartsWith('|') && !line.TrimStart().StartsWith('#')).ToArray();
+            var lines = block.Split('\n').Where(line => !line.TrimStart().StartsWith('|') && !Heading.IsMatch(line)).Select(line => Marker.Replace(line, string.Empty)).ToArray();
             if (lines.Length == 0)
             {
                 continue;
