@@ -215,9 +215,10 @@ them cannot upgrade to 0.3.0.
   takes one from the pool of the provider, and every one of them ran the pragma statement again — a command and two
   statements, about a kilobyte per write: `UpdateWeight` allocated 2,430 B and `Upsert` 3,693 B (0.2.0: 422 B and 869 B). The
   pragmas stay with the physical connection, so a connection that comes out of the pool is not given them again (a
-  connection of another catalogue with other pragmas still is). Now: 1,494 B and 2,733 B. **The rest of the difference to
-  0.2.0, about a kilobyte per write, is the price of taking a connection for every write** (ADR-0070) — measured, not removed.
-  The settings do not change; a test reads them back from a connection of the pool.
+  connection of another catalogue with other pragmas still is). Now: 1,494 B and 2,733 B. **A kilobyte per write remains
+  compared with 0.2.0** — not the checkout of the connection (about 170 B) but the write path, which makes its statement objects
+  again on every write; that is not changed here (#248). The settings do not change; tests read them back from the connections of the
+  pool, also for two catalogues of one file with other pragmas.
 
 ### Added
 

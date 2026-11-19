@@ -28,6 +28,8 @@ internal sealed class Database : IDisposable
     /// is the memory of the physical connections and it is <b>static</b>, because the pool belongs to the connection string and
     /// not to the catalogue: another catalogue of the same file with other pragmas gets the same physical connection, and the
     /// statement it finds there is not its own. The handle is held weakly; a connection that is closed takes its entry with it.
+    /// An application that builds the same connection string itself shares the pool and could change a pragma of a physical
+    /// connection behind LUI's back — that is not a case the catalogue guards.
     /// </summary>
     private static readonly ConditionalWeakTable<object, string> Configured = new();
 
@@ -193,6 +195,13 @@ internal sealed class Database : IDisposable
             if (handle is not null && Configured.TryGetValue(handle, out var applied) && string.Equals(applied, _pragmaStatement, StringComparison.Ordinal))
             {
                 return connection;
+            }
+
+            // the entry goes first and comes back after the statement ran: a statement that fails half-way leaves no entry that
+            // would let the next checkout skip it
+            if (handle is not null)
+            {
+                Configured.Remove(handle);
             }
 
             using var command = connection.CreateCommand();
