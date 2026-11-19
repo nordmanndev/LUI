@@ -155,8 +155,12 @@ them cannot upgrade to 0.3.0.
   correction on ranks no candidate, and a test holds the committed reports to the same rule. The four corrected queries find
   72–402 candidates and cost 266–1,315 μs with 24–43 KB (the lines of before: 58–330 μs, 5.5 KB, uncorrected). **All five
   reports are measured again on one machine** (a test requires it): the container of this round, 4 cores, .NET 10.0.14 —
-  not the machine of the earlier reports, so the other numbers moved with it and are not comparable with the reports of
-  before.
+  not the machine of the earlier reports. The new reports differ from the old in three things at once — the machine, the code
+  of the round (#173, #174, #170) and the fixture — so no line is a comparison with the line of before. The tolerance of the
+  fixture is not the cause of the higher allocation of the write benchmarks (436 B → 2.7 KB, 820 B → 4 KB): measured with and
+  without it in one run, the allocation is the same (2.73 / 3.96 KB); where it comes from in the code of the round is not
+  examined here. The guard is narrow: the harness stops a case that corrects and ranks no candidate, and the Hits of the
+  lines of `SettingsBenchmarks` with the correction on (prefix inputs that hit without it) do not prove that the correction ran.
 
 ### Added
 

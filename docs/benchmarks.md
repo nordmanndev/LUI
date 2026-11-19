@@ -138,6 +138,14 @@ the database in the page cache.
 The numbers this repository publishes come from the machine the CI ran on —
 which is a smaller one. The difference is stated, not hidden.
 
+The five reports of `benchmarks/results/` were measured again on **2026-11-19** in one run on one machine (a test requires
+it): the container of the round of 0.3.0 — an Intel Xeon 2.3 GHz, 4 cores, Ubuntu 24.04, .NET 10.0.14 — **not** the machine
+of the earlier reports. They differ from those in three things at once: the machine, the code of the round (#173, #174, #170),
+and the fixture, which has the typo tolerance since #179 (the lines of the correction found nothing before: `Hits = 0`, the
+uncorrected path). A line of the new reports is not a comparison with a line of the old ones. The corrected query of the
+older runs below (97 / 257 / 481 / 117 µs) is from the days of 2026-11-04, when the correction was measured on another
+fixture.
+
 ## The lane
 
 The targets of ADR-0020 run on a schedule of their own
