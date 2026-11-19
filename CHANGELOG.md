@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.3.0] — unreleased
+## [0.3.0] — 2026-11-19
 
 The round of **0.3.0**: the catalogue takes a **path** and owns its connections, there are **three ways** to open it, the read
 path is read-only, and the findings of the audit are in. **The public API breaks in named places** — the freeze of
