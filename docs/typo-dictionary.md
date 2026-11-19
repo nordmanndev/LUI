@@ -77,9 +77,10 @@ Two errors cost **1.7 times** the memory of one and **twice** the time — and
 **40 MB more than the budget of ADR-0020** allows (ADR-0020: *typo dictionary, 700,000
 different words: ≤ 200 MB, build ≤ 10 s*). The build time is still inside the
 budget; the memory is not. The budget was written for one error, and it holds
-for one error. The two-error distance has **no budget of its own yet**: the
-budgets move into `budgets.json` with pull request 3 of the series, and the
-distance gets its budget there. The miss stands written down until then.
+for one error. The two-error distance has a budget of its own in `budgets.json`
+(ADR-0056): first the measured 240 MB, and since issue #175 (decision of the owner,
+2026-11-14) **260 MB** — a reserve of 8.3 % over what was measured here. The 240 MB
+stay what they are: an observation.
 
 The row of one error is the number of ADR-0021 — the same word list, the same
 138 MB. A measurement that reproduces the old

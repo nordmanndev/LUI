@@ -42,8 +42,8 @@ The dictionary of two errors is the one the **distance `TwoErrors`** builds (ADR
 the dictionary of one error, and the two-error dictionary measured **240 MB** — 40 MB more than the target of ADR-0020 allows
 (≤ 200 MB). That is a **miss of the old promise** — it is written down as one, in the ADR of the typo distance and in
 [`docs/typo-dictionary.md`](typo-dictionary.md). The limit of the file was set to the measured 240 MB — 100 % of the limit, no
-reserve: one byte more would have broken it. The owner set it to **260 MB** on 2026-11-14 (+ 8.3 %, issue #175); the 240 MB stay
-in the record as what was measured.
+reserve: one byte more would have broken it. The owner set it to **260 MB** on 2026-11-14 (+ 8.3 %, issue #175); the 240 MB
+stays in the record as what was measured.
 
 ## The targets
 

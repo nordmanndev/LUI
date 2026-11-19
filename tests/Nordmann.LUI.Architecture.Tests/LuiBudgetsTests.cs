@@ -99,7 +99,12 @@ public sealed class LuiBudgetsTests
         (budget.Limit == 260d && string.Equals(budget.Unit, "MB", StringComparison.Ordinal))
             .ShouldBeTrue($"the limit of the dictionary of two errors is 260 MB — the file says {budget.Limit} {budget.Unit}");
 
-        File.ReadAllText(Path.Combine(Repository.RootPath, "docs", "typo-dictionary.md"))
-            .ShouldContain("**240 MB**", Case.Sensitive, "the measured value stays in the record — it is an observation, not a limit");
+        // the measured value of the row of TwoErrors of the record: an observation that stays, and a reserve under the limit
+        var row = File.ReadAllLines(Path.Combine(Repository.RootPath, "docs", "typo-dictionary.md"))
+            .Single(line => line.StartsWith("| `TwoErrors`", StringComparison.Ordinal));
+        var measured = double.Parse(System.Text.RegularExpressions.Regex.Match(row, @"\*\*(?<mb>\d+) MB\*\*", System.Text.RegularExpressions.RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1)).Groups["mb"].Value, System.Globalization.CultureInfo.InvariantCulture);
+
+        (measured == 240d).ShouldBeTrue($"the measured value of the dictionary of two errors stays in the record: {row}");
+        (budget.Limit >= measured * 1.05).ShouldBeTrue($"the limit has a reserve of at least 5 % over the measured {measured} MB");
     }
 }
