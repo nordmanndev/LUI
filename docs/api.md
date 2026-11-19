@@ -25,6 +25,16 @@ using Nordmann.LUI;
 using var catalog = LuiCatalog.OpenOrCreate("app.db");
 ```
 
+**One catalogue is one file.** `Embedded` and `Linked` indexes live side by side in it — mixing them is defined — and the
+tables of the application lie beside the tables of LUI (`lui_meta`, `lui_<index>…`) in the same file. What separates the two
+kinds is not *which file* but **who owns the content table**: an embedded index owns it (`lui_<index>`), a linked index
+reads a table of the application. The file of the application becomes a catalogue with `OpenOrCreate`. LUI puts it in
+write-ahead logging if its schema was empty when LUI set it up; a file that already had tables keeps its mode — the
+application decides, and should choose write-ahead logging (in the rollback journal a read blocks the writes of the
+application). LUI never switches the mode of a file again, and `Open` and `OpenReadOnly` write nothing
+([ADR-0066](../.agents/adr/0066-the-catalogue-owns-the-connection.md),
+[ADR-0068](../.agents/adr/0068-three-ways-to-open-a-catalogue.md)).
+
 ### `LuiCatalog`
 
 | Member | What it does |
