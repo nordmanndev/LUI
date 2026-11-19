@@ -70,6 +70,24 @@ public sealed class ReadmeProseTests
             "the run of the typo dictionary stands once in the README — in the paragraph that carries it, not in a second copy of it");
     }
 
+    [Fact]
+    public void The_version_of_the_readme_is_the_version_of_the_packages()
+    {
+        // the badge and the sentence "The version is …" are written by hand — and stood at 0.2.0 on the day 0.3.0 was released
+        var props = File.ReadAllText(Path.Combine(Repository.RootPath, "Directory.Build.props"));
+        var prefix = Regex.Match(props, "<VersionPrefix>(?<v>[^<]+)</VersionPrefix>", RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1)).Groups["v"].Value;
+        var suffix = Regex.Match(props, "<VersionSuffix>(?<v>[^<]+)</VersionSuffix>", RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1)).Groups["v"].Value;
+        var version = suffix.Length == 0 ? prefix : $"{prefix}-{suffix}";
+        var readme = File.ReadAllText(Path.Combine(Repository.RootPath, "README.md"));
+
+        Regex.Match(readme, @"img\.shields\.io/badge/version-(?<v>[0-9A-Za-z.]+(?:--[0-9A-Za-z.]+)?)-", RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1))
+            .Groups["v"].Value.Replace("--", "-", StringComparison.Ordinal)
+            .ShouldBe(version, "the version badge of the README is the version of Directory.Build.props");
+        Regex.Match(readme, @"The version is\s+`(?<v>[^`]+)`", RegexOptions.CultureInvariant | RegexOptions.ExplicitCapture, TimeSpan.FromSeconds(1))
+            .Groups["v"].Value
+            .ShouldBe(version, "the sentence 'The version is …' of the README is the version of Directory.Build.props");
+    }
+
     /// <summary>The paragraphs of the README with their whitespace made one — without tables, code and the rendered section.</summary>
     private static IEnumerable<string> ParagraphsOfTheProse()
     {
