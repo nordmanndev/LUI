@@ -124,21 +124,25 @@ jobs:
       # the job — a text of a few kilobytes — and the job `record` writes it down.
       - name: The record of the run
         id: record
-        if: always()
+        if: ${{ !cancelled() }}
         env:
           LUI_PERF_RUN: run ${{ github.run_number }}, attempt ${{ github.run_attempt }}
           LUI_PERF_COMMIT: ${{ github.sha }}
           LUI_PERF_REF: ${{ github.ref }}
           LUI_PERF_MACHINE: ${{ inputs.machine || 'other' }}
+          LUI_PERF_SCENARIO: prefixLength ${{ inputs.prefixLength || '3000000' }}
+          LUI_PERF_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
           LUI_PERF_RESULT: ${{ job.status == 'success' && 'passed' || 'failed' }}
           LUI_PERF_DIR: ${{ github.workspace }}
         run: |
           set -euo pipefail
           bash tools/perf-record.sh artifacts/test-results/budgets.log artifacts/benchmarks-latest.md
+          # a delimiter nobody can guess: a line of the text can not end the output early
+          delimiter="LUI_RECORD_$(openssl rand -hex 16)"
           {
-            echo 'text<<LUI_RECORD_EOF'
+            echo "text<<${delimiter}"
             cat artifacts/benchmarks-latest.md
-            echo 'LUI_RECORD_EOF'
+            echo "${delimiter}"
           } >> "$GITHUB_OUTPUT"
 
   # The record is written by a job of its own (issue #177): this job has the token to write and runs nothing of the repository —
@@ -147,9 +151,13 @@ jobs:
   record:
     name: The record of the run · perf/latest
     needs: budgets
-    if: always() && needs.budgets.outputs.record != ''
+    if: ${{ !cancelled() && needs.budgets.outputs.record != '' }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
+    # one writer at a time: the weekly run and a run by hand do not push at the same moment (the second would be refused)
+    concurrency:
+      group: perf-latest
+      cancel-in-progress: false
     permissions:
       contents: write
     steps:
@@ -164,17 +172,16 @@ jobs:
           set -euo pipefail
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          if git ls-remote --exit-code --heads origin perf/latest > /dev/null; then
+          if git ls-remote --exit-code --heads origin refs/heads/perf/latest > /dev/null; then
             git fetch --depth=1 origin perf/latest
             git switch -C perf/latest FETCH_HEAD
           else
-            git switch -c perf/latest
+            # the branch of the record holds the record and nothing else: it is born empty, not as a copy of the measured commit
+            git switch --orphan perf/latest
+            git rm -rf --quiet . || true
           fi
+          mkdir -p docs
           printf '%s\n' "$RECORD" > docs/benchmarks-latest.md
           git add docs/benchmarks-latest.md
-          if git diff --cached --quiet; then
-            echo 'The record is the same as the last one.'
-            exit 0
-          fi
           git commit -m "perf: the record of run ${RUN} of the lane"
           git push origin perf/latest

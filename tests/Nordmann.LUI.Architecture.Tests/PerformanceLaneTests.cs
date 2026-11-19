@@ -99,25 +99,81 @@ public sealed class PerformanceLaneTests
 
         workflow.ShouldContain("tools/perf-record.sh", Case.Sensitive, "the lane writes the record with the script");
         workflow.ShouldContain("docs/benchmarks-latest.md", Case.Sensitive, "the record has a name that says it is the latest");
-        workflow.ShouldContain("perf/latest", Case.Sensitive, "the record goes to a branch of its own");
+        workflow.ShouldContain("record: ${{ steps.record.outputs.text }}", Case.Sensitive, "the record is the output of the job that measured");
 
-        var jobs = workflow[(workflow.IndexOf("\njobs:", StringComparison.Ordinal))..];
-        // a job stands at two spaces: "\n  record:" is the job, "      record:" an output of the job before it
-        var budgets = jobs[jobs.IndexOf("\n  budgets:", StringComparison.Ordinal)..jobs.IndexOf("\n  record:", StringComparison.Ordinal)];
-        var record = jobs[jobs.IndexOf("\n  record:", StringComparison.Ordinal)..];
+        var jobs = JobsOf(workflow);
+        jobs.ContainsKey("budgets").ShouldBeTrue("the lane has the job that measures");
+        jobs.ContainsKey("record").ShouldBeTrue("the lane has the job that records");
+        var budgets = jobs["budgets"];
+        var record = jobs["record"];
 
-        budgets.ShouldNotContain("contents: write", Case.Sensitive, "the job that runs the code of the repository can only read");
-        record.ShouldContain("contents: write", Case.Sensitive, "the job that publishes the record can write — and only that");
-        record.ShouldContain("needs: budgets", Case.Sensitive);
-        record.ShouldNotContain("dotnet ", Case.Sensitive, "the job with the token to write runs no code of the repository");
-        record.ShouldNotContain("./.github/actions/setup", Case.Sensitive);
+        // the token: the workflow reads, the job that measures reads, only the job that publishes writes
+        ContentsPermissions(workflow, indentation: "").ShouldBe(["read"], "the workflow can only read");
+        budgets.ShouldNotContain(line => line.Contains("write", StringComparison.Ordinal) && line.Contains("contents", StringComparison.Ordinal), "the job that runs the code of the repository can only read");
+        record.ShouldContain(line => line.Trim() == "contents: write", "the job that publishes the record can write — and only that");
+        record.ShouldContain(line => line.Trim() == "needs: budgets");
 
-        foreach (var protectedBranch in new[] { "main", "dev", "0.3.0" })
+        // the job with the token to write runs nothing of the repository: no build, no test, no action of its own
+        record.ShouldNotContain(line => line.Contains("dotnet ", StringComparison.Ordinal) || line.Contains("tools/", StringComparison.Ordinal));
+        record.Where(line => line.Contains("uses:", StringComparison.Ordinal)).ShouldAllBe(line => line.Contains("actions/checkout@", StringComparison.Ordinal), "the only action of the job is the checkout");
+
+        // an expression is never written into the script: the text of the record arrives through the environment
+        record.Where(line => line.Contains("${{", StringComparison.Ordinal))
+            .ShouldAllBe(line => line.Trim().StartsWith("if:", StringComparison.Ordinal) || line.Trim().StartsWith("RECORD:", StringComparison.Ordinal) || line.Trim().StartsWith("RUN:", StringComparison.Ordinal),
+                "an expression of the job is its condition or an environment variable — never a part of a script");
+
+        // where it goes: exactly one push, to the branch of the record, nothing forced and nothing protected
+        record.Where(line => line.Contains("git push", StringComparison.Ordinal)).ShouldBe(["          git push origin perf/latest"]);
+
+        // one writer at a time
+        record.ShouldContain(line => line.Trim() == "group: perf-latest");
+    }
+
+    /// <summary>The jobs of a workflow by their name, each as its lines without comments.</summary>
+    private static Dictionary<string, string[]> JobsOf(string workflow)
+    {
+        var jobs = new Dictionary<string, string[]>(StringComparer.Ordinal);
+        var lines = workflow.Split('\n').Select(line => line.TrimEnd('\r')).ToArray();
+        var start = Array.IndexOf(lines, "jobs:");
+        string? name = null;
+        var body = new List<string>();
+
+        for (var i = start + 1; i < lines.Length; i++)
         {
-            record.ShouldNotContain($"push origin {protectedBranch}", Case.Sensitive, $"the record is never pushed to {protectedBranch}");
+            var line = lines[i];
+            if (line.StartsWith("  ", StringComparison.Ordinal) && !line.StartsWith("   ", StringComparison.Ordinal) && line.TrimEnd().EndsWith(':') && !line.TrimStart().StartsWith('#'))
+            {
+                if (name is not null)
+                {
+                    jobs[name] = [.. body];
+                }
+
+                name = line.Trim().TrimEnd(':');
+                body.Clear();
+            }
+            else if (name is not null && !line.TrimStart().StartsWith('#'))
+            {
+                body.Add(line);
+            }
         }
 
-        record.ShouldContain("push origin", Case.Sensitive);
+        if (name is not null)
+        {
+            jobs[name] = [.. body];
+        }
+
+        return jobs;
+    }
+
+    /// <summary>The values of "contents:" in a permissions block of the given indentation.</summary>
+    private static string[] ContentsPermissions(string workflow, string indentation)
+    {
+        var lines = workflow.Split('\n').Select(line => line.TrimEnd('\r')).ToArray();
+        var at = Array.IndexOf(lines, indentation + "permissions:");
+        at.ShouldBeGreaterThanOrEqualTo(0, "the workflow names its permissions");
+        return [.. lines.Skip(at + 1).TakeWhile(line => line.StartsWith(indentation + "  ", StringComparison.Ordinal))
+            .Where(line => line.Trim().StartsWith("contents:", StringComparison.Ordinal))
+            .Select(line => line.Split(':')[1].Trim())];
     }
 
     private static (int ExitCode, string Error) RunScript(string[] arguments, IReadOnlyDictionary<string, string> environment)

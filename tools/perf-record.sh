@@ -13,7 +13,9 @@
 #   LUI_PERF_RUN      the iteration: which run it was (default: "unnumbered")
 #   LUI_PERF_COMMIT   the commit that was measured
 #   LUI_PERF_REF      the ref that was measured
-#   LUI_PERF_MACHINE  the machine of the scenario: 'measurement' or 'other' (ADR-0041)
+#   LUI_PERF_MACHINE  the machine of the scenario: 'measurement' or 'other' (ADR-0041); anything else is written as 'invalid'
+#   LUI_PERF_SCENARIO what the run was asked to measure (the size of the scenario)
+#   LUI_PERF_URL      the address of the run
 #   LUI_PERF_RESULT   whether the budgets passed
 #   LUI_PERF_DIR      the directory whose disk is named (default: the current one)
 #
@@ -32,6 +34,12 @@ if [ -z "${lines}" ]; then
   echo "perf-record: ${LOG} holds no [perf] line — no record" >&2
   exit 1
 fi
+
+machine="${LUI_PERF_MACHINE:-unknown}"
+case "${machine}" in
+  measurement|other|unknown) ;;
+  *) machine="invalid" ;;   # a free text of a dispatch is not written into a file
+esac
 
 dir="${LUI_PERF_DIR:-.}"
 fs="$(stat -f -c %T "${dir}" 2>/dev/null || echo unknown)"
@@ -52,7 +60,9 @@ esac
   echo "| Date | ${LUI_PERF_DATE:-$(date -u +%F)} (UTC) |"
   echo "| Iteration | ${LUI_PERF_RUN:-unnumbered} |"
   echo "| Disk | ${fs}, ${kind} |"
-  echo "| Machine of the scenario | ${LUI_PERF_MACHINE:-unknown} |"
+  echo "| Machine of the scenario | ${machine} |"
+  echo "| Scenario | $(printf '%s' "${LUI_PERF_SCENARIO:-unknown}" | tr -d '\r\n|') |"
+  echo "| Run | $(printf '%s' "${LUI_PERF_URL:-unknown}" | tr -d '\r\n|') |"
   echo "| Commit | ${LUI_PERF_COMMIT:-unknown} (${LUI_PERF_REF:-unknown}) |"
   echo "| Budgets | ${LUI_PERF_RESULT:-unknown} |"
   echo
