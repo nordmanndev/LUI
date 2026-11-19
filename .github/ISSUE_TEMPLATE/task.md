@@ -2,7 +2,9 @@
 name: Task
 about: One unit of work — code or docs — produces exactly one PR
 title: "[TASK] <short imperative>"
-labels: ["type:task", "status:queued"]
+labels: status:queued, type:task
+assignees: ''
+
 ---
 
 > One issue, one PR. The issue body is the contract; the acceptance criteria

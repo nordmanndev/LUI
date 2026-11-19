@@ -2,7 +2,9 @@
 name: ADR
 about: An Architecture Decision Record — captures a design decision
 title: "[ADR] <decision in one line>"
-labels: ["type:adr", "status:proposed"]
+labels: ''
+assignees: ''
+
 ---
 
 ## What this is
