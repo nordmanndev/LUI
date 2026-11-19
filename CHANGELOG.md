@@ -148,6 +148,16 @@ them cannot upgrade to 0.3.0.
   write is no longer refused:** `Create` of an index that exists with the same definition, `ApplyPending` and `DropTriggers`
   with nothing to do now return on a catalogue opened with `OpenReadOnly` — SQLite refuses a write, not a call.
 
+- **The benchmark of the correction measures the correction** (#179, D7/R2 of the audit): the fixture of the benchmarks built its
+  indexes without `.TypoTolerance()` — the distance was `None`, there was no dictionary, a query with the correction on skipped
+  it and found nothing (`Hits = 0` in all four lines of the report). The lines measured the path without the correction, and
+  the price of the typo tolerance was measured nowhere. The fixture has the tolerance now; the run **stops** if a case with the
+  correction on ranks no candidate, and a test holds the committed reports to the same rule. The four corrected queries find
+  72–402 candidates and cost 266–1,315 μs with 24–43 KB (the lines of before: 58–330 μs, 5.5 KB, uncorrected). **All five
+  reports are measured again on one machine** (a test requires it): the container of this round, 4 cores, .NET 10.0.14 —
+  not the machine of the earlier reports, so the other numbers moved with it and are not comparable with the reports of
+  before.
+
 ### Added
 
 - **`LuiPragmas`** — the settings of the connections of a catalogue: `BusyTimeout` (5 s), `Synchronous` (`Normal` or
