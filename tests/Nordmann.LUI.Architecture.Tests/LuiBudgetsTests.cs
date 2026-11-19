@@ -88,4 +88,18 @@ public sealed class LuiBudgetsTests
             .Select(property => property.Name)
             .OrderBy(name => name, StringComparer.Ordinal)
             .ToArray();
+
+    [Fact]
+    public void The_dictionary_of_two_errors_has_a_limit_of_260_MB_and_a_reserve_over_what_was_measured()
+    {
+        // issue #175 (decision of the owner, 2026-11-14): the limit was 240 MB — exactly what was measured, 100 % of the limit,
+        // no reserve. The limit is 260 MB (+8.3 %); the measured 240 MB stays in the record as an observation.
+        var budget = LuiBudgets.All.Single(item => string.Equals(item.Id, "typo-dictionary-two-errors-size", StringComparison.Ordinal));
+
+        (budget.Limit == 260d && string.Equals(budget.Unit, "MB", StringComparison.Ordinal))
+            .ShouldBeTrue($"the limit of the dictionary of two errors is 260 MB — the file says {budget.Limit} {budget.Unit}");
+
+        File.ReadAllText(Path.Combine(Repository.RootPath, "docs", "typo-dictionary.md"))
+            .ShouldContain("**240 MB**", Case.Sensitive, "the measured value stays in the record — it is an observation, not a limit");
+    }
 }
