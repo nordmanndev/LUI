@@ -313,9 +313,11 @@ decide it.
 | **A copy of the text** | yes | **no** |
 | **Your schema** | untouched | untouched — no column, no index, no trigger unless you ask for one |
 | **A hit reads** | the copy in the index | your row, live |
-| **Your own file** | possible | not possible — the index is in the file of your table |
+| **Your own file** | possible — a catalogue of embedded indexes alone | not possible — the index is in the file of your table |
 
-The two are independent of the kind of the index: every combination of them exists. A `Linked` index keeps the
+The two are independent of the kind of the index: every combination of them exists. **One catalogue is one file**: an
+`Embedded` and a `Linked` index live side by side in it (mixing them is defined), and what separates them is **who owns
+the content table** — the library (`lui_<index>`) or your application. A `Linked` index keeps the
 normalised text in the search index and the weight and the priority in the order of the candidates — your row itself
 is never copied.
 
@@ -419,6 +421,10 @@ decides what may happen.
 | `LuiResult` | the answer of a query: the hits, the candidates it considered, the query it corrected |
 | `LuiHit` | one hit: the key, the text, the weight, the priority, the similarity — and `GetPayload<T>()` |
 | `LuiCatalogOptions` | the settings of the catalog: the pragmas of the connections (busy timeout, synchronous, cache size), the payload serialiser, the clock |
+
+One catalogue is one file: the file of your application becomes a catalogue with `OpenOrCreate`, and its tables lie beside
+the tables of LUI. LUI sets write-ahead logging only when `OpenOrCreate` creates the file itself; a file that is already there, with tables
+or empty, keeps its mode.
 
 **Every public type of the package is listed in [`docs/api.md`](./docs/api.md)** — the catalogue, the builders, the
 index, the entry, the query, the payload, the similarity, the enumerations, the exceptions and the hosting extension,

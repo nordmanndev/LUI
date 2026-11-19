@@ -195,6 +195,14 @@ them cannot upgrade to 0.3.0.
   the file and the tables against it (#181). No test compares the limit with a measured size of the two-error dictionary yet
   (#242).
 
+- **A catalogue is one file** (#183): `docs/api.md` and the README say that `Embedded` and `Linked` indexes live side by side in
+  one catalogue — mixing them is defined — with the tables of the application beside the tables of LUI, that what separates
+  them is **who owns the content table**, and that the file of the application becomes a catalogue with `OpenOrCreate` (write-ahead
+  logging only if `OpenOrCreate` creates the file itself, otherwise the mode of the file stays — empty or not; LUI never
+  switches it again). A test per document
+  holds the sentences; integration tests hold the behaviour in both orders (LUI first, the application first) and that a later
+  `Open` writes nothing. The behaviour itself is the one of #169 to #172 — nothing in the library changed for this issue.
+
 ### Added
 
 - **`LuiPragmas`** — the settings of the connections of a catalogue: `BusyTimeout` (5 s), `Synchronous` (`Normal` or
