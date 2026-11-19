@@ -142,7 +142,12 @@ internal sealed class EmbeddedSource : ContentSource
         $"DROP TRIGGER IF EXISTS {ContentTable}_ai; DROP TRIGGER IF EXISTS {ContentTable}_ad; DROP TRIGGER IF EXISTS {ContentTable}_au;";
 
     internal override string PrefixSql(int length) =>
-        $"SELECT s_rowid, text FROM {ContentTable} WHERE s_p{length} = $q ORDER BY s_rowid LIMIT $n;";
+        $"SELECT s_rowid FROM {ContentTable} WHERE s_p{length} = $q ORDER BY s_rowid LIMIT $n;";
+
+    internal override bool PrefixReadsText => false;
+
+    internal override string HitsWithTextSql(string parameters, IReadOnlyList<string> payloadColumns) =>
+        $"SELECT doc_id, key{string.Concat(payloadColumns.Select(column => ", " + column))}, text FROM {ContentTable} WHERE doc_id IN ({parameters});";
 
     internal override string HitsSql(string parameters, IReadOnlyList<string> payloadColumns) =>
         $"SELECT doc_id, key{string.Concat(payloadColumns.Select(column => ", " + column))} FROM {ContentTable} WHERE doc_id IN ({parameters});";

@@ -64,6 +64,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   median of an `Upsert` goes from 0,03 ms to 0,09 ms, p95 from 0,12 ms to 0,21 ms, far inside the budget of p95 ≤ 1 ms — while
   a batch (`UpsertMany`) and `Sync` take as long as before. Nothing in the API changes.
 
+- **The prefix path reads only the rowid of its candidates** (#173, R3 of the audit): the statement of the prefix path of an
+  `Embedded` index (one or two characters) no longer reads the text of up to 500 candidates; the ranking there is the weight
+  alone, and the text of a hit — and its word start — comes from the statement that reads the hits anyway. The answer is the
+  same (a test holds the hits of fifteen prefixes against the output of the code before). Measured on the same corpus and
+  machine (200,000 entries, 4 cores, 2026-11-19): one and two characters p50 0,46 / 0,52 ms → 0,23 / 0,23 ms, the allocation
+  of a query that spends its budget of candidates p50 40 KB → 15 KB, all queries p50 24 KB → 15 KB. The search index (three
+  characters and more) is unchanged, but its median is higher in the same benchmark (three characters 0,62 → 1,0 ms, four
+  0,65 → 0,85 ms): the text pages of the popular entries that the prefix path used to keep in the page cache now load with the
+  search index — over the four keystrokes of a word the work is the same (2,2 ms before, 2,3 ms after). A `Linked` index reads
+  the text as before: it checks it against the table.
+
 - **A refused write is a `LuiReadOnlyException` that says why.** SQLite refuses (`SQLITE_READONLY`), LUI translates, and the
   message names the reason: the catalogue was opened with `OpenReadOnly` (with the operation, the index, and how to write),
   or the file or its directory may not be written. The error of SQLite is the inner exception. A write in the transaction

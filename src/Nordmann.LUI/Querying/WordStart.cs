@@ -1,3 +1,5 @@
+using System.Buffers;
+using System.Diagnostics;
 using Nordmann.LUI.Normalization;
 
 namespace Nordmann.LUI.Querying;
@@ -54,6 +56,40 @@ internal static class WordStart
         }
 
         return -1;
+    }
+
+    /// <summary>
+    /// The word start of a text that was not read with its candidate (issue #173): the same as the candidate stage finds when it
+    /// reads the text — the text in its search form, and the position where the input stands.
+    /// </summary>
+    /// <param name="text">The text of the entry, as it was stored.</param>
+    /// <param name="compactQuery">The compact form of the input.</param>
+    /// <param name="normalization">How the search form is made.</param>
+    /// <returns>The position, or -1 when the input stands at no word start.</returns>
+    internal static int Of(string text, ReadOnlySpan<char> compactQuery, NormalizationOptions normalization)
+    {
+        char[]? rented = null;
+        var buffer = text.Length * 3 <= 256
+            ? stackalloc char[256]
+            : rented = ArrayPool<char>.Shared.Rent(text.Length * 3);
+
+        try
+        {
+            if (!Normalizer.TryWriteSearchForm(text, buffer, out var written, normalization))
+            {
+                // the transliteration at most doubles a text (ä → ae, ß → ss); the buffer holds three times
+                throw new UnreachableException("The search form of a text is longer than three times the text.");
+            }
+
+            return Find(buffer[..written], compactQuery);
+        }
+        finally
+        {
+            if (rented is not null)
+            {
+                ArrayPool<char>.Shared.Return(rented);
+            }
+        }
     }
 
     private static bool CompactStartsWith(ReadOnlySpan<char> text, int from, ReadOnlySpan<char> compactQuery)

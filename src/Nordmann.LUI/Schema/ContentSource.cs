@@ -54,6 +54,20 @@ internal abstract class ContentSource
     /// <summary>The prefix path (ADR-0008): <c>(rowid, text)</c> of the best entries whose text begins with one or two characters.</summary>
     internal abstract string PrefixSql(int length);
 
+    /// <summary>
+    /// Whether the statement of the prefix path reads the text of its candidates. A source whose texts cannot change under the
+    /// index (<see cref="TextCanChangeUnderTheIndex"/>) does not: the ranking of the prefix path is the weight alone, and the
+    /// text of a hit comes from <see cref="HitsWithTextSql"/> (ADR-0028, issue #173).
+    /// </summary>
+    internal virtual bool PrefixReadsText => true;
+
+    /// <summary>
+    /// The statement of the hits when the candidates did not carry their text: the key, the payload columns and, <b>last</b>,
+    /// the text.
+    /// </summary>
+    internal virtual string HitsWithTextSql(string parameters, IReadOnlyList<string> payloadColumns) =>
+        throw new NotSupportedException("The prefix statement of this source reads the text of its candidates.");
+
     /// <summary>The candidates of an input of three or more characters (ADR-0008): <c>(rowid, text)</c> in the order of the rowid.</summary>
     internal abstract string CandidateSql { get; }
 
