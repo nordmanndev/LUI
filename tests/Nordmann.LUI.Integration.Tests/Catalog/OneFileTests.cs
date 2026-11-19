@@ -120,6 +120,7 @@ public sealed class OneFileTests
 
         SqliteConnection.ClearAllPools();
         var mode = database.Scalar<string>("PRAGMA journal_mode");
+        SqliteConnection.ClearAllPools(); // Windows: a pooled connection keeps the file open, and the hash could not read it
         var before = Hash(database);
 
         using (var catalog = LuiCatalog.Open(database.FilePath))
@@ -130,6 +131,7 @@ public sealed class OneFileTests
         SqliteConnection.ClearAllPools();
         Hash(database).ShouldBe(before, "Open writes nothing");
         database.Scalar<string>("PRAGMA journal_mode").ShouldBe(mode, "Open does not switch the mode of the file of the application");
+        SqliteConnection.ClearAllPools();
     }
 
     /// <summary>The application sets up its table.</summary>
