@@ -70,9 +70,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   same (a test holds the hits of fifteen prefixes against the output of the code before). Measured on the same corpus and
   machine (200,000 entries, 4 cores, 2026-11-19): one and two characters p50 0,46 / 0,52 ms → 0,23 / 0,23 ms, the allocation
   of a query that spends its budget of candidates p50 40 KB → 15 KB, all queries p50 24 KB → 15 KB. The search index (three
-  characters and more) is unchanged, but its median is higher in the same benchmark (three characters 0,62 → 1,0 ms, four
-  0,65 → 0,85 ms): the text pages of the popular entries that the prefix path used to keep in the page cache now load with the
-  search index — over the four keystrokes of a word the work is the same (2,2 ms before, 2,3 ms after). A `Linked` index reads
+  characters and more) is unchanged — measured alone and mixed in, base and branch alternating, its median (three characters
+  0,6–0,7 ms, five to eight 0,3–0,4 ms) does not move beyond the noise. A `Linked` index reads
   the text as before: it checks it against the table.
 
 - **A refused write is a `LuiReadOnlyException` that says why.** SQLite refuses (`SQLITE_READONLY`), LUI translates, and the
