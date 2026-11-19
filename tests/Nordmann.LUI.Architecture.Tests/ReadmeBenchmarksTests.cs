@@ -44,7 +44,10 @@ public sealed class ReadmeBenchmarksTests
     /// The columns of BenchmarkDotNet's table that the README shows besides the parameters: the statistics and the
     /// number of hits the query found (issue #124) — a line without it can measure nothing and look healthy.
     /// </summary>
-    private static readonly string[] Measured = ["Mean", "Error", "Allocated", "Hits"];
+    private static readonly string[] Measured = ["Mean", ConfidenceColumn, "Allocated", "Hits"];
+
+    /// <summary>The column of the half width of the 99.9 % confidence interval of the mean — BenchmarkDotNet calls it "Error" (issue #180).</summary>
+    private const string ConfidenceColumn = "CI 99.9 %";
 
     /// <summary>The first column of every table.</summary>
     private static readonly string[] MethodColumn = ["Method"];
@@ -140,7 +143,7 @@ public sealed class ReadmeBenchmarksTests
                 ["Method"] = "Search",
                 ["Input"] = "ka",
                 ["Mean"] = "16.46 μs",
-                ["Error"] = "0.275 μs",
+                [ConfidenceColumn] = "0.275 μs",
                 ["Allocated"] = "4.94 KB",
                 ["Hits"] = "0"
             }]);
@@ -193,6 +196,37 @@ public sealed class ReadmeBenchmarksTests
         script.ShouldContain("--exclude='./*/*/obj'", Case.Sensitive);
         script.ShouldNotContain("--exclude='bin'", Case.Sensitive, "an exclude that is not anchored also drops a source directory called bin");
         script.ShouldContain("stat -f", Case.Sensitive, "the script asks the file system what it is, before it copies");
+    }
+
+    [Fact]
+    public void No_table_of_benchmarks_has_a_column_called_error_and_every_report_names_the_confidence_interval()
+    {
+        // issue #180: the column "Error" of BenchmarkDotNet is the half width of the 99.9 % confidence interval of the mean —
+        // not a spread and not a percentile. The name invites a misreading (the ±48 µs of an assignment); the column says what it is.
+        foreach (var (name, _, _) in Sections)
+        {
+            var report = Report.Read(ReportPath(name));
+
+            report.Rows.ShouldAllBe(row => !row.ContainsKey("Error"), $"the report of {name} has a column called Error — it is the confidence interval of the mean");
+            report.Rows[0].ContainsKey(ConfidenceColumn).ShouldBeTrue($"the report of {name} names the column '{ConfidenceColumn}'");
+        }
+
+        // every table of the documents of the repository (the history — the changelog and the decisions — keeps its words)
+        var documents = Directory.EnumerateFiles(Repository.RootPath, "*.md", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}.agents{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}.git{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !string.Equals(Path.GetFileName(path), "CHANGELOG.md", StringComparison.Ordinal));
+        foreach (var document in documents)
+        {
+            foreach (var line in File.ReadLines(document).Where(line => line.StartsWith('|')))
+            {
+                var cells = line.Trim().Trim('|').Split('|').Select(cell => cell.Trim()).ToArray();
+                (cells.Contains("Error", StringComparer.Ordinal) && cells.Any(cell => cell is "Mean" or "Allocated"))
+                    .ShouldBeFalse($"{Path.GetRelativePath(Repository.RootPath, document)}: a table of benchmarks has a column called Error — it is '{ConfidenceColumn}': {line}");
+            }
+        }
     }
 
     [Fact]
@@ -333,7 +367,7 @@ public sealed class ReadmeBenchmarksTests
     private sealed record Report(string Environment, IReadOnlyList<string> Parameters, IReadOnlyList<IReadOnlyDictionary<string, string>> Rows)
     {
         /// <summary>The columns between the method and the statistics that are not parameters.</summary>
-        private static readonly string[] Statistics = ["Mean", "Error", "StdDev", "Median", "Ratio", "RatioSD", "Gen0", "Gen1", "Gen2", "Allocated", "Alloc Ratio"];
+        private static readonly string[] Statistics = ["Mean", "Error", ConfidenceColumn, "StdDev", "Median", "Ratio", "RatioSD", "Gen0", "Gen1", "Gen2", "Allocated", "Alloc Ratio"];
 
         internal static Report Read(string path)
         {

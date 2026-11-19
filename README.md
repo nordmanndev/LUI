@@ -177,7 +177,7 @@ Intel Xeon Processor 2.30GHz, 1 CPU, 4 logical and 4 physical cores
 
 One query through the whole pipeline: the prefix path for one and two characters, FTS5 from three — Entries = 200000, Candidates = 500, Order = Start/Sim, Similarity = JaroWinkler, Correction = False. `QueryBenchmarks`.
 
-| Method | Corpus | Input | Source | Mean | Error | Allocated | Hits |
+| Method | Corpus | Input | Source | Mean | CI 99.9 % | Allocated | Hits |
 |---|---|---|---|---:|---:|---:|---:|
 | Search | titles | apfelkuc | Embedded | 80.49 μs | 1.589 μs | 5.2 KB | 0 |
 | Search | titles | apfelkuc | Linked | 81.04 μs | 1.598 μs | 5.24 KB | 0 |
@@ -200,7 +200,7 @@ One query through the whole pipeline: the prefix path for one and two characters
 
 The budget of the candidates, the order of the ranking, the measure of the similarity and the correction on and off — each of them is measured, not described — Corpus = words, Entries = 200000, Input = haus, Source = Embedded. `SettingsBenchmarks`.
 
-| Method | Candidates | Order | Similarity | Correction | Mean | Error | Allocated | Hits |
+| Method | Candidates | Order | Similarity | Correction | Mean | CI 99.9 % | Allocated | Hits |
 |---|---|---|---|---|---:|---:|---:|---:|
 | Search | 500 | Start/Sim | JaroWinkler | False | 587.7 μs | 11.69 μs | 41.49 KB | 500 |
 | Search | 500 | Start/Sim | JaroWinkler | True | 585.8 μs | 11.57 μs | 41.49 KB | 500 |
@@ -223,7 +223,7 @@ The budget of the candidates, the order of the ranking, the measure of the simil
 
 A single-word index with typo tolerance, the dictionary built; the input has one typo — Corpus = words, Entries = 200000, Candidates = 500, Order = Start/Sim, Similarity = JaroWinkler, Correction = True, Source = Embedded. `CorrectionBenchmarks`.
 
-| Method | Input | Mean | Error | Allocated | Hits |
+| Method | Input | Mean | CI 99.9 % | Allocated | Hits |
 |---|---|---:|---:|---:|---:|
 | Search | bahmhof | 276.8 μs | 5.51 μs | 25.53 KB | 99 |
 | Search | fusbal | 561.9 μs | 9.36 μs | 27.98 KB | 118 |
@@ -234,7 +234,7 @@ A single-word index with typo tolerance, the dictionary built; the input has one
 
 One write in a transaction of its own — Entries = 200000. `WriteBenchmarks`.
 
-| Method | Mean | Error | Allocated | Hits |
+| Method | Mean | CI 99.9 % | Allocated | Hits |
 |---|---:|---:|---:|---:|
 | UpdateWeight | 334.6 μs | 12.54 μs | 2.73 KB | — |
 | UpsertTheSame | 131.0 μs | 2.60 μs | 3.96 KB | — |
@@ -244,7 +244,7 @@ One write in a transaction of its own — Entries = 200000. `WriteBenchmarks`.
 
 Per text, no database: the normalisation of ADR-0005 and two similarity measures against `apfelku`; BenchmarkDotNet shortens a long text — `Gedec(...)useln [35]` is „Gedeckter Apfelkuchen mit Streuseln", `Größe(...)nahme [23]` „Größenänderungsmaßnahme". `TextBenchmarks`.
 
-| Method | Text | Mean | Error | Allocated | Hits |
+| Method | Text | Mean | CI 99.9 % | Allocated | Hits |
 |---|---|---:|---:|---:|---:|
 | SearchForm | Apfelkuchen | 46.64 ns | 0.980 ns | 144 B | — |
 | JaroWinkler | Apfelkuchen | 46.61 ns | 0.959 ns | - | — |

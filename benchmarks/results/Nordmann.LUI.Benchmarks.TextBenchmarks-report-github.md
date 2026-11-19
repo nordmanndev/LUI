@@ -12,7 +12,7 @@ Intel Xeon Processor 2.30GHz, 1 CPU, 4 logical and 4 physical cores
   [Journal]  : wal
   [Disk]     : ext4, local — /tmp/lui-bench.leE5Mc/tmp
 ```
-| Method | Text | Mean | Error | StdDev | Gen0 | Allocated | Hits |
+| Method | Text | Mean | CI 99.9 % | StdDev | Gen0 | Allocated | Hits |
 |------------ |--------------------- |----------:|---------:|---------:|-------:|----------:|---:|
 | SearchForm | Apfelkuchen | 46.64 ns | 0.980 ns | 1.840 ns | 0.0005 | 144 B | — |
 | JaroWinkler | Apfelkuchen | 46.61 ns | 0.959 ns | 0.801 ns | - | - | — |
