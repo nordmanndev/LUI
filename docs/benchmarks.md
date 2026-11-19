@@ -11,7 +11,8 @@
 
 ## Status
 
-**Every target of ADR-0020 is measured in its scenario and met** (PR-009,
+**Every target of ADR-0020 is met by what was measured** — the latency targets in the scenario of the entries the word list has (1,908,798,
+not the three million of the scenario, #176) (PR-009,
 ADR-0020) — three of them as draft 2 set them, five as the owner
 stated them anew after the measurement (2026-11-04, ADR-0010, ADR-0020). The table is the output of
 `BudgetPerformance`, which asserts every row. The allocation was lowered to its target (ADR-0032) and measured again
@@ -20,16 +21,20 @@ corpus.
 
 | Target | Measured at the scenario | Limit |
 |---|---:|---:|
-| query p50 | 1.34–1.71 ms | ≤ 2 ms |
-| query p95, 1–4 characters | ≤ 3.1 ms | ≤ 5 ms |
-| query p95, 5–8 characters | 13.4–17.5 ms | ≤ 20 ms |
-| query with correction p95 | 27.9–32.5 ms | ≤ 35 ms |
-| allocation p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
-| single write p95 | 0.51–0.78 ms | ≤ 1 ms |
+| query p50 | 0.87 ms (the lane of 2026-11-19, run 9) | ≤ 2 ms |
+| query p95, 1–4 characters | ≤ 1.7 ms (2026-11-19) | ≤ 5 ms |
+| query p95, 5–8 characters | ≤ 4.5 ms (2026-11-19) | ≤ 20 ms |
+| query with correction p95 | 8.4 ms (2026-11-19) | ≤ 35 ms |
+| allocation p50 / p95 | 20 / 44 KB (2026-11-19) | ≤ 60 / ≤ 100 KB |
+| single write p95 | 0.51–0.78 ms (2026-11-05) | ≤ 1 ms |
 | build of 3 M | 120.4 s on the machine of the record, 165.1–172.9 s on the machine of the report (1,908,798 entries — the whole corpus of the repository); at 3 M on 2026-11-04: 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 180 s (#32) |
 | typo dictionary of 685,739 words | 194 MB, 4.0–5.2 s (2026-11-19, the container of the round) | ≤ 200 MB, ≤ 10 s |
 | typo dictionary of two errors, 685,739 words | 388 MB (2026-11-19) | ≤ 420 MB |
-| file of 1 M titles | 457 MB | ≤ 500 MB |
+| file of 1 M titles | 243 MB (2026-11-19) | ≤ 500 MB |
+
+The lane of 2026-11-19 ran on a hosted runner (Ubuntu 24.04, 4 cores, .NET 10.0.15) with the scenario `other`: the sizes are
+asserted, the times are reported. The earlier numbers of this table (the CI machine, 1.34–1.71 ms and so on) stand in the
+older records below.
 
 **The numbers below were measured on the corpus that was generated.** Since ADR-0059 the corpus is a file in the
 repository, and the corpora have their own sizes: the words corpus has 1,908,798 entries, so the **scenario of three
