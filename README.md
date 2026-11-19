@@ -126,7 +126,7 @@ in [`docs/benchmarks.md`](./docs/benchmarks.md).
 | `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms | ≤ 1 ms |
 | first load of 3 M entries (`Sync`) | 120.4–172.9 s | ≤ 3 min (#32) |
 | typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
-| typo dictionary of two errors, 685,739 words | 240 MB | ≤ 240 MB |
+| typo dictionary of two errors, 685,739 words | 240 MB | ≤ 260 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
 
 The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
