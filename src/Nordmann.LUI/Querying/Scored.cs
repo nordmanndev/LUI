@@ -13,7 +13,7 @@ internal struct Scored
     /// <summary>The text as it was stored. Empty for the candidates of a prefix path that reads the rowid alone (issue #173): the hits fill it in.</summary>
     internal string Text;
 
-    /// <summary>Where the word that carries the match begins in the search form; -1: no word start — or, for the candidates of a prefix path that reads the rowid alone (issue #173), not known until the hits fill it in.</summary>
+    /// <summary>Where the word that carries the match begins in the search form; -1: no word start — or, for the candidates of a query that needs none (the weight alone, with no typo correction that may ask, issues #173 and #174), not known until the hits fill it in.</summary>
     internal int WordStart;
 
     /// <summary>The similarity; only valid when it was computed.</summary>

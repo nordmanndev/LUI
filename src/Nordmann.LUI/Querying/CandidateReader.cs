@@ -8,8 +8,9 @@ namespace Nordmann.LUI.Querying;
 
 /// <summary>
 /// The first stage of a query (ADR-0008, ADR-0008): the candidates of one input out of SQLite, in
-/// the order of the rowid, each with its word start (ADR-0008) — except the candidates of a prefix path that reads the rowid alone
-/// (issue #173): their text and word start are filled in for the hits. The statements come from the content source.
+/// the order of the rowid, each with its word start (ADR-0008) — except when nothing needs it (the weight alone, with no typo
+/// correction that may ask, issue #174) and for the candidates of a prefix path that reads the rowid alone (issue #173): their
+/// text and word start are filled in for the hits. The statements come from the content source.
 /// </summary>
 internal sealed class CandidateReader
 {

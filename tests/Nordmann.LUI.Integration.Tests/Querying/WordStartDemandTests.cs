@@ -87,6 +87,44 @@ public sealed class WordStartDemandTests
         }
     }
 
+    [Fact]
+    public void A_linked_index_makes_the_word_start_of_its_candidates_for_the_check_against_the_table_and_answers_the_same()
+    {
+        using var database = new TestDatabase();
+        using (var connection = database.Connect())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "CREATE TABLE tag(id INTEGER PRIMARY KEY, name TEXT NOT NULL);";
+            command.ExecuteNonQuery();
+            string[] names = ["Max Mustermann", "Anna Muster", "Hans-Peter Mustafa", "Mustermann, Max Mustermann", "Maria Mayer", "Jan Peters"];
+            for (var i = 0; i < names.Length * 4; i++)
+            {
+                using var insert = connection.CreateCommand();
+                insert.CommandText = "INSERT INTO tag(id, name) VALUES ($id, $name);";
+                insert.Parameters.AddWithValue("$id", i + 1);
+                insert.Parameters.AddWithValue("$name", i < names.Length ? names[i] : $"{names[i % names.Length]} {i}");
+                insert.ExecuteNonQuery();
+            }
+        }
+
+        using var catalog = database.Open();
+        var index = catalog.CreateLinked("tags", builder => builder.MultiWord().LinkTo("tag", "id", "name"));
+        index.Sync();
+        Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
+
+        // the candidates of a linked index are checked against the table: the search form is made for that, and the word start
+        // comes with it — with the weight alone and without a typo correction as with every other ranking
+        var preparation = SearchForms(() => catalog.LinkedIndex("tags").Search("qxz", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = false }));
+        var result = default(LuiResult);
+        var made = SearchForms(() => result = catalog.LinkedIndex("tags").Search("must", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = false }));
+
+        result!.Hits.ShouldNotBeEmpty();
+        made.ShouldBeGreaterThanOrEqualTo(preparation + result.CandidatesConsidered, "every candidate makes its search form for the check against the table");
+        var asked = catalog.LinkedIndex("tags").Search("must", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = true });
+        Describe(result).ShouldBe(Describe(asked), "the hits, their order, their word starts and similarities do not change");
+        result.Hits.ShouldContain(hit => hit.AtWordStart);
+    }
+
     private static string Describe(LuiResult result) =>
         string.Join('|', result.Hits.Select(hit => string.Create(CultureInfo.InvariantCulture, $"{hit.Key}={hit.Text} w{hit.Weight} s{hit.AtWordStart} {hit.Similarity:F4}")));
 
