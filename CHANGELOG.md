@@ -189,6 +189,12 @@ them cannot upgrade to 0.3.0.
   at it before it goes anywhere. A run without a `[perf]` line writes no record. Where the file lives is a decision of the
   owner that can change in one line (the branch, or a pull request); this is the narrowest one.
 
+- **The limit of the dictionary of two errors is 260 MB** (#175, decision of the owner, 2026-11-14): it was 240 MB — exactly what
+  was measured, 100 % of the limit, no reserve. The limit moves to 260 MB (+ 8.3 %) in the file of the budgets, the README and
+  `docs/benchmarks.md`; the measured 240 MB stays in `docs/typo-dictionary.md` as an observation. A test holds the number in
+  the file and the tables against it (#181). No test compares the limit with a measured size of the two-error dictionary yet
+  (#242).
+
 ### Added
 
 - **`LuiPragmas`** — the settings of the connections of a catalogue: `BusyTimeout` (5 s), `Synchronous` (`Normal` or

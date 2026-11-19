@@ -118,7 +118,7 @@
         "prefixLength": 685739,
         "condition": "the whole German word list, the distance TwoErrors"
       },
-      "limit": 240,
+      "limit": 260,
       "unit": "MB",
       "kind": "size"
     },
