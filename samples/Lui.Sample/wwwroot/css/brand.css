@@ -1,0 +1,111 @@
+/*
+ * The brand of the Timetables brand guide (v1.0.0) on the two vendored stylesheets of the client.
+ *
+ * Both of them are written to be themed by their variables — MVP.css says so in its own words ("Most styles are editable
+ * through CSS variables"), and the stylesheet of flexdatalist exposes its palette the same way. So the brand enters here, as
+ * values: **this file declares no style of its own**, its only selector is `:root`.
+ *
+ * The rules of the guide that this file keeps:
+ *   - the colours are only ever used at 100 % opacity — every value below is opaque (MVP's own `--color-accent` is
+ *     `#118bee15`, eight digits with an alpha, and this file replaces it);
+ *   - on screen the RGB values are used, never Pantone or CMYK;
+ *   - the white version of the logo stands on a dark background — that is the `<picture>` of the header, not a rule here.
+ *
+ * The rules it cannot keep, and why: Gotham (the secondary typeface of the guide) is a commercial licence and cannot go on a
+ * web page, and the tertiary typeface (Roboto Slab, for data visualisations) would need a `table { font-family: … }` rule —
+ * a style of our own, which this file does not have. Both deviations belong in the ADR, not in a comment.
+ */
+
+@font-face {
+    font-family: "Montserrat";
+    font-style: normal;
+    font-weight: 100 900;
+    font-display: swap;
+    src: url("../fonts/Montserrat-latin.woff2") format("woff2");
+}
+
+:root {
+    /* --- MVP.css — the guide's primary palette ------------------------------------------------ */
+    --color-link: #1a67d8;              /* Cobalt Blue */
+    --color-bg: #ffffff;                /* Pure White */
+    --color-bg-secondary: #f1f1f1;      /* Ghost White */
+    --color-text: #00002d;              /* Midnight Navy */
+    --color-text-secondary: #666681;    /* Midnight Navy, 40 % */
+    --color-accent: #e8f0fb;            /* Cobalt Blue, the lightest tint — the chips and the striped rows */
+    --color-secondary: #1dafd6;         /* Cerulean Frost — the callout and the link in it */
+    --color-secondary-accent: #e8f0fb;  /* Cobalt Blue, the lightest tint */
+    --color-shadow: #d1e1f7;            /* Cobalt Blue, the next lightest tint */
+    --color-table: #1a67d8;             /* Cobalt Blue — the head of a table carries the text colour of the page */
+    --color-scrollbar: #bcbcc9;         /* Cool Slate */
+    --font-family: "Montserrat", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+    /* --- the stylesheet of flexdatalist — the same palette in its own names -------------------- */
+    --fdl-accent: #1a67d8;              /* Cobalt Blue */
+    --fdl-accent-fg: #ffffff;           /* Pure White */
+    --fdl-accent-light: #e8f0fb;        /* Cobalt Blue, the lightest tint */
+    --fdl-bg: #ffffff;                  /* Pure White */
+    --fdl-border: #d0d0d3;              /* Silver Sand */
+    --fdl-text: #00002d;                /* Midnight Navy */
+    --fdl-text-muted: #666681;          /* Midnight Navy, 40 % */
+    --fdl-hover-bg: #1a67d8;            /* Cobalt Blue */
+    --fdl-hover-fg: #ffffff;            /* Pure White */
+    --fdl-tag-bg: #e8f0fb;              /* Cobalt Blue, the lightest tint */
+    --fdl-tag-border: #d1e1f7;          /* Cobalt Blue, the next lightest tint */
+    --fdl-tag-fg: #1a67d8;              /* Cobalt Blue */
+    --fdl-group-bg: #f1f1f1;            /* Ghost White */
+    --fdl-group-border: #d0d0d3;        /* Silver Sand */
+    --fdl-disabled-bg: #f1f1f1;         /* Ghost White */
+    --fdl-scrollbar: #bcbcc9;           /* Cool Slate */
+    --fdl-radius: 5px;                  /* the radius of MVP.css */
+    --fdl-font-size: 0.875rem;          /* the size of the library */
+    --fdl-shadow: 0 4px 6px -1px #d1e1f7, 0 10px 25px -3px #d1e1f7;
+    --flexdatalist-animation-color: #1a67d8;
+    --flexdatalist-animation-bg-color: #ffffff;
+}
+
+/*
+ * The night. The guide has no dark palette, so the night is built from the brand's own dark values: the Midnight Navy as
+ * the ground, Black Coffee as the surface, Pure White as the text.
+ *
+ * The selector is `:root[color-mode="user"]` — the attribute MVP.css reads — and not `:root`, and that is the order of the
+ * battle: MVP.css and the stylesheet of the library both set their night on a plain `:root`, and a rule on `:root` would win
+ * against them only by being later in the cascade. The attribute makes this rule the more specific one, so it wins in every
+ * order — and a page without the attribute stays in the light in both, which is the point.
+ */
+@media (prefers-color-scheme: dark) {
+    :root[color-mode="user"] {
+        /* --- MVP.css --- */
+        --color-link: #76a4e8;              /* Cobalt Blue, a light tint — a link has to read on the navy */
+        --color-bg: #00002d;                /* Midnight Navy */
+        --color-bg-secondary: #1a1a42;      /* Black Coffee */
+        --color-text: #ffffff;              /* Pure White */
+        --color-text-secondary: #9999ab;    /* Midnight Navy, 60 % */
+        --color-accent: #333357;            /* Midnight Navy, 20 % */
+        --color-secondary: #1dafd6;         /* Cerulean Frost */
+        --color-secondary-accent: #333357;  /* Midnight Navy, 20 % */
+        --color-shadow: #333357;            /* Midnight Navy, 20 % */
+        --color-table: #76a4e8;             /* the head of a table carries the text colour of the page */
+        --color-scrollbar: #666681;         /* Midnight Navy, 40 % */
+
+        /* --- flexdatalist --- */
+        --fdl-accent: #76a4e8;              /* Cobalt Blue, a light tint */
+        --fdl-accent-fg: #00002d;           /* Midnight Navy */
+        --fdl-accent-light: #333357;        /* Midnight Navy, 20 % */
+        --fdl-bg: #1a1a42;                  /* Black Coffee */
+        --fdl-border: #333357;              /* Midnight Navy, 20 % */
+        --fdl-text: #ffffff;                /* Pure White */
+        --fdl-text-muted: #9999ab;          /* Midnight Navy, 60 % */
+        --fdl-hover-bg: #76a4e8;            /* Cobalt Blue, a light tint */
+        --fdl-hover-fg: #00002d;            /* Midnight Navy */
+        --fdl-tag-bg: #333357;              /* Midnight Navy, 20 % */
+        --fdl-tag-border: #666681;          /* Midnight Navy, 40 % */
+        --fdl-tag-fg: #a3c2ef;              /* Cobalt Blue, a light tint */
+        --fdl-group-bg: #00002d;            /* Midnight Navy */
+        --fdl-group-border: #333357;        /* Midnight Navy, 20 % */
+        --fdl-disabled-bg: #00002d;         /* Midnight Navy */
+        --fdl-scrollbar: #666681;           /* Midnight Navy, 40 % */
+        --fdl-shadow: 0 4px 6px -1px #333357, 0 10px 25px -3px #333357;
+        --flexdatalist-animation-color: #76a4e8;
+        --flexdatalist-animation-bg-color: #00002d;
+    }
+}

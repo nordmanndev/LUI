@@ -761,7 +761,25 @@ expect_caught "a-claim-of-a-round-that-does-not-stay-true" "${INTEGRATION_PROJEC
   "FullyQualifiedName~The_claim_of_a_round_that_has_begun_stays_true_when_the_round_is_over" \
   "sed -i 's|            Volatile.Write(ref _running, 0);|            Interlocked.Exchange(ref _roundsBegun, 0);\n            Volatile.Write(ref _running, 0);|' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
 
-# 36. The clean trees stay green.
+
+
+# 36. A stylesheet of the client that is not the file the provenance says (issue #212): the stylesheets of
+#      the page come from somewhere else, and a file that nobody named is a file nobody checked.
+expect_caught "the-stylesheet-of-the-client-is-not-the-file-the-provenance-says" "${ARCHITECTURE_PROJECT}" \
+  "The_stylesheets_of_the_client_are_the_files_the_provenance_says" \
+  "printf '\n/* a change nobody named */\n' >> samples/Lui.Sample/wwwroot/css/mvp.css"
+
+# 37. A stylesheet in a subfolder that loads something from another origin (issue #212): the stylesheet of
+#      the library lives in css/vendor/, and the walk of the stylesheets has to go into the subfolders —
+#      a file that the walk does not see is a file nobody checks.
+expect_caught "the-css-of-a-subfolder-is-walked-too" "${ARCHITECTURE_PROJECT}" \
+  "The_page_has_no_inline_script_style_or_event_handler_and_loads_nothing_from_elsewhere" \
+  "printf '\n.x { background: url(https://example.invalid/x.png); }\n' >> samples/Lui.Sample/wwwroot/css/vendor/flexdatalist.css"
+
+
+
+# 38. The clean trees stay green.
+
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
 
