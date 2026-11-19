@@ -192,6 +192,27 @@ public sealed class ReadmeBenchmarksTests
     }
 
     [Fact]
+    public void Every_line_that_corrects_found_something_to_correct()
+    {
+        // issue #179: the corrections benchmark measured an index without the typo tolerance — the correction was skipped, the
+        // query found nothing (Hits = 0) and the line measured the uncorrected path under the name of the correction. A line
+        // with `Correction = True` that ranked no candidate measures nothing it claims to measure.
+        var corrects = 0;
+
+        foreach (var (name, _, _) in Sections)
+        {
+            foreach (var row in Report.Read(ReportPath(name)).Rows.Where(row => row.TryGetValue("Correction", out var flag) && string.Equals(flag, "True", StringComparison.Ordinal)))
+            {
+                corrects++;
+                int.Parse(row["Hits"], System.Globalization.CultureInfo.InvariantCulture)
+                    .ShouldBeGreaterThan(0, $"a line of the report of {name} with the correction on found no candidate: '{row["Input"]}' — the line measures the path without the correction");
+            }
+        }
+
+        corrects.ShouldBeGreaterThan(0, "the reports have lines with the correction on");
+    }
+
+    [Fact]
     public void The_benchmark_document_shows_the_committed_reports()
     {
         var document = File.ReadAllText(DocumentPath);
