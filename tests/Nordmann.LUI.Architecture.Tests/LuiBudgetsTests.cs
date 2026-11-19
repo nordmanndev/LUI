@@ -107,4 +107,22 @@ public sealed class LuiBudgetsTests
         (measured == 240d).ShouldBeTrue($"the measured value of the dictionary of two errors stays in the record: {row}");
         (budget.Limit >= measured * 1.05).ShouldBeTrue($"the limit has a reserve of at least 5 % over the measured {measured} MB");
     }
+
+    [Fact]
+    public void Every_budget_of_the_file_is_asserted_by_a_measurement()
+    {
+        // issue #242: a limit that no measurement compares with a measured value is a number on paper — the dictionary of two
+        // errors stood at 100 % of its limit and then at 260 MB, and no test ever held a size against it
+        var sources = Directory.EnumerateFiles(Path.Combine(Repository.RootPath, "tests", "Nordmann.LUI.Performance.Tests"), "*.cs", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal))
+            .Select(File.ReadAllText)
+            .ToList();
+
+        var unasserted = LuiBudgets.All
+            .Select(budget => budget.Id)
+            .Where(id => !sources.Any(source => source.Contains($"AtMost(\"{id}\"", StringComparison.Ordinal)))
+            .ToList();
+
+        unasserted.ShouldBeEmpty("a budget of budgets.json that no measurement asserts (budget.AtMost(id, …)): " + string.Join(", ", unasserted));
+    }
 }
