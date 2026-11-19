@@ -220,6 +220,11 @@ them cannot upgrade to 0.3.0.
   again on every write; that is not changed here (#248). The settings do not change; tests read them back from the connections of the
   pool, also for two catalogues of one file with other pragmas.
 
+- **The README carries the measurements of the round** (2026-11-19): the table of the budgets names the lane of 2026-11-19 (a hosted
+  runner, not the machine of the budgets): query p50 0.87 ms, p95 ≤ 1.7 ms (1–4 characters) and ≤ 4.5 ms (5–8), with a
+  correction 8.4 ms, 20 / 44 KB per query, 67.0 s for the 1.9 million entries of the word list, 243 MB for a million titles. It no
+  longer says that every target is asserted in its scenario: the three-million scenario is not reached yet (#176).
+
 ### Added
 
 - **`LuiPragmas`** — the settings of the connections of a catalogue: `BusyTimeout` (5 s), `Synchronous` (`Normal` or

@@ -111,41 +111,35 @@ Two measurements, two machines — and both name the machine they stand on.
 
 **The budgets** below are the promises of the repository: they live in one file
 ([`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json), ADR-0056), and
-each of them carries its scenario, its limit, its unit and its kind. They are measured in their scenario — three
-million single words of the German word list and one million titles — on the CI machine: Intel Xeon 2.10 GHz, 4 cores,
-15 GB, Ubuntu 24.04, .NET 10.0.14. Every target is asserted by a test in its scenario; the method and the corpus are
-in [`docs/benchmarks.md`](./docs/benchmarks.md).
+each of them carries its scenario, its limit, its unit and its kind. The scenario of the latency budgets is three million
+single words of the German word list — and the list has 1,908,798 entries, so that scenario is **not reached yet** (#176):
+the lane reports those numbers for the entries it has and asserts the sizes (ADR-0041). The numbers in the table are the
+lane of 2026-11-19 on a hosted runner (Ubuntu 24.04, 4 cores, .NET 10.0.15) — **not the machine of the budgets**; the method
+and the corpus are in [`docs/benchmarks.md`](./docs/benchmarks.md).
 
 | Target | Measured | Limit |
 |---|---:|---:|
-| query p50 | 1.34–1.71 ms | ≤ 2 ms |
-| query p95, 1–4 characters | ≤ 3.1 ms | ≤ 5 ms |
-| query p95, 5–8 characters | 13.4–17.5 ms | ≤ 20 ms |
-| query with a typo correction, p95 | 27.9–32.5 ms | ≤ 35 ms |
-| allocation per query, p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
-| `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms | ≤ 1 ms |
-| first load of 3 M entries (`Sync`) | 120.4–172.9 s | ≤ 3 min (#32) |
+| query p50 | 0.87 ms | ≤ 2 ms |
+| query p95, 1–4 characters | ≤ 1.7 ms | ≤ 5 ms |
+| query p95, 5–8 characters | ≤ 4.5 ms | ≤ 20 ms |
+| query with a typo correction, p95 | 8.4 ms | ≤ 35 ms |
+| allocation per query, p50 / p95 | 20 / 44 KB | ≤ 60 / ≤ 100 KB |
+| `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms (2026-11-05) | ≤ 1 ms |
+| first load of 3 M entries (`Sync`) | 67.0 s for 1.9 M entries | ≤ 3 min (#32) |
 | typo dictionary of 685,739 words | 194 MB, 4.0–5.2 s | ≤ 200 MB, ≤ 10 s |
 | typo dictionary of two errors, 685,739 words | 388 MB | ≤ 420 MB |
-| file of 1 M titles | 457 MB | ≤ 500 MB |
+| file of 1 M titles | 243 MB | ≤ 500 MB |
 
 The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
 (ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
-values** are the numbers of the last measurement of each row: the latencies and the size of the file from
-the CI machine (2026-11-05, before the allocation was lowered — so they are an upper bound); the allocation in bytes,
-and therefore independent of the machine (2026-11-06, the current code); the build from the lane of 2026-11-14 (**120.4 s**,
-on the machine of the record) and the machine of the report (**165.1–172.9 s**) — a time belongs to the machine it was
-measured on ([ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The build was measured against the
-whole corpus of the repository (1,908,798 entries): the corpus does not have three million entries yet, so the number at
-three million is the one of 2026-11-04 (172.5–205.9 s), and it is measured again when the corpus grows (#176); the typo
-dictionary in bytes and in seconds
-(2026-11-06, the machine of the record — a time belongs to the machine it was measured on,
-[ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured again on
+values** are the numbers of the last measurement of each row, with its date and its machine: the query, the allocation, the
+build, the file and the dictionary of one error are from the lane of 2026-11-19 (run 9, the entries of the word list — not three million), a write from the CI of
+2026-11-05 (the lane does not report it for the entries it has); a time belongs to the machine it was measured on
+([ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured again on
 2026-11-19 — **4.0–5.2 s** for **194 MB** with one error, **10.7–12.2 s** for **388 MB** with two
-([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)): a time belongs to the machine and the date it was measured on
-(ADR-0041). The 138 MB and 240 MB that stood here before could not be reproduced — the same code of
-`0.1.1`, `0.2.0` and this version gives 194 and 388 MB here (a Linux container and a hosted runner); why the first
-measurements were lower is not known.
+([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)). The 138 MB and 240 MB that stood here before could not be
+reproduced — the same code of `0.1.1`, `0.2.0` and this version gives 194 and 388 MB here (a Linux container and a hosted
+runner); why the first measurements were lower is not known.
 A measured value does **not** live in the file: it belongs to a run and to its machine, and a file that carried it would
 be a second truth beside the promise.
 
