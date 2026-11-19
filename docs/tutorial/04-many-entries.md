@@ -183,7 +183,7 @@ for three million entries, and the number at three million is the one of
 its search index in the file; a linked index holds the text only in your own
 table — that is the argument for step 2 when the stock is large.
 
-**The typo dictionary**: 685,829 words take **138 MB** and **4.1–4.8 s** to
+**The typo dictionary**: 685,829 words take **194 MB** and **4.0–5.2 s** to
 build (limits: ≤ 200 MB, ≤ 10 s). A query never builds it: the application
 asks for it with `WarmUpTypoDictionary()` — at the start, or after a load — and
 until then the index answers without corrections (`CorrectionSkipped`).

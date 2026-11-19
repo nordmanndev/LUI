@@ -68,15 +68,16 @@ a digit), one index and one database per distance.
 
 **The time belongs to the machine and to the run below** (ADR-0041): it is a
 measurement, not a promise, and it is not reproducible — a parallel job on the
-same machine makes it twice as slow. **The memory is the claim that does not depend on
-the machine**: 194 MB and 388 MB are the sizes of the dictionaries (measured 2026-11-19 on the container of the round and on
-a hosted runner alike; the code of `0.1.1`, `0.2.0` and `0.3.0` gives the same). The 138 MB, 4.3 s and 240 MB, 8.5 s of the
-first measurement (2026-11-12) could not be reproduced and are corrected here (issue #242).
+same machine makes it twice as slow. **The memory** is 194 MB and 388 MB
+(measured 2026-11-19 on a Linux container of 4 cores and on a hosted runner alike; the code of `0.1.1`, `0.2.0` and `0.3.0`
+gives the same). The 138 MB, 4.3 s and 240 MB, 8.5 s of the first measurement (2026-11-12) could not be reproduced and are
+corrected here (issue #242); why they were lower is not known, and neither is whether the size depends on the machine or the
+runtime — it was not shown to be independent of them.
 
-Two errors cost **2.0 times** the memory of one and **2.5 times** the time — and
+Two errors cost **2.0 times** the memory of one and about **2.5 times** the time — and
 **188 MB more than the budget of ADR-0020** allows (ADR-0020: *typo dictionary, 700,000
 different words: ≤ 200 MB, build ≤ 10 s*). The build time of one error is inside the
-budget, that of two errors is not (10.7–12.2 s against ≤ 10 s of the one-error promise); the memory is not. The budget was written for one error, and it holds
+budget; the memory of two errors is not. (No build-time budget exists for two errors: 10.7–12.2 s are reported, not asserted.) The budget was written for one error, and it holds
 for one error. The two-error distance has a budget of its own in `budgets.json`
 (ADR-0056): first 240 MB, then 260 MB (issue #175, decision of the owner, 2026-11-14) — both
 were set against the number of 2026-11-12 that could not be reproduced — and since issue #242
@@ -88,6 +89,10 @@ The row of one error is the number of ADR-0021 — the same word list, the same
 old number is a measurement that is comparable with the old one.
 
 ### The machine, the corpus, the method
+
+*This section describes the **first** measurement (2026-11-12), whose numbers (138 MB, 240 MB) could not be reproduced. The
+table in section 2 carries the numbers of 2026-11-19: the same method, run on a Linux container (4 cores, .NET 10.0.14), with
+`dotnet test tests/Nordmann.LUI.Performance.Tests --filter "FullyQualifiedName~BudgetPerformance"` at the full scenario.*
 
 | What | Value |
 |---|---|

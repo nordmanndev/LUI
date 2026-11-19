@@ -143,8 +143,9 @@ dictionary in bytes and in seconds
 [ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured again on
 2026-11-19 — **4.0–5.2 s** for **194 MB** with one error, **10.7–12.2 s** for **388 MB** with two
 ([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)): a time belongs to the machine and the date it was measured on
-(ADR-0041), the memory does not. The 138 MB and 240 MB that stood here before could not be reproduced — the same code of
-`0.1.1`, `0.2.0` and this version gives 194 and 388 MB.
+(ADR-0041). The 138 MB and 240 MB that stood here before could not be reproduced — the same code of
+`0.1.1`, `0.2.0` and this version gives 194 and 388 MB here (a Linux container and a hosted runner); why the first
+measurements were lower is not known.
 A measured value does **not** live in the file: it belongs to a run and to its machine, and a file that carried it would
 be a second truth beside the promise.
 

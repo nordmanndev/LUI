@@ -758,8 +758,10 @@ and the **numbers** over the whole word list.
 | the method | the dictionary of LUI (`TypoDictionary`), built over the whole list; the corrections of every word with one letter wrong (the third one), hashed into a SHA-256 — the same number in every run |
 | machine | AMD Ryzen 7 4800U, 8 cores (16 threads), 15.4 GB RAM, Windows 11 Pro 10.0.26300, .NET 10.0.404 (runtime 10.0.15), Microsoft.Data.Sqlite 10.0.14 |
 
-The **memory** is the number that does not depend on the machine, and it is the number of the record of 2026-11-12: 138 MB
-([the typo dictionary](./typo-dictionary.md)). The **fingerprint** is what an own implementation of the dictionary would
+The **memory** of this record is 138 MB — the number of the record of 2026-11-12 ([the typo dictionary](./typo-dictionary.md)).
+It was **not reproduced** on 2026-11-19: the same code (`TypoDictionary` over the whole list) gives **194 MB** on a Linux
+container and on a hosted runner; why the first measurements gave 138 MB is not known (issue #242). The record keeps the
+number of its day. The **fingerprint** is what an own implementation of the dictionary would
 have to reproduce — and the reason the decision could be made with numbers and not with an impression.
 
 ## The write lock of a linked sync (issue #31)

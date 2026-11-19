@@ -28,6 +28,8 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
     /// <summary>The scenario of the typo dictionary — the one the budget names.</summary>
     private static int TypoScenario => LuiBudgets.By("typo-dictionary-size").Scenario.PrefixLength;
 
+    private static int TwoErrorsScenario => LuiBudgets.By("typo-dictionary-two-errors-size").Scenario.PrefixLength;
+
     private const int Queries = 2_000;
 
     [Fact]
@@ -181,7 +183,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
     {
         var corpus = CorpusOf("typo-dictionary-two-errors-size");
         var words = corpus.Texts;
-        var budget = new PerformanceBudget(output.WriteLine, words.Count >= TypoScenario, Scenario.Machine);
+        var budget = new PerformanceBudget(output.WriteLine, words.Count >= TwoErrorsScenario, Scenario.Machine);
         budget.SayTheMachine();
 
         using var database = new TestDatabase();

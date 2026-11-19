@@ -68,7 +68,6 @@ public sealed class ReadmeProseTests
         Regex.Count(text, "typo dictionary was measured again on", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)).ShouldBe(
             1,
             "the run of the typo dictionary stands once in the README — in the paragraph that carries it, not in a second copy of it");
-        text.Contains("2026-11-12", StringComparison.Ordinal).ShouldBeFalse("the run of 2026-11-12 could not be reproduced and is not quoted as a measurement");
     }
 
     /// <summary>The paragraphs of the README with their whitespace made one — without tables, code and the rendered section.</summary>

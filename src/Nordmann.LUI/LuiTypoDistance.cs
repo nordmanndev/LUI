@@ -32,7 +32,7 @@ public enum LuiTypoDistance
 
     /// <summary>
     /// Two errors are forgiven. The dictionary holds the delete variants of two deletions, so it costs
-    /// twice the memory and 2.5 times the time of <see cref="OneError"/> — 388 MB for 685,739 words,
+    /// twice the memory and about 2.5 times the time of <see cref="OneError"/> — 388 MB for 685,739 words,
     /// and more than the budget of ADR-0020 allows. Measured, see <c>docs/typo-dictionary.md</c>.
     /// </summary>
     TwoErrors = 2,
