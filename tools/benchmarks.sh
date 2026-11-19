@@ -28,7 +28,15 @@ readonly LOCAL="$(mktemp -d -p "${LUI_BENCH_LOCAL:-/tmp}" lui-bench.XXXXXX)"
 readonly ARTIFACTS="${LOCAL}/artifacts"
 readonly RESULTS="${SOURCE}/benchmarks/results"
 
-cleanup() { rm -rf "${LOCAL}"; }
+# a failed run keeps its directory: an hour of measurements is not thrown away because the last step failed
+cleanup() {
+  local status=$?
+  if [ "${status}" -eq 0 ]; then
+    rm -rf "${LOCAL}"
+  else
+    echo "benchmarks: the run failed (exit ${status}); its files stay in ${LOCAL}" >&2
+  fi
+}
 trap cleanup EXIT
 
 # what kind of file system is this path on? (stat -f: the file system, not the file)
