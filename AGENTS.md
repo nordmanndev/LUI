@@ -52,7 +52,7 @@
   contract.
 - ❌ Never let the README show an API the code does not have. Every C# block
   in the README is compiled and executed by the package smoke test.
-- ❌ Never break the public API from the tag `v0.1.0` on without a new minor version, a migration note in `CHANGELOG.md`
+- ❌ Never break the public API from the tag `v0.1.0` on (lifted once, in named places, for 0.3.0 — ADR-0069; it holds again from `v0.3.0`) without a new minor version, a migration note in `CHANGELOG.md`
   and an ADR (ADR-0026). That includes a new optional parameter on an existing method (it is a new overload), a new
   abstract member of an interface (it is a default member, or a break), a renamed enum value, a renumbered enum value and a
   new positional parameter of a record. Before the tag, a change of a name still needs its ADR.

@@ -5,7 +5,7 @@ index, three entries, one query.
 
 ## The catalog
 
-Everything starts with the catalog. It knows the connection string, the
+Everything starts with the catalog. It knows the path of the file, the
 indexes of the database and the lifetime of both. You open it, use it, and
 dispose it when the application ends.
 

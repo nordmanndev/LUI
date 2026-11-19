@@ -72,7 +72,8 @@ public sealed class ReleaseThreeTests
         var migration = section.IndexOf("### Migration", StringComparison.Ordinal);
         migration.ShouldBeGreaterThanOrEqualTo(0, "the changelog of 0.3.0 has a migration note");
 
-        var note = section[migration..];
+        var end = section.IndexOf("### Changed", migration, StringComparison.Ordinal);
+        var note = section[migration..end];
         var firstBreak = note.IndexOf("`Open` no longer", StringComparison.Ordinal);
         var secondBreak = note.IndexOf("`OpenReadOnly`", StringComparison.Ordinal);
         firstBreak.ShouldBeGreaterThanOrEqualTo(0, "Open no longer creates anything");
