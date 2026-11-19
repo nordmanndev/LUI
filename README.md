@@ -128,17 +128,6 @@ in [`docs/benchmarks.md`](./docs/benchmarks.md).
 | typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
 | typo dictionary of two errors, 685,739 words | 240 MB | ≤ 240 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
-The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
-(ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
-values** are the numbers of the last measurement of each row: the latencies and the size of the file from
-the CI machine (2026-11-05, before the allocation was lowered — so they are an upper bound); the allocation in bytes,
-and therefore independent of the machine (2026-11-06, the current code); the build from the lane of 2026-11-14 (**120.4 s**,
-on the machine of the record) and the machine of the report (**165.1–172.9 s**) — a time belongs to the machine it was
-measured on ([ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The build was measured against the
-whole corpus of the repository (1,908,798 entries): the corpus does not have three million entries yet, so the number at
-three million is the one of 2026-11-04 (172.5–205.9 s), and it is measured again when the corpus grows (#176).
-A measured value does **not** live in the
-file: it belongs to a run and to its machine, and a file that carried it would be a second truth beside the promise.
 
 The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
 (ADR-0056) — and a test reads them out of it and fails when this table drifts from it (issue #38). The **measured
