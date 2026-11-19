@@ -482,7 +482,7 @@ The two scenarios of their own:
 | Target | Measured | Limit |
 |---|---:|---:|
 | typo dictionary of 685,739 distinct words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
-| file of 1,000,000 titles, `MultiWord`, built by `Sync` in 88.1 s | 457 MB | ≤ 300 MB |
+| file of 1,000,000 titles, `MultiWord`, built by `Sync` in 88.1 s | 457 MB | ≤ 500 MB |
 
 ### The benchmarks
 

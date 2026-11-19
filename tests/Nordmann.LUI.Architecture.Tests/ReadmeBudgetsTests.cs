@@ -66,6 +66,93 @@ public sealed class ReadmeBudgetsTests
             + " — the record says: " + string.Join(", ", limits));
     }
 
+    [Fact]
+    public void Every_table_with_the_head_target_measured_limit_shows_limits_of_the_file_in_the_order_of_the_file()
+    {
+        // the README has one table of this head and the record has one of its own (the two scenarios of their own): a test that
+        // rests on the first of them lets the second drift (issue #181: one number, two verdicts)
+        var expected = LimitsOfTheFile();
+
+        foreach (var path in new[] { ReadmePath, RecordPath })
+        {
+            var tables = TablesOf(path).Where(table => table[0].SequenceEqual(new[] { "Target", "Measured", "Limit" })).ToList();
+            tables.ShouldNotBeEmpty(Path.GetFileName(path));
+
+            foreach (var table in tables)
+            {
+                var rows = table.Skip(1).ToList();
+                rows.ShouldAllBe(row => row.Length == 3, $"{Path.GetFileName(path)}: a row of the table '{string.Join(" | ", table[0])}' has not three cells");
+
+                // a row whose limit does not parse (`<= 300 MB`, `max 300 MB`) would pass as an empty list
+                foreach (var row in rows)
+                {
+                    LimitsOf([row[2]]).ShouldNotBeEmpty($"{Path.GetFileName(path)}: the row '{row[0]}' shows no limit of the form '≤ 300 MB'");
+                }
+
+                var limits = LimitsOf(rows.Select(row => row[2]));
+
+                IsSubsequence(limits, expected).ShouldBeTrue(
+                    $"{Path.GetFileName(path)}: the table '{string.Join(" | ", table[0])}' shows {string.Join(", ", limits)}; "
+                    + $"the file of the budgets says {string.Join(", ", expected)} — every limit is one of them, in their order");
+            }
+        }
+    }
+
+    [Fact]
+    public void A_table_that_shows_a_target_or_a_limit_has_one_of_the_known_heads()
+    {
+        // a head that is not known is an error: the next table with limits would slip through the tests above
+        string[][] known =
+        [
+            ["Target", "Measured", "Limit"],
+            ["Measurement", "Scenario", "Target"],
+            ["Target", "Measured at the scenario", "Limit"],
+            ["", "Result", "Target (ADR-0020)"],
+            ["Kind of target", "On the machine of the record", "On the lane"], // which kind is asserted where: no number of a limit
+            ["Entries", "p50", "p95", "target p95"], // the run of the first scale test: a dated record with the target of its day
+
+            // the runs of 2026-11-04 with the targets of their day: a dated record, not a promise of today — its limits are the history
+            ["Target", "Run 1", "Run 2", "Run 3 (batches of 1,000,000)", "Run 4 (as committed)", "Limit"],
+        ];
+
+        foreach (var path in new[] { ReadmePath, RecordPath })
+        {
+            foreach (var table in TablesOf(path))
+            {
+                var header = table[0];
+                var shows = header.Any(cell => cell.Contains("Target", StringComparison.OrdinalIgnoreCase) || cell.Contains("Limit", StringComparison.OrdinalIgnoreCase)
+                    || cell.Contains("Budget", StringComparison.OrdinalIgnoreCase) || cell.Contains("Maximum", StringComparison.OrdinalIgnoreCase));
+
+                if (shows)
+                {
+                    known.Any(head => head.SequenceEqual(header)).ShouldBeTrue(
+                        $"{Path.GetFileName(path)}: a table with the head '{string.Join(" | ", header)}' shows targets or limits, and its head is not one the guard knows");
+                }
+            }
+        }
+    }
+
+    private static bool IsSubsequence(string[] part, string[] whole)
+    {
+        var at = 0;
+        foreach (var item in part)
+        {
+            while (at < whole.Length && !string.Equals(whole[at], item, StringComparison.Ordinal))
+            {
+                at++;
+            }
+
+            if (at == whole.Length)
+            {
+                return false;
+            }
+
+            at++;
+        }
+
+        return true;
+    }
+
     /// <summary>
     /// The limits of the file, in the order of the file: every budget carries its limit and its unit, and the
     /// measured value it is compared with lives in the record, not here.
@@ -125,6 +212,17 @@ public sealed class ReadmeBudgetsTests
     /// </summary>
     private static string[][] TableOf(string path, params string[] header)
     {
+        var table = TablesOf(path).FirstOrDefault(candidate => candidate.Count > 0 && candidate[0].SequenceEqual(header));
+
+        table.ShouldNotBeNull(
+            $"the table '{string.Join(" | ", header)}' is missing in {Path.GetFileName(path)}.");
+
+        return table!.Skip(1).ToArray();
+    }
+
+    /// <summary>Every table of a markdown file — the header first, the separator row left out, the cells without their padding.</summary>
+    private static List<List<string[]>> TablesOf(string path)
+    {
         var tables = new List<List<string[]>>();
         List<string[]>? current = null;
 
@@ -153,13 +251,7 @@ public sealed class ReadmeBudgetsTests
             current.Add(cells);
         }
 
-        var table = tables.FirstOrDefault(candidate =>
-            candidate.Count > 0 && candidate[0].SequenceEqual(header));
-
-        table.ShouldNotBeNull(
-            $"the table '{string.Join(" | ", header)}' is missing in {Path.GetFileName(path)}.");
-
-        return table!.Skip(1).ToArray();
+        return tables;
     }
 
     /// <summary>The remarks in brackets — "(ADR-0032)", "(too much — bug #30)" — are no limits.</summary>
