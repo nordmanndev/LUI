@@ -99,6 +99,25 @@ internal sealed record QuerySettings
         .TypoTolerance(Correction)
         .Execute();
 
+    /// <summary>
+    /// The query of these settings, and a check of it: a case with the correction on that ranks no candidate measures the
+    /// path without the correction (issue #179) — that is an error of the run, not a line of the report.
+    /// </summary>
+    /// <param name="index">The index the query runs on.</param>
+    /// <returns>The result of the query.</returns>
+    internal LuiResult RunChecked(ILuiIndex index)
+    {
+        var result = Run(index);
+        if (Correction && result.CandidatesConsidered == 0)
+        {
+            throw new InvalidOperationException(
+                $"The query '{Input}' with the correction on ranked no candidate on the index of {Corpus} ({Source}): "
+                + "the case would measure the path without the correction. Does the index have the typo tolerance?");
+        }
+
+        return result;
+    }
+
     /// <summary>The order of the ranking, named as the report names it.</summary>
     private LuiRankingOrder Rank() => Order switch
     {

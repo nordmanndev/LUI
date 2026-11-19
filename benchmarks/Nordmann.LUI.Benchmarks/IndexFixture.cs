@@ -58,12 +58,16 @@ internal sealed class IndexFixture : IDisposable
         }
     }
 
-    /// <summary>An embedded index: the content lives in the index itself.</summary>
+    /// <summary>
+    /// An embedded index: the content lives in the index itself. It has the typo tolerance — without it the distance is
+    /// none, there is no dictionary and a query with the correction on skips the correction (issue #179): the benchmark
+    /// of the correction would measure the path without it.
+    /// </summary>
     private ILuiIndex CreateEmbedded(Corpus corpus)
     {
         var index = corpus.Kind == CorpusKind.MultiWord
-            ? _catalog.Create("bench", builder => builder.MultiWord())
-            : _catalog.Create("bench", builder => builder.SingleWord());
+            ? _catalog.Create("bench", builder => builder.MultiWord().TypoTolerance())
+            : _catalog.Create("bench", builder => builder.SingleWord().TypoTolerance());
         index.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = 100_000 });
         return index;
     }
@@ -73,8 +77,8 @@ internal sealed class IndexFixture : IDisposable
     {
         CreateTable(corpus);
         var index = corpus.Kind == CorpusKind.MultiWord
-            ? _catalog.CreateLinked("bench", builder => builder.MultiWord().LinkTo("tag", "id", "name", weight: "usage_count"))
-            : _catalog.CreateLinked("bench", builder => builder.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
+            ? _catalog.CreateLinked("bench", builder => builder.MultiWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count"))
+            : _catalog.CreateLinked("bench", builder => builder.SingleWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count"));
         index.Sync();
         return index;
     }
