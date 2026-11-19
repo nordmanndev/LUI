@@ -149,10 +149,11 @@ fixture.
 **What the column "CI 99.9 %" is.** BenchmarkDotNet calls it "Error"; its legend says "Half of 99.9% confidence interval". It is
 the half width of the confidence interval of the **mean** — how well the mean of this run is known — and **not** a spread of
 the single measurements and not a percentile (a `Mean` of 300 µs with `CI 99.9 %` 12 µs is "the mean of this run lies between
-288 and 312 µs with 99.9 % confidence", not "a query takes 300 ± 12 µs"). It says nothing about the next run: two runs of the
-same benchmark class on the same class of machine differ by a factor of 1.55–1.66 in the latency, with the allocation equal to
-the byte. A latency line is quotable only with its run — the report names the date, the number of measurements per case, the
-machine, the journal mode and the disk, and a number is quoted with them.
+288 and 312 µs with 99.9 % confidence", not "a query takes 300 ± 12 µs"). It says nothing about the next run: the performance audit of
+2026-11-13/14 (issue #168) found two runs of the same benchmark class on the same class of machine that differed by a factor
+of 1.55–1.66 in the latency, with the allocation equal to the byte (that is its finding — the reports of this repository
+do not hold both runs). A latency line is therefore quoted with its run — the report names the date, the number of
+measurements per case, the machine, the journal mode and the disk, and the number is quoted with them.
 
 Every report names the **disk** its databases lived on (`[Disk]`, since #178): a write waits for the disk — the write
 benchmark measured 1.85 ms per entry on a network file system and 0.225 ms on a local disk — and a test fails on a report
@@ -507,7 +508,7 @@ The two scenarios of their own:
 
 ### The benchmarks
 
-BenchmarkDotNet 0.15.8, `ShortRun` (3 iterations — the error column is wide; the means are what to compare), 200,000
+BenchmarkDotNet 0.15.8, `ShortRun` (3 iterations — the confidence interval is wide; the means are what to compare), 200,000
 entries of the same corpus.
 
 ```text
@@ -532,7 +533,7 @@ the **default job** (not `ShortRun`), every benchmark, 34 min 40 s. Intel Xeon 2
 [`benchmarks/results/`](../benchmarks/results/) and the tables below are rendered from them by `ReadmeBenchmarksTests`
 (ADR-0022).
 
-Against the `ShortRun` above (mean, µs; the error of the default job is 2–8 % of the mean, that of `ShortRun` was up to
+Against the `ShortRun` above (mean, µs; the confidence interval of the default job is 2–8 % of the mean, that of `ShortRun` was up to
 260 % of it):
 
 | Benchmark | `ShortRun` (PR-009) | default job (PR-010) |

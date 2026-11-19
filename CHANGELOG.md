@@ -176,7 +176,7 @@ them cannot upgrade to 0.3.0.
 - **The column "Error" of the benchmark tables is called "CI 99.9 %"** (#180, D6/D8 of the audit): it is the half width of the
   99.9 % confidence interval of the mean (BenchmarkDotNet's own legend), not a spread and not a percentile — the old name
   invited a misreading. The report writer renames it, the committed reports and the tables of the README carry the new name, and
-  a test fails on a table of benchmarks with a column "Error". Two runs of the same class on the same class of machine can differ
+  a test fails on a table of benchmarks with a column "Error". The audit (#168) found two runs of the same class on the same class of machine that differed
   by 1.55–1.66× in the latency with the allocation equal to the byte, so a latency line is quoted with its run (date, number
   of measurements, machine, journal mode and disk — all in the report since #124 and #178); `docs/benchmarks.md` says so.
   The name is written with a dot (`99.9`), as the English text of the repository writes numbers.

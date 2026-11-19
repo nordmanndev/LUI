@@ -207,17 +207,23 @@ public sealed class ReadmeBenchmarksTests
         {
             var report = Report.Read(ReportPath(name));
 
-            report.Rows[0].ContainsKey("Error").ShouldBeFalse($"the report of {name} has a column called Error — it is the confidence interval of the mean");
+            report.Rows.ShouldAllBe(row => !row.ContainsKey("Error"), $"the report of {name} has a column called Error — it is the confidence interval of the mean");
             report.Rows[0].ContainsKey(ConfidenceColumn).ShouldBeTrue($"the report of {name} names the column '{ConfidenceColumn}'");
         }
 
-        var documents = new[] { Path.Combine(Repository.RootPath, "README.md") }
-            .Concat(Directory.EnumerateFiles(Path.Combine(Repository.RootPath, "docs"), "*.md", SearchOption.AllDirectories));
+        // every table of the documents of the repository (the history — the changelog and the decisions — keeps its words)
+        var documents = Directory.EnumerateFiles(Repository.RootPath, "*.md", SearchOption.AllDirectories)
+            .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}.agents{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !path.Contains($"{Path.DirectorySeparatorChar}.git{Path.DirectorySeparatorChar}", StringComparison.Ordinal)
+                && !string.Equals(Path.GetFileName(path), "CHANGELOG.md", StringComparison.Ordinal));
         foreach (var document in documents)
         {
-            foreach (var line in File.ReadLines(document).Where(line => line.StartsWith('|') && line.Contains("| Mean |", StringComparison.Ordinal)))
+            foreach (var line in File.ReadLines(document).Where(line => line.StartsWith('|')))
             {
-                line.Contains("| Error |", StringComparison.Ordinal)
+                var cells = line.Trim().Trim('|').Split('|').Select(cell => cell.Trim()).ToArray();
+                (cells.Contains("Error", StringComparer.Ordinal) && cells.Any(cell => cell is "Mean" or "Allocated"))
                     .ShouldBeFalse($"{Path.GetRelativePath(Repository.RootPath, document)}: a table of benchmarks has a column called Error — it is '{ConfidenceColumn}': {line}");
             }
         }
