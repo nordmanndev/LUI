@@ -58,6 +58,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   closed — a read-only connection cannot remove them; a catalogue that was written is checkpointed and clean, as before.
   Measured on the same corpus, the query is no slower and allocates no more.
 
+- **The catalogue holds no connection** (#227, [ADR-0070](.agents/adr/0070-the-catalogue-holds-no-connection.md)): a write takes a
+  connection from the pool of the provider and gives it back (`Sync` keeps one for its run), instead of the long-lived writer
+  connection of ADR-0009. Behaviour you may notice: a **single** `Upsert`, `UpdateWeight` or `Remove` is slower — measured, the
+  median of an `Upsert` goes from 0,03 ms to 0,09 ms, p95 from 0,12 ms to 0,21 ms, far inside the budget of p95 ≤ 1 ms — while
+  a batch (`UpsertMany`) and `Sync` take as long as before. Nothing in the API changes.
+
 - **A refused write is a `LuiReadOnlyException` that says why.** SQLite refuses (`SQLITE_READONLY`), LUI translates, and the
   message names the reason: the catalogue was opened with `OpenReadOnly` (with the operation, the index, and how to write),
   or the file or its directory may not be written. The error of SQLite is the inner exception. A write in the transaction

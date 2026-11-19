@@ -257,7 +257,7 @@ journal mode) change nothing.
 
 ### The write
 
-One call, own transaction (the writer connection of the catalog), over the
+One call, own transaction (a connection from the pool of the provider, ADR-0070: before it the catalog held a writer connection — a single `Upsert` was about 2,5 times faster then, a batch and a sync the same), over the
 index above; 500 calls, a third each `UpdateWeight`, `Upsert` of an existing
 key and `UpdatePriority`:
 
@@ -769,7 +769,7 @@ Issue #32 asked for the three minutes back and named four levers.
 **The lever that was measured** — the checkpoint interval of the write-ahead log
 ([`BudgetPerformance`](../tests/Nordmann.LUI.Performance.Tests/BudgetPerformance.cs),
 `The_first_load_with_a_longer_write_ahead_log`): SQLite checkpoints the log every thousand pages, a larger interval means
-fewer checkpoints — and a log of up to 400 MB. The pragma stands on the connection of the writer, which is the connection
+fewer checkpoints — and a log of up to 400 MB. The pragma stands on the physical connection that the pool hands out to the sync, which is the connection
 the sync writes through.
 
 | The run | the machine of the record | the machine of the report |

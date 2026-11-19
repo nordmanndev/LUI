@@ -68,7 +68,7 @@ decided about the query path" without opening 36 files.
 | [0006](./0006-the-single-word-index.md) | The single-word index: one rowid, three indexes, one external-content FTS5 table | Storage | Accepted |
 | [0007](./0007-the-catalog-checks-the-sqlite-it-runs-on.md) | The catalog checks the SQLite it runs on | Probe | Accepted |
 | [0008](./0008-the-query-path.md) | The query path: groups, a lazy similarity, and what the result reserves | Query path | Accepted |
-| [0009](./0009-writes-use-prepared-statements.md) | Writes use prepared statements on one writer connection | Storage | Accepted |
+| [0009](./0009-writes-use-prepared-statements.md) | Writes use prepared statements on one writer connection | Storage | Accepted (the writer connection superseded 2026-11-18, ADR-0070) |
 | [0010](./0010-the-query-budget-at-three-million-entries.md) | The query budget of ADR-0020 does not hold at three million entries on FTS5 alone | Measurement | Accepted (owner, 2026-11-04: the budget per input length) |
 | [0011](./0011-the-multi-word-index.md) | The multi-word index: one indexed column, one expression, a Dice that allocates nothing | Storage | Accepted |
 | [0012](./0012-typo-tolerance.md) | Typo tolerance: SymSpell over the word beginnings, corrected when nothing stands at a word start | Typo tolerance | Accepted |
@@ -128,3 +128,4 @@ decided about the query path" without opening 36 files.
 | [0066](./0066-the-catalogue-owns-the-connection.md) | The catalogue owns the connection: a path, and the settings are typed — LUI builds the connections, the pragmas are typed, the host takes a factory | API | Accepted (owner, 2026-11-15) |
 | [0067](./0067-the-read-path-opens-a-read-only-connection.md) | The read path opens a read-only connection: the statements are prepared, the pool of the provider is the pool — no session, no pool of LUI's own | Query path | Accepted (owner, 2026-11-18) |
 | [0068](./0068-three-ways-to-open-a-catalogue.md) | Three ways to open a catalogue: `Open` checks and writes nothing, `OpenOrCreate` sets the file up and sets the journal mode only in a file it creates, `OpenReadOnly` only reads — and a refused write says why | API | Accepted (owner, 2026-11-18) |
+| [0070](./0070-the-catalogue-holds-no-connection.md) | The catalogue holds no connection: a write takes one from the pool of the provider and gives it back, a sync keeps one for its run — measured: a single write is slower and far inside its budget | Storage | Accepted (owner, 2026-11-18) |

@@ -64,7 +64,7 @@ internal sealed class EmbeddedSource : ContentSource
         + $"FROM {ContentTable} WHERE key = $key;";
 
     /// <summary>
-    /// The table of a sync, on the writer's connection: the keys that were in the index when the sync began, and that it
+    /// The table of a sync, on the connection of the run (a temporary table lives and dies with its connection, ADR-0070): the keys that were in the index when the sync began, and that it
     /// has not found in the source yet. What is left at the end is removed — by key, so the outcome does not depend on
     /// the document ids: a key the application adds meanwhile stays, a key that was there and is not in the source goes.
     /// </summary>

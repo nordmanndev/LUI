@@ -114,7 +114,9 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
 
         if (checkpointPages is { } pages)
         {
-            using var pragma = catalog.Database.Writer.CreateCommand();
+            // the setting belongs to the physical connection: the one the pool hands out to the sync that follows (ADR-0070)
+            using var connection = catalog.Database.OpenConnection();
+            using var pragma = connection.CreateCommand();
             pragma.CommandText = $"PRAGMA wal_autocheckpoint = {pages};";
             pragma.ExecuteNonQuery();
         }

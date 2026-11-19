@@ -127,7 +127,8 @@ public sealed class OpenWaysTests
         var index = catalog.Create("tags", i => i.SingleWord());
 
         // the file may not be written: SQLite refuses (query_only answers like a file without rights, and as root too)
-        using (var refuse = catalog.Database.Writer.CreateCommand())
+        using (var connection = catalog.Database.OpenConnection())
+        using (var refuse = connection.CreateCommand())
         {
             refuse.CommandText = "PRAGMA query_only = ON;";
             refuse.ExecuteNonQuery();

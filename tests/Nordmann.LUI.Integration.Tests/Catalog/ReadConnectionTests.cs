@@ -123,7 +123,7 @@ public sealed class ReadConnectionTests
     [Fact]
     public void A_catalogue_that_wrote_and_was_read_leaves_its_file_whole_when_it_is_disposed()
     {
-        // the writer has to be the LAST connection to close: only a connection that may write checkpoints the write-ahead log
+        // the connections that may write have to close LAST: only a connection that may write checkpoints the write-ahead log
         // into the file and removes the -wal and -shm. If the read connections close after it, the data stays in the -wal
         // and the file alone is an empty database — a copy of it is no catalogue.
         using var database = new TestDatabase();
@@ -159,10 +159,10 @@ public sealed class ReadConnectionTests
     }
 
     [Fact]
-    public void The_read_path_keeps_no_pool_no_dictionary_of_statements_and_no_connection_of_its_own()
+    public void The_catalogue_holds_no_connection_and_the_read_path_no_pool_and_no_dictionary_of_statements()
     {
-        // ADR-0067: the pool of the provider is the pool. The catalogue holds the one connection of the writer — nothing
-        // else: no connection of the read path, no cache of its statements.
+        // ADR-0067 and ADR-0070: the pool of the provider is the pool. The catalogue holds no connection at all — not of the
+        // read path, not of the writer — and no cache of statements.
         const System.Reflection.BindingFlags all =
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Static
             | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic;
@@ -177,8 +177,11 @@ public sealed class ReadConnectionTests
         }
 
         var database = library.GetType("Nordmann.LUI.Storage.Database").ShouldNotBeNull();
-        database.GetFields(all).Where(field => typeof(SqliteConnection).IsAssignableFrom(field.FieldType)).Select(field => field.Name)
-            .ShouldBe(["_writer"], "the one connection the catalogue holds is the one of its own writes");
+        // a connection, a Lazy of one, a list of them, a dictionary keyed by one — none of it
+        static bool HoldsAConnection(Type type) =>
+            typeof(SqliteConnection).IsAssignableFrom(type) || (type.IsGenericType && type.GetGenericArguments().Any(HoldsAConnection));
+        database.GetFields(all).Where(field => HoldsAConnection(field.FieldType)).Select(field => field.Name)
+            .ShouldBeEmpty("the catalogue holds no connection: every operation takes one from the pool of the provider and gives it back");
         database.GetFields(all).Where(field => typeof(System.Collections.IDictionary).IsAssignableFrom(field.FieldType)).ShouldBeEmpty();
     }
 

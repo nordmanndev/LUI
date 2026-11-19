@@ -68,8 +68,8 @@ times the cache size* ([0066](./0066-the-catalogue-owns-the-connection.md) bound
 4. **The snapshot stays.** The read path keeps one transaction for the candidates and the hits — a writer that commits
    between the two statements could hand a hit the text of a freed entry and the key of a new one. The transaction is
    ended before the connection goes back to the pool (a test begins a transaction on the next connection of the pool).
-5. **No session, no pool of LUI's own, no dictionary of statements.** The pool of the provider is the pool. The one
-   connection the catalogue holds is the one of its own writes; a guard says so.
+5. **No session, no pool of LUI's own, no dictionary of statements.** The pool of the provider is the pool. The
+   catalogue holds no connection at all ([0070](./0070-the-catalogue-holds-no-connection.md)); a guard says so.
 
 ## Consequences
 
@@ -83,7 +83,7 @@ times the cache size* ([0066](./0066-the-catalogue-owns-the-connection.md) bound
   [0066](./0066-the-catalogue-owns-the-connection.md) does not carry. LUI translates the failure into a
   `LuiReadOnlyException` (a `LuiException`) that names the directory. A catalogue on a read-only medium is a file in the
   rollback journal, or a WAL file shipped with its `-shm`.
-- **The writer closes last.** `Dispose` clears the pool of the read connections first and closes the writer after it: only a
+- **The connections that may write close last.** `Dispose` clears the pool of the read connections first and the pool of the writes after it ([0070](./0070-the-catalogue-holds-no-connection.md)): only a
   connection that may write checkpoints the write-ahead log into the file and removes the `-wal` and `-shm` when it is the
   last one to close (a test copies the file alone after `Dispose` and reads it).
 - **A catalogue that was only read leaves its `-wal` and `-shm` behind.** No connection of it may write, so none of them can

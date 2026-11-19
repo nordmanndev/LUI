@@ -4,13 +4,14 @@ using Nordmann.LUI.Schema;
 namespace Nordmann.LUI.Writing;
 
 /// <summary>
-/// The write statements of one index, prepared once on one connection and
-/// used again and again.
+/// The write statements of one index on one connection: those of a connection of the application are prepared once and
+/// used again and again; those of LUI's own writes are built per call on a connection from the pool (ADR-0070), and the
+/// provider keeps their plan per physical connection.
 /// <para>
 /// Preparing the upsert costs more than running it: SQLite compiles the
 /// generated columns, the indexes and the three triggers into the statement
 /// (measured: 184 µs per entry through a fresh command, 59 µs through a
-/// prepared one). A connection is used by one thread at a time, so the
+/// prepared one — the number that led to ADR-0009; ADR-0070 measured what a pooled connection costs instead). A connection is used by one thread at a time, so the
 /// statements are guarded by the lock of their connection: the statements of
 /// every index that shares a connection share its lock.
 /// </para>
