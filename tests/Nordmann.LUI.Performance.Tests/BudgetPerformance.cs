@@ -28,6 +28,8 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
     /// <summary>The scenario of the typo dictionary — the one the budget names.</summary>
     private static int TypoScenario => LuiBudgets.By("typo-dictionary-size").Scenario.PrefixLength;
 
+    private static int TwoErrorsScenario => LuiBudgets.By("typo-dictionary-two-errors-size").Scenario.PrefixLength;
+
     private const int Queries = 2_000;
 
     [Fact]
@@ -167,6 +169,37 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         Report($"typo dictionary of {words.Count:N0} words: {build.Elapsed.TotalSeconds:F1} s, {(after - before) / 1_048_576.0:F0} MB");
         budget.AtMost("typo-dictionary-size", (after - before) / 1_048_576.0, "MB");
         budget.AtMost("typo-dictionary-build", build.Elapsed.TotalSeconds, "s");
+
+        budget.Verify();
+    }
+
+    /// <summary>
+    /// The dictionary of the distance <c>TwoErrors</c> (ADR-0054) against the budget of its own (issue #242, ADR-0056): the size
+    /// is asserted on every runner — a size is the same on every machine. Before, the limit stood in the file and in the tables
+    /// and no measurement held a size against it.
+    /// </summary>
+    [Fact]
+    public void The_typo_dictionary_of_two_errors_of_the_whole_word_list()
+    {
+        var corpus = CorpusOf("typo-dictionary-two-errors-size");
+        var words = corpus.Texts;
+        var budget = new PerformanceBudget(output.WriteLine, words.Count >= TwoErrorsScenario, Scenario.Machine);
+        budget.SayTheMachine();
+
+        using var database = new TestDatabase();
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
+        var index = catalog.Create("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors));
+        index.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = 100_000 });
+
+        var before = GC.GetTotalMemory(forceFullCollection: true);
+        var build = Stopwatch.StartNew();
+        index.WarmUpTypoDictionary();
+        build.Stop();
+        var after = GC.GetTotalMemory(forceFullCollection: true);
+        GC.KeepAlive(index);
+
+        Report($"typo dictionary of two errors, {words.Count:N0} words: {build.Elapsed.TotalSeconds:F1} s, {(after - before) / 1_048_576.0:F0} MB");
+        budget.AtMost("typo-dictionary-two-errors-size", (after - before) / 1_048_576.0, "MB");
 
         budget.Verify();
     }

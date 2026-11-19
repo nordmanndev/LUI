@@ -189,7 +189,7 @@ after the outbox, so that the dictionary knows the words of the rows that came
 in — and the outbox of every linked index is applied on an interval (30 s by
 default, `options.OutboxInterval = TimeSpan.FromSeconds(5)` says otherwise).
 
-- **Name the indexes that correct typos.** A dictionary costs memory — 138 MB
+- **Name the indexes that correct typos.** A dictionary costs memory — 194 MB
   for 685,829 words. `TypoDictionaryIndexes` names the indexes that get one;
   left empty, every index does. `WarmUpTypoDictionaries = false` leaves only
   the outbox to the service.

@@ -192,8 +192,16 @@ them cannot upgrade to 0.3.0.
 - **The limit of the dictionary of two errors is 260 MB** (#175, decision of the owner, 2026-11-14): it was 240 MB — exactly what
   was measured, 100 % of the limit, no reserve. The limit moves to 260 MB (+ 8.3 %) in the file of the budgets, the README and
   `docs/benchmarks.md`; the measured 240 MB stays in `docs/typo-dictionary.md` as an observation. A test holds the number in
-  the file and the tables against it (#181). No test compares the limit with a measured size of the two-error dictionary yet
-  (#242).
+  the file and the tables against it (#181). Superseded by #242 (below): the limit is 420 MB.
+
+- **The dictionary of two errors is measured against its limit — and the numbers of the record were wrong** (#242): no test held
+  a size against the limit of 240, then 260 MB; now one does (`BudgetPerformance`, on every run of the lane, and a test that holds
+  every budget of the file to a measurement). It measured **388 MB**, and the dictionary of one error **194 MB** — not the
+  240 MB and 138 MB of the record of 2026-11-12, which could not be reproduced: the code of `0.1.1`, `0.2.0` and this version
+  gives the same sizes, on the container and on a hosted runner. The limit of the dictionary of two errors is now **420 MB**
+  (+ 8 % over the measurement, decision of the owner), the record and the documentation of the public API carry 194 and
+  388 MB (times: 4.0–5.2 s and 10.7–12.2 s, the container of the round). The limit of one error stays at 200 MB — it is met
+  with 194 MB, **a reserve of 3 %**.
 
 - **A catalogue is one file** (#183): `docs/api.md` and the README say that `Embedded` and `Linked` indexes live side by side in
   one catalogue — mixing them is defined — with the tables of the application beside the tables of LUI, that what separates
