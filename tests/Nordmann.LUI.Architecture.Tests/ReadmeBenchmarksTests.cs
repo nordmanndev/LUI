@@ -173,6 +173,8 @@ public sealed class ReadmeBenchmarksTests
             // measured 0.225 ms — a number of a write without the disk it was measured on is a rumour
             var disk = environment.Split('\n').FirstOrDefault(line => line.Contains("[Disk]", StringComparison.Ordinal));
             disk.ShouldNotBeNull($"the report of {name} names the disk the database lived on");
+            disk.Contains(", local", StringComparison.Ordinal)
+                .ShouldBeTrue($"the report of {name} does not say that its disk is a local one (unidentified is not local): {disk.Trim()}");
             disk.Contains("network", StringComparison.OrdinalIgnoreCase)
                 .ShouldBeFalse($"the report of {name} was measured on a network file system — the writes belong on a local disk: {disk.Trim()}");
         }
@@ -187,9 +189,9 @@ public sealed class ReadmeBenchmarksTests
 
         script.ShouldContain("export TMPDIR=", Case.Sensitive, "the database of the benchmarks lives in TMPDIR — the script puts it on a local disk");
         script.ShouldContain("tar ", Case.Sensitive, "the tree is copied with tar (the sandbox has no rsync)");
-        script.ShouldContain("--exclude=", Case.Sensitive, "the copy leaves out what the other machine built");
-        script.ShouldContain("bin", Case.Sensitive);
-        script.ShouldContain("obj", Case.Sensitive);
+        script.ShouldContain("--exclude='./*/*/bin'", Case.Sensitive, "the copy leaves out the build output of the projects — and only that");
+        script.ShouldContain("--exclude='./*/*/obj'", Case.Sensitive);
+        script.ShouldNotContain("--exclude='bin'", Case.Sensitive, "an exclude that is not anchored also drops a source directory called bin");
         script.ShouldContain("stat -f", Case.Sensitive, "the script asks the file system what it is, before it copies");
     }
 

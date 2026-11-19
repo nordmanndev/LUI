@@ -163,8 +163,9 @@ them cannot upgrade to 0.3.0.
   lines of `SettingsBenchmarks` with the correction on (prefix inputs that hit without it) do not prove that the correction ran.
 
 - **The write benchmark runs on a local disk, and every report names its disk** (#178, R1 of the audit): the 2.04 ms of the
-  write benchmark against the ≤ 1 ms of the budget were an artifact of the file system — the same write measured 1.85 ms on
-  the network drive of the workplace and 0.225 ms on a local disk. Every report now carries a `[Disk]` line (the file system
+  write benchmark against the ≤ 1 ms of the budget were an artifact of the file system — measured per entry (p95), the same
+  write took 1.85 ms on the network drive of the audit's workplace and 0.225 ms on a local disk (those numbers are of the
+  audit, not of a report of this repository). Every report now carries a `[Disk]` line (the file system
   of the directory of the databases, `local` or `network`, and the directory), and a test fails on a report that was measured
   on a network disk. `tools/benchmarks.sh` puts `TMPDIR` on a local disk and, if the repository is on a network file system,
   copies the **whole** tree there first (with `tar`, without `bin/`, `obj/` and `.git`; a part of the tree is a build that

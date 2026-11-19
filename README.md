@@ -146,6 +146,11 @@ to the machine and the date it was measured on (ADR-0041), the memory is the cla
 A measured value does **not** live in the file: it belongs to a run and to its machine, and a file that carried it would
 be a second truth beside the promise.
 
+**A write waits for the disk**, so every report names the disk its databases lived on, and a test fails on a report that was
+measured on a network drive: on the local disk (ext4) of the run of 2026-11-19 a single write — `Upsert`, `UpdateWeight`,
+one transaction each — takes **0.13–0.33 ms** on average (the container of the round, not the machine of the budgets;
+issue #178).
+
 **The tables** below are the output of [BenchmarkDotNet](https://benchmarkdotnet.org/) — the code on the corpus of the
 measurement, not the scenario of the budgets. They are rendered from the reports of the run in
 [`benchmarks/results/`](./benchmarks/results/) by a test, so they cannot drift from them; the machine of the run stands

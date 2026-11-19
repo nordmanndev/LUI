@@ -26,7 +26,9 @@ internal static class DiskOfTheRun
             ? FromMounts(directory)
             : FromDrive(directory);
 
-        return $"{fileSystem}, {(isNetwork ? "network" : "local")} — {directory.TrimEnd(Path.DirectorySeparatorChar)}";
+        // a disk that could not be identified is not a local one: the report says so, and the test does not take it for local
+        var kind = string.Equals(fileSystem, "unknown", StringComparison.Ordinal) ? "unidentified" : isNetwork ? "network" : "local";
+        return $"{fileSystem}, {kind} — {directory.TrimEnd(Path.DirectorySeparatorChar)}";
     }
 
     /// <summary>Linux: the file system of the longest mount point that is a prefix of the directory.</summary>
@@ -55,7 +57,7 @@ internal static class DiskOfTheRun
 
             return (best.Type, NetworkFileSystems.Contains(best.Type, StringComparer.OrdinalIgnoreCase));
         }
-        catch (IOException)
+        catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
             return ("unknown", false);
         }
@@ -69,7 +71,7 @@ internal static class DiskOfTheRun
             var drive = new DriveInfo(Path.GetPathRoot(directory) ?? directory);
             return (drive.DriveFormat, drive.DriveType == DriveType.Network);
         }
-        catch (ArgumentException)
+        catch (Exception exception) when (exception is ArgumentException or IOException or UnauthorizedAccessException)
         {
             return ("unknown", false);
         }
