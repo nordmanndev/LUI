@@ -154,7 +154,7 @@ public sealed class ReadmeBenchmarksTests
     }
 
     [Fact]
-    public void Every_report_names_the_date_the_measurements_the_machine_and_the_journal_mode()
+    public void Every_report_names_the_date_the_measurements_the_machine_the_journal_mode_and_the_disk()
     {
         foreach (var (name, _, _) in Sections)
         {
@@ -168,7 +168,29 @@ public sealed class ReadmeBenchmarksTests
                 .ShouldBeTrue($"the report of {name} names the machine it was measured on");
             environment.Contains("[Journal]", StringComparison.Ordinal)
                 .ShouldBeTrue($"the report of {name} names the journal mode of the database");
+
+            // issue #178: the write benchmark on the network file system of a workplace measured 1.85 ms where the local disk
+            // measured 0.225 ms — a number of a write without the disk it was measured on is a rumour
+            var disk = environment.Split('\n').FirstOrDefault(line => line.Contains("[Disk]", StringComparison.Ordinal));
+            disk.ShouldNotBeNull($"the report of {name} names the disk the database lived on");
+            disk.Contains("network", StringComparison.OrdinalIgnoreCase)
+                .ShouldBeFalse($"the report of {name} was measured on a network file system — the writes belong on a local disk: {disk.Trim()}");
         }
+    }
+
+    [Fact]
+    public void The_script_of_the_benchmarks_measures_on_a_local_disk_and_copies_the_whole_tree()
+    {
+        // issue #178: on a network file system the run is copied to a local disk first — the whole tree, because the run
+        // builds the repository; the build output of the other machine (`bin/`, `obj/`) stays behind
+        var script = File.ReadAllText(Path.Combine(Repository.RootPath, "tools", "benchmarks.sh"));
+
+        script.ShouldContain("export TMPDIR=", Case.Sensitive, "the database of the benchmarks lives in TMPDIR — the script puts it on a local disk");
+        script.ShouldContain("tar ", Case.Sensitive, "the tree is copied with tar (the sandbox has no rsync)");
+        script.ShouldContain("--exclude=", Case.Sensitive, "the copy leaves out what the other machine built");
+        script.ShouldContain("bin", Case.Sensitive);
+        script.ShouldContain("obj", Case.Sensitive);
+        script.ShouldContain("stat -f", Case.Sensitive, "the script asks the file system what it is, before it copies");
     }
 
     [Fact]
