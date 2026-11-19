@@ -6,7 +6,7 @@ namespace Nordmann.LUI.Benchmarks;
 
 /// <summary>
 /// The reports of a run, with what issue #124 asks of them: every line names the number of hits of its query, and the
-/// report names the date of the run, the number of measurements per case, the machine and the journal mode. A line that
+/// report names the date of the run, the number of measurements per case, the machine, the journal mode and the disk. A line that
 /// measures no query — a write, a text — says so with a dash; a line that measured zero hits says zero. The difference
 /// between the two is the difference between a measurement and no measurement.
 /// </summary>
@@ -121,7 +121,7 @@ internal static class ReportWriter
         return settings.RunChecked(fixture.Index).CandidatesConsidered.ToString(CultureInfo.InvariantCulture);
     }
 
-    /// <summary>The record of the run: the date, the measurements per case, the machine and the journal mode.</summary>
+    /// <summary>The record of the run: the date, the measurements per case, the machine, the journal mode and the disk.</summary>
     private static string[] Metadata(IReadOnlyList<Summary> summaries, string benchmarkClass, string[] lines, DateTime startedAt)
     {
         var measurements = summaries
@@ -134,7 +134,8 @@ internal static class ReportWriter
         [
             $"  [Run]      : {startedAt.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}, the measurements per case: {Measurements(measurements)}",
             $"  [Machine]  : {Machine(lines)}",
-            $"  [Journal]  : {JournalMode()}"
+            $"  [Journal]  : {JournalMode()}",
+            $"  [Disk]     : {DiskOfTheRun.Describe()}"
         ];
     }
 

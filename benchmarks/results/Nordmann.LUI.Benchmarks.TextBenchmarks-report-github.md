@@ -7,18 +7,19 @@ Intel Xeon Processor 2.30GHz, 1 CPU, 4 logical and 4 physical cores
   DefaultJob : .NET 10.0.14 (10.0.14, 10.0.1426.52326), X64 RyuJIT x86-64-v4
 
 
-  [Run]      : 2026-11-19, the measurements per case: 13–100
+  [Run]      : 2026-11-19, the measurements per case: 13–57
   [Machine]  : Intel Xeon Processor 2.30GHz, 1 CPU, 4 logical and 4 physical cores
   [Journal]  : wal
+  [Disk]     : ext4, local — /tmp/lui-bench.leE5Mc/tmp
 ```
-| Method | Text | Mean | Error | StdDev | Median | Gen0 | Allocated | Hits |
-|------------ |--------------------- |----------:|---------:|---------:|----------:|-------:|----------:|---:|
-| SearchForm | Apfelkuchen | 45.57 ns | 0.906 ns | 1.910 ns | 45.18 ns | 0.0005 | 144 B | — |
-| JaroWinkler | Apfelkuchen | 41.65 ns | 0.802 ns | 1.015 ns | 41.54 ns | - | - | — |
-| NgramDice | Apfelkuchen | 97.93 ns | 1.921 ns | 2.135 ns | 98.51 ns | - | - | — |
-| SearchForm | Gedec(...)useln [35] | 105.44 ns | 2.171 ns | 2.823 ns | 105.63 ns | 0.0008 | 240 B | — |
-| JaroWinkler | Gedec(...)useln [35] | 72.27 ns | 1.456 ns | 2.042 ns | 71.52 ns | - | - | — |
-| NgramDice | Gedec(...)useln [35] | 233.50 ns | 3.137 ns | 2.780 ns | 233.82 ns | - | - | — |
-| SearchForm | Größe(...)nahme [23] | 111.81 ns | 2.313 ns | 6.821 ns | 109.97 ns | 0.0012 | 320 B | — |
-| JaroWinkler | Größe(...)nahme [23] | 68.86 ns | 0.920 ns | 0.768 ns | 68.55 ns | - | - | — |
-| NgramDice | Größe(...)nahme [23] | 161.88 ns | 2.108 ns | 1.760 ns | 162.31 ns | - | - | — |
+| Method | Text | Mean | Error | StdDev | Gen0 | Allocated | Hits |
+|------------ |--------------------- |----------:|---------:|---------:|-------:|----------:|---:|
+| SearchForm | Apfelkuchen | 46.64 ns | 0.980 ns | 1.840 ns | 0.0005 | 144 B | — |
+| JaroWinkler | Apfelkuchen | 46.61 ns | 0.959 ns | 0.801 ns | - | - | — |
+| NgramDice | Apfelkuchen | 97.39 ns | 1.580 ns | 1.319 ns | - | - | — |
+| SearchForm | Gedec(...)useln [35] | 110.36 ns | 2.260 ns | 3.899 ns | 0.0007 | 240 B | — |
+| JaroWinkler | Gedec(...)useln [35] | 69.94 ns | 1.397 ns | 1.913 ns | - | - | — |
+| NgramDice | Gedec(...)useln [35] | 240.97 ns | 4.597 ns | 9.992 ns | - | - | — |
+| SearchForm | Größe(...)nahme [23] | 109.29 ns | 2.154 ns | 2.212 ns | 0.0012 | 320 B | — |
+| JaroWinkler | Größe(...)nahme [23] | 71.28 ns | 1.460 ns | 2.439 ns | - | - | — |
+| NgramDice | Größe(...)nahme [23] | 163.47 ns | 3.304 ns | 6.824 ns | - | - | — |
