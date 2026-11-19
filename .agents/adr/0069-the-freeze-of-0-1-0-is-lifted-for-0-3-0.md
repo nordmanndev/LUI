@@ -54,7 +54,10 @@ Three new public types come with it: `LuiPragmas`, `LuiSynchronous` and `LuiCata
    break the budgets, the memory map that buys nothing); and that every break has its way back in the migration note.
 3. The migration note in the changelog names every break with its old and its new form — **the two the compiler does not
    see come first**.
-4. **From 0.3.0 on, the freeze holds again** — the API grows and never shrinks; another lifting needs a record of its own.
+4. **From 0.3.0 on, the freeze holds again, with the rule of 0026**: the public API grows and never shrinks; a breaking
+   change — a removed or renamed member, a new optional parameter on an existing method, a new abstract member of an
+   interface, a changed enum value, a new positional parameter of a record — needs a new minor version, a migration note in
+   `CHANGELOG.md` and a record of its own. Another lifting needs a record of its own, too.
 5. The records of 0.1.0 stay as they are written. The points that [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md)
    declined stay declined; the freeze was not an argument for them.
 

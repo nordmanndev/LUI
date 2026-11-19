@@ -55,35 +55,36 @@ public sealed class ReleaseThreeTests
     }
 
     [Fact]
-    public void The_package_is_version_0_3_0()
+    public void The_package_is_a_version_of_the_round_of_0_3()
     {
         var version = Library.GetCustomAttribute<AssemblyInformationalVersionAttribute>()!.InformationalVersion;
 
-        version.ShouldStartWith("0.3.0", Case.Sensitive);  // the version of the round is 0.3.0, not 0.2.0: the change is not only additive (ADR-0069)
+        // the version of the round is 0.3, not 0.2: the change is not only additive (ADR-0069); a patch release keeps the guard green
+        version.ShouldStartWith("0.3.", Case.Sensitive);
     }
 
     [Fact]
     public void The_changelog_of_0_3_0_carries_the_migration_note_with_the_two_breaks_the_compiler_does_not_see_first()
     {
         var text = Changelog;
+        text.ShouldContain("## [0.3.0]");
         var section = text[text.IndexOf("## [0.3.0]", StringComparison.Ordinal)..];
 
-        section.ShouldNotBeNull();
+        section.ShouldContain("### Migration");
         var migration = section.IndexOf("### Migration", StringComparison.Ordinal);
-        migration.ShouldBeGreaterThanOrEqualTo(0, "the changelog of 0.3.0 has a migration note");
+        section.IndexOf("### Changed", migration, StringComparison.Ordinal).ShouldBeGreaterThan(migration, "the note ends where the changes begin");
+        var note = section[migration..section.IndexOf("### Changed", migration, StringComparison.Ordinal)];
 
-        var end = section.IndexOf("### Changed", migration, StringComparison.Ordinal);
-        var note = section[migration..end];
         var firstBreak = note.IndexOf("`Open` no longer", StringComparison.Ordinal);
-        var secondBreak = note.IndexOf("`OpenReadOnly`", StringComparison.Ordinal);
+        var secondBreak = note.IndexOf("Read-only is the method `OpenReadOnly`", StringComparison.Ordinal);
+        var table = note.IndexOf("| before (0.2.x) | after (0.3.0) |", StringComparison.Ordinal);
         firstBreak.ShouldBeGreaterThanOrEqualTo(0, "Open no longer creates anything");
-        secondBreak.ShouldBeGreaterThanOrEqualTo(0, "read-only is a method");
+        secondBreak.ShouldBeGreaterThan(firstBreak, "read-only is a method: the second break follows the first");
+        table.ShouldBeGreaterThan(secondBreak, "the table of every moved member follows the two breaks the compiler does not see");
 
         foreach (var moved in new[] { "ConnectionString", "WriteAheadLog", "MemoryMapMegabytes", "BusyTimeout", "CacheSizeMegabytes", "AddLui", "LuiPragmas", "LuiSynchronous", "LuiCatalogNotFoundException", "LuiCatalog.Path", ":memory:" })
         {
-            var at = note.IndexOf(moved, StringComparison.Ordinal);
-            at.ShouldBeGreaterThanOrEqualTo(0, $"the migration note names {moved}");
-            at.ShouldBeGreaterThan(Math.Min(firstBreak, secondBreak) - 1, $"{moved} comes after the two breaks the compiler does not see");
+            note.IndexOf(moved, table, StringComparison.Ordinal).ShouldBeGreaterThanOrEqualTo(0, $"the migration note names {moved} in or after its table");
         }
     }
 

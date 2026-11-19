@@ -30,6 +30,10 @@ from it ([ADR-0069](.agents/adr/0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md)
    var catalog = LuiCatalog.OpenOrCreate("app.db");
    ```
 
+   **The argument is a path now.** A connection string still compiles — the parameter is a `string` — and is taken as a file
+   name: `OpenOrCreate("Data Source=app.db")` creates a file that is called exactly that. Change the argument, not only the
+   method.
+
 2. **Read-only is the method `OpenReadOnly`.** There is no connection string left to say `Mode=ReadOnly`. A write on such a
    catalogue is a `LuiReadOnlyException` whose message names the reason:
 
