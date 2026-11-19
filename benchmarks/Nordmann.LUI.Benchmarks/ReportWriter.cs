@@ -15,6 +15,12 @@ internal static class ReportWriter
     /// <summary>The column of the hits.</summary>
     internal const string HitsColumn = "Hits";
 
+    /// <summary>
+    /// What BenchmarkDotNet calls "Error" is the half width of the 99.9 % confidence interval of the mean — not a spread and
+    /// not a percentile (issue #180). The report calls it what it is.
+    /// </summary>
+    internal const string ConfidenceColumn = "CI 99.9 %";
+
     /// <summary>The journal modes of the databases the run measured on — they are all the same.</summary>
     private static readonly List<string> JournalModes = [];
 
@@ -200,13 +206,17 @@ internal static class ReportWriter
     /// <summary>The table of the report with the hits of every line.</summary>
     private static IEnumerable<string> Rows(Table table, string[] hits)
     {
-        yield return "| " + string.Join(" | ", table.Header.Append(HitsColumn)) + " |";
+        yield return "| " + string.Join(" | ", table.Header.Select(Renamed).Append(HitsColumn)) + " |";
         yield return table.Separator[..^1] + "|---:|";
         for (var i = 0; i < table.Rows.Count; i++)
         {
             yield return "| " + string.Join(" | ", table.Rows[i].Append(hits[i])) + " |";
         }
     }
+
+    /// <summary>The name of a column in the report: "Error" is the confidence interval of the mean.</summary>
+    private static string Renamed(string column) =>
+        string.Equals(column, "Error", StringComparison.Ordinal) ? ConfidenceColumn : column;
 
     /// <summary>The benchmark class a report belongs to: its name is in the name of the file.</summary>
     private static string ClassOf(string path)
