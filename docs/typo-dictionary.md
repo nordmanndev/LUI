@@ -49,7 +49,7 @@ beginning and keeps the rest.
 **The contract with the package is measured** ([ADR-0064](../.agents/adr/0064-the-dependency-on-symspell-stays.md),
 issue #44): `TypoContractTests` pins the rules above — the beginnings of three to ten letters, the count of a word (its
 weight plus one), the count threshold of one, the order of the corrections and the head of ten letters — and measures the
-dictionary over the whole word list: 685,739 words, **138 MB**, and a fingerprint of the corrections that an own
+dictionary over the whole word list: 685,739 words, **194 MB**, and a fingerprint of the corrections that an own
 implementation of the dictionary would have to reproduce. The numbers are in
 [`docs/benchmarks.md`](./benchmarks.md#the-contract-with-symspell-issue-44).
 
@@ -63,28 +63,29 @@ a digit), one index and one database per distance.
 | Distance | The dictionary | The build | The memory |
 |---|---|---|---|
 | `None` | **not built** — the state stays `NotBuilt` | **0.0 s** | **0 MB** |
-| `OneError` | built | **4.3 s** | **138 MB** |
-| `TwoErrors` | built | **8.5 s** | **240 MB** |
+| `OneError` | built | **4.0–5.2 s** | **194 MB** |
+| `TwoErrors` | built | **10.7–12.2 s** | **388 MB** |
 
 **The time belongs to the machine and to the run below** (ADR-0041): it is a
 measurement, not a promise, and it is not reproducible — a parallel job on the
-same machine makes it twice as slow (a second run of the same day, with a
-parallel build in the same sandbox, took 4.4 s and 8.7 s). **The memory is the
-claim that does not depend on the machine**: 138 MB and 240 MB are the sizes of
-the dictionaries, and they come out the same on every machine.
+same machine makes it twice as slow. **The memory is the claim that does not depend on
+the machine**: 194 MB and 388 MB are the sizes of the dictionaries (measured 2026-11-19 on the container of the round and on
+a hosted runner alike; the code of `0.1.1`, `0.2.0` and `0.3.0` gives the same). The 138 MB, 4.3 s and 240 MB, 8.5 s of the
+first measurement (2026-11-12) could not be reproduced and are corrected here (issue #242).
 
-Two errors cost **1.7 times** the memory of one and **twice** the time — and
-**40 MB more than the budget of ADR-0020** allows (ADR-0020: *typo dictionary, 700,000
-different words: ≤ 200 MB, build ≤ 10 s*). The build time is still inside the
-budget; the memory is not. The budget was written for one error, and it holds
+Two errors cost **2.0 times** the memory of one and **2.5 times** the time — and
+**188 MB more than the budget of ADR-0020** allows (ADR-0020: *typo dictionary, 700,000
+different words: ≤ 200 MB, build ≤ 10 s*). The build time of one error is inside the
+budget, that of two errors is not (10.7–12.2 s against ≤ 10 s of the one-error promise); the memory is not. The budget was written for one error, and it holds
 for one error. The two-error distance has a budget of its own in `budgets.json`
-(ADR-0056): first the measured 240 MB, and since issue #175 (decision of the owner,
-2026-11-14) **260 MB** — a reserve of 8.3 % over what was measured here. The 240 MB
-stay what they are: an observation.
+(ADR-0056): first 240 MB, then 260 MB (issue #175, decision of the owner, 2026-11-14) — both
+were set against the number of 2026-11-12 that could not be reproduced — and since issue #242
+(decision of the owner, 2026-11-19) **420 MB**, a reserve of 8 % over the 388 MB measured here. A test holds the
+size against the limit on every run of the lane.
 
 The row of one error is the number of ADR-0021 — the same word list, the same
-138 MB. A measurement that reproduces the old
-number is a measurement that is comparable with the old one.
+194 MB now (the first measurement said 138 MB; see above). A measurement that reproduces the
+old number is a measurement that is comparable with the old one.
 
 ### The machine, the corpus, the method
 
@@ -129,7 +130,7 @@ with `WarmUpTypoDictionary()` or through the warm-up of the host (ADR-0043).
   correction on or off (`Query(text).TypoTolerance(…)`). The distance is part of
   the stored definition, so an index that is opened again forgives what it
   forgave before.
-- **`None` builds no dictionary.** 138 MB for a correction that is never made
+- **`None` builds no dictionary.** 194 MB for a correction that is never made
   is not a setting.
 
 The decision itself is ADR-0054.

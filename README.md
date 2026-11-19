@@ -125,8 +125,8 @@ in [`docs/benchmarks.md`](./docs/benchmarks.md).
 | allocation per query, p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | `Upsert` / `UpdateWeight` / `Remove`, p95 | 0.51–0.78 ms | ≤ 1 ms |
 | first load of 3 M entries (`Sync`) | 120.4–172.9 s | ≤ 3 min (#32) |
-| typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s | ≤ 200 MB, ≤ 10 s |
-| typo dictionary of two errors, 685,739 words | 240 MB | ≤ 260 MB |
+| typo dictionary of 685,739 words | 194 MB, 4.0–5.2 s | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of two errors, 685,739 words | 388 MB | ≤ 420 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
 
 The **limits** live in one file — [`tests/Nordmann.LUI.Testing/Budgets/budgets.json`](./tests/Nordmann.LUI.Testing/Budgets/budgets.json)
@@ -141,8 +141,10 @@ three million is the one of 2026-11-04 (172.5–205.9 s), and it is measured aga
 dictionary in bytes and in seconds
 (2026-11-06, the machine of the record — a time belongs to the machine it was measured on,
 [ADR-0041](.agents/adr/0041-the-budgets-of-16-run-on-a-schedule.md)). The typo dictionary was measured again on
-2026-11-12 — **4.3 s** for the same **138 MB** ([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)): a time belongs
-to the machine and the date it was measured on (ADR-0041), the memory is the claim that does not depend on the machine.
+2026-11-19 — **4.0–5.2 s** for **194 MB** with one error, **10.7–12.2 s** for **388 MB** with two
+([`docs/typo-dictionary.md`](./docs/typo-dictionary.md)): a time belongs to the machine and the date it was measured on
+(ADR-0041), the memory does not. The 138 MB and 240 MB that stood here before could not be reproduced — the same code of
+`0.1.1`, `0.2.0` and this version gives 194 and 388 MB.
 A measured value does **not** live in the file: it belongs to a run and to its machine, and a file that carried it would
 be a second truth beside the promise.
 
@@ -274,7 +276,7 @@ not have to know it.
 
 ### The four combinations
 
-The typo tolerance is a decision of the application: the dictionary of the words of an index costs 138 MB for 685,739
+The typo tolerance is a decision of the application: the dictionary of the words of an index costs 194 MB for 685,739
 words, so it is **off by default** and switched on with `TypoTolerance()`.
 
 | | **Typo tolerance off** (the default) | **Typo tolerance on** |
@@ -287,7 +289,7 @@ find hits in the middle of other words. The dictionary belongs to the index: a q
 towards the words of a name index.
 
 **The dictionary is built on request.** `WarmUpTypoDictionary()` reads the content table and builds it — at three million
-entries that is seconds and 138 MB, which the application should not pay at the start. A query never builds it: it
+entries that is seconds and 194 MB, which the application should not pay at the start. A query never builds it: it
 answers with what the input found, sets `CorrectionSkipped` and waits for the application to ask for the build.
 
 ## Embedded or linked

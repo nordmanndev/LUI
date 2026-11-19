@@ -27,8 +27,8 @@ corpus.
 | allocation p50 / p95 | 46 / 51 KB | ≤ 60 / ≤ 100 KB |
 | single write p95 | 0.51–0.78 ms | ≤ 1 ms |
 | build of 3 M | 120.4 s on the machine of the record, 165.1–172.9 s on the machine of the report (1,908,798 entries — the whole corpus of the repository); at 3 M on 2026-11-04: 172.5–174.2 s on one container, 194.9–205.9 s on the next (`Sync`, batches of 1,000,000) | ≤ 180 s (#32) |
-| typo dictionary of 685,739 words | 138 MB, 4.1–4.8 s (the machine of the record), 4.3 s (the run of 2026-11-12) | ≤ 200 MB, ≤ 10 s |
-| typo dictionary of two errors, 685,739 words | 240 MB (2026-11-12) | ≤ 260 MB |
+| typo dictionary of 685,739 words | 194 MB, 4.0–5.2 s (2026-11-19, the container of the round) | ≤ 200 MB, ≤ 10 s |
+| typo dictionary of two errors, 685,739 words | 388 MB (2026-11-19) | ≤ 420 MB |
 | file of 1 M titles | 457 MB | ≤ 500 MB |
 
 **The numbers below were measured on the corpus that was generated.** Since ADR-0059 the corpus is a file in the
@@ -39,11 +39,13 @@ against the measured corpora in the next round**. Nothing here is quietly lowere
 3,000,000 entries, and the run says that it did not reach them.
 
 The dictionary of two errors is the one the **distance `TwoErrors`** builds (ADR-0054): the promise of 200 MB belongs to
-the dictionary of one error, and the two-error dictionary measured **240 MB** — 40 MB more than the target of ADR-0020 allows
+the dictionary of one error, and the two-error dictionary measures **388 MB** — 188 MB more than the target of ADR-0020 allows
 (≤ 200 MB). That is a **miss of the old promise** — it is written down as one, in the ADR of the typo distance and in
-[`docs/typo-dictionary.md`](typo-dictionary.md). The limit of the file was set to the measured 240 MB — 100 % of the limit, no
-reserve: one byte more would have broken it. The owner set it to **260 MB** on 2026-11-14 (+ 8.3 %, issue #175); the 240 MB
-stays in the record as what was measured.
+[`docs/typo-dictionary.md`](typo-dictionary.md). The limit of the file was first set to the 240 MB that were believed to be measured, then to 260 MB
+(owner, 2026-11-14, issue #175). The first measurement against it (issue #242, 2026-11-19) gave **388 MB** — and the same
+code gives 194 MB for one error, not the 138 MB of the record: the numbers of 2026-11-12 could not be reproduced (the code of
+`0.1.1`, `0.2.0` and this version agree). The owner set the limit to the measurement, **420 MB** (+ 8 %), and the record to
+194 and 388 MB. The older records below keep the numbers of their day.
 
 ## The targets
 
@@ -58,7 +60,7 @@ the measurement has something to contradict.
 | `Upsert` / `UpdateWeight` / `Remove` | one at a time, own transaction | p95 ≤ 1 ms |
 | Build-up | 3 M entries, `Embedded`, a first load by `Sync` | ≤ 3 min |
 | Typo dictionary | 685,739 distinct words | ≤ 200 MB, build ≤ 10 s |
-| Typo dictionary, two errors | 685,739 distinct words | ≤ 260 MB |
+| Typo dictionary, two errors | 685,739 distinct words | ≤ 420 MB |
 | File size | 1 M titles of 36 characters on average, `MultiWord` | ≤ 500 MB including the content table |
 
 The query p95, the correction, the allocation, the file size and the build were stated anew by the owner on 2026-11-04

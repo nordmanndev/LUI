@@ -59,13 +59,16 @@ public sealed class ReadmeProseTests
     }
 
     [Fact]
-    public void The_typo_run_of_2026_11_12_is_named_once()
+    public void The_typo_run_of_the_dictionary_is_named_once()
     {
+        // issue #182: the run of the typo dictionary stands once in the README, in the paragraph that carries it — not in a second copy of
+        // it. The run of 2026-11-12 was measured again on 2026-11-19 (issue #242): the date moves with the run.
         var text = string.Join("\n\n", ParagraphsOfTheProse());
 
-        Regex.Count(text, "2026-11-12", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)).ShouldBe(
+        Regex.Count(text, "typo dictionary was measured again on", RegexOptions.CultureInvariant, TimeSpan.FromSeconds(1)).ShouldBe(
             1,
-            "the typo run of 2026-11-12 stands once in the README — in the paragraph that carries it, not in a second copy of it");
+            "the run of the typo dictionary stands once in the README — in the paragraph that carries it, not in a second copy of it");
+        text.Contains("2026-11-12", StringComparison.Ordinal).ShouldBeFalse("the run of 2026-11-12 could not be reproduced and is not quoted as a measurement");
     }
 
     /// <summary>The paragraphs of the README with their whitespace made one — without tables, code and the rendered section.</summary>
