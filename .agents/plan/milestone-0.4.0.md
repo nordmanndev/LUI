@@ -73,7 +73,7 @@ Risks of the whole run:
   addendum), this work plan and `AGENTS.md`. Fix what it finds, push, and start a **new** sub-agent for the next round,
   until a round finds nothing. Then merge with a **merge commit** (as the repository does). Never delete `0.4.0` or `dev`;
   after a merge, check that `0.4.0` still exists. Update the `Status` and `PR` columns of the table above in the next PR's
-  first commit (`docs(state): …`).
+  first commit (`docs(plan): …`).
 - **Numbers of the records:** 0071–0077 as #259 fixes them. The sample's client series (#212, PR #256) claims 0071 too —
   that is its series to renumber; this run does not touch it.
 

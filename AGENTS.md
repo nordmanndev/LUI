@@ -100,7 +100,7 @@ The branches of the series target `dev`; `dev` → `main` is a release pull
 request with its own review.
 
 **The round of 0.4.0 is the exception, and it has its own branch** (the owner,
-2026-11-20 — [the run plan](./.agents/state/milestone-0.4.0.md), the epic
+2026-11-20 — [the run plan](./.agents/plan/milestone-0.4.0.md), the epic
 [#258](https://github.com/nordmanndev/LUI/issues/258)):
 
 - every pull request of the round branches from **`0.4.0`** and targets
