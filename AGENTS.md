@@ -99,22 +99,27 @@ Every pull request has:
 The branches of the series target `dev`; `dev` → `main` is a release pull
 request with its own review.
 
-**The round of 0.3.0 is the exception, and it has its own branch** (the owner,
-2026-11-15 — [the plan](./.agents/plan/2026-11-15-the-round-of-0-3-0.md)):
+**The round of 0.4.0 is the exception, and it has its own branch** (the owner,
+2026-11-20 — [the run plan](./.agents/state/milestone-0.4.0.md), the epic
+[#258](https://github.com/nordmanndev/LUI/issues/258)):
 
-- every pull request of the round branches from **`0.3.0`** and targets
-  **`0.3.0`** — not `dev`, not `main`;
-- **one pull request per issue**, in the order of the plan, and the next one
+- every pull request of the round branches from **`0.4.0`** and targets
+  **`0.4.0`** — not `dev`, not `main`;
+- **one pull request per issue**, in the order of the run plan, and the next one
   starts when the one before it is merged;
-- **nothing else comes into 0.3.0** — only the issues of the epic
-  [#166](https://github.com/nordmanndev/LUI/issues/166). A finding on the way
-  gets an issue of its own and waits for the next round;
+- **nothing else comes into 0.4.0** — only the issues of the milestone v0.4.0
+  (the sub-issues of #258, and #221). A finding on the way gets an issue of its
+  own and waits for the next round;
 - **the implementation starts when the owner merges the pull request that
-  brings the plan into `0.3.0`** — not before;
-- at the end: `0.3.0` → `dev`, then the release pull request `dev` → `main`
+  brings the run plan into `0.4.0`** — not before. The run plan is the state of
+  the round: `.agents/state/active-task.md` is not;
+- at the end: the pull request `0.4.0` → `dev` is opened and left to the owner,
+  then the release pull request `dev` → `main`
   ([the release](./.agents/release.md)).
 
-Until 0.3.0 is released, this rule wins over the line above it.
+Until 0.4.0 is released, this rule wins over the line above it. (The round of
+0.3.0 had the same rule on its own branch, [its plan](./.agents/plan/2026-11-15-the-round-of-0-3-0.md);
+it is released.)
 
 ## The one rule that is specific to this repository
 
