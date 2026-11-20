@@ -5,6 +5,37 @@ What the last sessions finished, and what the next one should know. Compress
 the scratchpad here at the end of a session.
 -->
 
+## 2026-11-20 — The round of 0.4.0 is planned: the index names its type and its format
+
+- **The four decisions of the owner** (2026-11-20, after three rounds of questions about the API):
+  1. **The freeze comes with 1.0.0** — ADR-0069 §4 is lifted again; the API may break until the first stable version, and
+     every break gets a migration line and a record of its own (ADR-0072).
+  2. **The serialiser is bound to the type of the payload**, in a register of the catalog (`LuiPayloadRegistry`) — the
+     reader names the type, and the format follows it (ADR-0073).
+  3. **The typed world mirrors the untyped one** — `LuiTypedIndex<T>` → `LuiIndex<T>`, `LuiTypedResult<T>` →
+     `LuiResult<T>`, `LuiTypedHit<T>` → `LuiHit<T>`; `LuiEntry<T>` and `LuiEmbeddedIndex<T>` are new, and the typed index
+     writes (ADR-0074).
+  4. **The typed hit carries the payload** — `hit.Payload` is a property; the default reads it when it is asked for,
+     `LuiPayloadMode.Eager` reads the payloads of all hits with the query (ADR-0075).
+- **The epic #258 and the issues #259–#263** are open, in the milestone *v0.4.0* (*Serializer per Index Payload*). The
+  plan is `.agents/plan/2026-11-20-the-round-of-0-4-0.md`; the round uses the model of `AGENTS.md` — the branches target
+  `dev`, the release is the pull request `dev` → `main`.
+- **The numbers of the records are 0072–0075**: ADR-0071 belongs to the record of the client (the plan of 2026-11-16, and
+  the pull request #256 that corrects its number).
+- **The audit of `main` of 2026-11-20 is green** — 134 architecture tests, no warning, no forbidden package, no circular
+  dependency; the verdict is PASS.
+- **The standards are read** (`C:\GIT\Nordmann\standards`, `origin/main` at `e7898d2`): the baseline of the public API, the
+  agent contract, the workflow of the pull requests. The alignment with them is #221 — after this round.
+
+## 2026-11-19 — LUI 0.3.0 is released (the release pull request #253, the tag `v0.3.0`)
+
+- **The round of 0.3.0 is out**: the pull request #253 (`dev` → `main`) is merged — the merge commit `56a347c` — and the tag
+  `v0.3.0` stands on it (2026-11-19). `main` carries one commit after it (`1b34972`, the README that names 0.3.0).
+- **What the round brought:** the catalogue owns the connection (ADR-0066), the read path opens read-only (ADR-0067), three
+  ways to open a catalogue (ADR-0068), the freeze of 0.1.0 lifted for 0.3.0 (ADR-0069) and the catalogue holds no
+  connection (ADR-0070). The public API moved in the named places of ADR-0069, with the migration note of 0.3.0.
+- **The next round** is 0.4.0 — *Serializer per Index Payload*: the index names its type and its format.
+
 ## 2026-11-15 — LUI 0.2.0 is released (PR #196, the release pull request #197, the tag `v0.2.0`)
 
 - **The round of the measured work is out**: the tag `v0.2.0` is cut on the commit of `main` (`f4ef3c4`), and the packages

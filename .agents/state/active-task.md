@@ -5,153 +5,47 @@ What the next session is doing. One task, in the words of the issue that
 describes it. Link the issue; do not repeat the whole plan here.
 -->
 
-**Issue:** the round of **0.3.0** — the epic [#166](https://github.com/nordmanndev/LUI/issues/166) and its issues
-#169–#183: the catalogue owns the connection (a path and typed options, ADR-0066), the read path read-only (ADR-0067),
-three ways to open a catalogue (ADR-0068), the freeze of 0.1.0 lifted for 0.3.0 (ADR-0069), and the findings of the audit
-of 2026-11-13/14. **Nothing else comes into 0.3.0** (the owner, 2026-11-15).
-**Branch:** `0.3.0` — branched from `main` at `f4ef3c4` (the release of 0.2.0), with the three state pull requests of
-`dev` merged into it. **Every pull request of the round branches from `0.3.0` and targets `0.3.0`**, one per issue, in the
-order of the plan.
-**Decision:** the plan ([the round of 0.3.0](./../plan/2026-11-15-the-round-of-0-3-0.md)) and the epic #166 — every
-decision of the round was taken by the owner on 2026-11-14 and 2026-11-15.
-**Status:** **the round is open.** The owner merged the plan into `0.3.0` on 2026-11-15 (PR #201, the merge commit
-`64e0efb`) — that was the go. **The next step is #169** (ADR-0066): a branch from `0.3.0`, a pull request against `0.3.0`.
-Before it, read the index of the records: the numbers 0066–0069 have to be free.
+**Issue:** the round of **0.4.0** — the epic [#258](https://github.com/nordmanndev/LUI/issues/258) and its issues
+#259–#263: the freeze comes with 1.0.0 (ADR-0072), the types of the application and their format (ADR-0073), the typed
+world mirrors the untyped one (ADR-0074), the typed hit carries the payload (ADR-0075), and the sample and the papers.
+**Nothing else comes into 0.4.0** (the owner, 2026-11-20): the client series (#212) is not in it, and the alignment with
+the Nordmann standards (#221) follows the round in the same milestone.
+**Branch:** `dev` — every pull request of the round branches from `dev` and targets `dev`, one per issue, in the order of
+the plan. The release is the pull request `dev` → `main`.
+**Decision:** the plan ([the round of 0.4.0](./../plan/2026-11-20-the-round-of-0-4-0.md)) and the epic #258 — every
+decision of the round was taken by the owner on 2026-11-20.
+**Status:** **the round is open.** The plan is in a pull request against `dev`; the owner merges it, and that is the go.
+**The next step is #259** (ADR-0072): a branch from `dev`, a pull request against `dev`. Before it, read the index of the
+records: the numbers 0072–0075 have to be free (ADR-0071 belongs to the record of the client).
 
 ## What is done
 
-- **LUI 0.1.0 is released** (2026-11-13): the tag `v0.1.0` on `main`, the packages `Nordmann.LUI` and
-  `Nordmann.LUI.Hosting` at the version `0.1.0`, and the freeze of
-  [ADR-0026](../adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) in force — the public API grows only
-  additively from this version on.
-- **LUI 0.1.1 is released** (2026-11-13): the tag `v0.1.1` on `main`, the packages at the version `0.1.1`, the four guards
-  of the round and the dead paths of the records. The public API did not move.
-- **LUI 0.2.0 is released** (2026-11-15): the tag `v0.2.0` on `main` (the merge commit `f4ef3c4`), the packages
-  `Nordmann.LUI` and `Nordmann.LUI.Hosting` at the version `0.2.0` on nuget.org, and the round of the measured work
-  with it — six pull requests, every one of them ending in a number. The public API did not move: the freeze of
-  [ADR-0026](../adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) holds, and there is no migration note.
-- **The whole series is merged**: the public API of the review of 2026-11-04 (ADR-0063), the route named in the call
-  (ADR-0062), the chapter that says why the tests are built this way (#81), the warm-up that leaves nothing running
-  (#148), and the repository English throughout (ADR-0057).
-- **The epics #39, #64 and #72 are closed** with the release.
-- **The plan of the round is written**: `0.1.1` carries the six dead paths of the records and the three missing guards;
-  `0.2.0` carries the measured work and the decisions.
-- **The six dead paths of the records are repaired**, and a guard holds them up: every path of the list of the affected
-  files of a current record names a file that exists.
-- **The three missing guards of the round are there**: the paths of the records (#137), the index of the records (#129), the
-  members of the API page (#130) and the C# blocks of the tutorial (#128).
-- **The probe of the measured window is written and merged** (#134, PR #164, the merge commit `f15370f`): the unit lane
-  can be dispatched with the probe armed, the probe names the iteration of a dirty window that allocated and the amount,
-  and `tools/allocation-probe.sh` dispatches the runs, collects their reports and says how many runs there were.
-  **The probe caught the event** on the runner: 87 runs, one dirty window — the first window, iteration 62, 7312 bytes.
-  The numbers stand in `docs/benchmarks.md`. The file and the line of the runtime are the open end of it: issue #165.
-- **The run under load is written and merged** (#154, PR #184, the merge commit `2a492d1`): `tools/load-run.sh` runs the
-  four lanes of the suite at once, with the measurement layer beside them, keeps the whole output and the trx of every
-  lane, and **names the test that failed** the moment it fails. **The failure named itself**: 30 runs, 120 lanes, six of
-  them red — the lost test is `LuiWarmupTests.The_host_waits_for_a_round_that_runs_when_it_is_disposed`, in four of the
-  five failing integration runs, and their counts are the counts of the run of 2026-11-13. The reason is measured: the
-  claim the test waits for holds for about 1.16 s, and the longest gap between two polls under the load was 1841 ms —
-  the round began and ended inside one gap. The numbers stand in `docs/benchmarks.md`. The fix of the test was issue #185 —
-  and it is merged (PR #189).
-- **The contract with SymSpell is written and merged** (#44, PR #187, the merge commit `dcb3cea`, ADR-0064): the owner
-  decided on 2026-11-14 that **`symspell` stays** — maybe to be looked at again another time. The contract is measured:
-  `TypoContractTests` pins the rules (the beginnings of three to ten letters, the count of a word = its weight + 1, the
-  count threshold 1, the order of the corrections, the head of ten letters) and measures the dictionary over the whole
-  word list — 685,739 words, **138 MB**, 2.3 s, and a fingerprint of the corrections that an own implementation would have
-  to reproduce. The harness rides on the lane of the parity over the whole word list. The numbers stand in
-  `docs/benchmarks.md`.
-- **The wait of the warm-up does not expire** (#185, PR #189, the merge commit `f66c584`): the service counts the rounds
-  that have **begun** — a claim that stays true — and the round is a **task of the service**, so that the host that stops
-  it waits for the task of the round and not for the flag, which is cleared a moment before the round itself is over.
-  That is the flake the hunt of #154 named, and the fix of it: the claim of a round that *runs* holds for about a second,
-  and a loaded machine delayed the poll of the test by more than that. Two more waits of the same file are fixed with it
-  — the round that fails is started by hand and waited for. The mutation
-  `a-claim-of-a-round-that-does-not-stay-true` proves that the new guard bites; the promise of ADR-0043 stands as it was
-  written, and the record carries a note of it.
-- **The write lock of a linked sync is measured, and the rule of ADR-0016 stands** (#31, PR #191, the merge commit
-  `421bcd9`): the sync of a linked index of 1,000,000 rows holds the write lock of the file for **26.7 s** — the same
-  number as ADR-0015 and ADR-0016 — a writer of the application waits up to **25.8 s**, and with the busy timeout of the
-  catalog (5 s, ADR-0046) **4 of 11** of its writes fail with `SQLITE_BUSY`. The owner decided on 2026-11-14: the shadow
-  build comes when an application reports the lock as a problem. Nothing is built and nothing changes, so the decision
-  gets **no ADR of its own** — a note on ADR-0016 says what it took, the way the notes of the issues #76 and #148 do.
-- **The first load keeps its path, and its budget is three minutes again** (#32, PR #194, the merge commit `d125d98`,
-  ADR-0065): the lever of the issue — a longer write-ahead log while the first load runs — was measured on two machines
-  and **rejected**: 120.0 s → 122.0 s → 120.0 s on the machine of the record, 172.9 s → 180.8 s → 165.1 s on the machine
-  of the report, and the log of the file doubles from 229 MB to 424 MB. The other two levers of the issue are **moot**:
-  the target holds again, so no lever is needed. The owner decided on 2026-11-15: the budget of the first load goes
-  **back to 3 minutes** (180 s) — the promise of ADR-0020 — and the path does not move: `Sync` with the batch of
-  1,000,000, the pragmas where SQLite puts them, no lever in the library. The build of the whole corpus of the repository
-  (1,908,798 entries) takes **120.4 s** on the machine of the record and **165.1–172.9 s** on the machine of the report.
-  Two things had to be right before a number could mean anything, and both were wrong: the lane measured the build with
-  the batch of 10,000 (the promise of ADR-0020 names 1,000,000 — worth about 20 %), and the scenario of three million
-  entries does not exist — the budget stays reported, not asserted, and the number at three million is the one of
-  2026-11-04 (the corpus with three million entries is the task of issue #176).
+- **LUI 0.1.0, 0.1.1, 0.2.0 and 0.3.0 are released** (2026-11-13, 2026-11-13, 2026-11-15, 2026-11-18): the tags on
+  `main`, the packages `Nordmann.LUI` and `Nordmann.LUI.Hosting` on nuget.org. The public API did not move in 0.1.1, 0.2.0
+  and 0.3.0 — the freeze of
+  [ADR-0026](../adr/0026-the-public-api-from-0-1-0-on-grows-only-additively.md) held, and there is no migration note.
+- **The round of 0.3.0 is merged and released** (the epic
+  [#166](https://github.com/nordmanndev/LUI/issues/166), the issues #169–#183, the records ADR-0066–ADR-0070): the
+  catalogue owns the connection, the read path opens read-only, three ways to open a catalogue, and the audit of
+  2026-11-13/14 is fixed. The tag `v0.3.0` stands on `main` (`1b34972`).
+- **The audit of `main` of 2026-11-20 is green**: 134 architecture tests, no warning, no forbidden package, no circular
+  dependency. The verdict is PASS; the findings of the audit of 2026-11-13/14 are fixed.
+- **The standards are read**: `architecture/library/public-api.md` (the API baseline), the agent contract, the workflow of
+  the pull requests, and the skill of the milestone. The alignment with them is the issue #221 — after this round.
+- **The round of 0.4.0 is planned** (2026-11-20): the goal, the rules, the five pull requests, the acceptance. The three
+  decisions of the owner are in the epic #258 and in the issues #259–#263.
 
 ## Open
 
-The four pull requests of the first round, in the order of the plan:
-
-1. ~~**#137**~~ — the dead paths in the records: six paths in three records. **Done.**
-2. ~~**#129**~~ — the index of the ADRs gets a guard. **Done.**
-3. ~~**#130**~~ — the API page guards the members, not only the types. **Done.**
-4. ~~**#128**~~ — the code blocks of the tutorials are compiled by a guard. The issue names the tutorials by their old
-   names; they are `01-first-index.md` … `05-in-the-application.md` since PR #135. **Done.**
-
-Then the release of `0.1.1` — **done** (PR #160, the release pull request #161, the tag `v0.1.1`, the packages on
-nuget.org) — and the round of the measured work: **#134** (the 1912 bytes), **#154** (the integration flake), **#44** (the
-dependency on `symspell`), **#185** (the wait of the warm-up), **#31** (the write lock of a linked sync), **#32** (the
-first load of 3 M entries).
+- **#259** — the freeze comes with 1.0.0 (ADR-0072). The rule of `AGENTS.md` changes with it.
+- **#260** — the register of the payload types (ADR-0073). `LuiCatalogOptions.PayloadSerializer` becomes
+  `LuiCatalogOptions.Payloads`.
+- **#261** — the typed world mirrors the untyped one (ADR-0074). The renames, `LuiEntry<T>`, `LuiEmbeddedIndex<T>`.
+- **#262** — the typed hit carries the payload (ADR-0075). `hit.Payload`, `LuiPayloadMode`.
+- **#263** — the sample and the papers.
+- **#221** — the alignment with the Nordmann standards: after the round, in the same milestone.
 
 ## The next step
 
-**The round of the measured work** — `0.2.0`, on the plan
-([the round of the measured work](./../plan/2026-11-13-the-round-of-the-measured-work.md)). Six pull requests, in the order
-of the plan:
-
-1. ~~**#134**~~ — the origin of the 1912 bytes inside the measured window: the probe of the window, the runs, the
-   finding. **Done** (PR #164, the merge commit `f15370f`) — and the probe caught the event: 87 runs, one dirty window
-   that names the iteration and the amount. The open end of it — the file and the line of the runtime — is issue #165.
-2. ~~**#154**~~ — the test of the integration layer that failed once under load: the run that keeps the whole output,
-   the finding. **Done** (PR #184, the merge commit `2a492d1`) — the failure named itself: 30 runs, 120 lanes, six red,
-   and the lost test is `The_host_waits_for_a_round_that_runs_when_it_is_disposed`. The fix of the test is issue #185.
-3. ~~**#44**~~ — the dependency on `symspell`: the harness over the whole word list, then the ADR that decides.
-   **Done** (PR #187, the merge commit `dcb3cea`, ADR-0064) — the owner decided that `symspell` stays; the harness pins
-   the rules of the contract and measures the dictionary over the whole word list: 685,739 words, 138 MB, and the
-   fingerprint of the corrections.
-4. ~~**#185**~~ — the wait of the warm-up: a claim that stays true, and the task of the round. **Done** (PR #189, the merge
-   commit `f66c584`) — the service counts the rounds that have begun, and the host waits for the task of the round. The
-   mutation `a-claim-of-a-round-that-does-not-stay-true` proves that the guard bites.
-5. ~~**#31**~~ — the write lock of a linked sync: the number of the lock, then the decision. **Done** (PR #191, the merge
-   commit `421bcd9`) — the sync of a linked index of 1,000,000 rows holds the write lock of the file for 26.7 s, a writer
-   waits up to 25.8 s, and with the busy timeout of the catalog four of eleven writes fail with `SQLITE_BUSY`. The owner
-   decided on 2026-11-14: the rule of ADR-0016 stands, and the shadow build comes when an application reports the lock
-   as a problem. Nothing is built, so the decision has no ADR of its own — a note on ADR-0016 says what it took.
-6. ~~**#32**~~ — a faster first load: the lever that was measured, the numbers of two machines, the budget back at
-   3 min, the ADR. **Done** (PR #194, the merge commit `d125d98`, ADR-0065) — the checkpoint interval of the
-   write-ahead log is rejected (no gain, and the log of the file doubles); the two other levers of the issue are moot;
-   the owner decided on 2026-11-15 that the budget goes **back to 3 minutes** and that the path of the first load does
-   not move.
-
-Then the release of `0.2.0` — **done** (PR #196, the release pull request #197, the tag `v0.2.0` on the commit `f4ef3c4`
-of `main`, the packages on nuget.org).
-
-**The next round is 0.3.0** — [the plan](./../plan/2026-11-15-the-round-of-0-3-0.md), on the branch `0.3.0`. Fifteen
-pull requests, one per issue, then the release:
-
-1. **#169** — ADR-0066: the catalogue owns the connection (`LuiPragmas`, the path, `AddLui` with a factory) — **the first
-   pull request of the round, and the next step.**
-2. **#171** — ADR-0068: `Open`, `OpenOrCreate`, `OpenReadOnly`.
-3. **#170** — ADR-0067: the read path opens read-only.
-4. **#173** — the prefix path reads only the rowid.
-5. **#174** — no word start on the prefix path.
-6. **#172** — ADR-0069: the freeze of 0.1.0 is lifted, the guard that the old API is gone, the migration note.
-7. to 15. **#181, #182, #179, #178, #180, #177, #176, #183, #175** — the findings of the audit, in this order.
-16. The release of 0.3.0 into the branch; then `0.3.0` → `dev`, `dev` → `main`, the tag `v0.3.0`.
-
-**Not in 0.3.0:** #165 (the file and the line of the runtime of the one-off) and #192 (the window of the unit layer) stay
-open for the round after.
-
-**The trap of the release:** the merge of the release pull request can take `dev` with it — its head *is* `dev`, and the
-button **Delete branch** next to the merge deletes the head. It happened on 2026-11-15 (after PR #197); nothing was lost,
-`dev` was recreated at the commit of `main` and the state pull request was reopened and merged. **After every release
-merge: do not click "Delete branch" there, and check that `dev` is still there.**
+**#259** — a branch from `dev`, a pull request against `dev`, red first: the record ADR-0072, the status of ADR-0069, the
+rule in `AGENTS.md`, the note in the CHANGELOG.
