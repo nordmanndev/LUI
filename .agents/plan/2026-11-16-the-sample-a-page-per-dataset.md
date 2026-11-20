@@ -281,7 +281,7 @@ Each pull request is green on its own, and the sample works at every step of the
 ### PR 2 — The three curated datasets (recipes, tags, names)
 
 - **Files:** `wwwroot/recipes.html`, `wwwroot/tags.html`, `wwwroot/names.html`, `js/main.js`, `js/core/page.js`,
-  `js/panels/scenario-view.js`, the panels of a dataset page, the node tests, and the ADR-0070 (drafted).
+  `js/panels/scenario-view.js`, the panels of a dataset page, the node tests, and the ADR-0071 (drafted).
 - **The rule:** the page names its dataset and links the three stylesheets; the client mounts that one dataset. The old page
   stays the entry point with its own stylesheets — the hand-written `css/flexdatalist.css` included — until PR 4: the two
   worlds live side by side for two pull requests, no page links both dropdown stylesheets, and neither is broken.
@@ -306,7 +306,7 @@ Each pull request is green on its own, and the sample works at every step of the
 
 - **Files:** `wwwroot/index.html` (the hub), the deletion of the old single page's markup and of `css/base.css`,
   `css/components.css`, `css/layout.css`, `css/tokens.css` and the hand-written `css/flexdatalist.css`, `js/main.js` (the
-  hub view), `js/panels/indexes-panel.js`, `js/panels/fill-form.js`, the ADR-0070 (final), the notes in ADR-0027 and
+  hub view), `js/panels/indexes-panel.js`, `js/panels/fill-form.js`, the ADR-0071 (final), the notes in ADR-0027 and
   ADR-0029, the index of the ADRs, and the CHANGELOG.
 - **The rule:** the indexes panel and the fill stand on the index page; the dataset pages carry the query (D5, D6). After this
   pull request `wwwroot/css/` holds **two files, one folder and a README** — `mvp.css`, `brand.css`, `vendor/flexdatalist.css` — and the
@@ -316,7 +316,7 @@ Each pull request is green on its own, and the sample works at every step of the
   amended and not deleted. ADR-0027's decision 1 ("the sample writes its own stylesheet") changes with it: from now on the
   sample writes **no** style, and it vendors the one of the library.
 - **The acceptance:** the index page lists the six datasets and administers the six indexes; the maintenance and the fill work
-  from it; `wwwroot/css/` holds `mvp.css`, `brand.css`, `vendor/flexdatalist.css` and `README.md` and nothing else; the ADR-0070
+  from it; `wwwroot/css/` holds `mvp.css`, `brand.css`, `vendor/flexdatalist.css` and `README.md` and nothing else; the ADR-0071
   exists with its notes in ADR-0027 and ADR-0029, and the CHANGELOG has its entry.
 
 ### PR 5 — The guards
@@ -424,20 +424,22 @@ Each pull request is green on its own, and the sample works at every step of the
   — which D3 forbids.
 - **Whether the fill of a bulk index stays on the index page** — the owner's answer says yes; ADR-0029 says it stands in the
   tab of the index it fills, and the note in ADR-0029 says why it moved.
-- **The number of the ADR** — the next free one after ADR-0069 (0068 and 0069 are claimed by #171 and #172).
+- **The number of the ADR** — the next free one after ADR-0070. The number was ADR-0070 when this plan was written on
+  2026-11-16; the round of 0.3.0 took ADR-0066 to ADR-0070 in the meantime (`0070-the-catalogue-holds-no-connection.md`),
+  and the record of the client is **ADR-0071**.
 - **The numbers of the issues** — the epic and its issues are created when the plan is approved.
 
 ## 10. The record
 
 | The decision | It lives in |
 |---|---|
-| D1 (the seven pages) | this plan; ADR-0070 |
-| D2 (the two vendored stylesheets) | this plan; ADR-0027 (the vendored file and its provenance); ADR-0070 |
-| D3 (no style of the sample's own) | this plan; ADR-0070; the guards of PR 5 |
-| D4 (MVP's dark mode) | this plan; ADR-0070 |
-| D5 (what is on which page) | this plan; ADR-0070 |
+| D1 (the seven pages) | this plan; ADR-0071 |
+| D2 (the two vendored stylesheets) | this plan; ADR-0027 (the vendored file and its provenance); ADR-0071 |
+| D3 (no style of the sample's own) | this plan; ADR-0071; the guards of PR 5 |
+| D4 (MVP's dark mode) | this plan; ADR-0071 |
+| D5 (what is on which page) | this plan; ADR-0071 |
 | D6 (the fill moves) | this plan; the note in ADR-0029 (decisions 9 and 10) |
 | D7 (the page names its dataset) | this plan; ADR-0027 (the module tree and the policy) |
-| D8 (the information stays, the way it is shown changes) | this plan; ADR-0070 |
+| D8 (the information stays, the way it is shown changes) | this plan; ADR-0071 |
 | D9 (issue-driven, six pull requests) | this plan; AGENTS.md |
-| D10 (the brand of the guide, and the company's logo in the header) | this plan; ADR-0070; the brand's layer and its provenance in `wwwroot/css/README.md`; the owner's answers of 2026-11-16 |
+| D10 (the brand of the guide, and the company's logo in the header) | this plan; ADR-0071; the brand's layer and its provenance in `wwwroot/css/README.md`; the owner's answers of 2026-11-16 |
