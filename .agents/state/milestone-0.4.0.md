@@ -34,11 +34,11 @@ file into `0.4.0`.
 
 Risks of the whole run:
 
-- **The SDK.** `global.json` pins SDK `10.0.403` (`rollForward: latestPatch`). The planning container had only `10.0.114`,
-  and `builds.dotnet.microsoft.com` (where `dot.net/v1/dotnet-install.sh` downloads from) was refused by the network policy
-  of the environment. **Before the first code PR, check `dotnet --list-sdks`.** Without `10.0.403` nothing can be built or
-  tested locally — stop and tell the owner (the host has to be allowed, or the SDK installed by the environment's setup
-  script). Never change `global.json` to get around it.
+- **The SDK.** `global.json` pins SDK `10.0.403` (`rollForward: latestPatch`); the image ships only `10.0.114`. The
+  environment now allows `builds.dotnet.microsoft.com` and its setup script installs `10.0.403` into `/usr/lib/dotnet`
+  (owner, 2026-11-20). **At the start of every session, check `dotnet --list-sdks`.** If `10.0.403` is missing, run
+  `curl -sSL https://dot.net/v1/dotnet-install.sh -o /tmp/dotnet-install.sh && bash /tmp/dotnet-install.sh --version 10.0.403 --install-dir /usr/lib/dotnet`;
+  if that fails too, stop and tell the owner. Never change `global.json` to get around it.
 - **Breaking release, additive PRs.** From #261 to #266 the new API lives **next to** the old one (the old calls are a thin
   layer over the new ones); only #268 removes. A PR that removes or renames an old member before #268 breaks the plan.
 - **The guards of the repository fail loudly on every public change** — each code PR has to move them in the same PR:
