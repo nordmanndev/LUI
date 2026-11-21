@@ -34,7 +34,27 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   `hit.GetPayload<T>()`. The new `LuiLinkedIndexBuilder<TPayload>` has the options of the untyped builder, so `WithPayload` and the
   options can be called in any order; the map of a linked definition is code, never stored or compared, and each definition uses its own.
 
+- **The key types `int`, `string` and `Guid`** ([ADR-0073](.agents/adr/0073-the-index-definition-and-the-typed-handles.md), #270): a definition
+  takes `long`, `int`, `string` or `Guid` as its first type argument — `LuiIndexDefinition<Guid>`, `LuiLinkedIndexDefinition<int>` — and
+  `hit.Key` and every key parameter of the handle have that type. An embedded index takes all four; a linked index takes `long` and `int`
+  (`string` and `Guid` on a linked definition is a `LuiConfigurationException` that names #267). The stored definition names the exact key
+  type (`long`, `int`, `string`, `guid`), and opening an index with another one — `int` against `long` included — is a
+  `LuiDefinitionMismatchException` naming `keyType`. A `Guid` is stored in the canonical form `"D"`, lower case. A linked `int` index leaves
+  the rows whose key is outside the `int` range out of `Sync`, `Refresh` and `ApplyPending` and counts them in
+  `LuiLinkedSyncReport.KeyOutOfRange`. Any other key type is a `LuiConfigurationException` on first use that names the allowed types.
+  New: `LuiKeyType` (`Long`, `Int`, `String`, `Guid`; `LuiKeyKind` stays until #268), `LuiKeyException` (a stored key that does not convert — a
+  damaged file; it names the index and the key; there is no `CheckKeys()`, because a stored key always converts) and `LuiFormatException`.
+
 ### Changed
+
+- **LUI format version 2 — 0.4.0 does not read the files of 0.3.0** (#270, ADR-0073): the LUI format version (the `schema_version` of
+  `lui_meta`, not SQLite's own schema counter) goes from 1 to 2, and `Open`, `OpenReadOnly` and `OpenOrCreate` of a file whose indexes
+  were written in another format throw a `LuiFormatException` **when the catalog is opened**: "The file 'app.db' was written by LUI 0.3.0
+  (format 1); this version reads format 2. Recreate the indexes." A file of a newer format is rejected the same way. The later changes of
+  0.4.0 add to format 2 before the release. There is no migration.
+
+- The stored definition of an index names its key type exactly: an embedded index with `long` or `string` keys is stored as before, and
+  `int` and `guid` are new names. The word of the mismatch about the version of an index is now "LUI format", not "schema version".
 
 - **`LuiLinkedIndexBuilder.WithPayload<TPayload>` returns `LuiLinkedIndexBuilder<TPayload>`** (it returned the untyped
   `LuiLinkedIndexBuilder`), and `TPayload` is `where TPayload : notnull`. The map stays typed end to end: the cast per hit and the
@@ -54,7 +74,20 @@ minor version, a migration note and its own record, and no member is marked `[Ob
 
 ### Migration
 
-Additive in this version: every call of 0.3.0 still works (`Create(name, …)`, `CreateLinked`, `Index(name)`, `LinkedIndex`,
+**A break the compiler does not see — read it first: files of 0.3.0 are not read.** A catalog file that holds an index written by 0.3.0
+(format 1) cannot be opened by 0.4.0: `LuiCatalog.Open`, `OpenReadOnly` and `OpenOrCreate` throw a `LuiFormatException` before any index is
+used — and `DropIndex` is out of reach too, because the catalog does not open. Recreate the indexes once, before the first start of 0.4.0:
+
+1. a file that holds only LUI (a search file next to the application's database): delete it — the indexes are created again by
+   `catalog.Create(definition)` and filled from their source (`UpsertMany` or `Sync` for an embedded index, `Sync()` for a linked one);
+2. a catalog in the application's own database: drop the tables of LUI from a migration of the application — `lui_meta`, and the
+   tables `lui_<name>`, `lui_<name>_fts` (and, for a linked index, `lui_<name>_pending`) of every index; the triggers of a linked index on
+   the application's table (`lui_<name>_ai`, `lui_<name>_au`, `lui_<name>_ad`) are dropped by the same migration. The application's own tables stay.
+
+The typed key is new, not a break: `LuiIndexDefinition<long>` and `LuiLinkedIndexDefinition<long>` keep working, and an index created by
+the old calls with text keys (`WithKey(LuiKeyKind.Text)`) opens with `LuiIndexDefinition<string>`.
+
+The rest is additive in this version: every call of 0.3.0 still works (`Create(name, …)`, `CreateLinked`, `Index(name)`, `LinkedIndex`,
 `As<T>()`) and is now a thin layer over the definition. They are removed with #268, before 0.4.0 is released. Move a call site
 over like this:
 

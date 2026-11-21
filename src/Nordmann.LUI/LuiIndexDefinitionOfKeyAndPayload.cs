@@ -13,7 +13,7 @@ namespace Nordmann.LUI;
 /// <see cref="LuiCatalogOptions.PayloadSerializer"/> of the catalog; a write on a catalog without one throws a
 /// <see cref="LuiConfigurationException"/>. The type of the payload is not part of the stored definition yet.
 /// </summary>
-/// <typeparam name="TKey">The type of the keys — <see cref="long"/> in this version.</typeparam>
+/// <typeparam name="TKey">The type of the keys — <see cref="long"/>, <see cref="int"/>, <see cref="string"/> or <see cref="Guid"/> (ADR-0073).</typeparam>
 /// <typeparam name="TPayload">The type of the payload: what every entry of the index carries.</typeparam>
 public sealed class LuiIndexDefinition<TKey, TPayload> : LuiIndexDefinitionBase
     where TKey : notnull

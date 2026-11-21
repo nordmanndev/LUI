@@ -45,7 +45,7 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 
 | Member | What it does |
 |---|---|
-| `static LuiCatalog Open(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, and **writes nothing**: a file that is missing or is no catalog (no SQLite database, no `lui_meta`) is a `LuiCatalogNotFoundException`. It never creates a file, never creates `lui_meta` and never sets the journal mode. It probes the SQLite it found (version, folding) and refuses a database it cannot search correctly. |
+| `static LuiCatalog Open(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, and **writes nothing**: a file that is missing or is no catalog (no SQLite database, no `lui_meta`) is a `LuiCatalogNotFoundException`. It never creates a file, never creates `lui_meta` and never sets the journal mode. It probes the SQLite it found (version, folding) and refuses a database it cannot search correctly. A file written in **another LUI format** — a file of 0.3.0 is format 1, 0.4.0 reads format 2 — is a `LuiFormatException` when it is opened (so are `OpenReadOnly` and `OpenOrCreate` of such a file): no migration, recreate the indexes. |
 | `static LuiCatalog OpenOrCreate(string path, LuiCatalogOptions? options = null)` | opens the catalog and sets the file up: the file is created when it is missing, `lui_meta` is created when the file has none (the database of an application), and a catalog that is there is not written. **LUI sets the write-ahead logging only in a file it creates itself**; a file that is there keeps its journal mode, empty or not (ADR-0066, ADR-0068). |
 | `static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, **to read only**: every connection of it is read-only, and SQLite refuses every write, which LUI turns into a `LuiReadOnlyException`. A file that is missing or is no catalog is a `LuiCatalogNotFoundException`. |
 | `LuiEmbeddedIndex<TKey> Create<TKey>(LuiIndexDefinition<TKey> definition)` | creates the index of an **embedded definition**, or opens it if it exists with the same definition — safe on every start — and returns its typed handle. It creates only: it never syncs and never installs triggers. A different stored definition is a `LuiDefinitionMismatchException` that names the fields. |
@@ -138,6 +138,10 @@ public static class SearchIndexes
     public static readonly LuiLinkedIndexDefinition<long> Articles =
         new("articles", index => index.MultiWord().LinkTo(table: "articles", key: "id", text: "title").TypoTolerance());
 
+    // the key type is the type argument: long, int, string or Guid (a linked index: long or int)
+    public static readonly LuiIndexDefinition<Guid> Sessions =
+        new("sessions", index => index.SingleWord());
+
     // with a payload: the type is declared once, in the definition
     public static readonly LuiIndexDefinition<long, RecipePayload> Recipes =
         new("recipes", index => index.MultiWord().TypoTolerance());
@@ -150,11 +154,12 @@ public static class SearchIndexes
 }
 
 // at the start of the application — safe every time
-catalog.Create(SearchIndexes.Tags, SearchIndexes.Articles, SearchIndexes.Recipes, SearchIndexes.Chefs);
+catalog.Create(SearchIndexes.Tags, SearchIndexes.Articles, SearchIndexes.Sessions, SearchIndexes.Recipes, SearchIndexes.Chefs);
 
 // anywhere else, without type arguments
 LuiEmbeddedIndex<long> tags = catalog.Index(SearchIndexes.Tags);
 LuiLinkedIndex<long> articles = catalog.Index(SearchIndexes.Articles);
+LuiEmbeddedIndex<Guid> sessions = catalog.Index(SearchIndexes.Sessions);
 LuiEmbeddedIndex<long, RecipePayload> recipes = catalog.Index(SearchIndexes.Recipes);
 LuiLinkedIndex<long, ChefView> chefs = catalog.Index(SearchIndexes.Chefs);
 ```
@@ -172,7 +177,7 @@ use by a catalog — not in a static initializer, where it would surface as a `T
 |---|---|
 | `string Name { get; }` | the name of the index, as it was given: `^[a-z][a-z0-9_]{0,40}$`, checked on first use |
 | `LuiIndexSource Source { get; }` | `Embedded` or `Linked` — decided by the definition type |
-| `Type KeyType { get; }` | the type of the keys: the type argument of the definition (`long` in this version) |
+| `Type KeyType { get; }` | the type of the keys: the type argument of the definition — `long`, `int`, `string` or `Guid` ([the key types](#the-key-types)) |
 | `Type? PayloadType { get; }` | the type of the payload: the second type argument of a definition with a payload; `null` for a definition without |
 | `string ToString()` | the definition in one line: `tags (embedded, long)`, with a payload `recipes (embedded, long, RecipePayload)` |
 
@@ -199,6 +204,29 @@ else, so the overloads of `Create` and `Index` are unambiguous. A variable typed
 
 `Embedded` — the content lives in a table of the library; `Linked` — in a table of the application.
 
+### The key types
+
+`TKey` is the key type of the definition, and the stored definition names it **exactly**:
+
+| `TKey` | stored key type | `LuiKeyType` | embedded | linked |
+|---|---|---|---|---|
+| `long` | `long` | `Long` | yes | yes |
+| `int` | `int` | `Int` | yes | yes |
+| `string` | `string` | `String` | yes | not yet — #267 |
+| `Guid` | `guid` | `Guid` | yes | not yet — #267 |
+
+- The key type is a **compared field**: opening an index with another key type — `int` against `long` included — is a changed
+  definition and throws a `LuiDefinitionMismatchException` naming `keyType`. `DropIndex`, `Create`, fill it again.
+- Any other `TKey` (`short`, `double`, a class …) is a `LuiConfigurationException` on first use that names the definition and the allowed
+  types; `string` or `Guid` on a **linked** definition names #267 (a linked index has the `INTEGER PRIMARY KEY` of the application's table).
+- A `Guid` is written and compared in the canonical form `"D"`, lower case (`0f8fad5b-d9cb-469f-a165-70867728950e`), so there is one
+  stored key per GUID and no stored text that is not a GUID. An `int` is stored in invariant digits.
+- An `int` key of an **embedded** index can only be written through an `int` handle, so it always fits. A **linked** `int` index reads
+  the keys of the application's table: a row whose key is outside `0 … 2,147,483,647` is left out by `Sync`, `Refresh` and
+  `ApplyPending`, counted in `KeyOutOfRange` of the `Sync` report, and never reaches a query.
+- There is **no `CheckKeys()`**: a stored key always converts. A key that does not — a damaged file — fails the read with a
+  `LuiKeyException` that names the index and the stored key.
+
 ### What the comparison compares
 
 `Create(definition)` and `Index(definition)` compare the declared definition with the stored one:
@@ -207,7 +235,7 @@ else, so the overloads of `Create` and `Index` are unambiguous. A variable typed
 |---|---|
 | `source` (embedded or linked) | the definition type |
 | `kind` (single word or multi word) | `SingleWord()` / `MultiWord()` |
-| `keyType` | `TKey` |
+| `keyType` | `TKey` — exactly: `long`, `int`, `string` or `guid` |
 | `germanTransliteration`, `foldTable` | `GermanTransliteration(…)`; the fold table of the library |
 | `typoDistance` | `TypoTolerance(…)` |
 | `link.table`, `link.key`, `link.text`, `link.weight`, `link.priority`, `link.payloadColumns` | `LinkTo(…)` and `WithPayload(…)` |
@@ -239,8 +267,9 @@ whose index was dropped throws a `LuiIndexNotFoundException` — **known limit:*
 **created again under the same name** is not told apart from the new index and works on it (take a fresh handle from `Create` or
 `Index` after the recipe for a changed definition; #265 may invalidate old handles); on a disposed catalog an `ObjectDisposedException`; on a catalog
 opened with `OpenReadOnly`, a write is a `LuiReadOnlyException`. **Use `LuiIndex<TKey>` where a method only reads,
-`LuiEmbeddedIndex<TKey>` / `LuiLinkedIndex<TKey>` where it writes or syncs.** All of them are `where TKey : notnull`; the
-key type is `long` in this version, so `hit.Key` and every key parameter are `long` and a key of another type does not compile.
+`LuiEmbeddedIndex<TKey>` / `LuiLinkedIndex<TKey>` where it writes or syncs.** All of them are `where TKey : notnull`; `TKey` is
+the key type of the definition — see [the key types](#the-key-types) — so `hit.Key` and every key parameter have that type and a key
+of another type does not compile.
 
 The API stays **synchronous**, also for an asynchronous source: `Sync(IAsyncEnumerable<…>)` blocks until the sync is done —
 run it on a thread that may block.
@@ -658,7 +687,8 @@ Console.WriteLine($"{report.Added} added, {report.Changed} changed, {report.Remo
 ### `LuiLinkedSyncReport`
 
 The report of a `Sync` of a linked index: `Indexed`, `WithoutText` (the rows with no text — they are not indexed) and
-`KeyOutOfRange` (the rows whose key is not a valid `INTEGER PRIMARY KEY`).
+`KeyOutOfRange` (the rows whose key cannot be the key of the index: outside `0 … 4,294,967,295`, and for an `int` index outside
+`0 … 2,147,483,647`).
 
 ### `LuiIntegrityReport`
 
@@ -728,7 +758,8 @@ The four measures of the library — all of them its own, without a dictionary p
 | Type | Values | What they are for |
 |---|---|---|
 | `LuiIndexKind` | `SingleWord`, `MultiWord` | the kind of an index |
-| `LuiKeyKind` | `Number`, `Text` | the kind of a key |
+| `LuiKeyKind` | `Number`, `Text` | the kind of a key — the old calls; it goes with them (#268) |
+| `LuiKeyType` | `Long`, `Int`, `String`, `Guid` | the exact type of the keys of an index, as the stored definition names it (long, int, string, guid); the exception for a damaged key carries it |
 | `LuiPriority` | `System`, `High`, `Elevated`, `Normal` | the priority of an entry |
 | `LuiPriorityMode` | `First`, `CandidatesOnly` | how the priority enters the ranking |
 | `LuiRankingOrder` | `WordStartThenSimilarity`, `WordStartThenWeight`, `SimilarityOnly`, `WeightOnly` | the order of the hits |
@@ -747,11 +778,13 @@ library.
 |---|---|
 | `LuiException` | the base of them all |
 | `LuiEnvironmentException` | the environment is not what the library needs — the SQLite is too old, or it folds differently than the one the library was measured with |
-| `LuiDefinitionMismatchException` | the index in the file was written with another definition, another version of the schema or another folding. It carries `IndexName`, `Stored` and `Requested`; for a definition, the message names the fields that differ and the way to change a definition. |
+| `LuiDefinitionMismatchException` | the index in the file was written with another definition, another LUI format (an index that changes under an open catalog — a file that is opened with another format is rejected at once, with the exception for a wrong format), another key type or another folding. It carries `IndexName`, `Stored` and `Requested`; for a definition, the message names the fields that differ and the way to change a definition. |
 | `LuiIndexNotFoundException` | there is no index of that name in the database — or the handle belongs to an index that was dropped. It carries `IndexName`. |
 | `LuiConfigurationException` | an index definition is not valid: a name that is no name, a key type that is not allowed, a step the definition does not know. It is thrown on the **first use** of the definition by a catalog, never in the initializer of its field; an invalid argument of a call stays an argument error. |
 | `LuiCatalogNotFoundException` | there is no catalog at the path: the file is missing, it is no SQLite database, or it has no lui_meta table. The ways to open a catalog that is there do not create one; the way that creates one refuses a file that is no SQLite database. It carries `Path`. |
 | `LuiLinkedTableException` | the table of the application is missing, or a column of it, or its key is not the `INTEGER PRIMARY KEY` |
+| `LuiFormatException` | the file was written in another LUI format than this version reads — thrown when the catalog is **opened** (Open, OpenReadOnly and OpenOrCreate of a file that has indexes). Format 2 is the format of 0.4.0; a file of 0.3.0 has format 1 and is not read (no migration): "The file 'app.db' was written by LUI 0.3.0 (format 1); this version reads format 2. Recreate the indexes." A newer format is rejected the same way. It carries `Path`, `FoundFormat` and `SupportedFormat`. |
+| `LuiKeyException` | a stored key does not convert to the key type of its definition — a damaged file, not an expected state (LUI only writes keys that convert, so there is no check to run). The message names the index and the stored key. It carries `IndexName`, `StoredKey` and `KeyType`. |
 | `LuiPayloadException` | a payload cannot be read in the type asked for. It carries `IndexName`, `Key` and `RequestedType`. |
 | `LuiReadOnlyException` | SQLite refused a write because the file may not be written. The message names the reason — the catalog was opened read-only, or the file and its directory may not be written — the operation and the index; the error of SQLite is the inner exception. It carries `Operation`. |
 
@@ -803,7 +836,7 @@ The warm-up is a service of the host, not a thread of the library: the host star
 
 ## The whole surface
 
-Fifty-eight public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothing else is public.
+Fifty-seven public type names in `Nordmann.LUI` (seventy-one types: a generic type counts once for each number of type parameters), two in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|
@@ -831,6 +864,7 @@ Fifty-eight public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothi
 | `LuiEntry` | record | [writing](#writing--the-entry-and-the-key) |
 | `LuiKey` | struct | [writing](#writing--the-entry-and-the-key) |
 | `LuiKeyKind` | enum | [the enumerations](#the-enumerations) |
+| `LuiKeyType` | enum | [the enumerations](#the-enumerations) |
 | `LuiQuery` | class | [reading](#reading--the-query-the-result-the-hit) |
 | `LuiQueryOptions` | record | [reading](#reading--the-query-the-result-the-hit) |
 | `LuiResult` | record | [reading](#reading--the-query-the-result-the-hit) |
@@ -860,6 +894,8 @@ Fifty-eight public types in `Nordmann.LUI`, two in `Nordmann.LUI.Hosting`. Nothi
 | `LuiEnvironmentException` | class | [the exceptions](#the-exceptions) |
 | `LuiDefinitionMismatchException` | class | [the exceptions](#the-exceptions) |
 | `LuiIndexNotFoundException` | class | [the exceptions](#the-exceptions) |
+| `LuiFormatException` | class | [the exceptions](#the-exceptions) |
+| `LuiKeyException` | class | [the exceptions](#the-exceptions) |
 | `LuiCatalogNotFoundException` | class | [the exceptions](#the-exceptions) |
 | `LuiLinkedTableException` | class | [the exceptions](#the-exceptions) |
 | `LuiPayloadException` | class | [the exceptions](#the-exceptions) |

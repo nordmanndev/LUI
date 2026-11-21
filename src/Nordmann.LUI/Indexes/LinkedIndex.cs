@@ -153,10 +153,10 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         foreach (var key in keys)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (key is < 0 or > RowId.MaxDocId)
+            if (key < 0 || key > _source.MaxKey)
             {
                 throw new ArgumentOutOfRangeException(
-                    nameof(keys), key, $"The key of a linked index is its document id: 0 … {RowId.MaxDocId:N0}.");
+                    nameof(keys), key, $"The key of the linked index '{Name}' is its document id: 0 … {_source.MaxKey:N0}.");
             }
 
             refresher.Refresh(key, learned);
@@ -215,8 +215,8 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // a key that cannot be a document id is not indexed — it only leaves the outbox (M2)
-            if (key is < 0 or > RowId.MaxDocId)
+            // a key that cannot be a document id of this index (above the int range, for an int index) is not indexed — it only leaves the outbox (M2)
+            if (key < 0 || key > _source.MaxKey)
             {
                 refresher.Forget(key);
             }

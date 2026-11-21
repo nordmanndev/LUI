@@ -20,10 +20,13 @@
   - `src/Nordmann.LUI/LuiIndexDefinitionOfKeyAndPayload.cs`, `LuiLinkedIndexDefinitionOfKeyAndPayload.cs`, `LuiLinkedIndexBuilderOfPayload.cs`,
     `LuiIndexOfKeyAndPayload.cs`, `LuiEmbeddedIndexOfKeyAndPayload.cs`, `LuiLinkedIndexOfKeyAndPayload.cs`, `LuiEntryOfKeyAndPayload.cs`,
     `LuiQueryOfKeyAndPayload.cs`, `LuiResultOfKeyAndPayload.cs`, `LuiHitOfKeyAndPayload.cs` — the payload variants (#269)
+  - `src/Nordmann.LUI/LuiKeyType.cs`, `src/Nordmann.LUI/LuiKeyException.cs`, `src/Nordmann.LUI/LuiFormatException.cs`, `src/Nordmann.LUI/KeyConversion.cs`,
+    `src/Nordmann.LUI/Schema/KeyCodec.cs`, `src/Nordmann.LUI/Schema/KeyTypes.cs`, `src/Nordmann.LUI/Schema/Meta.cs`, `src/Nordmann.LUI/Schema/LinkedSource.cs`,
+    `src/Nordmann.LUI/Indexes/IndexStore.cs`, `src/Nordmann.LUI/Indexes/LinkedIndex.cs` — the key types and the LUI format version (#270)
   - `docs/api.md`, `docs/testing.md`, `CHANGELOG.md`, `.agents/adr/README.md`
   - `tests/Nordmann.LUI.Architecture.Tests/PublicApiShapeTests.cs` — the guard of the shape of the typed handles
 - **Issue:** [#261](https://github.com/nordmanndev/LUI/issues/261), part of the epic of 0.4.0 ([#258](https://github.com/nordmanndev/LUI/issues/258)); [#269](https://github.com/nordmanndev/LUI/issues/269) (payloads, the sections 10 to 14 below),
-  #270 (key types) and #268 (the removal of the old calls) add their parts to this record
+  #270 (key types and the LUI format version, the sections 15 and 16 below) and #268 (the removal of the old calls) add their parts to this record
 
 ## Context
 
@@ -117,6 +120,34 @@ chain ended in a `Create()` that the catalog called — the description and the 
     `null` fails the query there); until then the written payloads are read through the old untyped path, `catalog.Index(name)` and
     `hit.GetPayload<T>()`. *The fingerprint:* the payload type name and format are stored and compared from #260 on.
 
+15. **The key types: `long`, `int`, `string` and `Guid`, stored exactly (#270).** `TKey` is one of the four for an embedded definition and
+    `long` or `int` for a linked one; `string` or `Guid` on a linked definition is a `LuiConfigurationException` that names #267 (a linked
+    index has the `INTEGER PRIMARY KEY` of the application's table), any other type one that names the allowed types — a new exception on
+    every use, as for every invalid definition. The stored definition names the **exact** key type — `long`, `int`, `string`, `guid` — instead
+    of the two names of 0.3.0, and it is a compared field: `int` against `long` is a changed definition and a `LuiDefinitionMismatchException`
+    naming `keyType`. The public enum `LuiKeyType` (`Long`, `Int`, `String`, `Guid`) names the four; it replaces `LuiKeyKind` (numbers or texts),
+    which stays until #268 removes it with the old calls, and the report on an index (#273) will carry it. The file still stores every key as
+    text; `KeyCodec` converts per type: a `long` and an `int` in invariant digits, a `Guid` in the canonical form `"D"`, lower case — so a
+    `guid` index holds one key per GUID and no text that is not a GUID, because it can only be opened with a `Guid` definition (the old,
+    untyped handle of such an index refuses a text that is no GUID, and an `int` index a number outside the `int` range, on the write). An
+    `int` key of an embedded index can only be written through an `int` handle, so it always fits. A **linked** `int` index reads the keys of
+    the application's table: a row whose key is outside `0 … 2,147,483,647` is left out by `Sync`, `Refresh` and `ApplyPending` (the same
+    statement that leaves out a key outside the document ids, with a smaller bound) and counted in `KeyOutOfRange` — it never reaches a query.
+    **There is no `CheckKeys()`**: a stored key always converts. A key that does not — a damaged file — fails the read that meets it with a
+    `LuiKeyException` (derives from `LuiException`; it carries the index, the stored key and the `LuiKeyType`), never with a quiet default.
+16. **The LUI format version is 2, and a file of format 1 is rejected when the catalog is opened (#270).** `Meta.SchemaVersion` — what
+    `lui_meta.schema_version` holds, the **LUI format version**, not SQLite's own schema counter (#265) — goes from 1 to 2. Format 2 is the
+    format of 0.4.0: the later issues of the round (the payload type and format of #260, `NeedsInitialSync` of #272, the generation column
+    of #271) add to it before the release — there is no 0.4.0 file with format 2 but without them. `Open`, `OpenReadOnly` and `OpenOrCreate`
+    of a file that has indexes read the table once and reject a file of another format with a **`LuiFormatException`** (derives from
+    `LuiException`; it carries the path, the found and the supported format): "The file 'app.db' was written by LUI 0.3.0 (format 1); this
+    version reads format 2. Recreate the indexes." A file of a newer format is rejected the same way. The check is at open time and not at
+    the first index, where the answer would be a misleading "another definition"; an index that changes under an open catalog keeps its own
+    check (`LuiDefinitionMismatchException`). There is no migration from format 1: 0.4.0 does not read the files of 0.3.0 (#258, out of
+    scope). The catalog does not open, so `DropIndex` is out of reach too: the application deletes the file (a file that holds only LUI), or
+    drops the `lui_*` tables and `lui_meta` of its own database once, from a migration — the one case where the tables are touched by hand —,
+    and creates the indexes again. The golden schema of `lui_meta` does not change — the format is a value in a row, not a column.
+
 ## Consequences
 
 - The old calls (`Create(name, …)`, `CreateLinked`, `Index(name)`, `LinkedIndex`, `As<T>()`, the untyped handles) keep working
@@ -124,7 +155,7 @@ chain ended in a `Create()` that the catalog called — the description and the 
 - `CHANGELOG.md` carries the migration note: additive here, the removal comes with #268.
 - `PublicApiShapeTests` gets the list of the members of every typed handle — the target each later pull request extends (#269 added the
   payload variants, #262 `Payload` and `CheckPayloads()`, #272 `NeedsInitialSync`, #273 and #266 the catalog operations).
-- The typed handles wrap the internal index of 0.3.0 and convert `TKey` ↔ `LuiKey` at the edge; #265 moves the runtime into the
+- The typed handles wrap the internal index of 0.3.0 and convert `TKey` ↔ `LuiKey` at the edge (an `int` is a number, a `Guid` a text in the form `"D"`); #265 moves the runtime into the
   catalog. A handle detects a dropped index by the missing table (a catalog read only on that path), so the check on the success path costs nothing. Known limitation: a handle of an index that was dropped and **created again under
   the same name** is not told apart from the new index (a check would cost a read on every operation); it works on the new index.
   #265, which moves the runtime into the catalog, is where a generation per index can invalidate old handles.

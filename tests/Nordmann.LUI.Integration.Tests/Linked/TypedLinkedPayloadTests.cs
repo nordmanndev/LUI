@@ -170,11 +170,11 @@ public sealed class TypedLinkedPayloadTests
         using var catalog = database.Open();
         var duplicate = new LuiLinkedIndexDefinition<long, string>(
             "dup_columns", index => index.SingleWord().LinkTo("tag", "id", "name").WithPayload(["slug", "Slug"], row => row.GetString("slug")));
-        var intKey = new LuiLinkedIndexDefinition<int, string>(
-            "int_keys", index => index.SingleWord().LinkTo("tag", "id", "name").WithPayload(["slug"], row => row.GetString("slug")));
+        var doubleKey = new LuiLinkedIndexDefinition<double, string>(
+            "double_keys", index => index.SingleWord().LinkTo("tag", "id", "name").WithPayload(["slug"], row => row.GetString("slug")));
 
         Should.Throw<LuiConfigurationException>(() => catalog.Create(duplicate)).Message.ShouldContain("dup_columns", Case.Sensitive);
-        Should.Throw<LuiConfigurationException>(() => catalog.Index(intKey)).Message.ShouldContain("int_keys", Case.Sensitive);
+        Should.Throw<LuiConfigurationException>(() => catalog.Index(doubleKey)).Message.ShouldContain("double_keys", Case.Sensitive);
         Should.Throw<LuiConfigurationException>(() => catalog.Create(Chips, duplicate)).Message.ShouldContain("dup_columns", Case.Sensitive);
     }
 

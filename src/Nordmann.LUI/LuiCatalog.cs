@@ -660,7 +660,7 @@ public sealed class LuiCatalog : IDisposable
     /// <returns>The index; it reads, and it writes if the file allows it.</returns>
     /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
     /// <exception cref="LuiDefinitionMismatchException">
-    /// The index was written by another version of the library (another schema version, another folding), or it is a
+    /// The index was written by another version of the library (another LUI format, another folding), or it is a
     /// linked index — open that with <see cref="LinkedIndex(string)"/>.
     /// </exception>
     public ILuiEmbeddedIndex Index(string name)
@@ -685,7 +685,7 @@ public sealed class LuiCatalog : IDisposable
     /// </summary>
     /// <param name="cancellationToken">Checked between the indexes.</param>
     /// <exception cref="LuiDefinitionMismatchException">
-    /// An index of the file was written by another version of the library (another schema version, another folding).
+    /// An index of the file was written by another version of the library (another LUI format, another folding).
     /// </exception>
     public void WarmUpTypoDictionaries(CancellationToken cancellationToken = default) =>
         WarmUp(IndexStore.ReadIndexNames(Database), cancellationToken);
@@ -699,7 +699,7 @@ public sealed class LuiCatalog : IDisposable
     /// <param name="cancellationToken">Checked between the indexes.</param>
     /// <exception cref="LuiIndexNotFoundException">The catalog holds no index of one of the names.</exception>
     /// <exception cref="LuiDefinitionMismatchException">
-    /// One of the indexes was written by another version of the library (another schema version, another folding).
+    /// One of the indexes was written by another version of the library (another LUI format, another folding).
     /// </exception>
     public void WarmUpTypoDictionaries(IEnumerable<string> names, CancellationToken cancellationToken = default)
     {
@@ -747,7 +747,7 @@ public sealed class LuiCatalog : IDisposable
     /// <param name="cancellationToken">Checked between the indexes.</param>
     /// <returns>The number of rows brought in.</returns>
     /// <exception cref="LuiDefinitionMismatchException">
-    /// An index of the file was written by another version of the library (another schema version, another folding).
+    /// An index of the file was written by another version of the library (another LUI format, another folding).
     /// </exception>
     public int ApplyPending(CancellationToken cancellationToken = default)
     {
@@ -924,13 +924,13 @@ public sealed class LuiCatalog : IDisposable
             : throw IndexStore.Mismatch(resolved.Name, entry.Definition, declared);
     }
 
-    /// <summary>The stored index of a name, with the two checks every index has to pass: the schema version it was written
+    /// <summary>The stored index of a name, with the two checks every index has to pass: the LUI format version it was written
     /// with, and the folding it was stored with.
     /// </summary>
     /// <param name="name">The name of the index.</param>
     /// <returns>What <c>lui_meta</c> holds about the index.</returns>
     /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
-    /// <exception cref="LuiDefinitionMismatchException">The schema version or the folding is another one.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The LUI format or the folding is another one.</exception>
     private IndexStoreEntry ReadEntry(string name)
     {
         var validated = Identifier.ValidateIndexName(name, nameof(name));
@@ -943,13 +943,13 @@ public sealed class LuiCatalog : IDisposable
         {
             throw Mismatch(
                 validated,
-                $"the schema version {entry.SchemaVersion.ToString(CultureInfo.InvariantCulture)}",
-                $"the schema version {Meta.SchemaVersion.ToString(CultureInfo.InvariantCulture)}");
+                $"the LUI format {entry.SchemaVersion.ToString(CultureInfo.InvariantCulture)}",
+                $"the LUI format {Meta.SchemaVersion.ToString(CultureInfo.InvariantCulture)}");
         }
 
         if (!KeyCodec.IsKnown(entry.Definition.KeyType))
         {
-            throw Mismatch(validated, $"the key type {entry.Definition.KeyType}", "the key type long or string");
+            throw Mismatch(validated, $"the key type {entry.Definition.KeyType}", "the key type long, int, string or guid");
         }
 
         if (!string.Equals(entry.Definition.FoldTable, TokenizerFold.Version, StringComparison.Ordinal))

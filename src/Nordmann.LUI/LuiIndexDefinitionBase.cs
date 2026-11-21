@@ -53,7 +53,7 @@ public abstract class LuiIndexDefinitionBase
     /// <summary>Where the content of the index lives: <see cref="LuiIndexSource.Embedded"/> or <see cref="LuiIndexSource.Linked"/>.</summary>
     public LuiIndexSource Source { get; }
 
-    /// <summary>The type of the keys: the first type argument of the definition (<see cref="long"/> in this version).</summary>
+    /// <summary>The type of the keys: the first type argument of the definition: <see cref="long"/>, <see cref="int"/>, <see cref="string"/> or <see cref="Guid"/> (a linked definition: <see cref="long"/> or <see cref="int"/>).</summary>
     public Type KeyType { get; }
 
     /// <summary>The type of the payload: the second type argument of a definition with a payload; <see langword="null"/> for an index without payload.</summary>
@@ -98,7 +98,7 @@ public abstract class LuiIndexDefinitionBase
         try
         {
             var validated = Identifier.ValidateIndexName(name!, nameof(name));
-            var storedKey = KeyTypes.Validate(keyType, source, oldPath: false);
+            var storedKey = KeyTypes.Validate(keyType, source);
             return new ResolvedIndex(validated, describe(new LuiIndexKindBuilder(oldPath: false)), storedKey);
         }
         catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException or ThreadAbortException))

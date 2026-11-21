@@ -200,7 +200,7 @@ public sealed class TypedPayloadHandleTests
         var broken = new (string Name, Action Create)[]
         {
             ("Bad Name", () => catalog.Create(new LuiIndexDefinition<long, Chip>("Bad Name", index => index.SingleWord()))),
-            ("int_keys", () => catalog.Create(new LuiIndexDefinition<int, Chip>("int_keys", index => index.SingleWord()))),
+            ("double_keys", () => catalog.Create(new LuiIndexDefinition<double, Chip>("double_keys", index => index.SingleWord()))),
             ("with_key", () => catalog.Create(new LuiIndexDefinition<long, Chip>("with_key", index => index.SingleWord().WithKey(LuiKeyKind.Text)))),
             ("null_function", () => catalog.Create(new LuiIndexDefinition<long, Chip>("null_function", null!))),
             ("batch", () => catalog.Create(Numbers, new LuiIndexDefinition<long, Chip>("batch", index => index.SingleWord().WithKey(LuiKeyKind.Text)))),

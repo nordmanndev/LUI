@@ -157,9 +157,40 @@ public sealed class PublicApiShapeTests
             .ShouldBe(
             [
                 "LuiCatalogNotFoundException", "LuiConfigurationException", "LuiDefinitionMismatchException", "LuiEnvironmentException",
-                "LuiException",
-                "LuiIndexNotFoundException", "LuiLinkedTableException", "LuiPayloadException", "LuiReadOnlyException",
+                "LuiException", "LuiFormatException",
+                "LuiIndexNotFoundException", "LuiKeyException", "LuiLinkedTableException", "LuiPayloadException", "LuiReadOnlyException",
             ]);
+    }
+
+    [Fact]
+    public void The_key_types_are_long_int_string_and_guid_and_the_old_kind_stays_until_268()
+    {
+        // ADR-0073, issue #270: `LuiKeyType` is the key type a definition stores, exactly; `LuiKeyKind` (numbers or texts) stays until #268
+        // removes it with the old calls. A renumbered value is a break (AGENTS.md), so the numbers are part of the guard.
+        Enum.GetNames<LuiKeyType>().ShouldBe(["Long", "Int", "String", "Guid"]);
+        Enum.GetValues<LuiKeyType>().Select(value => (int)value).ShouldBe([0, 1, 2, 3]);
+        Enum.GetNames<LuiKeyKind>().ShouldBe(["Number", "Text"], "LuiKeyKind stays until #268");
+
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        static string[] Surface(Type type) =>
+            [.. type.GetProperties(declared).Select(property => $"{TypeText(property.PropertyType)} {property.Name} {{ get; }}")
+                .Concat(type.GetConstructors(declared).Select(constructor => $".ctor({Parameters(constructor)})"))
+                .Concat(type.GetMethods(declared).Where(method => !method.IsSpecialName).Select(method => $"{TypeText(method.ReturnType)} {method.Name}({Parameters(method)})"))
+                .Order(StringComparer.Ordinal)];
+
+        // the new exceptions: sealed, derived from LuiException, and they carry what the message names
+        typeof(LuiKeyException).IsSealed.ShouldBeTrue();
+        typeof(LuiKeyException).BaseType.ShouldBe(typeof(LuiException));
+        Surface(typeof(LuiKeyException)).ShouldBe(
+            ["LuiKeyType KeyType { get; }", "string IndexName { get; }", "string StoredKey { get; }"],
+            "the stored key and the index it is in");
+        typeof(LuiFormatException).IsSealed.ShouldBeTrue();
+        typeof(LuiFormatException).BaseType.ShouldBe(typeof(LuiException));
+        Surface(typeof(LuiFormatException)).ShouldBe(
+            ["int FoundFormat { get; }", "int SupportedFormat { get; }", "string Path { get; }"],
+            "the file and the two formats");
+        typeof(LuiFormatException).GetConstructors().ShouldBeEmpty("only the library throws it");
+        typeof(LuiKeyException).GetConstructors().ShouldBeEmpty("only the library throws it");
     }
 
     [Fact]

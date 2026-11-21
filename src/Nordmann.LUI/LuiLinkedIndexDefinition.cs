@@ -12,7 +12,7 @@ namespace Nordmann.LUI;
 /// <c>catalog.Create(definition)</c> creates LUI's tables and checks the table of the application; it never syncs and
 /// never installs triggers. <c>catalog.Index(definition)</c> opens an index that is there.
 /// </summary>
-/// <typeparam name="TKey">The type of the keys — <see cref="long"/> in this version: the <c>INTEGER PRIMARY KEY</c> of the table.</typeparam>
+/// <typeparam name="TKey">The type of the keys — <see cref="long"/> or <see cref="int"/>: the <c>INTEGER PRIMARY KEY</c> of the table (text keys come with #267).</typeparam>
 public sealed class LuiLinkedIndexDefinition<TKey> : LuiIndexDefinitionBase
     where TKey : notnull
 {
@@ -39,7 +39,7 @@ public sealed class LuiLinkedIndexDefinition<TKey> : LuiIndexDefinitionBase
             name,
             LuiIndexSource.Linked,
             typeof(TKey),
-            () => new ResolvedIndex(name, description, KeyTypes.Validate(typeof(TKey), LuiIndexSource.Linked, oldPath: true)))
+            () => new ResolvedIndex(name, description, KeyTypes.Validate(typeof(TKey), LuiIndexSource.Linked)))
     {
     }
 }

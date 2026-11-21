@@ -33,6 +33,9 @@ internal sealed class LinkedSource : ContentSource
         Link = definition.Link
             ?? throw new ArgumentException("A linked index needs the table it is linked to.", nameof(definition));
 
+        // the key of a linked index is the document id: 0 … 2³²−1, and for an int index 0 … 2³¹−1 (ADR-0073)
+        MaxKey = KeyCodec.TypeOf(definition.KeyType) == LuiKeyType.Int ? int.MaxValue : RowId.MaxDocId;
+
         // the columns of the payload come out of the definition: they reach SQL, so they are checked again
         _payloadColumns = Link.PayloadColumns is { } columns
             ? [.. columns.Select(column => Identifier.ValidateApplicationName(column, "the payload columns of the definition"))]
@@ -66,6 +69,13 @@ internal sealed class LinkedSource : ContentSource
 
     /// <summary>The table of the application and its columns.</summary>
     internal LinkDefinition Link { get; }
+
+    /// <summary>
+    /// The largest key a row may have to be indexed: the largest document id, <c>2³²−1</c> — and for an <c>int</c> index
+    /// <see cref="int.MaxValue"/>. A row with another key (below 0, or above this) is left out and counted in
+    /// <c>KeyOutOfRange</c>; it never reaches a query.
+    /// </summary>
+    internal long MaxKey { get; }
 
     /// <summary>The quoted table of the application.</summary>
     internal override string ContentTable { get; }
@@ -259,8 +269,8 @@ internal sealed class LinkedSource : ContentSource
     /// <summary>A row has a text the index can hold.</summary>
     private string HasText => $"{_text} IS NOT NULL AND {_text} <> ''";
 
-    /// <summary>A key that can be a document id: 0 … 2³²−1. A row with another key is not indexed.</summary>
-    private string KeyInRange => $"{_key} BETWEEN 0 AND {RowId.MaxDocId}";
+    /// <summary>A key that can be a document id of the index: 0 … <see cref="MaxKey"/>. A row with another key is not indexed.</summary>
+    private string KeyInRange => $"{_key} BETWEEN 0 AND {MaxKey.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
 
     /// <summary>
     /// A row is indexed when it has a text and a key in range — a row that is neither is left out, never refused: a
