@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using Nordmann.LUI.Normalization;
 
 namespace Nordmann.LUI.Typos;
@@ -8,8 +9,8 @@ namespace Nordmann.LUI.Typos;
 /// </summary>
 internal sealed class TypoDictionaries
 {
-    private readonly Lock _gate = new();
-    private readonly Dictionary<string, (string Fingerprint, TypoDictionary Dictionary)> _byIndex = new(StringComparer.Ordinal);
+    private readonly Lock _replace = new();
+    private readonly ConcurrentDictionary<string, Entry> _byIndex = new(StringComparer.Ordinal);
 
     /// <summary>
     /// The typo dictionary of an index — the same object for every instance of that index <b>with that definition</b>. A dictionary
@@ -28,49 +29,46 @@ internal sealed class TypoDictionaries
         LuiTypoDistance distance,
         string fingerprint = "")
     {
-        lock (_gate)
-        {
-            if (_byIndex.TryGetValue(indexName, out var known))
-            {
-                if (string.Equals(known.Fingerprint, fingerprint, StringComparison.Ordinal))
-                {
-                    return known.Dictionary;
-                }
+        var entry = _byIndex.GetOrAdd(
+            indexName,
+            static (_, state) => new Entry(state.Fingerprint, new TypoDictionary(state.Normalization, state.Texts, state.Distance)),
+            (Fingerprint: fingerprint, Normalization: normalization, Texts: texts, Distance: distance));
 
-                // a dictionary that was registered without a fingerprint (a test makes one first, with a source of its own) belongs
-                // to the first index that asks for its name
-                if (known.Fingerprint.Length == 0)
-                {
-                    _byIndex[indexName] = (fingerprint, known.Dictionary);
-                    return known.Dictionary;
-                }
+        return string.Equals(entry.Fingerprint, fingerprint, StringComparison.Ordinal)
+            ? entry.Dictionary
+            : Replace(indexName, fingerprint, normalization, texts, distance);
+    }
+
+    /// <summary>
+    /// The dictionary that was there is of another definition — or it was registered without a fingerprint (a test makes one first,
+    /// with a source of its own), and then it belongs to the first index that asks for its name.
+    /// </summary>
+    private TypoDictionary Replace(
+        string indexName,
+        string fingerprint,
+        NormalizationOptions normalization,
+        Func<IEnumerable<(string Text, int Weight)>> texts,
+        LuiTypoDistance distance)
+    {
+        lock (_replace)
+        {
+            var known = _byIndex[indexName];
+            if (string.Equals(known.Fingerprint, fingerprint, StringComparison.Ordinal))
+            {
+                return known.Dictionary;
             }
 
-            var created = new TypoDictionary(normalization, texts, distance);
-            _byIndex[indexName] = (fingerprint, created);
-            return created;
+            var dictionary = known.Fingerprint.Length == 0 ? known.Dictionary : new TypoDictionary(normalization, texts, distance);
+            _byIndex[indexName] = new Entry(fingerprint, dictionary);
+            return dictionary;
         }
     }
 
     /// <summary>Whether the typo dictionary of an index exists and is built.</summary>
-    internal bool IsBuilt(string indexName) => TryGet(indexName, out var dictionary) && dictionary.IsBuilt;
+    internal bool IsBuilt(string indexName) => _byIndex.TryGetValue(indexName, out var entry) && entry.Dictionary.IsBuilt;
 
     /// <summary>Forgets the typo dictionary of an index that was dropped: the next index of that name starts empty.</summary>
-    internal void Forget(string indexName)
-    {
-        lock (_gate)
-        {
-            _ = _byIndex.Remove(indexName);
-        }
-    }
+    internal void Forget(string indexName) => _byIndex.TryRemove(indexName, out _);
 
-    private bool TryGet(string indexName, out TypoDictionary dictionary)
-    {
-        lock (_gate)
-        {
-            var found = _byIndex.TryGetValue(indexName, out var known);
-            dictionary = known.Dictionary;
-            return found;
-        }
-    }
+    private sealed record Entry(string Fingerprint, TypoDictionary Dictionary);
 }
