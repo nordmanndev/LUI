@@ -860,8 +860,6 @@ The scenario of the run is a file (ADR-0058): `prefixLength` 3,000,000 and `batc
 
 ## The baseline of 0.4.0 (issue #274)
 
-**Draft — not final: three cases have a spread above 15 %, the limit of the work plan (see "The open decision").**
-
 `v0.3.0` (commit `56a347c`) measured against itself, to give the budget "+3 % or twice the measured noise, whichever is
 larger" (#258) a noise. A cloud session is a new machine every time, so the baseline measures the noise, and every later
 comparison measures the baseline and its own head **in the same session**.
@@ -904,10 +902,13 @@ Medians in µs per query:
 4. The reports of these runs are not committed to `benchmarks/results/` (`ReadmeBenchmarksTests` wants the five reports of one run);
    the PR quotes the numbers.
 
-### The open decision
+### What the numbers are for
 
-The spread of three cases is above 15 %: `titles/b/Linked` 17.7 %, `titles/apfelkuc/Embedded` 16.1 %, `words/haus/Linked` 29.0 %
-(its fifth run, 880.6 µs, is the outlier; the other four lie within 675–774 µs). Their tolerance (+32 % to +58 %) says little.
+The spread of three cases is above 15 % — `titles/b/Linked` 17.7 %, `titles/apfelkuc/Embedded` 16.1 %, `words/haus/Linked`
+29.0 % (its fifth run, 880.6 µs, is the outlier; the other four lie within 675–774 µs). The owner decided on 2026-11-21 to take
+the numbers as they are: a cloud session gives no guarantee about the machine, and the question of the release is only whether
+0.4.0 got markedly worse or better than 0.3.0 — answered once, at the end, by the performance analysis (#275). A wide case needs
+a large change to count.
 
 ## The tables of the run
 
