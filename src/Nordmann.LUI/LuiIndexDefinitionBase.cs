@@ -78,7 +78,9 @@ public abstract class LuiIndexDefinitionBase
 
     /// <summary>
     /// Validates the name and the key type and runs the builder function — what a definition does on first use. A step
-    /// the application chose wrongly comes out as a <see cref="LuiConfigurationException"/> with the refusal as its cause — whatever the builder function threw, or
+    /// the application chose wrongly comes out as a <see cref="LuiConfigurationException"/> with the refusal as its cause — also a
+    /// <see cref="LuiConfigurationException"/> of the builders or of the builder function: the message always names the
+    /// definition, so that <c>Create(a, b, c)</c> says which one failed. Whatever the builder function threw, or
     /// a null it returned.
     /// </summary>
     /// <param name="name">The name as it was given.</param>
@@ -97,10 +99,6 @@ public abstract class LuiIndexDefinitionBase
             var validated = Identifier.ValidateIndexName(name!, nameof(name));
             var storedKey = KeyTypes.Validate(keyType, source, oldPath: false);
             return new ResolvedIndex(validated, describe(new LuiIndexKindBuilder(oldPath: false)), storedKey);
-        }
-        catch (LuiConfigurationException)
-        {
-            throw;
         }
         catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException or ThreadAbortException))
         {

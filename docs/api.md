@@ -144,7 +144,8 @@ LuiLinkedIndex<long> articles = catalog.Index(SearchIndexes.Articles);
 
 A definition is an immutable object with **reference equality** and without I/O. It knows no catalog and can be shared by any
 number of catalogs. **`Name` is stored at once; its validation and the builder function run once, lazily, on first use** — also
-when several threads use it for the first time at once — and the result, or its exception, is kept. An invalid definition (a
+when several threads use it for the first time at once — and the result, or its failure, is kept: **a definition whose builder function failed stays failed for the life of the process** —
+every use throws a new `LuiConfigurationException` (it names the definition) with the same cause; fix the code and restart. An invalid definition (a
 bad name, a key type that is not allowed, a step the definition does not know) throws a `LuiConfigurationException` on its first
 use by a catalog — not in a static initializer, where it would surface as a `TypeInitializationException`.
 
