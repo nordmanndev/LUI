@@ -144,11 +144,12 @@ public abstract class LuiIndex<TKey>
     /// <summary>The database the handle belongs to.</summary>
     internal Database Database => _database;
 
-    /// <summary>Whether an error means that the index is gone: a table of it is missing and the definition is no longer in <c>lui_meta</c>.</summary>
+    /// <summary>Whether an error means that the index is gone: a table of it is missing (or the transaction of the application says so) and the definition is no longer in <c>lui_meta</c>.</summary>
     /// <param name="exception">What the operation threw.</param>
     /// <returns><see langword="true"/> when the index was dropped.</returns>
     internal bool IsDropped(Exception exception) =>
         (exception is LuiLinkedTableException
+            || exception is ArgumentException { ParamName: "transaction" } // a write with the transaction of the application: its check names the missing table
             || exception is SqliteException { SqliteErrorCode: 1 } sqlite && sqlite.Message.Contains("no such table", StringComparison.Ordinal))
         && !IndexStore.Exists(_database, Name);
 
