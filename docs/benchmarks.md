@@ -865,11 +865,11 @@ larger" (#258) a noise. A cloud session is a new machine every time, so the base
 comparison measures the baseline and its own head **in the same session**.
 
 - **Date:** 2026-11-21. **Machine:** Intel Xeon 2.10 GHz, 1 CPU, 4 physical / 4 logical cores, 15 GB RAM, Ubuntu 24.04.5 LTS,
-  .NET SDK 10.0.403 / runtime 10.0.14, Microsoft.Data.Sqlite 10.0.14, journal `wal`, disk `ext4, local — /tmp`
+  .NET SDK 10.0.403 / runtime 10.0.14, Microsoft.Data.Sqlite 10.0.14 (SQLite 3.53.3), journal `wal`, disk `ext4, local — /tmp`
   (a cloud container; nothing else ran during the runs).
 - **Command** (5 times, artifacts `/tmp/baseline/run-1` … `run-5`, in the worktree of the tag):
   `TMPDIR=/tmp dotnet run -c Release --project benchmarks/Nordmann.LUI.Benchmarks -- --filter '*QueryBenchmarks*' --exporters github json --artifacts /tmp/baseline/run-N`
-- **Spread:** (max − min of the 5 medians) in % of the median of the 5 medians. **A/B tolerance (the budget of #258 for a case):** max(+3 %, 2 × spread).
+- **Spread:** (max − min of the 5 medians) in % of the median of the 5 medians. **A/B tolerance (the budget of #258 for a case):** max(+3 %, 2 × spread), computed from the unrounded spread.
 
 Medians in µs per query:
 
@@ -897,7 +897,7 @@ Medians in µs per query:
 1. A number of another session is never compared with a number of this one.
 2. A PR that reports numbers runs `v0.3.0` (`git worktree add ../lui-v0.3.0 v0.3.0`) and its own head **in the same session,
    alternating** — baseline, head, baseline, head, at least 2 runs each — with `TMPDIR` on a local disk and nothing else running.
-3. It compares the medians per case of that session and reads a change as real only above the tolerance of the case in the table
+3. It compares the medians per case of that session and reads a change, in either direction, as real only above the tolerance of the case in the table
    above, max(+3 %, 2 × spread).
 4. The reports of these runs are not committed to `benchmarks/results/` (`ReadmeBenchmarksTests` wants the five reports of one run);
    the PR quotes the numbers.
