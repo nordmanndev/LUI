@@ -30,12 +30,14 @@ Lifting the freeze once per release, place by place, would only repeat the argum
    only moves the point where the freeze begins.
 2. **Until 1.0.0 the public API may change in any part** — even fundamentally. That is **not the goal**: every break needs
    a reason that makes the API clearer, and its record says what the reason was.
-3. **Every breaking change needs a new minor version, a migration note in `CHANGELOG.md` and a record of its own.**
+3. **A break is** a removed or renamed member, a new optional parameter on an existing method (it is a new overload), a new
+   abstract member of an interface (it is a default member, or a break), a renamed or renumbered enum value and a new
+   positional parameter of a record. **Every breaking change needs a new minor version, a migration note in `CHANGELOG.md` and a record of its own.**
 4. **No `[Obsolete]` bridges before 1.0.0.** A `0.x` minor version removes or replaces a member directly; the migration note
    is the bridge. Deprecation periods start with 1.0.0.
 5. **§4 of 0069 is superseded.** The rest of 0069 still applies. The status of 0069 reads "§4 superseded by 0071".
-6. **From 1.0.0 on** the rule of [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) holds: the API grows
-   and never shrinks, and a break needs a major version.
+6. **From 1.0.0 on** the API grows and never shrinks, and a break (as defined in 3) needs a major version — the rule of
+   [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md), taken up again by this record.
 
 ## Consequences
 
