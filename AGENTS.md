@@ -52,10 +52,13 @@
   contract.
 - ❌ Never let the README show an API the code does not have. Every C# block
   in the README is compiled and executed by the package smoke test.
-- ❌ Never break the public API from the tag `v0.1.0` on (lifted once, in named places, for 0.3.0 — ADR-0069; it holds again from `v0.3.0`) without a new minor version, a migration note in `CHANGELOG.md`
-  and an ADR (ADR-0026). That includes a new optional parameter on an existing method (it is a new overload), a new
-  abstract member of an interface (it is a default member, or a break), a renamed enum value, a renumbered enum value and a
-  new positional parameter of a record. Before the tag, a change of a name still needs its ADR.
+- ❌ Never break the public API without a new minor version, a migration note in `CHANGELOG.md` and an ADR of its own.
+  Breaks are allowed until 1.0.0 (ADR-0071: `0.x` promises no stable API; the freeze begins with 1.0.0, and the freeze clause of ADR-0069 is
+  superseded), but each one needs a reason that makes the API clearer. Old members are removed directly — **no `[Obsolete]`
+  bridges before 1.0.0**; the migration note is the bridge. From 1.0.0 on the API grows and never shrinks, and a break needs a major version (ADR-0026, ADR-0071).
+  A break is a removed or renamed member, a new optional parameter on an existing method (it is a new overload), a new abstract member of an
+  interface (it is a default member, or a break), a renamed enum value, a renumbered enum value and a new positional
+  parameter of a record.
 - ❌ Never add a NuGet dependency to `Nordmann.LUI` or `Nordmann.LUI.Hosting`
   without an ADR — even a transitive one. The core takes no `Microsoft.Extensions.*`
   package: that is the hosting package's (ADR-0018).
@@ -77,7 +80,7 @@
   page that carries the same rule, and a reference to a deleted document fails
   the build (`SpecificationIsGoneTests`).
 - ❌ Never commit anonymously: every commit carries the identity of its author —
-  `Mavis <noreply@minimax.io>` for the work of the agent, the owner's own
+  `Claude <noreply@anthropic.com>` for the work of the agent, the owner's own
   identity for the owner's commits.
 - ❓ Ask before: changing the schema of a `Linked` index's host table, raising
   the candidate budget above 500, changing the normalisation rule, or

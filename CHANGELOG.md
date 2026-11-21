@@ -7,6 +7,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+The public API may change until 1.0.0 ([ADR-0071](.agents/adr/0071-the-freeze-comes-with-1-0-0.md)): every break has a reason that makes the API clearer, a
+minor version, a migration note and its own record, and no member is marked `[Obsolete]` before 1.0.0.
+
 ## [0.3.0] — 2026-11-19
 
 The round of **0.3.0**: the catalogue takes a **path** and owns its connections, there are **three ways** to open it, the read

@@ -1,6 +1,6 @@
 # 0069 — The freeze of 0.1.0 is lifted for 0.3.0
 
-- **Status:** Accepted (owner, 2026-11-15)
+- **Status:** Accepted (owner, 2026-11-15); §4 superseded by [0071](./0071-the-freeze-comes-with-1-0-0.md)
 - **Date:** 2026-11-14, revised 2026-11-15 (the breaks of the decisions of the 15th; the reason corrected — the package is published)
 - **Supersedes:** [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md)
 - **Builds on:** [0063](./0063-the-surface-of-0-1-0-is-the-review-of-2026-11-04-applied.md) (the surface of 0.1.0),
