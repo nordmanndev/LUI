@@ -461,6 +461,49 @@ public sealed class IndexDefinitionTests
     }
 
     [Fact]
+    public void Every_configuration_failure_names_the_definition_also_in_a_batch()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var good = new LuiIndexDefinition<long>("good", index => index.SingleWord());
+        LuiIndexDefinitionBase[] broken =
+        [
+            new LuiIndexDefinition<int>("ints", index => index.SingleWord()),
+            new LuiIndexDefinition<long>("with_key", index => index.SingleWord().WithKey(LuiKeyKind.Text)),
+            new LuiLinkedIndexDefinition<long>(
+                "with_payload", index => index.SingleWord().LinkTo("tag", "id", "name").WithPayload(["slug"], row => row.GetString("slug"))),
+            new LuiIndexDefinition<long>("null_function", (Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder>)null!),
+            new LuiIndexDefinition<long>("own_failure", _ => throw new LuiConfigurationException("my own words")),
+        ];
+
+        foreach (var definition in broken)
+        {
+            Should.Throw<LuiConfigurationException>(() => catalog.Create(good, definition))
+                .Message.ShouldContain(definition.Name, Case.Sensitive);
+            Should.Throw<LuiConfigurationException>(() => catalog.Create(definition))
+                .Message.ShouldContain(definition.Name, Case.Sensitive);
+        }
+
+        Should.Throw<LuiConfigurationException>(() => catalog.Create(good, broken[4])).Message.ShouldContain("my own words");
+        database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(0);
+    }
+
+    [Fact]
+    public void The_not_found_message_of_a_dropped_handle_points_at_the_definition()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var tags = catalog.Create(Tags);
+        catalog.DropIndex("tags");
+
+        var message = Should.Throw<LuiIndexNotFoundException>(() => tags.Count()).Message;
+
+        message.ShouldContain("Create(definition)", Case.Sensitive);
+        message.ShouldNotContain("Create(name", Case.Sensitive);
+    }
+
+    [Fact]
     public void An_invalid_definition_keeps_its_failure_and_throws_a_new_exception_each_time()
     {
         using var database = new TestDatabase();
