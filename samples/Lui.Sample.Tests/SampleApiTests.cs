@@ -276,9 +276,9 @@ public sealed class SampleApiTests(SampleHost host) : IClassFixture<SampleHost>
     {
         var id = (await Post("/api/indexes/tags/rows", new { name = "Outboxtest", kind = "Test", color = "#123456", usageCount = 9 }))["id"]!.GetValue<long>();
 
-        // the triggers noted the key; applying the outbox brings the row into the index (the host does it every two seconds)
-        var applied = await Post("/api/indexes/tags/apply-pending");
-        applied["report"]!.GetValue<int>().ShouldBeGreaterThanOrEqualTo(1);
+        // the triggers noted the key; applying the outbox brings the row into the index. The host does it every two seconds
+        // too, so the explicit call may find the outbox already empty: the guarantee is that the row reaches the index.
+        await Post("/api/indexes/tags/apply-pending");
         var hit = (await Suggest("tags", "outboxt"))["results"]![0]!;
         hit["text"]!.GetValue<string>().ShouldBe("Outboxtest");
         hit["payload"]!["color"]!.GetValue<string>().ShouldBe("#123456");
