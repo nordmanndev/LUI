@@ -92,6 +92,15 @@ public sealed class InternalLayeringTests
             .ToList();
         facade.ShouldNotBeEmpty();
         facade.Add($"{Root}.LuiCatalog");
+        facade.AddRange(
+        [
+            $"{Root}.LuiIndexDefinitionBase",
+            $"{Root}.LuiIndexDefinition`1",
+            $"{Root}.LuiLinkedIndexDefinition`1",
+            $"{Root}.LuiIndex`1",
+            $"{Root}.LuiEmbeddedIndex`1",
+            $"{Root}.LuiLinkedIndex`1",
+        ]);
         return facade;
     }
 
