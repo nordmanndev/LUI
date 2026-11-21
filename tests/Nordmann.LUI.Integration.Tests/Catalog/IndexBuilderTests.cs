@@ -46,18 +46,16 @@ public sealed class IndexBuilderTests
     public void Every_step_that_changes_the_key_or_the_payload_keeps_every_setting()
     {
         // review of 2026-11-04, C.1 (#40): one settings record instead of three fields copied by hand in four places
-        using var database = new TestDatabase();
-        using var catalog = database.Open();
         var similarity = new Constant(0.25);
         var expected = new IndexOptions(similarity, GermanTransliteration: false, TypoDistance: LuiTypoDistance.OneError);
 
-        // the builder is the description of an index, not the way into it (ADR-0033): the catalog builds it, the test
-        // asks for it directly to look at the settings of every step.
-        var described = new LuiIndexKindBuilder(catalog, "words").SingleWord().Similarity(similarity).GermanTransliteration(false).TypoTolerance();
+        // the builder is the description of an index, not the way into it (ADR-0033, ADR-0073): it holds no catalog and no
+        // name, and the test asks for it directly to look at the settings of every step.
+        var described = new LuiIndexKindBuilder(oldPath: true).SingleWord().Similarity(similarity).GermanTransliteration(false).TypoTolerance();
 
         // the default, pinned: comparing with IndexOptions.Default alone would let a wrong constant pass (review of PR 45, M3)
         IndexOptions.Default.ShouldBe(new IndexOptions(Similarity: null, GermanTransliteration: true, TypoDistance: LuiTypoDistance.None));
-        new LuiIndexKindBuilder(catalog, "plain").SingleWord().Options.ShouldBe(IndexOptions.Default);
+        new LuiIndexKindBuilder(oldPath: true).SingleWord().Options.ShouldBe(IndexOptions.Default);
         described.Options.ShouldBe(expected);
         described.WithKey(LuiKeyKind.Number).Options.ShouldBe(expected, "WithKey");
 

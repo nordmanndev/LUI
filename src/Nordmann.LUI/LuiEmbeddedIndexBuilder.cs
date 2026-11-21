@@ -7,30 +7,29 @@ namespace Nordmann.LUI;
 /// <summary>
 /// Describes an index whose content lives in a table of the library, <c>lui_&lt;name&gt;</c> — <c>Embedded</c>, the
 /// default (ADR-0014, ADR-0015, docs/api.md): the application writes through the index. Every method is optional and
-/// returns a builder; <see cref="Create"/> finishes it. An index over a table of the application starts here too,
-/// with <see cref="LinkTo"/>.
+/// returns a builder, and the builder only <b>describes</b> (ADR-0073): the catalog creates from the description. An index
+/// over a table of the application starts here too, with <see cref="LinkTo"/>.
 /// <para>
-/// The builder knows no type (ADR-0035): an entry may carry a payload of any type the serialiser of the catalog can
-/// write, and the key is a number unless <see cref="WithKey"/> says texts.
+/// The key type of an index comes from its definition, <c>LuiIndexDefinition&lt;long&gt;</c> (ADR-0073); <see cref="WithKey"/>
+/// is the old way and only the old calls of the catalog allow it.
 /// </para>
 /// <para>
-/// The builder is reached through <see cref="LuiCatalog.Create(string, Func{LuiIndexKindBuilder, LuiEmbeddedIndexBuilder})"/>:
-/// it is the description of an index, not the way into it (ADR-0033).
+/// The builder is the parameter of <see cref="LuiIndexDefinition{TKey}"/> (and of the old
+/// <see cref="LuiCatalog.Create(string, Func{LuiIndexKindBuilder, LuiEmbeddedIndexBuilder})"/>): it is the description of an
+/// index, not the way into it. It holds no catalog and no name.
 /// </para>
 /// </summary>
 public sealed class LuiEmbeddedIndexBuilder
 {
-    private readonly LuiCatalog _catalog;
-    private readonly string _name;
     private readonly LuiIndexKind _kind;
-    private LuiKeyKind _keyKind;
+    private readonly bool _oldPath;
+    private LuiKeyKind? _keyKind;
     private IndexOptions _options;
 
-    internal LuiEmbeddedIndexBuilder(LuiCatalog catalog, string name, LuiIndexKind kind)
+    internal LuiEmbeddedIndexBuilder(LuiIndexKind kind, bool oldPath)
     {
-        _catalog = catalog;
-        _name = name;
         _kind = kind;
+        _oldPath = oldPath;
         _options = IndexOptions.Default;
     }
 
@@ -39,13 +38,23 @@ public sealed class LuiEmbeddedIndexBuilder
 
     /// <summary>
     /// What the keys are: numbers (<see cref="LuiKeyKind.Number"/>, the default) or texts (<see cref="LuiKeyKind.Text"/>)
-    /// for anything else that names an entry — a slug, a ULID, a <see cref="Guid"/> as text. Part of the definition.
+    /// for anything else that names an entry — a slug, a ULID, a <see cref="Guid"/> as text. Part of the definition. It
+    /// is the way of the old calls of the catalog: <b>inside an index definition it throws</b>
+    /// <see cref="LuiConfigurationException"/> — the key type follows from the type argument, <c>LuiIndexDefinition&lt;TKey&gt;</c>.
     /// </summary>
     /// <param name="kind">The kind of the keys.</param>
     /// <returns>The builder.</returns>
     /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not a kind.</exception>
+    /// <exception cref="LuiConfigurationException">The builder belongs to an index definition.</exception>
     public LuiEmbeddedIndexBuilder WithKey(LuiKeyKind kind)
     {
+        if (!_oldPath)
+        {
+            throw new LuiConfigurationException(
+                "WithKey is not part of an index definition: the key type is the type argument of the definition, "
+                + "LuiIndexDefinition<TKey>.");
+        }
+
         _keyKind = Setting.Defined(kind, nameof(kind));
         return this;
     }
@@ -77,7 +86,7 @@ public sealed class LuiEmbeddedIndexBuilder
         string? weight = null,
         string? priority = null)
     {
-        if (_keyKind != LuiKeyKind.Number)
+        if (_keyKind == LuiKeyKind.Text)
         {
             throw new InvalidOperationException(
                 "A linked index has the keys of its table — its INTEGER PRIMARY KEY: leave WithKey(LuiKeyKind.Text) out.");
@@ -90,7 +99,7 @@ public sealed class LuiEmbeddedIndexBuilder
             weight is null ? null : Identifier.ValidateApplicationName(weight, nameof(weight)),
             priority is null ? null : Identifier.ValidateApplicationName(priority, nameof(priority)));
 
-        return new LuiLinkedIndexBuilder(_catalog, _name, _kind, link, _options);
+        return new LuiLinkedIndexBuilder(_kind, link, _options, _oldPath);
     }
 
     /// <summary>
@@ -145,35 +154,20 @@ public sealed class LuiEmbeddedIndexBuilder
     }
 
     /// <summary>
-    /// Creates the index, or opens it if it exists with the same definition. It is the write path: the tables of the
-    /// index are created if they are missing, and the definition is written into <c>lui_meta</c>.
-    /// <para>
-    /// The definition holds the kind of the key and nothing of the payload (ADR-0035): the payload is the bytes the
-    /// serialiser of the catalog writes, and its type is the application's to keep.
-    /// </para>
+    /// Not a way to create an index (ADR-0073): the builder describes, the catalog creates. Kept until the old calls are
+    /// removed (issue #268); it throws.
     /// </summary>
-    /// <returns>The index.</returns>
-    /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
-    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
-    public ILuiEmbeddedIndex Create()
-    {
-        var definition = new IndexDefinition(
-            _kind,
-            EmbeddedSource.SourceName,
-            KeyCodec.KeyType(_keyKind),
-            _options.GermanTransliteration,
-            TokenizerFold.Version,
-            TypoDistance: _options.TypoDistance);
+    /// <returns>Never: it throws.</returns>
+    /// <exception cref="InvalidOperationException">Always — pass a definition to <c>catalog.Create</c>.</exception>
+#pragma warning disable CA1822 // an instance member on purpose: `builder.Create()` stays callable until the old calls go (issue #268)
+    public ILuiEmbeddedIndex Create() =>
+        throw new InvalidOperationException(
+            "A builder describes an index and creates nothing: pass a definition to catalog.Create — "
+            + "catalog.Create(new LuiIndexDefinition<long>(name, index => …)).");
+#pragma warning restore CA1822
 
-        var source = new EmbeddedSource(_name, definition);
-        IndexStore.Create(_catalog.Database, source, _catalog.TimeProvider.GetUtcNow());
-
-        return new EmbeddedIndex(
-            _catalog.Database,
-            _catalog.TypoDictionaries,
-            source,
-            _catalog.PayloadSerializer,
-            _options.Similarity ?? source.Rules.DefaultSimilarity,
-            _options.TypoDistance);
-    }
+    /// <summary>What the chain described so far — what the catalog creates from.</summary>
+    /// <returns>The description.</returns>
+    internal IndexDescription Describe() =>
+        new(LuiIndexSource.Embedded, _kind, _options, Link: null, _keyKind);
 }

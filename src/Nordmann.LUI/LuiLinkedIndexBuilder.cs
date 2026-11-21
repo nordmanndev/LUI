@@ -7,8 +7,9 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// Describes an index over a table of the application (<c>Linked</c>, ADR-0014, ADR-0015, ADR-0015, ADR-0015). It is
-/// loosely coupled: <see cref="Create"/> creates LUI's own tables and only reads the application's table — no column,
-/// no index, no trigger is added to it. Every method is optional and returns a builder.
+/// loosely coupled: the catalog creates LUI's own tables and only reads the application's table — no column, no index,
+/// no trigger is added to it. Every method is optional and returns a builder, and the builder only <b>describes</b>
+/// (ADR-0073): it holds no catalog and no name.
 /// <para>
 /// What the index keeps (ADR-0035): <b>no copy of the row</b>. The search index holds the normalised text of the
 /// table's text column; LUI's own table holds the weight and the priority, packed into the order of the candidates, and
@@ -18,32 +19,25 @@ namespace Nordmann.LUI;
 /// <c>Sync</c> or the triggers.
 /// </para>
 /// <para>
-/// The builder is reached through <c>LuiCatalog.CreateLinked(name, index =&gt; index.LinkTo(…))</c>: it is the description
-/// of an index, not the way into it (ADR-0033).
+/// The builder is the parameter of <see cref="LuiLinkedIndexDefinition{TKey}"/> (and of the old
+/// <c>LuiCatalog.CreateLinked(name, index =&gt; index.LinkTo(…))</c>): it is the description of an index, not the way into it.
 /// </para>
 /// </summary>
 public sealed class LuiLinkedIndexBuilder
 {
-    private readonly LuiCatalog _catalog;
-    private readonly string _name;
     private readonly LuiIndexKind _kind;
     private readonly LinkDefinition _link;
+    private readonly bool _oldPath;
     private IReadOnlyList<string> _payloadColumns = [];
     private Func<LuiPayloadRow, object?>? _payload;
     private IndexOptions _options;
 
-    internal LuiLinkedIndexBuilder(
-        LuiCatalog catalog,
-        string name,
-        LuiIndexKind kind,
-        LinkDefinition link,
-        IndexOptions options)
+    internal LuiLinkedIndexBuilder(LuiIndexKind kind, LinkDefinition link, IndexOptions options, bool oldPath)
     {
         _options = options;
-        _catalog = catalog;
-        _name = name;
         _kind = kind;
         _link = link;
+        _oldPath = oldPath;
     }
 
     /// <summary>The options made so far — what <c>LinkTo</c> passes on.</summary>
@@ -51,14 +45,24 @@ public sealed class LuiLinkedIndexBuilder
 
     /// <summary>
     /// Reads a payload from columns of the application's table, for the hits only: the columns are selected with them,
-    /// and <paramref name="map"/> builds the payload from the row.
+    /// and <paramref name="map"/> builds the payload from the row. It is the way of the old calls of the catalog: <b>inside an
+    /// index definition it throws</b> <see cref="LuiConfigurationException"/> — the payload variants of the definitions come with
+    /// issue #269.
     /// </summary>
     /// <typeparam name="TPayload">What the map builds; the type is the application's to know when it reads the hit.</typeparam>
     /// <param name="columns">The columns the payload is built from.</param>
     /// <param name="map">Builds the payload from the row; it sees only <paramref name="columns"/>.</param>
     /// <returns>The builder.</returns>
+    /// <exception cref="LuiConfigurationException">The builder belongs to an index definition.</exception>
     public LuiLinkedIndexBuilder WithPayload<TPayload>(IReadOnlyList<string> columns, Func<LuiPayloadRow, TPayload> map)
     {
+        if (!_oldPath)
+        {
+            throw new LuiConfigurationException(
+                "WithPayload is not part of an index definition of this version: the payload variants of the definitions "
+                + "(LuiLinkedIndexDefinition<TKey, TPayload>) come with issue #269.");
+        }
+
         ArgumentNullException.ThrowIfNull(columns);
         ArgumentNullException.ThrowIfNull(map);
         ArgumentOutOfRangeException.ThrowIfZero(columns.Count, nameof(columns));
@@ -109,49 +113,26 @@ public sealed class LuiLinkedIndexBuilder
     }
 
     /// <summary>
-    /// Creates LUI's tables of the index, or opens them if the index exists with the same definition — and checks the
-    /// application's table, every time. The index starts empty: fill it with <c>Sync()</c>. That holds after a
-    /// <c>DropIndex</c> too: a new linked index is empty and has no triggers until <c>Sync()</c> and, if wanted,
-    /// <c>CreateTriggers()</c>.
-    /// <para>
-    /// The definition holds the columns of the payload (ADR-0033), not its type (ADR-0035): a linked index with a payload
-    /// is opened with a map again, one without payload columns without one.
-    /// </para>
+    /// Not a way to create an index (ADR-0073): the builder describes, the catalog creates. Kept until the old calls are
+    /// removed (issue #268); it throws.
     /// </summary>
-    /// <returns>The index.</returns>
-    /// <exception cref="LuiLinkedTableException">The table or a column is missing, or the key is not the table's INTEGER PRIMARY KEY.</exception>
-    /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
-    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
-    public ILuiLinkedIndex Create()
-    {
-        // the columns of the payload are part of the definition (ADR-0033): a linked index with a payload can
-        // only be opened when they are stored with it
-        var definition = new IndexDefinition(
+    /// <returns>Never: it throws.</returns>
+    /// <exception cref="InvalidOperationException">Always — pass a definition to <c>catalog.Create</c>.</exception>
+#pragma warning disable CA1822 // an instance member on purpose: `builder.Create()` stays callable until the old calls go (issue #268)
+    public ILuiLinkedIndex Create() =>
+        throw new InvalidOperationException(
+            "A builder describes an index and creates nothing: pass a definition to catalog.Create — "
+            + "catalog.Create(new LuiLinkedIndexDefinition<long>(name, index => …)).");
+#pragma warning restore CA1822
+
+    /// <summary>What the chain described so far — what the catalog creates from.</summary>
+    /// <returns>The description.</returns>
+    internal IndexDescription Describe() =>
+        new(
+            LuiIndexSource.Linked,
             _kind,
-            LinkedSource.SourceName,
-            KeyCodec.KeyType(LuiKeyKind.Number),
-            _options.GermanTransliteration,
-            TokenizerFold.Version,
-            Link: _link with { PayloadColumns = _payloadColumns.Count == 0 ? null : _payloadColumns },
-            TypoDistance: _options.TypoDistance);
-
-        var source = new LinkedSource(_name, definition);
-        IndexStore.Create(
-            _catalog.Database,
-            source,
-            _catalog.TimeProvider.GetUtcNow(),
-            (connection, transaction) => LinkedTable.Verify(connection, transaction, _link, _payloadColumns));
-
-        PayloadReader payload = _payload is null
-            ? new NoPayload(_name)
-            : new ColumnPayload(_name, _payloadColumns, _payload);
-
-        return new LinkedIndex(
-            _catalog.Database,
-            _catalog.TypoDictionaries,
-            source,
-            payload,
-            _options.Similarity ?? source.Rules.DefaultSimilarity,
-            _options.TypoDistance);
-    }
+            _options,
+            _link with { PayloadColumns = _payloadColumns.Count == 0 ? null : _payloadColumns },
+            KeyKind: null,
+            _payload);
 }
