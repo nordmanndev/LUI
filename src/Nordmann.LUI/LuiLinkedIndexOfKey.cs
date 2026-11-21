@@ -103,7 +103,11 @@ public sealed class LuiLinkedIndex<TKey> : LuiIndex<TKey>
         }
     }
 
-    /// <summary>The SQL of the triggers, for the application that wants to install them itself.</summary>
+    /// <summary>
+    /// The SQL of the triggers, for the application that wants to install them itself. It is <b>pure</b>: the script is built
+    /// from the definition, no database is read — so it also answers on a handle whose index was dropped, where every other
+    /// operation throws <see cref="LuiIndexNotFoundException"/>.
+    /// </summary>
     /// <returns>The script.</returns>
     public string TriggerScript() => _index.TriggerScript();
 

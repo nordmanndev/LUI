@@ -53,7 +53,9 @@ chain ended in a `Create()` that the catalog called — the description and the 
 5. **The catalog is the only way to a handle: `Create(definition)` and `Index(definition)`, one name for both sources.**
    `Create(definition)` creates the index or opens it when it exists with the same definition; it never syncs and never
    installs triggers. `Create(a, b, c)` creates or opens several in one transaction — all or none, the exception names the
-   definition that failed, and a duplicate name throws before anything is written. `Index(definition)` writes nothing,
+   definition that failed — the least API-changing way: a mismatch and a missing index already carry `IndexName`; a broken table of a
+   linked index stays a `LuiLinkedTableException`, with `Index 'name': ` in front of the message and the original as inner exception;
+   a refused write on a read-only catalog names the index whose write was refused — and a duplicate name throws before anything is written. `Index(definition)` writes nothing,
    compares the stored definition and throws `LuiDefinitionMismatchException` naming the fields, or
    `LuiIndexNotFoundException`. LUI offers no way to inject an index (`AddLui` keeps holding the catalog only).
 6. **What is compared, and what is runtime only.** *Stored and compared:* the source, the kind, the key type, the German
@@ -86,7 +88,13 @@ chain ended in a `Create()` that the catalog called — the description and the 
 - `PublicApiShapeTests` gets the list of the members of every typed handle — the target each later pull request extends (#269 the
   payload variants, #262 `Payload` and `CheckPayloads()`, #272 `NeedsInitialSync`, #273 and #266 the catalog operations).
 - The typed handles wrap the internal index of 0.3.0 and convert `TKey` ↔ `LuiKey` at the edge; #265 moves the runtime into the
-  catalog. A handle detects a dropped index by the missing table (a catalog read only on that path), so the hot path pays nothing.
+  catalog. A handle detects a dropped index by the missing table (a catalog read only on that path), so the check on the success path costs nothing. Known limitation: a handle of an index that was dropped and **created again under
+  the same name** is not told apart from the new index (a check would cost a read on every operation); it works on the new index.
+  #265, which moves the runtime into the catalog, is where a generation per index can invalidate old handles.
+- `LuiIndex<TKey>.Search` converts the result twice: the internal `LuiResult` (struct hits), then `LuiResult<TKey>` with a `LuiHit<TKey>` per
+  hit. Avoiding it needs the query path to build the typed result itself — #265. Recorded in #280.
+- `TriggerScript()` is pure (built from the definition, no database read), so it also answers on a handle of a dropped index.
+- An invalid definition keeps its failure, not its exception object: every use throws a new `LuiConfigurationException` with the same message and cause.
 - A `LuiLinkedIndex<TKey>.Sync(LuiSyncOptions?, …)` accepts the options and does not use them yet: the batches come with #271.
 
 ## Alternatives rejected

@@ -50,7 +50,7 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 | `static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, **to read only**: every connection of it is read-only, and SQLite refuses every write, which LUI turns into a `LuiReadOnlyException`. A file that is missing or is no catalog is a `LuiCatalogNotFoundException`. |
 | `LuiEmbeddedIndex<TKey> Create<TKey>(LuiIndexDefinition<TKey> definition)` | creates the index of an **embedded definition**, or opens it if it exists with the same definition — safe on every start — and returns its typed handle. It creates only: it never syncs and never installs triggers. A different stored definition is a `LuiDefinitionMismatchException` that names the fields. |
 | `LuiLinkedIndex<TKey> Create<TKey>(LuiLinkedIndexDefinition<TKey> definition)` | the same for a **linked definition**: LUI's tables are created and the table of the application is checked, every time. |
-| `void Create(params LuiIndexDefinitionBase[] definitions)` | creates or opens **several** definitions in **one transaction**: all or none. The exception names the definition that failed; a name that occurs twice is an `ArgumentException` before anything is written. It **returns nothing**: a variable typed `LuiIndexDefinitionBase` binds here, and the handles come from `Index(definition)`. |
+| `void Create(params LuiIndexDefinitionBase[] definitions)` | creates or opens **several** definitions in **one transaction**: all or none. The exception names the definition that failed — a mismatch and a missing index by their `IndexName`, a broken table of a linked index as a `LuiLinkedTableException` whose message starts `Index 'name': …` and whose inner exception is the original, a refused write on a read-only catalog by the index whose write was refused; a name that occurs twice is an `ArgumentException` before anything is written. It **returns nothing**: a variable typed `LuiIndexDefinitionBase` binds here, and the handles come from `Index(definition)`. |
 | `LuiEmbeddedIndex<TKey> Index<TKey>(LuiIndexDefinition<TKey> definition)` | opens the index of an embedded definition that exists, and **writes nothing**. The stored definition is compared with the declared one: another one is a `LuiDefinitionMismatchException` naming the fields, a missing index a `LuiIndexNotFoundException`. |
 | `LuiLinkedIndex<TKey> Index<TKey>(LuiLinkedIndexDefinition<TKey> definition)` | the same for a linked definition. **One name for both sources** — there is no `LinkedIndex(definition)` and no `CreateLinked(definition)`. |
 | `ILuiEmbeddedIndex Create(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)` | the old call, a thin layer over `Create(definition)` until #268: creates an **embedded** index — the content lives in the library's own table. It is the write path and belongs in the migration of the application. |
@@ -122,8 +122,7 @@ that makes no sense does not exist.
 
 An index is declared **once**, as a definition object — name, source, kind, key type, options and, for a linked index, the
 table — and every call site uses that object: nothing is repeated, and a call site cannot name the wrong type. The class
-that holds them is called `SearchIndexes` here (not `Indexes`, which collides with the namespace `Nordmann.LUI.Indexes` and
-with `catalog.Indexes()`):
+that holds them is called `SearchIndexes` here (not `Indexes`, which collides with the namespace `Nordmann.LUI.Indexes`):
 
 ```csharp
 public static class SearchIndexes
@@ -270,7 +269,7 @@ belongs to the application.
 | `int RefreshMany(IEnumerable<TKey> keys, SqliteTransaction? transaction = null, CancellationToken cancellationToken = default)` | takes many rows into the index |
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the changes a trigger collected |
 | `long Pending()` | how many changes are waiting |
-| `string TriggerScript()` | the SQL of the triggers |
+| `string TriggerScript()` | the SQL of the triggers — pure: built from the definition, no database is read, so it also answers on a handle whose index was dropped |
 | `void CreateTriggers()` | creates the triggers on the table — only when the application asks |
 | `void DropTriggers()` | drops them again |
 | `LuiTriggerState Triggers()` | `None`, `Current` or `Stale` |
@@ -279,7 +278,7 @@ belongs to the application.
 
 | Type | What it is |
 |---|---|
-| `LuiEntry<TKey>` | a sealed record: `LuiEntry(TKey key, string text)`, `Key`, `Text`, `Weight` (0 to 536,870,911) and `Priority` — value equality; it checks itself like `LuiEntry` |
+| `LuiEntry<TKey>` | a sealed record: `LuiEntry(TKey key, string text)`, `Key` and `Text` (read-only), `Weight` (0 to 536,870,911) and `Priority` (both `init`) — value equality, no `Deconstruct`; it checks itself like `LuiEntry` |
 | `LuiQuery<TKey>` | a sealed class with the settings of `LuiQuery` — `Take`, `Candidates`, `Rank`, `PriorityMode`, `Similarity`, `TypoTolerance`, `TrackTimings` — and `Execute(ct)`, which returns a `LuiResult<TKey>` |
 | `LuiResult<TKey>` | a sealed class (reference equality — a result holds a list): `Query`, `Hits`, `CandidatesConsidered`, `Truncated`, `CorrectedQuery`, `CorrectionSkipped`, `Timings`, with `IReadOnlyList<LuiHit<TKey>> Hits` |
 | `LuiHit<TKey>` | a sealed record with named, initialised properties and no constructor with parameters: `Key` (a `TKey`), `Text`, `Weight`, `Priority`, `Similarity`, `AtWordStart` — value equality |
@@ -370,7 +369,7 @@ read. The write path belongs to the application.
 | `LuiLinkedSyncReport Sync(CancellationToken cancellationToken = default)` | takes the whole table into the index |
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the changes a trigger collected — the outbox |
 | `long Pending()` | how many changes are waiting |
-| `string TriggerScript()` | the SQL of the triggers, for the application that wants to install them itself |
+| `string TriggerScript()` | the SQL of the triggers, for the application that wants to install them itself — pure: no database is read, it also answers on a handle whose index was dropped |
 | `void CreateTriggers()` | creates the triggers on the table of the application — only when the application asks for it |
 | `void DropTriggers()` | drops them again |
 | `LuiTriggerState Triggers()` | `None`, `Current` or `Stale` |
