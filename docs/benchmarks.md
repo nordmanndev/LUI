@@ -858,6 +858,58 @@ dotnet test tests/Nordmann.LUI.Performance.Tests -c Release --filter The_first_l
 The scenario of the run is a file (ADR-0058): `prefixLength` 3,000,000 and `batch` 1,000,000 in
 `tests/Nordmann.LUI.Performance.Tests/performance.scenario.json`, then the run above.
 
+## The baseline of 0.4.0 (issue #274)
+
+`v0.3.0` (commit `56a347c`) measured against itself, to give the budget "+3 % or twice the measured noise, whichever is
+larger" (#258) a noise. A cloud session is a new machine every time, so the baseline measures the noise, and every later
+comparison measures the baseline and its own head **in the same session**.
+
+- **Date:** 2026-11-21. **Machine:** Intel Xeon 2.10 GHz, 1 CPU, 4 physical / 4 logical cores, 15 GB RAM, Ubuntu 24.04.5 LTS,
+  .NET SDK 10.0.403 / runtime 10.0.14, Microsoft.Data.Sqlite 10.0.14 (SQLite 3.53.3), journal `wal`, disk `ext4, local — /tmp`
+  (a cloud container; nothing else ran during the runs).
+- **Command** (5 times, artifacts `/tmp/baseline/run-1` … `run-5`, in the worktree of the tag):
+  `TMPDIR=/tmp dotnet run -c Release --project benchmarks/Nordmann.LUI.Benchmarks -- --filter '*QueryBenchmarks*' --exporters github json --artifacts /tmp/baseline/run-N`
+- **Spread:** (max − min of the 5 medians) in % of the median of the 5 medians. **A/B tolerance (the budget of #258 for a case):** max(+3 %, 2 × spread), computed from the unrounded spread.
+
+Medians in µs per query:
+
+| Corpus | Input | Source | run 1 | run 2 | run 3 | run 4 | run 5 | median | spread | A/B tolerance |
+|---|---|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| titles (200000) | `apfelkuc` | Embedded | 98.4 | 96.3 | 112.3 | 100.2 | 99.8 | 99.8 | 16.1 % | +32.2 % |
+| titles (200000) | `apfelkuc` | Linked | 97.8 | 100.4 | 105.0 | 97.7 | 102.3 | 100.4 | 7.3 % | +14.5 % |
+| titles (200000) | `b` | Embedded | 167.8 | 175.9 | 170.0 | 167.4 | 171.0 | 170.0 | 5.0 % | +10.1 % |
+| titles (200000) | `b` | Linked | 436.0 | 494.0 | 433.3 | 425.3 | 417.5 | 433.3 | 17.7 % | +35.3 % |
+| titles (200000) | `haus` | Embedded | 661.9 | 632.9 | 658.4 | 653.9 | 632.7 | 653.9 | 4.5 % | +9.0 % |
+| titles (200000) | `haus` | Linked | 763.8 | 772.9 | 766.4 | 751.9 | 768.8 | 766.4 | 2.7 % | +5.5 % |
+| titles (200000) | `ka` | Embedded | 167.9 | 170.9 | 180.5 | 172.0 | 173.3 | 172.0 | 7.3 % | +14.7 % |
+| titles (200000) | `ka` | Linked | 464.0 | 437.3 | 486.3 | 447.9 | 439.6 | 447.9 | 10.9 % | +21.9 % |
+| words (200000) | `apfelkuc` | Embedded | 147.4 | 142.0 | 146.1 | 153.2 | 153.7 | 147.4 | 7.9 % | +15.8 % |
+| words (200000) | `apfelkuc` | Linked | 139.9 | 138.9 | 145.4 | 146.3 | 155.4 | 145.4 | 11.4 % | +22.8 % |
+| words (200000) | `b` | Embedded | 173.8 | 179.2 | 174.1 | 180.8 | 171.4 | 174.1 | 5.4 % | +10.8 % |
+| words (200000) | `b` | Linked | 393.0 | 391.1 | 392.6 | 377.3 | 414.7 | 392.6 | 9.5 % | +19.0 % |
+| words (200000) | `haus` | Embedded | 742.8 | 688.4 | 751.4 | 690.4 | 749.1 | 742.8 | 8.5 % | +17.0 % |
+| words (200000) | `haus` | Linked | 675.0 | 774.0 | 690.3 | 709.3 | 880.6 | 709.3 | 29.0 % | +58.0 % |
+| words (200000) | `ka` | Embedded | 165.7 | 185.5 | 170.0 | 173.5 | 188.5 | 173.5 | 13.1 % | +26.2 % |
+| words (200000) | `ka` | Linked | 382.1 | 442.8 | 413.8 | 423.3 | 413.1 | 413.8 | 14.7 % | +29.3 % |
+
+### The A/B rule for the rest of the release
+
+1. A number of another session is never compared with a number of this one.
+2. A PR that reports numbers runs `v0.3.0` (`git worktree add ../lui-v0.3.0 v0.3.0`) and its own head **in the same session,
+   alternating** — baseline, head, baseline, head, at least 2 runs each — with `TMPDIR` on a local disk and nothing else running.
+3. It compares the medians per case of that session and reads a change, in either direction, as real only above the tolerance of the case in the table
+   above, max(+3 %, 2 × spread).
+4. The reports of these runs are not committed to `benchmarks/results/` (`ReadmeBenchmarksTests` wants the five reports of one run);
+   the PR quotes the numbers.
+
+### What the numbers are for
+
+The spread of three cases is above 15 % — `titles/b/Linked` 17.7 %, `titles/apfelkuc/Embedded` 16.1 %, `words/haus/Linked`
+29.0 % (its fifth run, 880.6 µs, is the outlier; the other four lie within 675–774 µs). The owner decided on 2026-11-21 to take
+the numbers as they are: a cloud session gives no guarantee about the machine, and the question of the release is only whether
+0.4.0 got markedly worse or better than 0.3.0 — answered once, at the end, by the performance analysis (#275). A wide case needs
+a large change to count.
+
 ## The tables of the run
 
 The tables of the BenchmarkDotNet run are **generated** from BenchmarkDotNet's own reports in

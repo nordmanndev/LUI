@@ -15,7 +15,7 @@ file into `0.4.0`.
 | # | Issue | Why here | Depends on | Status | PR |
 |---|---|---|---|---|---|
 | 1 | #259 API freeze moves to 1.0.0 (ADR-0071) | every later break cites it; docs only | — | merged | #279 — the freeze comes with 1.0.0; no `[Obsolete]` bridges before it |
-| 2 | #274 Baseline: v0.3.0 against itself (`QueryBenchmarks`) | #258 needs the noise before the first code PR | #259 | open | — |
+| 2 | #274 Baseline: v0.3.0 against itself (`QueryBenchmarks`) | #258 needs the noise before the first code PR | #259 | merged | #281 — the baseline stands as measured; performance only at the end (#275), observations in #280 |
 | 3 | #261 Definitions and typed handles, `long` keys (ADR-0073) | the contract everything builds on — riskiest, first | #274 | open | — |
 | 4 | #269 Payload variants, typed linked builder (ADR-0073) | extends the types of #261 | #261 | open | — |
 | 5 | #270 Key types `int`/`string`/`Guid`, LUI format 2 (ADR-0073) | the file format #260/#272/#271 add to | #269 | open | — |
@@ -31,6 +31,12 @@ file into `0.4.0`.
 | 15 | #221 Align with the Nordmann standards | changes wiring, labels and the rule book — after the code | #263 | open | — |
 | 16 | #275 Performance analysis: the budget against the baseline | the budget is read at the end of the release | #221 | open | — |
 | 17 | #276 Release 0.4.0 into the branch; open `0.4.0 → dev` | the last step; the release itself is the owner's | #275 | open | — |
+
+**Decision (owner, 2026-11-21, #274):** the spread of three of 16 cases is above 15 % (`titles/b/Linked` 17.7 %,
+`titles/apfelkuc/Embedded` 16.1 %, `words/haus/Linked` 29.0 %); the numbers are taken as they are. The baseline is not a
+gate: performance is checked once, at the end (#275) — did 0.4.0 get markedly worse or better than 0.3.0. Observations about
+performance on the way go into one performance issue for the next milestone, not into the PRs. The code PRs of this run
+need no per-PR A/B measurement (owner, 2026-11-21: performance is looked at at the end).
 
 Risks of the whole run:
 
