@@ -15,7 +15,7 @@ file into `0.4.0`.
 | # | Issue | Why here | Depends on | Status | PR |
 |---|---|---|---|---|---|
 | 1 | #259 API freeze moves to 1.0.0 (ADR-0071) | every later break cites it; docs only | — | merged | #279 — the freeze comes with 1.0.0; no `[Obsolete]` bridges before it |
-| 2 | #274 Baseline: v0.3.0 against itself (`QueryBenchmarks`) | #258 needs the noise before the first code PR | #259 | open | — |
+| 2 | #274 Baseline: v0.3.0 against itself (`QueryBenchmarks`) | #258 needs the noise before the first code PR | #259 | stopped — owner decision (spread > 15 %) | draft on `docs/274-the-baseline-of-0-4-0`, no PR |
 | 3 | #261 Definitions and typed handles, `long` keys (ADR-0073) | the contract everything builds on — riskiest, first | #274 | open | — |
 | 4 | #269 Payload variants, typed linked builder (ADR-0073) | extends the types of #261 | #261 | open | — |
 | 5 | #270 Key types `int`/`string`/`Guid`, LUI format 2 (ADR-0073) | the file format #260/#272/#271 add to | #269 | open | — |
@@ -31,6 +31,15 @@ file into `0.4.0`.
 | 15 | #221 Align with the Nordmann standards | changes wiring, labels and the rule book — after the code | #263 | open | — |
 | 16 | #275 Performance analysis: the budget against the baseline | the budget is read at the end of the release | #221 | open | — |
 | 17 | #276 Release 0.4.0 into the branch; open `0.4.0 → dev` | the last step; the release itself is the owner's | #275 | open | — |
+
+**Open decision (2026-11-21, #274):** 5 runs of `v0.3.0` (one session, local ext4 disk) gave a spread above the 15 % limit
+of the work plan in three of 16 cases: `titles/b/Linked` 17.7 %, `titles/apfelkuc/Embedded` 16.1 %, `words/haus/Linked` 29.0 %
+(one outlier run of 880.6 µs). The other 13 lie between 2.7 % and 14.7 %. Options: **A** accept — the tolerance is
+max(3 %, 2 × spread) per case, so a wide case simply needs a large change to count; **B** measure the three cases again
+(more runs, about 2 hours) to see whether the outlier is a fluke; **C** drop the three cases from the performance budget of
+the release. Recommendation: **A**, and read those three cases by their same-session A/B pair only. The draft section is
+committed on the branch; no PR is open. Run 5 had to be repeated once because the disk of the container filled up
+(the test suites leak `lui-test-*.db` files into `/tmp`: about 7 GB for one run of the integration tests).
 
 Risks of the whole run:
 
