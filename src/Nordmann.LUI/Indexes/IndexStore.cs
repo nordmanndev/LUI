@@ -95,20 +95,39 @@ internal static class IndexStore
         IReadOnlyList<(ContentSource Source, Action<SqliteConnection, SqliteTransaction>? Verify)> indexes,
         DateTimeOffset createdAt)
     {
+        string? current = null;
         try
         {
-            CreateIndexes(database, indexes, createdAt);
+            CreateIndexes(database, indexes, createdAt, name => current = name);
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
         {
-            throw database.ReadOnlyRefusal("creating an index", indexes[0].Source.IndexName, exception);
+            // the refusal can come at the start of the transaction, before any index was looked at: then it is the first
+            // index that needs a write — one that does not exist yet — and not simply the first one of the call
+            current ??= FirstMissing(database, indexes) ?? indexes[0].Source.IndexName;
+            throw database.ReadOnlyRefusal("creating an index", current, exception);
+        }
+    }
+
+    private static string? FirstMissing(
+        Database database,
+        IReadOnlyList<(ContentSource Source, Action<SqliteConnection, SqliteTransaction>? Verify)> indexes)
+    {
+        try
+        {
+            return indexes.Select(index => index.Source.IndexName).FirstOrDefault(name => !Exists(database, name));
+        }
+        catch (SqliteException)
+        {
+            return null;
         }
     }
 
     private static void CreateIndexes(
         Database database,
         IReadOnlyList<(ContentSource Source, Action<SqliteConnection, SqliteTransaction>? Verify)> indexes,
-        DateTimeOffset createdAt)
+        DateTimeOffset createdAt,
+        Action<string> onIndex)
     {
         using var scope = database.Begin();
         using var connection = database.OpenConnection();
@@ -116,9 +135,10 @@ internal static class IndexStore
 
         foreach (var (source, verify) in indexes)
         {
-            verify?.Invoke(connection, transaction);
-
             var name = source.IndexName;
+            onIndex(name);
+            Verify(verify, connection, transaction, name);
+
             var definition = source.Definition;
             var stored = ReadDefinition(connection, transaction, name);
             if (stored is null)
@@ -137,6 +157,24 @@ internal static class IndexStore
         }
 
         transaction.Commit();
+    }
+
+    /// <summary>
+    /// Checks the application's table of a linked index. The exception of the check names the index it was meant for
+    /// (ADR-0073): the message gets the name, the table detail stays, and the original is the inner exception — the type
+    /// stays <see cref="LuiLinkedTableException"/>.
+    /// </summary>
+    private static void Verify(
+        Action<SqliteConnection, SqliteTransaction>? verify, SqliteConnection connection, SqliteTransaction transaction, string name)
+    {
+        try
+        {
+            verify?.Invoke(connection, transaction);
+        }
+        catch (LuiLinkedTableException exception)
+        {
+            throw new LuiLinkedTableException($"Index '{name}': {exception.Message}", exception);
+        }
     }
 
     /// <summary>The mismatch of a stored definition and a declared one, with the fields that differ and the way out (ADR-0073).</summary>
