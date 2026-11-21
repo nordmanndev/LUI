@@ -31,6 +31,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     private const int SqliteCheckConstraintFailed = 275;
 
     private readonly EmbeddedSource _source;
+    private readonly LuiKeyType _keyType;
     private readonly TypoDictionary _typos;
     private readonly EmbeddedSync _sync;
     private readonly EmbeddedCheck _check;
@@ -51,7 +52,8 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         _source = source;
         Name = source.IndexName;
         Kind = source.Rules.Kind;
-        KeyKind = KeyCodec.KindOf(source.Definition.KeyType);
+        _keyType = KeyCodec.TypeOf(source.Definition.KeyType);
+        KeyKind = KeyCodec.KindOf(_keyType);
         _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance);
         _runner = new QueryRunner(
             database, source, new SerializedPayload(Name, payload), similarity, _typos, typoDistance);
@@ -182,8 +184,8 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         }
     }
 
-    /// <summary>The stored text of a key; a key of the other kind is refused (ADR-0035).</summary>
-    private string KeyText(LuiKey key) => KeyCodec.ToText(key, KeyKind, Name);
+    /// <summary>The stored text of a key; a key of the other kind, or one the key type does not allow, is refused (ADR-0035, ADR-0073).</summary>
+    private string KeyText(LuiKey key) => KeyCodec.ToText(key, _keyType, Name);
 
     /// <summary>
     /// The stored form of a payload (ADR-0035): <see langword="null"/> is "no payload" and is stored as NULL; any other

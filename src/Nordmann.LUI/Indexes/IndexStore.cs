@@ -29,6 +29,7 @@ internal static class IndexStore
 
         if (HasMetaTable(connection))
         {
+            EnsureFormat(database, connection);
             return;
         }
 
@@ -54,6 +55,28 @@ internal static class IndexStore
                 $"The file '{database.Path}' is no catalog: it has no table 'lui_meta'. LuiCatalog.Open and LuiCatalog.OpenReadOnly "
                 + "open a catalog that is there and do not turn a file into one — LuiCatalog.OpenOrCreate sets the file up.",
                 inner: null);
+        }
+
+        EnsureFormat(database, connection);
+    }
+
+    /// <summary>
+    /// Checks that the file is in the LUI format this version reads (ADR-0073): every row of <c>lui_meta</c> says
+    /// <see cref="Meta.SchemaVersion"/>. A file without an index has no format to reject. One read of the table, when the
+    /// catalog is opened — not at the first index, where it would be a misleading "another definition".
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <param name="connection">A connection to it.</param>
+    /// <exception cref="LuiFormatException">An index of the file was written in another format.</exception>
+    private static void EnsureFormat(Database database, SqliteConnection connection)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT schema_version FROM lui_meta WHERE schema_version <> $format ORDER BY schema_version LIMIT 1;";
+        command.Parameters.AddWithValue("$format", Meta.SchemaVersion);
+
+        if (command.ExecuteScalar() is long found)
+        {
+            throw new LuiFormatException(database.Path, (int)Math.Clamp(found, int.MinValue, int.MaxValue), Meta.SchemaVersion);
         }
     }
 
@@ -295,7 +318,7 @@ internal static class IndexStore
     }
 
     /// <summary>
-    /// The stored index of a name — its kind, its content source, its definition and the version of the schema it was
+    /// The stored index of a name — its kind, its content source, its definition and the LUI format version it was
     /// written with — or <see langword="null"/> when there is no such index.
     /// <para>
     /// It reads with a plain <c>SELECT</c> on a connection of its own: no transaction, no write lock, no table

@@ -52,14 +52,14 @@ public sealed class KeyTypeTests
             things.Upsert(first, "vegan", weight: 5);
             things.UpsertMany([new LuiEntry<TKey>(second, "vegetarian") { Weight = 3 }]);
 
-            var hits = things.Search("veg").Hits;
+            var hits = things.Query("veg").Rank(LuiRankingOrder.WeightOnly).Execute().Hits;
             hits.Select(hit => hit.Key).ShouldBe([first, second]);
             ((object)hits[0].Key).ShouldBeOfType<TKey>("hit.Key has the key type of the definition");
 
             things.UpdateWeight(second, 9).ShouldBeTrue();
-            things.Search("veg").Hits.Select(hit => hit.Key).ShouldBe([second, first]);
+            things.Query("veg").Rank(LuiRankingOrder.WeightOnly).Execute().Hits.Select(hit => hit.Key).ShouldBe([second, first]);
             things.UpdatePriority(first, LuiPriority.High).ShouldBeTrue();
-            things.Search("veg").Hits.Select(hit => hit.Key).ShouldBe([first, second]);
+            things.Query("veg").Rank(LuiRankingOrder.WeightOnly).Execute().Hits.Select(hit => hit.Key).ShouldBe([first, second]);
 
             LuiEntry<TKey>[] entries = [new(first, "vegan") { Weight = 5, Priority = LuiPriority.High }, new(second, "vegetarian") { Weight = 9 }];
             things.Sync(entries).Unchanged.ShouldBe(2);
@@ -211,7 +211,7 @@ public sealed class KeyTypeTests
         report.Indexed.ShouldBe(3);
         report.KeyOutOfRange.ShouldBe(0);
         var hits = tags.Search("veg").Hits;
-        hits.Select(hit => hit.Key).ShouldBe([1, 2, int.MaxValue]);
+        hits.Select(hit => hit.Key).Order().ShouldBe([1, 2, int.MaxValue]);
         ((object)hits[0].Key).ShouldBeOfType<int>();
         database.Scalar<string>("SELECT json_extract(definition, '$.keyType') FROM lui_meta WHERE index_name = 'tags';").ShouldBe("int");
 

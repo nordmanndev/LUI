@@ -18,7 +18,7 @@ namespace Nordmann.LUI;
 /// <see cref="LuiConfigurationException"/> that names the index.
 /// </para>
 /// </summary>
-/// <typeparam name="TKey">The type of the keys — <see cref="long"/> in this version.</typeparam>
+/// <typeparam name="TKey">The type of the keys — <see cref="long"/>, <see cref="int"/>, <see cref="string"/> or <see cref="Guid"/> (ADR-0073).</typeparam>
 /// <typeparam name="TPayload">The type of the payload of the index.</typeparam>
 public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     where TKey : notnull

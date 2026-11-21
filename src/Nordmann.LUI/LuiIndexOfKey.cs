@@ -16,7 +16,7 @@ namespace Nordmann.LUI;
 /// catalog, <see cref="ObjectDisposedException"/>. Only the catalog creates handles: <c>catalog.Index(definition)</c>.
 /// </para>
 /// </summary>
-/// <typeparam name="TKey">The type of the keys — <see cref="long"/> in this version.</typeparam>
+/// <typeparam name="TKey">The type of the keys — <see cref="long"/>, <see cref="int"/>, <see cref="string"/> or <see cref="Guid"/> (ADR-0073).</typeparam>
 public abstract class LuiIndex<TKey>
     where TKey : notnull
 {

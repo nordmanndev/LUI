@@ -11,7 +11,7 @@ namespace Nordmann.LUI.Querying;
 /// </summary>
 internal sealed class HitReader(ContentSource source, PayloadReader payload)
 {
-    private readonly LuiKeyKind _keyKind = KeyCodec.KindOf(source.Definition.KeyType);
+    private readonly LuiKeyType _keyType = KeyCodec.TypeOf(source.Definition.KeyType);
     private readonly NormalizationOptions _normalization = source.Normalization;
     private readonly string?[] _hitsSql = new string?[LuiQueryOptions.MaxResultsLimit + 1];
     private readonly string?[] _hitsWithTextSql = new string?[LuiQueryOptions.MaxResultsLimit + 1];
@@ -103,7 +103,7 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
     private LuiHit Hit(in Scored entry, string key, object? stored, double similarity) =>
         new()
         {
-            Key = KeyCodec.FromText(key, _keyKind),
+            Key = KeyCodec.FromText(key, _keyType, source.IndexName),
             Text = entry.Text,
             StoredPayload = stored,
             PayloadSource = payload.Source,

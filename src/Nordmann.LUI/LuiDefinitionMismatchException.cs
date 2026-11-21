@@ -6,7 +6,7 @@ namespace Nordmann.LUI;
 /// names both definitions.
 /// <para>
 /// The read path (ADR-0033) throws it too: an index that is opened is never rebuilt, so a key type, a payload type,
-/// a schema version or a folding that is another one is an error that says what was found and what was asked for.
+/// a LUI format or a folding that is another one is an error that says what was found and what was asked for.
 /// </para>
 /// </summary>
 public sealed class LuiDefinitionMismatchException : LuiException
@@ -64,7 +64,7 @@ public sealed class LuiDefinitionMismatchException : LuiException
 
     /// <summary>
     /// Creates the exception for the read path (ADR-0033): the index exists, but it is not the index that was asked
-    /// for — another schema version, another folding, another key type, another payload type. An index that is opened
+    /// for — another LUI format, another folding, another key type, another payload type. An index that is opened
     /// is never rebuilt, so the way out is another way to open it.
     /// </summary>
     internal LuiDefinitionMismatchException(string indexName, string stored, string requested, string advice)

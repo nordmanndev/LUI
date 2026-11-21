@@ -18,7 +18,7 @@ namespace Nordmann.LUI;
 /// compared; the map is code, runtime only, and each definition uses its own. <c>catalog.Create(definition)</c> creates the
 /// index or opens it and checks the table of the application; it never syncs and never installs triggers.
 /// </summary>
-/// <typeparam name="TKey">The type of the keys — <see cref="long"/> in this version: the <c>INTEGER PRIMARY KEY</c> of the table.</typeparam>
+/// <typeparam name="TKey">The type of the keys — <see cref="long"/> or <see cref="int"/>: the <c>INTEGER PRIMARY KEY</c> of the table (text keys come with #267).</typeparam>
 /// <typeparam name="TPayload">The type the map builds from a row of the table.</typeparam>
 public sealed class LuiLinkedIndexDefinition<TKey, TPayload> : LuiIndexDefinitionBase
     where TKey : notnull
@@ -48,7 +48,7 @@ public sealed class LuiLinkedIndexDefinition<TKey, TPayload> : LuiIndexDefinitio
             name,
             LuiIndexSource.Linked,
             typeof(TKey),
-            () => new ResolvedIndex(name, description, KeyTypes.Validate(typeof(TKey), LuiIndexSource.Linked, oldPath: true)),
+            () => new ResolvedIndex(name, description, KeyTypes.Validate(typeof(TKey), LuiIndexSource.Linked)),
             typeof(TPayload))
     {
     }

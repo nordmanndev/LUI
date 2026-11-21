@@ -11,7 +11,7 @@ namespace Nordmann.LUI;
 /// The handle comes from the catalog: <c>catalog.Create(SearchIndexes.Tags)</c> creates the index or opens it (and
 /// compares the stored definition), <c>catalog.Index(SearchIndexes.Tags)</c> opens one that is there.
 /// </summary>
-/// <typeparam name="TKey">The type of the keys — <see cref="long"/> in this version.</typeparam>
+/// <typeparam name="TKey">The type of the keys — <see cref="long"/>, <see cref="int"/>, <see cref="string"/> or <see cref="Guid"/> (ADR-0073).</typeparam>
 public sealed class LuiIndexDefinition<TKey> : LuiIndexDefinitionBase
     where TKey : notnull
 {
@@ -38,7 +38,7 @@ public sealed class LuiIndexDefinition<TKey> : LuiIndexDefinitionBase
             name,
             LuiIndexSource.Embedded,
             typeof(TKey),
-            () => new ResolvedIndex(name, description, KeyTypes.Validate(typeof(TKey), LuiIndexSource.Embedded, oldPath: true)))
+            () => new ResolvedIndex(name, description, KeyTypes.Validate(typeof(TKey), LuiIndexSource.Embedded)))
     {
     }
 }
