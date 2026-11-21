@@ -17,9 +17,12 @@
   - `src/Nordmann.LUI/LuiCatalog.cs`, `LuiIndexKindBuilder.cs`, `LuiEmbeddedIndexBuilder.cs`, `LuiLinkedIndexBuilder.cs` — the catalog
     creates from a description, the builders only describe
   - `src/Nordmann.LUI/Indexes/IndexStore.cs`, `src/Nordmann.LUI/Schema/IndexDescription.cs` — the creation in one transaction, the comparison by field
+  - `src/Nordmann.LUI/LuiIndexDefinitionOfKeyAndPayload.cs`, `LuiLinkedIndexDefinitionOfKeyAndPayload.cs`, `LuiLinkedIndexBuilderOfPayload.cs`,
+    `LuiIndexOfKeyAndPayload.cs`, `LuiEmbeddedIndexOfKeyAndPayload.cs`, `LuiLinkedIndexOfKeyAndPayload.cs`, `LuiEntryOfKeyAndPayload.cs`,
+    `LuiQueryOfKeyAndPayload.cs`, `LuiResultOfKeyAndPayload.cs`, `LuiHitOfKeyAndPayload.cs` — the payload variants (#269)
   - `docs/api.md`, `docs/testing.md`, `CHANGELOG.md`, `.agents/adr/README.md`
   - `tests/Nordmann.LUI.Architecture.Tests/PublicApiShapeTests.cs` — the guard of the shape of the typed handles
-- **Issue:** [#261](https://github.com/nordmanndev/LUI/issues/261), part of the epic of 0.4.0 ([#258](https://github.com/nordmanndev/LUI/issues/258)); #269 (payloads),
+- **Issue:** [#261](https://github.com/nordmanndev/LUI/issues/261), part of the epic of 0.4.0 ([#258](https://github.com/nordmanndev/LUI/issues/258)); [#269](https://github.com/nordmanndev/LUI/issues/269) (payloads, the sections 10 to 14 below),
   #270 (key types) and #268 (the removal of the old calls) add their parts to this record
 
 ## Context
@@ -34,7 +37,7 @@ chain ended in a `Create()` that the catalog called — the description and the 
 1. **An index is declared once, as a definition object.** `LuiIndexDefinition<TKey>` (embedded) and
    `LuiLinkedIndexDefinition<TKey>` (linked) hold the name, the source, the kind, the key type, the options and, for a linked
    index, the table. Every call site uses that object. The base class `LuiIndexDefinitionBase` has a `private protected`
-   constructor: the two types are the whole family, they do not derive from each other, so the overloads of `Create` and
+   constructor: the types are the whole family (two in #261, four with the payload variants of #269), they do not derive from each other, so the overloads of `Create` and
    `Index` are unambiguous. A variable typed `LuiIndexDefinitionBase` binds to `Create(params …)`, which returns nothing.
 2. **A definition is immutable, has reference equality and does no I/O.** It knows no catalog. `Name` is stored at once; the
    validation and the builder function run **once, lazily**, on first use — `Lazy<T>` with `ExecutionAndPublication`, so also
@@ -42,7 +45,7 @@ chain ended in a `Create()` that the catalog called — the description and the 
    field, and a field that threw would surface as a `TypeInitializationException` of its class: nothing throws at the
    declaration.
 3. **`LuiConfigurationException`** (derives from `LuiException`) is the exception for a configuration that is wrong — a bad
-   name, a key type that is not allowed, `WithKey` or `WithPayload` inside a definition. It is thrown on the first use by a
+   name, a key type that is not allowed, `WithKey` inside a definition (and, in #261 only, `WithPayload` — decision 10 replaces that rule). It is thrown on the first use by a
    catalog. `ArgumentException` stays for the invalid argument of a call. The error that the builder function raised is its
    inner exception.
 4. **The builders describe, the catalog creates.** `LuiIndexKindBuilder`, `LuiEmbeddedIndexBuilder` and `LuiLinkedIndexBuilder`
@@ -80,12 +83,46 @@ chain ended in a `Create()` that the catalog called — the description and the 
    done, as today's `ILuiEmbeddedIndex.Sync(IAsyncEnumerable<LuiEntry>)` does; its doc comment says to run it on a thread that may
    block. The guard `The_public_api_is_synchronous` stays without an exception.
 
+10. **The payload is declared in the definition: four definition types, no untyped payload (#269).** `LuiIndexDefinition<TKey, TPayload>` and
+    `LuiLinkedIndexDefinition<TKey, TPayload>` (`where TKey : notnull where TPayload : notnull`) join the two of #261. All four derive from
+    `LuiIndexDefinitionBase` and from nothing else, so the overloads of `Create` and `Index` stay unambiguous: `catalog.Create(definition)`
+    returns `LuiEmbeddedIndex<TKey, TPayload>` / `LuiLinkedIndex<TKey, TPayload>`, both types inferred. `PayloadType` is the second type
+    argument. The payload type is **not** stored or compared until #260 (the payload registry): a definition with a payload and one
+    without compare equal until then.
+11. **The typed linked builder.** `LuiLinkedIndexBuilder.WithPayload<TPayload>(columns, map)` returns `LuiLinkedIndexBuilder<TPayload>` (it
+    returned the untyped builder, and the map was a `Func<LuiPayloadRow, object?>` inside). The typed builder does **not** derive from the
+    untyped one and has the same option methods (`Similarity`, `GermanTransliteration`, `TypoTolerance`), so the order of `WithPayload` and
+    the options is free. The type does the checking: a `LuiLinkedIndexDefinition<long>` (no payload) cannot be given a builder with a payload,
+    and a `LuiLinkedIndexDefinition<long, ChefView>` only accepts a builder that ends in `LuiLinkedIndexBuilder<ChefView>` — both are
+    compile errors, not a `LuiConfigurationException`. The columns are stored and compared; the map is code, runtime only, and two
+    definitions with the same view type each use their own. The old `WithPayload` rule — "inside a definition it throws" — is gone.
+12. **The bridge for the old path.** `catalog.CreateLinked<TPayload>(string, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>>)` takes
+    the typed builder and goes through `Create(definition)` (an internal `LuiLinkedIndexDefinition<long, TPayload>`), so every existing
+    `CreateLinked(name, index => index.….WithPayload(…))` keeps compiling and returns `ILuiLinkedIndex`. It is not ambiguous with
+    `CreateLinked(string, Func<…, LuiLinkedIndexBuilder>)`: the lambda decides by the type it returns, and `TPayload` is inferred from it.
+    #268 removes the bridge with the other old calls.
+13. **No write without a payload on a handle with a payload.** `LuiEmbeddedIndex<TKey, TPayload>` has `Upsert(TKey key, string text, TPayload
+    payload, int weight = 0, LuiPriority priority = Normal, SqliteTransaction? transaction = null)` — the payload right after the text, the
+    order of the entry —, `Upsert(LuiEntry<TKey, TPayload>, …)`, `UpsertMany`, the two `Sync` overloads (one for an `IAsyncEnumerable`, which
+    blocks — there is no `SyncAsync`), `Remove`, `UpdateWeight`, `UpdatePriority`, `Check(entries)` and `Rebuild`; it has no
+    `Upsert(key, text, weight)`, no `LuiEntry<TKey>` overload and no payload-less `Sync`, so no entry without a payload reaches an index with
+    one (#260), and with `TPayload = int` a call `Upsert(1, "x", 5)` means the payload `5`, never a weight.
+    `LuiEntry<TKey, TPayload>` takes its payload in the constructor — a `null` throws `ArgumentNullException` — and `Payload` has no `init`,
+    so `entry with { … }` cannot make it `null`. `LuiIndex<TKey, TPayload>` does not derive from `LuiIndex<TKey>`, and `LuiHit<TKey, TPayload>`
+    not from `LuiHit<TKey>` (a shared base can be added later without a break); the value equality of a hit will include the payload's own
+    equality from #262 on — today's `LuiHit` compares stored bytes.
+14. **The transition until #260 and #262.** *Writing:* the typed handles serialize with the catalog's `LuiCatalogOptions.PayloadSerializer`, with the
+    type the payload has at run time; a typed write on a catalog without one throws a `LuiConfigurationException` that names the index —
+    before anything is written, for `Upsert`, `UpsertMany` and both `Sync`s. *Reading:* `hit.Payload` arrives with #262 (a map that returns
+    `null` fails the query there); until then the written payloads are read through the old untyped path, `catalog.Index(name)` and
+    `hit.GetPayload<T>()`. *The fingerprint:* the payload type name and format are stored and compared from #260 on.
+
 ## Consequences
 
 - The old calls (`Create(name, …)`, `CreateLinked`, `Index(name)`, `LinkedIndex`, `As<T>()`, the untyped handles) keep working
   unchanged in this change — the integration suite stayed green; #268 removes them and moves every caller.
 - `CHANGELOG.md` carries the migration note: additive here, the removal comes with #268.
-- `PublicApiShapeTests` gets the list of the members of every typed handle — the target each later pull request extends (#269 the
+- `PublicApiShapeTests` gets the list of the members of every typed handle — the target each later pull request extends (#269 added the
   payload variants, #262 `Payload` and `CheckPayloads()`, #272 `NeedsInitialSync`, #273 and #266 the catalog operations).
 - The typed handles wrap the internal index of 0.3.0 and convert `TKey` ↔ `LuiKey` at the edge; #265 moves the runtime into the
   catalog. A handle detects a dropped index by the missing table (a catalog read only on that path), so the check on the success path costs nothing. Known limitation: a handle of an index that was dropped and **created again under
@@ -107,3 +144,7 @@ chain ended in a `Create()` that the catalog called — the description and the 
   and surface as a `TypeInitializationException` that hides the cause.
 - **Keeping the catalog in the builders.** A builder that can create is a builder that can be called twice, from anywhere, with a
   catalog that is not the one of the application.
+- **A payload as an optional member of `LuiIndexDefinition<TKey>`.** An index then has a payload or not by a runtime fact, and an entry without
+  one could reach an index that needs one. Four definition types make it a fact of the type.
+- **`LuiLinkedIndexBuilder<TPayload>` deriving from `LuiLinkedIndexBuilder`.** A `LuiLinkedIndexDefinition<long>` would then accept a
+  builder with a payload and ignore its map; with two unrelated builders the compiler refuses it.
