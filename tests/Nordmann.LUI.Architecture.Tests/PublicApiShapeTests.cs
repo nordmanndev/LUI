@@ -470,11 +470,11 @@ public sealed class PublicApiShapeTests
             ],
             ["LuiEntry<TKey>"] =
             [
-                ".ctor(TKey Key, string Text)",
+                ".ctor(TKey key, string text)",
                 "LuiPriority Priority { get; init; }",
-                "TKey Key { get; init; }",
+                "TKey Key { get; }",
                 "int Weight { get; init; }",
-                "string Text { get; init; }",
+                "string Text { get; }",
             ],
             ["LuiQuery<TKey>"] =
             [
@@ -538,7 +538,7 @@ public sealed class PublicApiShapeTests
     private static IEnumerable<string> MemberSignatures(Type type)
     {
         const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
-        var generated = new HashSet<string>(StringComparer.Ordinal) { "Equals", "GetHashCode", "Deconstruct", "<Clone>$" };
+        var generated = new HashSet<string>(StringComparer.Ordinal) { "Equals", "GetHashCode", "<Clone>$" };
         var isRecord = type.GetMethod("<Clone>$", declared | BindingFlags.NonPublic) is not null;
 
         foreach (var constructor in type.GetConstructors(declared))
