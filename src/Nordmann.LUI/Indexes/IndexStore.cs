@@ -337,18 +337,53 @@ internal static class IndexStore
         command.Parameters.AddWithValue("$name", indexName);
 
         using var reader = command.ExecuteReader();
-        if (!reader.Read())
+        return reader.Read() ? Parse(reader, indexName, firstColumn: 0) : null;
+    }
+
+    /// <summary>
+    /// Every index of the file with what <c>lui_meta</c> holds about it, in one read (ADR-0075): the catalog keeps the
+    /// definitions in memory. A row that cannot be read — a kind this version does not know, an empty definition — is
+    /// recorded as <see langword="null"/> and not thrown: one row that is not readable must not keep the catalog from
+    /// opening, and the index that is asked for reads its row again and throws what was wrong with it
+    /// (<see cref="ReadIndex"/>), as it did before the definitions were kept.
+    /// </summary>
+    /// <param name="connection">A connection to the file.</param>
+    /// <param name="transaction">Its transaction, when it has one — the counter and the definitions are read in one snapshot.</param>
+    /// <returns>The entries by the name of the index; <see langword="null"/> for a row that cannot be read.</returns>
+    internal static Dictionary<string, IndexStoreEntry?> ReadAll(SqliteConnection connection, SqliteTransaction? transaction = null)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT index_name, kind, source, definition, schema_version FROM lui_meta;";
+
+        var entries = new Dictionary<string, IndexStoreEntry?>(StringComparer.Ordinal);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
         {
-            return null;
+            var name = reader.GetString(0);
+            try
+            {
+                entries[name] = Parse(reader, name, firstColumn: 1);
+            }
+            catch (Exception exception) when (exception is LuiDefinitionMismatchException or InvalidOperationException or System.Text.Json.JsonException)
+            {
+                entries[name] = null;
+            }
         }
 
-        var kind = ReadKind(reader.GetString(0), indexName);
-        var source = reader.GetString(1);
-        var definition = IndexDefinition.FromJson(reader.GetString(2))
+        return entries;
+    }
+
+    /// <summary>The entry of a row: kind, source, definition and the LUI format version, from the column <paramref name="firstColumn"/> on.</summary>
+    private static IndexStoreEntry Parse(SqliteDataReader reader, string indexName, int firstColumn)
+    {
+        var kind = ReadKind(reader.GetString(firstColumn), indexName);
+        var source = reader.GetString(firstColumn + 1);
+        var definition = IndexDefinition.FromJson(reader.GetString(firstColumn + 2))
             ?? throw new InvalidOperationException(
                 $"The definition of the index '{indexName}' in lui_meta is empty; the file was written by another version "
                 + "of LUI and cannot be read: remove the index (LuiCatalog.DropIndex) and create it again.");
-        var schemaVersion = reader.GetInt32(3);
+        var schemaVersion = reader.GetInt32(firstColumn + 3);
 
         return new IndexStoreEntry(kind, source, definition, schemaVersion);
     }

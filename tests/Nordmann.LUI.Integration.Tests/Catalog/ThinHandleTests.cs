@@ -283,6 +283,105 @@ public sealed class ThinHandleTests
         (commands.Count - before).ShouldBeGreaterThanOrEqualTo(2, "Search: the schema counter first, then the statements of the query");
     }
 
+    // ---- the lifetime of a handle in the catalog that dropped the index -------------------------------------------
+
+    [Fact]
+    public void A_handle_of_an_index_that_this_catalog_dropped_stays_dropped_and_the_open_call_gives_a_new_one()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var before = catalog.Create(Recipes);
+        before.Upsert(1, "kuchen");
+
+        catalog.DropIndex("recipes");
+        Should.Throw<LuiIndexNotFoundException>(() => catalog.Index(Recipes), "the open call looks at the definitions, which the drop updated");
+        var after = catalog.Create(Recipes);
+
+        after.ShouldNotBeSameAs(before, "the runtime of the dropped index is gone, the handle is a new one");
+        after.Count().ShouldBe(0, "the new index is empty");
+        Should.Throw<LuiIndexNotFoundException>(() => before.Count(), "an index object that was created before the drop does not survive it (DropIndex)");
+        catalog.Index(Recipes).ShouldBeSameAs(after);
+    }
+
+    [Fact]
+    public void The_typo_dictionary_of_a_dropped_index_is_not_the_one_of_the_next()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var corrected = new LuiIndexDefinition<long>("corrected", index => index.SingleWord().TypoTolerance());
+        var before = catalog.Create(corrected);
+        before.Upsert(1, "kuchen");
+        before.WarmUpTypoDictionary();
+        before.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+
+        catalog.DropIndex("corrected");
+        var after = catalog.Create(corrected);
+
+        after.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt, "the words of the dropped index are not the words of the next one");
+    }
+
+    // ---- many threads ----------------------------------------------------------------------------------------------
+
+    [Fact]
+    public void Concurrent_first_calls_of_one_definition_get_one_handle()
+    {
+        using var database = new TestDatabase();
+        using (var creator = CreateAll(database))
+        {
+            creator.Index(Recipes).Upsert(1, "kuchen");
+        }
+
+        using var catalog = LuiCatalog.Open(database.FilePath);
+        using var barrier = new Barrier(8);
+        var handles = new LuiEmbeddedIndex<long>[8];
+
+        Parallel.For(0, 8, new ParallelOptions { MaxDegreeOfParallelism = 8 }, number =>
+        {
+            barrier.SignalAndWait();
+            handles[number] = catalog.Index(Recipes);
+        });
+
+        handles.Distinct().Count().ShouldBe(1, "a definition has one handle, also when its first calls come at once");
+    }
+
+    [Fact]
+    public async Task Operations_run_while_the_schema_of_the_file_changes_under_them()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var recipes = catalog.Create(Recipes);
+        recipes.UpsertMany(Enumerable.Range(1, 500).Select(key => new LuiEntry<long>(key, "kuchen " + key)));
+        using var stop = new CancellationTokenSource();
+
+        // every change of the schema is a new counter for every handle: a reload, once, by whoever comes first
+        var readers = Enumerable.Range(0, 4).Select(_ => Task.Run(() =>
+        {
+            var rounds = 0;
+            do
+            {
+                recipes.Count().ShouldBeInRange(500, 501, "the writer writes one entry beside the readers and takes it out again");
+                recipes.Search("kuchen 4").Hits.ShouldNotBeEmpty();
+                catalog.Index(Recipes).ShouldBeSameAs(recipes);
+                rounds++;
+            }
+            while (!stop.IsCancellationRequested);
+
+            return rounds;
+        })).ToArray();
+
+        for (var table = 0; table < 40; table++)
+        {
+            Run(database, $"CREATE TABLE churn_{table}(id INTEGER PRIMARY KEY);");
+            recipes.Upsert(1000 + table, "neu " + table);
+            Run(database, $"DROP TABLE churn_{table};");
+            recipes.Remove(1000 + table);
+        }
+
+        await stop.CancelAsync();
+        (await Task.WhenAll(readers)).ShouldAllBe(rounds => rounds > 0);
+        recipes.Count().ShouldBe(500);
+    }
+
     // ---- helpers -----------------------------------------------------------------------------------------------------
 
     /// <summary>The bytes the current thread allocates in <see cref="Calls"/> calls of the action, after a warm-up.</summary>

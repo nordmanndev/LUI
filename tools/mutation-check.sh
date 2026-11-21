@@ -761,6 +761,37 @@ expect_caught "a-claim-of-a-round-that-does-not-stay-true" "${INTEGRATION_PROJEC
   "FullyQualifiedName~The_claim_of_a_round_that_has_begun_stays_true_when_the_round_is_over" \
   "sed -i 's|            Volatile.Write(ref _running, 0);|            Interlocked.Exchange(ref _roundsBegun, 0);\n            Volatile.Write(ref _running, 0);|' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
 
+# 35a. A handle that never looks at the SQLite schema counter (issue #265, ADR-0075): the index that another process dropped
+#       and created again with another definition is read and written through the stale definition. The test with the two
+#       catalogs has to see the old handle go on.
+expect_caught "a-handle-that-never-looks-at-the-schema-counter" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~TwoCatalogsTests.After_a_drop_and_a_recreate_by_one_catalog_the_old_handle_of_the_other_throws" \
+  "sed -i 's|        if (counter != Volatile.Read(ref _validatedAt))|        if (false \&\& counter != Volatile.Read(ref _validatedAt))|' src/Nordmann.LUI/Indexes/IndexGuard.cs"
+
+# 35b. An open call that forgets the handle it handed out (issue #265, ADR-0075): every call builds a handle, and the thin
+#       handle — the same instance for the same definition, nothing allocated — is gone.
+expect_caught "an-open-call-that-forgets-its-handle" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~ThinHandleTests.Index_returns_the_same_instance_for_the_same_definition" \
+  "sed -i 's|            _handles.AddOrUpdate(definition, new HandleOfDefinition(handle, runtime.Guard));|            _ = new HandleOfDefinition(handle, runtime.Guard);|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35c. A name that is not remembered as missing (issue #265, ADR-0075): the unknown name reloads the definitions at every
+#       call, and a request for an index that is not there is a read of the whole of lui_meta.
+expect_caught "a-missing-name-that-is-not-remembered" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~ThinHandleTests.An_unknown_name_reloads_once_then_throws_and_does_not_reload_again_while_the_counter_is_unchanged" \
+  "sed -i 's|            _ = snapshot.Missing.TryAdd(name, 0);|            _ = snapshot.Missing.Count;|' src/Nordmann.LUI/Indexes/StoredIndexes.cs"
+
+# 35d. A drop that leaves the runtime of the index alive (issue #265, ADR-0075): the handle of the dropped index is not
+#       stale, and the next index of that name gets the typo dictionary and the handle of the old one.
+expect_caught "a-drop-that-leaves-the-runtime-alive" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~ThinHandleTests.A_handle_of_an_index_that_this_catalog_dropped_stays_dropped_and_the_open_call_gives_a_new_one" \
+  "sed -i 's|        Runtimes.Drop(name);|        _ = name;|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35e. A query that does not ask the guard (issue #265, ADR-0075): the search of a handle reads through the definition it was
+#       built from, whatever the file says now.
+expect_caught "a-query-that-does-not-ask-the-guard" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~TwoCatalogsTests.After_a_drop_and_a_recreate_by_one_catalog_the_old_handle_of_the_other_throws" \
+  "sed -i 's|        _guard?.Check(connection, snapshot);|        _ = _guard;|' src/Nordmann.LUI/Querying/QueryRunner.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

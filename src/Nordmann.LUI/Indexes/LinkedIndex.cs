@@ -35,20 +35,26 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     private readonly QueryRunner _runner;
     private readonly IReadOnlyList<string> _payloadColumns;
 
+    // asks, on the connection of every operation, whether the definition of the index is still the one in the file
+    // (ADR-0075); null for an index of the old path, which holds no definition
+    private readonly IndexGuard? _guard;
+
     internal LinkedIndex(
         Database database,
         TypoDictionaries typoDictionaries,
         LinkedSource source,
         PayloadReader payload,
         ILuiSimilarity similarity,
-        LuiTypoDistance typoDistance)
+        LuiTypoDistance typoDistance,
+        IndexGuard? guard = null)
     {
         _database = database;
+        _guard = guard;
         _source = source;
         Name = source.IndexName;
         Kind = source.Rules.Kind;
         _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance);
-        _runner = new QueryRunner(database, source, payload, similarity, _typos, typoDistance);
+        _runner = new QueryRunner(database, source, payload, similarity, _typos, typoDistance, guard);
         _payloadColumns = payload.Columns;
     }
 
@@ -66,6 +72,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     {
         using var scope = _database.Begin();
         using var connection = _database.OpenReadConnection();
+        _guard?.Check(connection);
         return Scalar(connection, null, _source.CountSql);
     }
 
@@ -73,6 +80,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     {
         using var scope = _database.Begin();
         using var connection = _database.OpenReadConnection();
+        _guard?.Check(connection);
         return TriggerState(connection, null);
     }
 
@@ -114,12 +122,14 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     public void WarmUpTypoDictionary(CancellationToken cancellationToken = default)
     {
         using var scope = _database.Begin();
+        _guard?.Check();
         _typos.EnsureBuilt(cancellationToken);
     }
 
     public void RebuildTypoDictionary(CancellationToken cancellationToken = default)
     {
         using var scope = _database.Begin();
+        _guard?.Check();
         _typos.Rebuild(cancellationToken);
     }
 
@@ -189,6 +199,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     {
         using var scope = _database.Begin();
         using var connection = _database.OpenReadConnection();
+        _guard?.Check(connection);
         return Guarded(() => Scalar(connection, null, _source.PendingCountSql));
     }
 
@@ -298,6 +309,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     public LuiIntegrityReport Check()
     {
         using var scope = _database.Begin();
+        _guard?.Check();
         List<string> problems = [];
         var fits = false;
         try
@@ -434,6 +446,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
             {
                 var connection = transaction.Connection
                     ?? throw new ArgumentException("The transaction is complete.", nameof(transaction));
+                _guard?.Check(connection, transaction);
                 EnsureSameDatabase(connection, transaction);
                 write(connection, transaction);
                 return;
@@ -443,6 +456,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
             {
                 using var connection = _database.OpenConnection();
                 using var own = connection.BeginTransaction(deferred: false);
+                _guard?.Check(connection, own);
                 write(connection, own);
                 own.Commit();
             }

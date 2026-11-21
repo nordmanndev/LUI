@@ -176,9 +176,34 @@ internal sealed class Database : IDisposable
     /// </summary>
     internal SqliteConnection OpenReadConnection() => Open(ReadConnectionString);
 
+    /// <summary>
+    /// The count of the commands LUI creates — a seam of the tests (ADR-0075); <see langword="null"/> in production, where
+    /// the connections are plain ones.
+    /// </summary>
+    internal CommandCounter? CommandCounter { get; set; }
+
+    /// <summary>
+    /// SQLite's schema counter — what <c>PRAGMA schema_version</c> reads: a number in the header of the file that changes
+    /// whenever a table, an index or a trigger is created or dropped, and not when content is written (ADR-0075). It is
+    /// <b>not</b> the LUI format version of <c>lui_meta.schema_version</c> (ADR-0073). One statement on the connection of
+    /// the operation; it costs no table read.
+    /// </summary>
+    /// <param name="connection">A connection to the file.</param>
+    /// <param name="transaction">Its transaction, when it has one.</param>
+    /// <returns>The counter.</returns>
+    internal static long ReadSchemaCounter(SqliteConnection connection, SqliteTransaction? transaction = null)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "PRAGMA schema_version;";
+        return (long)command.ExecuteScalar()!;
+    }
+
     private SqliteConnection Open(string connectionString)
     {
-        var connection = new SqliteConnection(connectionString);
+        var connection = CommandCounter is { } counter
+            ? new CountingConnection(connectionString, counter)
+            : new SqliteConnection(connectionString);
         try
         {
             connection.Open();

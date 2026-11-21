@@ -36,6 +36,10 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     private readonly EmbeddedSync _sync;
     private readonly EmbeddedCheck _check;
 
+    // asks, on the connection of every operation, whether the definition of the index is still the one in the file
+    // (ADR-0075); null for an index of the old path, which holds no definition
+    private readonly IndexGuard? _guard;
+
     // The statements of the application's own connections, one set per connection.
     private readonly ConditionalWeakTable<SqliteConnection, WriteStatements> _applicationStatements = [];
 
@@ -45,9 +49,11 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         EmbeddedSource source,
         ILuiPayloadSerializer? payload,
         ILuiSimilarity similarity,
-        LuiTypoDistance typoDistance)
+        LuiTypoDistance typoDistance,
+        IndexGuard? guard = null)
     {
         _database = database;
+        _guard = guard;
         _payload = payload;
         _source = source;
         Name = source.IndexName;
@@ -56,7 +62,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         KeyKind = KeyCodec.KindOf(_keyType);
         _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance);
         _runner = new QueryRunner(
-            database, source, new SerializedPayload(Name, payload), similarity, _typos, typoDistance);
+            database, source, new SerializedPayload(Name, payload), similarity, _typos, typoDistance, guard);
         _sync = new EmbeddedSync(database, source, KeyText, PayloadBytes, _typos);
         _check = new EmbeddedCheck(database, source, KeyText, PayloadBytes);
     }
@@ -84,10 +90,12 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
             if (transaction is null)
             {
                 using var connection = _database.OpenConnection();
+                _guard?.Check(connection);
                 OwnStatements(connection).Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, bytes, null);
             }
             else
             {
+                CheckIn(transaction);
                 StatementsFor(transaction).Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, bytes, transaction);
             }
         }
@@ -130,6 +138,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
             }
             else
             {
+                CheckIn(transaction);
                 WriteBatch(StatementsFor(transaction), entries, transaction, written, cancellationToken);
             }
         }
@@ -161,6 +170,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         {
             using var connection = _database.OpenConnection();
             using var transaction = connection.BeginTransaction(deferred: false);
+            _guard?.Check(connection, transaction);
             WriteBatch(OwnStatements(connection), entries, transaction, written, cancellationToken);
             transaction.Commit();
         }
@@ -224,6 +234,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         using var scope = _database.Begin();
         try
         {
+            _guard?.Check();
             return _sync.Run(entries, options ?? DefaultSyncOptions, cancellationToken);
         }
         catch (SqliteException exception) when (IsDocIdExhausted(exception))
@@ -251,6 +262,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     {
         try
         {
+            _guard?.Check();
             return _check.Against(entries, cancellationToken);
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
@@ -263,6 +275,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     {
         try
         {
+            _guard?.Check();
             return _check.Itself();
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
@@ -275,6 +288,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     {
         try
         {
+            _guard?.Check();
             _check.Rebuild();
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
@@ -287,6 +301,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     {
         try
         {
+            _guard?.Check();
             _check.Optimize();
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
@@ -306,10 +321,12 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         {
             if (transaction is not null)
             {
+                CheckIn(transaction);
                 return StatementsFor(transaction).UpdateWeight(keyText, weight, transaction);
             }
 
             using var connection = _database.OpenConnection();
+            _guard?.Check(connection);
             return OwnStatements(connection).UpdateWeight(keyText, weight, null);
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
@@ -329,10 +346,12 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         {
             if (transaction is not null)
             {
+                CheckIn(transaction);
                 return StatementsFor(transaction).UpdatePriority(keyText, (int)priority, transaction);
             }
 
             using var connection = _database.OpenConnection();
+            _guard?.Check(connection);
             return OwnStatements(connection).UpdatePriority(keyText, (int)priority, null);
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
@@ -351,10 +370,12 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         {
             if (transaction is not null)
             {
+                CheckIn(transaction);
                 return StatementsFor(transaction).Remove(keyText, transaction);
             }
 
             using var connection = _database.OpenConnection();
+            _guard?.Check(connection);
             return OwnStatements(connection).Remove(keyText, null);
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
@@ -366,12 +387,14 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     public void RebuildTypoDictionary(CancellationToken cancellationToken = default)
     {
         using var scope = _database.Begin();
+        _guard?.Check();
         _typos.Rebuild(cancellationToken);
     }
 
     public void WarmUpTypoDictionary(CancellationToken cancellationToken = default)
     {
         using var scope = _database.Begin();
+        _guard?.Check();
         _typos.EnsureBuilt(cancellationToken);
     }
 
@@ -379,6 +402,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     {
         using var scope = _database.Begin();
         using var connection = _database.OpenReadConnection();
+        _guard?.Check(connection);
         using var command = connection.CreateCommand();
         command.CommandText = _source.CountSql;
         return (long)command.ExecuteScalar()!;
@@ -391,6 +415,18 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         LuiQueryOptions? options = null,
         CancellationToken cancellationToken = default) =>
         _runner.Execute(text, options ?? DefaultOptions, cancellationToken);
+
+    /// <summary>
+    /// The schema counter on the connection of the application's transaction, before the first statement of the write
+    /// (ADR-0075): a write on a dropped index says so, instead of the missing table.
+    /// </summary>
+    private void CheckIn(SqliteTransaction transaction)
+    {
+        if (_guard is not null && transaction.Connection is { } connection)
+        {
+            _guard.Check(connection, transaction);
+        }
+    }
 
     /// <summary>
     /// The statements for a write in the transaction of the application: one set per connection of the application,

@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Runtime.CompilerServices;
 using Microsoft.Data.Sqlite;
 using Nordmann.LUI.Indexes;
 using Nordmann.LUI.Normalization;
@@ -43,10 +44,17 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>The primary result code of SQLite for a file that is no database (<c>SQLITE_NOTADB</c>).</summary>
     private const int SqliteNotADatabase = 26;
 
+    // The handles that were handed out, by the definition object (ADR-0075): the same definition gets the same handle, and
+    // the lookup allocates nothing and executes no SQL. The table does not keep a definition alive.
+    private readonly ConditionalWeakTable<LuiIndexDefinitionBase, HandleOfDefinition> _handles = [];
+    private readonly Lock _handleGate = new();
+
     private LuiCatalog(string path, SqliteOpenMode mode, bool createdTheFile, LuiCatalogOptions options)
     {
         _options = options;
         Database = new Database(this, path, mode, createdTheFile, options);
+        StoredIndexes = new StoredIndexes(Database);
+        Runtimes = new IndexRuntimes(Database, TypoDictionaries, options.PayloadSerializer, StoredIndexes);
     }
 
     /// <summary>The path of the file the catalog was opened with (ADR-0066).</summary>
@@ -62,6 +70,15 @@ public sealed class LuiCatalog : IDisposable
 
     /// <summary>The typo dictionaries of the indexes, one per index.</summary>
     internal TypoDictionaries TypoDictionaries { get; } = new();
+
+    /// <summary>
+    /// The stored definitions, in memory (ADR-0075): read when the catalog is opened, and again when the schema counter of
+    /// the file changed, an index was created or dropped here, or an unknown name was asked for.
+    /// </summary>
+    internal StoredIndexes StoredIndexes { get; }
+
+    /// <summary>The runtime of every index that was opened through a definition: built once, kept as long as its definition holds (ADR-0075).</summary>
+    internal IndexRuntimes Runtimes { get; }
 
     /// <summary>
     /// Opens the catalog of a file that is there, and <b>writes nothing</b> (ADR-0068): it checks the SQLite that is loaded and
@@ -166,6 +183,8 @@ public sealed class LuiCatalog : IDisposable
                 IndexStore.Verify(catalog.Database);
             }
 
+            // every stored definition, once (ADR-0075): opening an index afterwards is a lookup
+            _ = catalog.StoredIndexes.Reload();
             return catalog;
         }
         catch (SqliteException exception) when (MeansNoCatalog(exception, fullPath))
@@ -458,7 +477,8 @@ public sealed class LuiCatalog : IDisposable
         where TKey : notnull
     {
         ArgumentNullException.ThrowIfNull(definition);
-        return new LuiEmbeddedIndex<TKey>(Database, (EmbeddedIndex)CreateFrom(definition));
+        CreateStored(definition);
+        return Index(definition);
     }
 
     /// <summary>
@@ -477,7 +497,8 @@ public sealed class LuiCatalog : IDisposable
         where TKey : notnull
     {
         ArgumentNullException.ThrowIfNull(definition);
-        return new LuiLinkedIndex<TKey>(Database, (LinkedIndex)CreateFrom(definition));
+        CreateStored(definition);
+        return Index(definition);
     }
 
     /// <summary>
@@ -497,7 +518,8 @@ public sealed class LuiCatalog : IDisposable
         where TPayload : notnull
     {
         ArgumentNullException.ThrowIfNull(definition);
-        return new LuiEmbeddedIndex<TKey, TPayload>(Database, (EmbeddedIndex)CreateFrom(definition), PayloadSerializer);
+        CreateStored(definition);
+        return Index(definition);
     }
 
     /// <summary>
@@ -518,7 +540,8 @@ public sealed class LuiCatalog : IDisposable
         where TPayload : notnull
     {
         ArgumentNullException.ThrowIfNull(definition);
-        return new LuiLinkedIndex<TKey, TPayload>(Database, (LinkedIndex)CreateFrom(definition));
+        CreateStored(definition);
+        return Index(definition);
     }
 
     /// <summary>
@@ -557,6 +580,7 @@ public sealed class LuiCatalog : IDisposable
 
         var sources = resolved.Select(index => PrepareCreate(index.Name, index.Description, index.KeyType)).ToArray();
         IndexStore.CreateAll(Database, [.. sources.Select(source => (source.Source, source.Verify))], TimeProvider.GetUtcNow());
+        _ = StoredIndexes.Reload();
     }
 
     /// <summary>
@@ -572,11 +596,8 @@ public sealed class LuiCatalog : IDisposable
     /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
     /// <exception cref="LuiDefinitionMismatchException">The stored definition is another one; the message names the fields.</exception>
     public LuiEmbeddedIndex<TKey> Index<TKey>(LuiIndexDefinition<TKey> definition)
-        where TKey : notnull
-    {
-        var (resolved, entry) = OpenStored(definition);
-        return new LuiEmbeddedIndex<TKey>(Database, OpenEmbedded(resolved.Name, entry, resolved.Description.Options.Similarity));
-    }
+        where TKey : notnull =>
+        HandleOf(definition, static (runtime, catalog) => new LuiEmbeddedIndex<TKey>(catalog.Database, (EmbeddedIndex)runtime.Index));
 
     /// <summary>
     /// Opens the index of a linked definition that exists, and writes nothing (ADR-0073) — the same call as for an
@@ -589,13 +610,8 @@ public sealed class LuiCatalog : IDisposable
     /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
     /// <exception cref="LuiDefinitionMismatchException">The stored definition is another one; the message names the fields.</exception>
     public LuiLinkedIndex<TKey> Index<TKey>(LuiLinkedIndexDefinition<TKey> definition)
-        where TKey : notnull
-    {
-        var (resolved, entry) = OpenStored(definition);
-        return new LuiLinkedIndex<TKey>(
-            Database,
-            OpenLinked(resolved.Name, entry.Definition, new NoPayload(resolved.Name), resolved.Description.Options.Similarity));
-    }
+        where TKey : notnull =>
+        HandleOf(definition, static (runtime, catalog) => new LuiLinkedIndex<TKey>(catalog.Database, (LinkedIndex)runtime.Index));
 
     /// <summary>
     /// Opens the index of a definition with a payload that exists, and writes nothing (ADR-0073); the stored definition is
@@ -610,14 +626,10 @@ public sealed class LuiCatalog : IDisposable
     /// <exception cref="LuiDefinitionMismatchException">The stored definition is another one; the message names the fields.</exception>
     public LuiEmbeddedIndex<TKey, TPayload> Index<TKey, TPayload>(LuiIndexDefinition<TKey, TPayload> definition)
         where TKey : notnull
-        where TPayload : notnull
-    {
-        var (resolved, entry) = OpenStored(definition);
-        return new LuiEmbeddedIndex<TKey, TPayload>(
-            Database,
-            OpenEmbedded(resolved.Name, entry, resolved.Description.Options.Similarity),
-            PayloadSerializer);
-    }
+        where TPayload : notnull =>
+        HandleOf(
+            definition,
+            static (runtime, catalog) => new LuiEmbeddedIndex<TKey, TPayload>(catalog.Database, (EmbeddedIndex)runtime.Index, catalog.PayloadSerializer));
 
     /// <summary>
     /// Opens the index of a linked definition with a payload that exists, and writes nothing (ADR-0073). The columns of the
@@ -632,18 +644,8 @@ public sealed class LuiCatalog : IDisposable
     /// <exception cref="LuiDefinitionMismatchException">The stored definition is another one; the message names the fields.</exception>
     public LuiLinkedIndex<TKey, TPayload> Index<TKey, TPayload>(LuiLinkedIndexDefinition<TKey, TPayload> definition)
         where TKey : notnull
-        where TPayload : notnull
-    {
-        var (resolved, entry) = OpenStored(definition);
-        var columns = entry.Definition.Link?.PayloadColumns ?? [];
-        return new LuiLinkedIndex<TKey, TPayload>(
-            Database,
-            OpenLinked(
-                resolved.Name,
-                entry.Definition,
-                new ColumnPayload(resolved.Name, columns, resolved.Description.PayloadMap!),
-                resolved.Description.Options.Similarity));
-    }
+        where TPayload : notnull =>
+        HandleOf(definition, static (runtime, catalog) => new LuiLinkedIndex<TKey, TPayload>(catalog.Database, (LinkedIndex)runtime.Index));
 
     /// <summary>
     /// Opens an embedded index that exists, and writes nothing (ADR-0033): the definition is read out of
@@ -856,6 +858,18 @@ public sealed class LuiCatalog : IDisposable
         return new LuiIndexKindBuilder(oldPath: true);
     }
 
+    /// <summary>
+    /// Creates the index of a definition in the file, or checks that it is there with the same definition — the typed way
+    /// (ADR-0073): the file and the definitions in memory are written, the handle comes from <c>Index(definition)</c>.
+    /// </summary>
+    /// <param name="definition">The declaration of the index.</param>
+    private void CreateStored(LuiIndexDefinitionBase definition)
+    {
+        Database.ThrowIfDisposed();
+        var resolved = definition.Resolve();
+        _ = CreateInFile(resolved.Name, resolved.Description, resolved.KeyType);
+    }
+
     /// <summary>Creates the index of a definition — every way of creating goes through here (ADR-0073).</summary>
     /// <param name="definition">The declaration of the index.</param>
     /// <returns>The index below the handle: an <c>EmbeddedIndex</c> or a <c>LinkedIndex</c>.</returns>
@@ -876,8 +890,7 @@ public sealed class LuiCatalog : IDisposable
     /// <returns>The index.</returns>
     private IMaintainedIndex CreateCore(string name, IndexDescription description, string keyType)
     {
-        var (source, verify) = PrepareCreate(name, description, keyType);
-        IndexStore.Create(Database, source, TimeProvider.GetUtcNow(), verify);
+        var source = CreateInFile(name, description, keyType);
 
         var similarity = description.Options.Similarity ?? source.Rules.DefaultSimilarity;
         if (source is EmbeddedSource embedded)
@@ -891,6 +904,20 @@ public sealed class LuiCatalog : IDisposable
             : new ColumnPayload(name, columns, description.PayloadMap);
 
         return new LinkedIndex(Database, TypoDictionaries, (LinkedSource)source, payload, similarity, description.Options.TypoDistance);
+    }
+
+    /// <summary>
+    /// Creates the index in one transaction that holds the write lock and reads <c>lui_meta</c> inside it — two processes
+    /// cannot both create it: one creates, the other finds it and compares (ADR-0075) — and reads the definitions of the file
+    /// into memory.
+    /// </summary>
+    /// <returns>The source of the index.</returns>
+    private ContentSource CreateInFile(string name, IndexDescription description, string keyType)
+    {
+        var (source, verify) = PrepareCreate(name, description, keyType);
+        IndexStore.Create(Database, source, TimeProvider.GetUtcNow(), verify);
+        _ = StoredIndexes.Reload();
+        return source;
     }
 
     /// <summary>The source of a description, and — for a linked index — the check of the application's table.</summary>
@@ -910,18 +937,76 @@ public sealed class LuiCatalog : IDisposable
         return (new LinkedSource(name, definition), (connection, transaction) => LinkedTable.Verify(connection, transaction, link, columns));
     }
 
-    /// <summary>The stored index of a definition, after the comparison of the stored definition with the declared one.</summary>
-    private (ResolvedIndex Resolved, IndexStoreEntry Entry) OpenStored(LuiIndexDefinitionBase definition)
+    /// <summary>
+    /// The handle of a definition (ADR-0075): the one that was handed out for this definition object, or — at the first call —
+    /// the handle over the runtime of the index. After the first call it is a lookup: no allocation, no SQL, and the
+    /// definition is not compared again; a handle whose runtime failed (the index was dropped, or created again with another
+    /// definition) is replaced by looking at the stored definitions once more.
+    /// </summary>
+    /// <param name="definition">The declaration of the index.</param>
+    /// <param name="make">Puts the handle over the runtime.</param>
+    /// <returns>The handle.</returns>
+    private THandle HandleOf<THandle>(LuiIndexDefinitionBase definition, Func<IndexRuntime, LuiCatalog, THandle> make)
+        where THandle : class
     {
         ArgumentNullException.ThrowIfNull(definition);
         Database.ThrowIfDisposed();
 
+        return _handles.TryGetValue(definition, out var handed) && !handed.Guard.HasFailed
+            ? (THandle)handed.Handle
+            : OpenFirst(definition, make);
+    }
+
+    /// <summary>The first call of a definition, and the call after its handle failed: the stored definition is found in memory, compared with the declared one, and the runtime is built or taken.</summary>
+    private THandle OpenFirst<THandle>(LuiIndexDefinitionBase definition, Func<IndexRuntime, LuiCatalog, THandle> make)
+        where THandle : class
+    {
         var resolved = definition.Resolve();
-        var entry = ReadEntry(resolved.Name);
-        var declared = resolved.Description.ToStored(resolved.KeyType);
-        return entry.Definition == declared
-            ? (resolved, entry)
-            : throw IndexStore.Mismatch(resolved.Name, entry.Definition, declared);
+        var entry = FindStored(resolved.Name, resolved.Description.ToStored(resolved.KeyType), out var counter);
+
+        lock (_handleGate)
+        {
+            if (_handles.TryGetValue(definition, out var handed) && !handed.Guard.HasFailed)
+            {
+                return (THandle)handed.Handle;
+            }
+
+            var runtime = Runtimes.Get(resolved, definition.GetType(), entry, counter);
+            var handle = make(runtime, this);
+            _handles.AddOrUpdate(definition, new HandleOfDefinition(handle, runtime.Guard));
+            return handle;
+        }
+    }
+
+    /// <summary>
+    /// The stored index of a name, from the definitions in memory, after the comparison with the declared one. The definitions in
+    /// memory may be old — another process may have created, dropped or created the index again: before the answer is a
+    /// "not found" or a mismatch, the file's schema counter is looked at once, and the definitions are read again when it
+    /// changed.
+    /// </summary>
+    /// <param name="name">The validated name of the index.</param>
+    /// <param name="declared">The definition the application declared.</param>
+    /// <param name="counter">The schema counter the definitions were read at.</param>
+    /// <returns>What <c>lui_meta</c> holds about the index.</returns>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The stored definition is another one; the message names the fields.</exception>
+    private IndexStoreEntry FindStored(string name, IndexDefinition declared, out long counter)
+    {
+        var entry = StoredIndexes.Find(name, out counter) ?? throw new LuiIndexNotFoundException(name);
+        entry.EnsureReadable(name);
+        if (entry.Definition == declared)
+        {
+            return entry;
+        }
+
+        if (!StoredIndexes.ReloadIfChanged())
+        {
+            throw IndexStore.Mismatch(name, entry.Definition, declared);
+        }
+
+        entry = StoredIndexes.Find(name, out counter) ?? throw new LuiIndexNotFoundException(name);
+        entry.EnsureReadable(name);
+        return entry.Definition == declared ? entry : throw IndexStore.Mismatch(name, entry.Definition, declared);
     }
 
     /// <summary>The stored index of a name, with the two checks every index has to pass: the LUI format version it was written
@@ -939,27 +1024,7 @@ public sealed class LuiCatalog : IDisposable
         var entry = IndexStore.ReadIndex(Database, validated)
             ?? throw new LuiIndexNotFoundException(validated);
 
-        if (entry.SchemaVersion != Meta.SchemaVersion)
-        {
-            throw Mismatch(
-                validated,
-                $"the LUI format {entry.SchemaVersion.ToString(CultureInfo.InvariantCulture)}",
-                $"the LUI format {Meta.SchemaVersion.ToString(CultureInfo.InvariantCulture)}");
-        }
-
-        if (!KeyCodec.IsKnown(entry.Definition.KeyType))
-        {
-            throw Mismatch(validated, $"the key type {entry.Definition.KeyType}", "the key type long, int, string or guid");
-        }
-
-        if (!string.Equals(entry.Definition.FoldTable, TokenizerFold.Version, StringComparison.Ordinal))
-        {
-            throw Mismatch(
-                validated,
-                $"the fold table {entry.Definition.FoldTable}",
-                $"the fold table {TokenizerFold.Version}");
-        }
-
+        entry.EnsureReadable(validated);
         return entry;
     }
 
@@ -1003,12 +1068,7 @@ public sealed class LuiCatalog : IDisposable
 
     /// <summary>The key type of the caller against the key type of the file.</summary>
     private static LuiDefinitionMismatchException Mismatch(string name, string stored, string requested) =>
-        new(
-            name,
-            stored,
-            requested,
-            "An index that is opened is never rebuilt silently: open it as what it is, or remove it with "
-            + "LuiCatalog.DropIndex(name) and create it again.");
+        IndexStoreEntry.Mismatch(name, stored, requested);
 
     /// <summary>
     /// Removes an index with its tables, indexes and triggers and its row in <c>lui_meta</c>. It works whatever
@@ -1034,6 +1094,10 @@ public sealed class LuiCatalog : IDisposable
 
         // the words of the dropped index are not the words of the next one
         TypoDictionaries.Forget(name);
+
+        // the handles that were handed out for it are stale from now on, and the definitions in memory are the file's
+        Runtimes.Drop(name);
+        _ = StoredIndexes.Reload();
         return existed;
     }
 
@@ -1071,4 +1135,7 @@ public sealed class LuiCatalog : IDisposable
                 + $"remove_diacritics); the loaded SQLite is {loaded}.");
         }
     }
+
+    /// <summary>A handle that was handed out for a definition, and the guard of the runtime it is a view of.</summary>
+    private sealed record HandleOfDefinition(object Handle, IndexGuard Guard);
 }
