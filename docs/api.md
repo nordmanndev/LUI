@@ -213,7 +213,9 @@ one — there is no window without a search.
 
 The handles are **concrete classes, not interfaces**: an application tests its search against a real catalog, not a mock.
 They are views — no connection, not disposable, thread-safe like the catalog, reference equality. An operation on a handle
-whose index was dropped throws a `LuiIndexNotFoundException`; on a disposed catalog an `ObjectDisposedException`; on a catalog
+whose index was dropped throws a `LuiIndexNotFoundException` — **known limit:** a handle of an index that was dropped and then
+**created again under the same name** is not told apart from the new index and works on it (take a fresh handle from `Create` or
+`Index` after the recipe for a changed definition; #265 may invalidate old handles); on a disposed catalog an `ObjectDisposedException`; on a catalog
 opened with `OpenReadOnly`, a write is a `LuiReadOnlyException`. **Use `LuiIndex<TKey>` where a method only reads,
 `LuiEmbeddedIndex<TKey>` / `LuiLinkedIndex<TKey>` where it writes or syncs.** All of them are `where TKey : notnull`; the
 key type is `long` in this version, so `hit.Key` and every key parameter are `long` and a key of another type does not compile.

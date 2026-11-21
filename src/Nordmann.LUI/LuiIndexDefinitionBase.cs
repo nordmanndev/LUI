@@ -78,7 +78,8 @@ public abstract class LuiIndexDefinitionBase
 
     /// <summary>
     /// Validates the name and the key type and runs the builder function — what a definition does on first use. A step
-    /// the application chose wrongly comes out as a <see cref="LuiConfigurationException"/> with the refusal as its cause.
+    /// the application chose wrongly comes out as a <see cref="LuiConfigurationException"/> with the refusal as its cause — whatever the builder function threw, or
+    /// a null it returned.
     /// </summary>
     /// <param name="name">The name as it was given.</param>
     /// <param name="source">The source of the definition.</param>
@@ -101,7 +102,7 @@ public abstract class LuiIndexDefinitionBase
         {
             throw;
         }
-        catch (Exception exception) when (exception is ArgumentException or InvalidOperationException)
+        catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException or ThreadAbortException))
         {
             throw new LuiConfigurationException(
                 $"The index definition '{name}' is not valid: {exception.Message}",

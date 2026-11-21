@@ -28,6 +28,9 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   hold no catalog and no name any more. Their public `Create()` — documented as "the catalog calls this; an application does
   not" — now throws an `InvalidOperationException`; it never created anything on its own.
 
+- The message of a `LuiLinkedTableException` from the old `CreateLinked` path now starts with `Index '<name>': `, and the original
+  exception is its inner exception (ADR-0073: every creation names the index that failed). The type is unchanged.
+
 ### Migration
 
 Additive in this version: every call of 0.3.0 still works (`Create(name, …)`, `CreateLinked`, `Index(name)`, `LinkedIndex`,

@@ -92,23 +92,36 @@ public sealed class InternalLayeringTests
             .ToList();
         facade.ShouldNotBeEmpty();
         facade.Add($"{Root}.LuiCatalog");
-        facade.AddRange(
-        [
-            $"{Root}.LuiIndexDefinitionBase",
-            $"{Root}.LuiIndexDefinition`1",
-            $"{Root}.LuiLinkedIndexDefinition`1",
-            $"{Root}.LuiIndex`1",
-            $"{Root}.LuiEmbeddedIndex`1",
-            $"{Root}.LuiLinkedIndex`1",
-        ]);
+
+        // the definitions and the handles are found by what they are, so the variants of #269 and #270 join without an edit:
+        // every public type that derives from the definition base or from the read side of a handle
+        facade.AddRange(LibraryAssembly
+            .GetExportedTypes()
+            .Where(type => string.Equals(type.Namespace, Root, StringComparison.Ordinal) && DerivesFrom(type))
+            .Select(type => type.FullName!));
         return facade;
+    }
+
+    private static bool DerivesFrom(Type type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            var found = current == typeof(LuiIndexDefinitionBase)
+                || (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(LuiIndex<>));
+            if (found)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     [Fact]
     public void The_facade_holds_the_definitions_and_the_handles()
     {
-        // a layer below the root that takes a definition or a handle is a way up past the rule (#265 moves the runtime into
-        // the catalog: this is where it would show)
+        // the derivation finds today's six (a sanity check of the derivation, not the source of the list): a layer below the
+        // root that takes a definition or a handle is a way up past the rule (#265 moves the runtime into the catalog)
         var facade = Facade();
         string[] expected =
         [
