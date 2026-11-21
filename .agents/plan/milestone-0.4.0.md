@@ -15,7 +15,7 @@ file into `0.4.0`.
 | # | Issue | Why here | Depends on | Status | PR |
 |---|---|---|---|---|---|
 | 1 | #259 API freeze moves to 1.0.0 (ADR-0071) | every later break cites it; docs only | — | merged | #279 — the freeze comes with 1.0.0; no `[Obsolete]` bridges before it |
-| 2 | #274 Baseline: v0.3.0 against itself (`QueryBenchmarks`) | #258 needs the noise before the first code PR | #259 | in review | #PRNUM |
+| 2 | #274 Baseline: v0.3.0 against itself (`QueryBenchmarks`) | #258 needs the noise before the first code PR | #259 | in review | #281 |
 | 3 | #261 Definitions and typed handles, `long` keys (ADR-0073) | the contract everything builds on — riskiest, first | #274 | open | — |
 | 4 | #269 Payload variants, typed linked builder (ADR-0073) | extends the types of #261 | #261 | open | — |
 | 5 | #270 Key types `int`/`string`/`Guid`, LUI format 2 (ADR-0073) | the file format #260/#272/#271 add to | #269 | open | — |
