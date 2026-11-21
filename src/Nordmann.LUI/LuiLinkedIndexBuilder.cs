@@ -27,17 +27,13 @@ public sealed class LuiLinkedIndexBuilder
 {
     private readonly LuiIndexKind _kind;
     private readonly LinkDefinition _link;
-    private readonly bool _oldPath;
-    private IReadOnlyList<string> _payloadColumns = [];
-    private Func<LuiPayloadRow, object?>? _payload;
     private IndexOptions _options;
 
-    internal LuiLinkedIndexBuilder(LuiIndexKind kind, LinkDefinition link, IndexOptions options, bool oldPath)
+    internal LuiLinkedIndexBuilder(LuiIndexKind kind, LinkDefinition link, IndexOptions options)
     {
         _options = options;
         _kind = kind;
         _link = link;
-        _oldPath = oldPath;
     }
 
     /// <summary>The options made so far — what <c>LinkTo</c> passes on.</summary>
@@ -45,24 +41,20 @@ public sealed class LuiLinkedIndexBuilder
 
     /// <summary>
     /// Reads a payload from columns of the application's table, for the hits only: the columns are selected with them,
-    /// and <paramref name="map"/> builds the payload from the row. It is the way of the old calls of the catalog: <b>inside an
-    /// index definition it throws</b> <see cref="LuiConfigurationException"/> — the payload variants of the definitions come with
-    /// issue #269.
+    /// and <paramref name="map"/> builds the payload from the row. The map is code of the application — never stored, never
+    /// compared — and stays typed end to end (ADR-0073): the result is a <see cref="LuiLinkedIndexBuilder{TPayload}"/>, and
+    /// only a <see cref="LuiLinkedIndexDefinition{TKey, TPayload}"/> with the same <typeparamref name="TPayload"/> accepts it.
+    /// A <see cref="LuiLinkedIndexDefinition{TKey}"/> (no payload) does not compile with it. The options before this call
+    /// are kept; the typed builder has the same option methods, so the order of the calls is free.
     /// </summary>
-    /// <typeparam name="TPayload">What the map builds; the type is the application's to know when it reads the hit.</typeparam>
+    /// <typeparam name="TPayload">What the map builds.</typeparam>
     /// <param name="columns">The columns the payload is built from.</param>
     /// <param name="map">Builds the payload from the row; it sees only <paramref name="columns"/>.</param>
-    /// <returns>The builder.</returns>
-    /// <exception cref="LuiConfigurationException">The builder belongs to an index definition.</exception>
-    public LuiLinkedIndexBuilder WithPayload<TPayload>(IReadOnlyList<string> columns, Func<LuiPayloadRow, TPayload> map)
+    /// <returns>The builder with the payload; it does not derive from this one.</returns>
+    /// <exception cref="ArgumentException">A column is named twice, or is not a valid name.</exception>
+    public LuiLinkedIndexBuilder<TPayload> WithPayload<TPayload>(IReadOnlyList<string> columns, Func<LuiPayloadRow, TPayload> map)
+        where TPayload : notnull
     {
-        if (!_oldPath)
-        {
-            throw new LuiConfigurationException(
-                "WithPayload is not part of an index definition of this version: the payload variants of the definitions "
-                + "(LuiLinkedIndexDefinition<TKey, TPayload>) come with issue #269.");
-        }
-
         ArgumentNullException.ThrowIfNull(columns);
         ArgumentNullException.ThrowIfNull(map);
         ArgumentOutOfRangeException.ThrowIfZero(columns.Count, nameof(columns));
@@ -72,9 +64,8 @@ public sealed class LuiLinkedIndexBuilder
             throw new ArgumentException("A payload column is named twice.", nameof(columns));
         }
 
-        _payloadColumns = [.. columns.Select(column => Identifier.ValidateApplicationName(column, nameof(columns)))];
-        _payload = row => map(row);
-        return this;
+        var validated = columns.Select(column => Identifier.ValidateApplicationName(column, nameof(columns))).ToArray();
+        return new LuiLinkedIndexBuilder<TPayload>(_kind, _link, _options, validated, map);
     }
 
     /// <summary>
@@ -132,7 +123,6 @@ public sealed class LuiLinkedIndexBuilder
             LuiIndexSource.Linked,
             _kind,
             _options,
-            _link with { PayloadColumns = _payloadColumns.Count == 0 ? null : _payloadColumns },
-            KeyKind: null,
-            _payload);
+            _link,
+            KeyKind: null);
 }

@@ -15,7 +15,7 @@ public sealed class LuiIndexKindBuilder
     private readonly bool _oldPath;
 
     /// <summary>Starts a description.</summary>
-    /// <param name="oldPath"><see langword="true"/> for the old calls of the catalog (<c>WithKey</c> and <c>WithPayload</c> are theirs); a definition says no.</param>
+    /// <param name="oldPath"><see langword="true"/> for the old calls of the catalog (<c>WithKey</c> is theirs); a definition says no.</param>
     internal LuiIndexKindBuilder(bool oldPath) => _oldPath = oldPath;
 
     /// <summary>

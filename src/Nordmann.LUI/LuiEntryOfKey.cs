@@ -5,7 +5,7 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// What is written into an embedded index through a definition (ADR-0073): a key, a text, a weight and a priority.
-/// It is a record — two entries with the same values are equal. The payload variants come with issue #269.
+/// It is a record — two entries with the same values are equal. An entry with a payload is a type of its own, <see cref="LuiEntry{TKey, TPayload}"/> (issue #269).
 /// </summary>
 /// <typeparam name="TKey">The type of the keys of the index.</typeparam>
 public sealed record LuiEntry<TKey>
