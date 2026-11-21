@@ -15,9 +15,10 @@ namespace Nordmann.LUI;
 /// that threw in a static initializer would surface as a <see cref="TypeInitializationException"/> of the class that holds it.
 /// </para>
 /// <para>
-/// No other assembly can derive from this class: the two kinds of definition, <see cref="LuiIndexDefinition{TKey}"/> and
-/// <see cref="LuiLinkedIndexDefinition{TKey}"/>, are the whole family — the overloads of <c>Create</c> and <c>Index</c>
-/// rely on it. A variable typed <see cref="LuiIndexDefinitionBase"/> passed to <c>Create</c> binds to
+/// No other assembly can derive from this class: the four kinds of definition — <see cref="LuiIndexDefinition{TKey}"/>,
+/// <see cref="LuiLinkedIndexDefinition{TKey}"/> and their payload variants <see cref="LuiIndexDefinition{TKey, TPayload}"/> and
+/// <see cref="LuiLinkedIndexDefinition{TKey, TPayload}"/> — are the whole family; they derive from nothing else and from each
+/// other not at all, so the overloads of <c>Create</c> and <c>Index</c> rely on it. A variable typed <see cref="LuiIndexDefinitionBase"/> passed to <c>Create</c> binds to
 /// <c>Create(params LuiIndexDefinitionBase[])</c>, which returns nothing.
 /// </para>
 /// </summary>
@@ -55,7 +56,7 @@ public abstract class LuiIndexDefinitionBase
     /// <summary>The type of the keys: the first type argument of the definition (<see cref="long"/> in this version).</summary>
     public Type KeyType { get; }
 
-    /// <summary>The type of the payload; <see langword="null"/> for an index without payload — every definition of this version.</summary>
+    /// <summary>The type of the payload: the second type argument of a definition with a payload; <see langword="null"/> for an index without payload.</summary>
     public Type? PayloadType { get; }
 
     /// <summary>The definition in one line: <c>tags (embedded, long)</c>.</summary>

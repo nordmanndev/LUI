@@ -50,11 +50,16 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 | `static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, **to read only**: every connection of it is read-only, and SQLite refuses every write, which LUI turns into a `LuiReadOnlyException`. A file that is missing or is no catalog is a `LuiCatalogNotFoundException`. |
 | `LuiEmbeddedIndex<TKey> Create<TKey>(LuiIndexDefinition<TKey> definition)` | creates the index of an **embedded definition**, or opens it if it exists with the same definition — safe on every start — and returns its typed handle. It creates only: it never syncs and never installs triggers. A different stored definition is a `LuiDefinitionMismatchException` that names the fields. |
 | `LuiLinkedIndex<TKey> Create<TKey>(LuiLinkedIndexDefinition<TKey> definition)` | the same for a **linked definition**: LUI's tables are created and the table of the application is checked, every time. |
+| `LuiEmbeddedIndex<TKey, TPayload> Create<TKey,TPayload>(LuiIndexDefinition<TKey, TPayload> definition)` | the same for an **embedded definition with a payload**: the handle writes typed payloads, which the `PayloadSerializer` of the catalog serializes. |
+| `LuiLinkedIndex<TKey, TPayload> Create<TKey,TPayload>(LuiLinkedIndexDefinition<TKey, TPayload> definition)` | the same for a **linked definition with a payload**: the map of the definition builds the payload from the row. |
 | `void Create(params LuiIndexDefinitionBase[] definitions)` | creates or opens **several** definitions in **one transaction**: all or none. The exception names the definition that failed — a mismatch and a missing index by their `IndexName`, a broken table of a linked index as a `LuiLinkedTableException` whose message starts `Index 'name': …` and whose inner exception is the original, a refused write on a read-only catalog by the index whose write was refused; a name that occurs twice is an `ArgumentException` before anything is written. It **returns nothing**: a variable typed `LuiIndexDefinitionBase` binds here, and the handles come from `Index(definition)`. |
 | `LuiEmbeddedIndex<TKey> Index<TKey>(LuiIndexDefinition<TKey> definition)` | opens the index of an embedded definition that exists, and **writes nothing**. The stored definition is compared with the declared one: another one is a `LuiDefinitionMismatchException` naming the fields, a missing index a `LuiIndexNotFoundException`. |
 | `LuiLinkedIndex<TKey> Index<TKey>(LuiLinkedIndexDefinition<TKey> definition)` | the same for a linked definition. **One name for both sources** — there is no `LinkedIndex(definition)` and no `CreateLinked(definition)`. |
+| `LuiEmbeddedIndex<TKey, TPayload> Index<TKey,TPayload>(LuiIndexDefinition<TKey, TPayload> definition)` | opens the index of an embedded definition with a payload that exists, and **writes nothing**; compared like a definition without payload. |
+| `LuiLinkedIndex<TKey, TPayload> Index<TKey,TPayload>(LuiLinkedIndexDefinition<TKey, TPayload> definition)` | the same for a linked definition with a payload: the stored payload columns are compared, the map of the definition is code and takes effect. |
 | `ILuiEmbeddedIndex Create(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)` | the old call, a thin layer over `Create(definition)` until #268: creates an **embedded** index — the content lives in the library's own table. It is the write path and belongs in the migration of the application. |
 | `ILuiLinkedIndex CreateLinked(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)` | creates a **linked** index — the content stays in the table of the application. The route is named in the call, as it is on the side of opening (`Index` / `LinkedIndex`). |
+| `ILuiLinkedIndex CreateLinked<TPayload>(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>> index)` | the old call for a linked index **with a payload** — `CreateLinked(name, index => index.LinkTo(…).WithPayload(…))` keeps compiling, because `WithPayload` ends in a typed builder and this overload takes it. A thin layer over `Create(definition)` until #268; `where TPayload : notnull`. |
 | `ILuiEmbeddedIndex Index(string name)` | opens an embedded index that exists, and **writes nothing**: the definition is read out of the file, no table, no write lock. |
 | `ILuiLinkedIndex LinkedIndex(string name)` | opens a linked index without payload columns. |
 | `ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)` | opens a linked index with payload columns; the map builds the payload from the row of the table. |
@@ -132,14 +137,26 @@ public static class SearchIndexes
 
     public static readonly LuiLinkedIndexDefinition<long> Articles =
         new("articles", index => index.MultiWord().LinkTo(table: "articles", key: "id", text: "title").TypoTolerance());
+
+    // with a payload: the type is declared once, in the definition
+    public static readonly LuiIndexDefinition<long, RecipePayload> Recipes =
+        new("recipes", index => index.MultiWord().TypoTolerance());
+
+    public static readonly LuiLinkedIndexDefinition<long, ChefView> Chefs =
+        new("chefs", index => index.MultiWord()
+            .LinkTo(table: "chefs", key: "id", text: "name")
+            .WithPayload(["name", "city"], row => new ChefView(row.GetString("name"), row.GetString("city")))
+            .TypoTolerance());
 }
 
 // at the start of the application — safe every time
-catalog.Create(SearchIndexes.Tags, SearchIndexes.Articles);
+catalog.Create(SearchIndexes.Tags, SearchIndexes.Articles, SearchIndexes.Recipes, SearchIndexes.Chefs);
 
 // anywhere else, without type arguments
 LuiEmbeddedIndex<long> tags = catalog.Index(SearchIndexes.Tags);
 LuiLinkedIndex<long> articles = catalog.Index(SearchIndexes.Articles);
+LuiEmbeddedIndex<long, RecipePayload> recipes = catalog.Index(SearchIndexes.Recipes);
+LuiLinkedIndex<long, ChefView> chefs = catalog.Index(SearchIndexes.Chefs);
 ```
 
 A definition is an immutable object with **reference equality** and without I/O. It knows no catalog and can be shared by any
@@ -156,11 +173,12 @@ use by a catalog — not in a static initializer, where it would surface as a `T
 | `string Name { get; }` | the name of the index, as it was given: `^[a-z][a-z0-9_]{0,40}$`, checked on first use |
 | `LuiIndexSource Source { get; }` | `Embedded` or `Linked` — decided by the definition type |
 | `Type KeyType { get; }` | the type of the keys: the type argument of the definition (`long` in this version) |
-| `Type? PayloadType { get; }` | the type of the payload; `null` for a definition without payload — all of them in this version |
-| `string ToString()` | the definition in one line: `tags (embedded, long)` |
+| `Type? PayloadType { get; }` | the type of the payload: the second type argument of a definition with a payload; `null` for a definition without |
+| `string ToString()` | the definition in one line: `tags (embedded, long)`, with a payload `recipes (embedded, long, RecipePayload)` |
 
-The class is abstract and **no other assembly can derive from it** — the two definition types are the whole family, so the
-overloads of `Create` and `Index` are unambiguous. A variable typed `LuiIndexDefinitionBase` passed to `Create` binds to
+The class is abstract and **no other assembly can derive from it** — the four definition types (`LuiIndexDefinition<TKey>`,
+`LuiLinkedIndexDefinition<TKey>` and their payload variants) are the whole family; they derive from this class and from nothing
+else, so the overloads of `Create` and `Index` are unambiguous. A variable typed `LuiIndexDefinitionBase` passed to `Create` binds to
 `Create(params LuiIndexDefinitionBase[])`, which returns nothing.
 
 ### `LuiIndexDefinition` — the definition of an embedded index
@@ -168,12 +186,14 @@ overloads of `Create` and `Index` are unambiguous. A variable typed `LuiIndexDef
 | Member | What it is |
 |---|---|
 | `LuiIndexDefinition(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)` | declares the index; nothing runs until the first use. `LuiIndexDefinition<TKey>` is sealed, `where TKey : notnull`. |
+| `LuiIndexDefinition(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)` | **with a payload:** `LuiIndexDefinition<TKey, TPayload>` is sealed, `where TKey : notnull where TPayload : notnull`; the same constructor, and `catalog.Create` / `catalog.Index` give a `LuiEmbeddedIndex<TKey, TPayload>`. It does not derive from `LuiIndexDefinition<TKey>`. |
 
 ### `LuiLinkedIndexDefinition` — the definition of a linked index
 
 | Member | What it is |
 |---|---|
-| `LuiLinkedIndexDefinition(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)` | declares the index; the description names the table with `LinkTo(…)`. `LuiLinkedIndexDefinition<TKey>` is sealed, `where TKey : notnull`. |
+| `LuiLinkedIndexDefinition(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)` | declares the index; the description names the table with `LinkTo(…)`. `LuiLinkedIndexDefinition<TKey>` is sealed, `where TKey : notnull`. A builder that ends in `WithPayload(…)` does not compile here. |
+| `LuiLinkedIndexDefinition(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>> index)` | **with a payload:** `LuiLinkedIndexDefinition<TKey, TPayload>` is sealed, `where TKey : notnull where TPayload : notnull`. The function has to end in the typed builder of the **same** payload type — one without `WithPayload`, or one that maps to another type, does not compile. The map is part of the definition; each definition uses its own, also when two have the same view type. |
 
 ### `LuiIndexSource`
 
@@ -190,12 +210,13 @@ overloads of `Create` and `Index` are unambiguous. A variable typed `LuiIndexDef
 | `keyType` | `TKey` |
 | `germanTransliteration`, `foldTable` | `GermanTransliteration(…)`; the fold table of the library |
 | `typoDistance` | `TypoTolerance(…)` |
-| `link.table`, `link.key`, `link.text`, `link.weight`, `link.priority`, `link.payloadColumns` | `LinkTo(…)` and, for the old calls, `WithPayload(…)` |
+| `link.table`, `link.key`, `link.text`, `link.weight`, `link.priority`, `link.payloadColumns` | `LinkTo(…)` and `WithPayload(…)` |
 
 | Runtime only | Why |
 |---|---|
 | `Similarity(…)` | a measure is code: it changes no table, so it is never a mismatch — it takes effect with the next start |
-| the `map` of a linked payload (old calls) | a lambda: code of the application |
+| the `map` of a linked payload | a lambda: code of the application — a changed map takes effect with the next start, without drop and recreate |
+| the type of the payload | not stored until #260 (the payload registry); a payload definition and a definition without payload of the same index compare equal until then |
 
 ### Changing a definition
 
@@ -286,6 +307,59 @@ belongs to the application.
 | `LuiResult<TKey>` | a sealed class (reference equality — a result holds a list): `Query`, `Hits`, `CandidatesConsidered`, `Truncated`, `CorrectedQuery`, `CorrectionSkipped`, `Timings`, with `IReadOnlyList<LuiHit<TKey>> Hits` |
 | `LuiHit<TKey>` | a sealed record with named, initialised properties and no constructor with parameters: `Key` (a `TKey`), `Text`, `Weight`, `Priority`, `Similarity`, `AtWordStart` — value equality |
 
+### Handles with a payload
+
+A definition with a payload (`LuiIndexDefinition<TKey, TPayload>`, `LuiLinkedIndexDefinition<TKey, TPayload>`) opens the payload
+variants of the handles: `LuiIndex<TKey, TPayload>`, `LuiEmbeddedIndex<TKey, TPayload>`, `LuiLinkedIndex<TKey, TPayload>` and the
+entry, query, result and hit with the same two type arguments. They do **not derive** from the types without a payload — an index
+with a payload is another type than one without, and no payload-less write reaches it. Both type arguments are `where … : notnull`.
+
+**The payload is written with the `PayloadSerializer` of the catalog** (until #260 brings the registry); a typed write on a catalog
+without one throws a `LuiConfigurationException` that names the index, before anything is written. **`hit.Payload` arrives with
+#262**; until then a written payload is read through the old path, `catalog.Index(name)` and `hit.GetPayload<T>()`.
+
+#### `LuiIndex<TKey, TPayload>` — the read side
+
+Abstract, with no constructor another assembly can call; the members are those of `LuiIndex<TKey>` — `Name`, `Kind`, `TypoDistance`,
+`TypoDictionaryState`, `Count()`, `WarmUpTypoDictionary(ct)`, `RebuildTypoDictionary(ct)`, `Optimize()`, `Check()` — with:
+
+| Member | What it is |
+|---|---|
+| `LuiQuery<TKey, TPayload> Query(string text)` | a query that is configured step by step and then executed; `Execute` returns a `LuiResult<TKey, TPayload>` |
+| `LuiResult<TKey, TPayload> Search(string text, LuiQueryOptions? options = null, CancellationToken cancellationToken = default)` | a query in one call |
+
+#### `LuiEmbeddedIndex<TKey, TPayload>` — the write path of an embedded index with a payload
+
+Sealed, derives from `LuiIndex<TKey, TPayload>`. **Every write carries a payload:** there is no `Upsert(key, text, weight)`, no
+`LuiEntry<TKey>` overload and no payload-less `Sync` — and with `TPayload = int`, `Upsert(1, "x", 5)` means the payload `5`, never a
+weight. The payload comes **right after the text**, the order of the entry.
+
+| Member | What it does |
+|---|---|
+| `void Upsert(TKey key, string text, TPayload payload, int weight = 0, LuiPriority priority = LuiPriority.Normal, SqliteTransaction? transaction = null)` | writes one entry; a `null` payload throws an `ArgumentNullException` |
+| `void Upsert(LuiEntry<TKey, TPayload> entry, SqliteTransaction? transaction = null)` | writes one entry |
+| `int UpsertMany(IEnumerable<LuiEntry<TKey, TPayload>> entries, SqliteTransaction? transaction = null, CancellationToken cancellationToken = default)` | writes many entries in one transaction; returns how many |
+| `LuiSyncReport Sync(IEnumerable<LuiEntry<TKey, TPayload>> entries, LuiSyncOptions? options = null, CancellationToken cancellationToken = default)` | makes the index equal to the entries |
+| `LuiSyncReport Sync(IAsyncEnumerable<LuiEntry<TKey, TPayload>> entries, LuiSyncOptions? options = null, CancellationToken cancellationToken = default)` | the same from a stream; **blocks** until the sync is done (there is no `SyncAsync`) |
+| `bool Remove(TKey key, SqliteTransaction? transaction = null)` | removes an entry |
+| `bool UpdateWeight(TKey key, int weight, SqliteTransaction? transaction = null)` | changes the weight |
+| `bool UpdatePriority(TKey key, LuiPriority priority, SqliteTransaction? transaction = null)` | changes the priority |
+| `LuiIntegrityReport Check(IEnumerable<LuiEntry<TKey, TPayload>> entries, CancellationToken cancellationToken = default)` | compares the index with a set of entries |
+| `void Rebuild()` | rebuilds the search index from the content table |
+
+#### `LuiLinkedIndex<TKey, TPayload>` — the handle of a linked index with a payload
+
+Sealed, derives from `LuiIndex<TKey, TPayload>`; the members are those of `LuiLinkedIndex<TKey>` — `Sync(options, ct)`, `Refresh`,
+`RefreshMany`, `ApplyPending`, `Pending`, `TriggerScript`, `CreateTriggers`, `DropTriggers`, `Triggers` — and the payload comes
+from the map of the definition.
+
+| Type | What it is |
+|---|---|
+| `LuiEntry<TKey, TPayload>` | a sealed record: `LuiEntry(TKey key, string text, TPayload payload)` — a `null` payload throws an `ArgumentNullException`; `Key`, `Text` and **`Payload` (read-only, no `init`: `entry with { … }` cannot set it to `null`)**, `Weight` and `Priority` (`init`) — value equality, the payload's included |
+| `LuiQuery<TKey, TPayload>` | a sealed class with the settings of `LuiQuery` and `Execute(ct)`, which returns a `LuiResult<TKey, TPayload>` |
+| `LuiResult<TKey, TPayload>` | a sealed class (reference equality) as `LuiResult<TKey>`, with `IReadOnlyList<LuiHit<TKey, TPayload>> Hits` |
+| `LuiHit<TKey, TPayload>` | a sealed record as `LuiHit<TKey>` — named, initialised properties, no constructor with parameters; **`Payload` arrives with #262**. It does not derive from `LuiHit<TKey>`. |
+
 ---
 
 ## Creating an index — the description
@@ -318,8 +392,19 @@ Everything of the embedded builder except `WithKey` and `LinkTo` — a linked in
 
 | Member | What it does |
 |---|---|
-| `LuiLinkedIndexBuilder WithPayload<TPayload>(IReadOnlyList<string> columns, Func<LuiPayloadRow, TPayload> map)` | the columns of the payload and the map that builds it from the row. The columns are read live; the map is code of the application. **The old calls only:** inside an index definition it throws a `LuiConfigurationException` — the payload variants of the definitions come with #269. |
+| `LuiLinkedIndexBuilder<TPayload> WithPayload<TPayload>(IReadOnlyList<string> columns, Func<LuiPayloadRow, TPayload> map)` | the columns of the payload and the map that builds it from the row; `where TPayload : notnull`. The columns are read live; the map is code of the application, typed end to end. **It returns the typed builder** (not derived from this one): only a `LuiLinkedIndexDefinition<TKey, TPayload>` with the same `TPayload` — or the old `CreateLinked<TPayload>` — takes it, a `LuiLinkedIndexDefinition<TKey>` does not. |
 | `ILuiLinkedIndex Create()` | throws an `InvalidOperationException`, like the embedded builder's. |
+
+### `LuiLinkedIndexBuilder<TPayload>`
+
+What `WithPayload` returns. Sealed, `where TPayload : notnull`, and it does **not** derive from `LuiLinkedIndexBuilder`; it has the
+same option methods, so the order of `WithPayload` and the options is free. It describes and holds no catalog; it has no `Create()`.
+
+| Member | What it does |
+|---|---|
+| `LuiLinkedIndexBuilder<TPayload> Similarity(ILuiSimilarity similarity)` | the measure of the ranking — runtime only |
+| `LuiLinkedIndexBuilder<TPayload> GermanTransliteration(bool enabled)` | `ä` → `ae`, `ü` → `ue`, `ß` → `ss`. On by default. |
+| `LuiLinkedIndexBuilder<TPayload> TypoTolerance(LuiTypoDistance distance = LuiTypoDistance.OneError)` | how many errors are forgiven |
 
 ---
 

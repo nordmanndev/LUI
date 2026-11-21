@@ -418,6 +418,30 @@ public sealed class LuiCatalog : IDisposable
     }
 
     /// <summary>
+    /// Creates a <c>Linked</c> index with a payload — the old path, for the calls
+    /// <c>CreateLinked(name, index =&gt; index.LinkTo(…).WithPayload(…))</c>: <c>WithPayload</c> now ends in a typed
+    /// <see cref="LuiLinkedIndexBuilder{TPayload}"/>, and this overload takes it, so the existing calls keep compiling. It
+    /// describes, builds a <see cref="LuiLinkedIndexDefinition{TKey, TPayload}"/> and goes through
+    /// <see cref="Create{TKey, TPayload}(LuiLinkedIndexDefinition{TKey, TPayload})"/> — the same creation, the same checks (ADR-0073).
+    /// The issue #268 removes it with the other old calls; use a definition.
+    /// </summary>
+    /// <typeparam name="TPayload">What the map of the payload builds.</typeparam>
+    /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
+    /// <param name="index">The description of the index: the kind, the table and the payload.</param>
+    /// <returns>The index; it reads and writes.</returns>
+    /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
+    /// <exception cref="LuiLinkedTableException">The table or a column is missing, or the key is not the table's INTEGER PRIMARY KEY.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
+    public ILuiLinkedIndex CreateLinked<TPayload>(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>> index)
+        where TPayload : notnull
+    {
+        ArgumentNullException.ThrowIfNull(index);
+
+        var description = index(KindBuilder(name, out var validated)).Describe();
+        return (LinkedIndex)CreateFrom(new LuiLinkedIndexDefinition<long, TPayload>(validated, description));
+    }
+
+    /// <summary>
     /// Creates the index of a definition, or opens it if it exists with the same definition — safe on every start
     /// (ADR-0073). An embedded definition gives an embedded handle. The index is created only: <b>nothing is synced and no
     /// trigger is installed</b>. A different stored definition throws a <see cref="LuiDefinitionMismatchException"/>
@@ -454,6 +478,47 @@ public sealed class LuiCatalog : IDisposable
     {
         ArgumentNullException.ThrowIfNull(definition);
         return new LuiLinkedIndex<TKey>(Database, (LinkedIndex)CreateFrom(definition));
+    }
+
+    /// <summary>
+    /// Creates the index of a definition with a payload, or opens it if it exists with the same definition (ADR-0073). The
+    /// handle writes typed payloads, which the <see cref="LuiCatalogOptions.PayloadSerializer"/> of the catalog serializes;
+    /// everything else is as for <see cref="Create{TKey}(LuiIndexDefinition{TKey})"/>.
+    /// </summary>
+    /// <typeparam name="TKey">The type of the keys.</typeparam>
+    /// <typeparam name="TPayload">The type of the payload.</typeparam>
+    /// <param name="definition">The declaration of the index.</param>
+    /// <returns>The handle of the index; it reads and writes.</returns>
+    /// <exception cref="LuiConfigurationException">The definition is not valid.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
+    public LuiEmbeddedIndex<TKey, TPayload> Create<TKey, TPayload>(LuiIndexDefinition<TKey, TPayload> definition)
+        where TKey : notnull
+        where TPayload : notnull
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        return new LuiEmbeddedIndex<TKey, TPayload>(Database, (EmbeddedIndex)CreateFrom(definition), PayloadSerializer);
+    }
+
+    /// <summary>
+    /// Creates the index of a linked definition with a payload, or opens it if it exists with the same definition
+    /// (ADR-0073), and checks the table of the application every time. The map of the definition builds the payload; the
+    /// index starts empty: <b>nothing is synced and no trigger is installed</b>.
+    /// </summary>
+    /// <typeparam name="TKey">The type of the keys.</typeparam>
+    /// <typeparam name="TPayload">The type the map builds.</typeparam>
+    /// <param name="definition">The declaration of the index.</param>
+    /// <returns>The handle of the index; it reads and syncs.</returns>
+    /// <exception cref="LuiConfigurationException">The definition is not valid.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
+    /// <exception cref="LuiLinkedTableException">The table or a column is missing, or the key is not the table's INTEGER PRIMARY KEY.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
+    public LuiLinkedIndex<TKey, TPayload> Create<TKey, TPayload>(LuiLinkedIndexDefinition<TKey, TPayload> definition)
+        where TKey : notnull
+        where TPayload : notnull
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        return new LuiLinkedIndex<TKey, TPayload>(Database, (LinkedIndex)CreateFrom(definition));
     }
 
     /// <summary>
@@ -530,6 +595,54 @@ public sealed class LuiCatalog : IDisposable
         return new LuiLinkedIndex<TKey>(
             Database,
             OpenLinked(resolved.Name, entry.Definition, new NoPayload(resolved.Name), resolved.Description.Options.Similarity));
+    }
+
+    /// <summary>
+    /// Opens the index of a definition with a payload that exists, and writes nothing (ADR-0073); the stored definition is
+    /// compared with the declared one, as for a definition without payload.
+    /// </summary>
+    /// <typeparam name="TKey">The type of the keys.</typeparam>
+    /// <typeparam name="TPayload">The type of the payload.</typeparam>
+    /// <param name="definition">The declaration of the index.</param>
+    /// <returns>The handle of the index; it reads, and it writes if the file allows it.</returns>
+    /// <exception cref="LuiConfigurationException">The definition is not valid.</exception>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The stored definition is another one; the message names the fields.</exception>
+    public LuiEmbeddedIndex<TKey, TPayload> Index<TKey, TPayload>(LuiIndexDefinition<TKey, TPayload> definition)
+        where TKey : notnull
+        where TPayload : notnull
+    {
+        var (resolved, entry) = OpenStored(definition);
+        return new LuiEmbeddedIndex<TKey, TPayload>(
+            Database,
+            OpenEmbedded(resolved.Name, entry, resolved.Description.Options.Similarity),
+            PayloadSerializer);
+    }
+
+    /// <summary>
+    /// Opens the index of a linked definition with a payload that exists, and writes nothing (ADR-0073). The columns of the
+    /// payload are compared with the stored ones; the map of the definition is code and takes effect.
+    /// </summary>
+    /// <typeparam name="TKey">The type of the keys.</typeparam>
+    /// <typeparam name="TPayload">The type the map builds.</typeparam>
+    /// <param name="definition">The declaration of the index.</param>
+    /// <returns>The handle of the index; it reads and syncs, if the file allows it.</returns>
+    /// <exception cref="LuiConfigurationException">The definition is not valid.</exception>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The stored definition is another one; the message names the fields.</exception>
+    public LuiLinkedIndex<TKey, TPayload> Index<TKey, TPayload>(LuiLinkedIndexDefinition<TKey, TPayload> definition)
+        where TKey : notnull
+        where TPayload : notnull
+    {
+        var (resolved, entry) = OpenStored(definition);
+        var columns = entry.Definition.Link?.PayloadColumns ?? [];
+        return new LuiLinkedIndex<TKey, TPayload>(
+            Database,
+            OpenLinked(
+                resolved.Name,
+                entry.Definition,
+                new ColumnPayload(resolved.Name, columns, resolved.Description.PayloadMap!),
+                resolved.Description.Options.Similarity));
     }
 
     /// <summary>

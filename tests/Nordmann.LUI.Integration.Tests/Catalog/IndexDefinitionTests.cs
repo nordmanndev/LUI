@@ -286,8 +286,9 @@ public sealed class IndexDefinitionTests
         Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(changed)).ShouldDifferIn(field);
     }
 
-    // The two fields below cannot be varied through a definition in this PR (its key type is `long`, `WithPayload` is no part
-    // of a definition before #269 and #270), so the stored side is written by the old path, which can. They are not rows of
+    // The two fields below cannot be varied through a definition of this version (its key type is `long`, and the payload
+    // columns of a definition belong to the payload variants, whose tests are in TypedLinkedPayloadTests), so the stored side is
+    // written by the old path, which can. They are not rows of
     // the theories above: their arrangement differs.
     [Fact]
     public void Changing_the_key_type_raises_a_mismatch()
@@ -471,7 +472,9 @@ public sealed class IndexDefinitionTests
         [
             new LuiIndexDefinition<int>("ints", index => index.SingleWord()),
             new LuiIndexDefinition<long>("with_key", index => index.SingleWord().WithKey(LuiKeyKind.Text)),
-            new LuiLinkedIndexDefinition<long>(
+            // `WithPayload` inside a LuiLinkedIndexDefinition<long> no longer compiles (issue #269); the payload variants are
+            // definitions of their own, and a key type that is not allowed fails there, too
+            new LuiLinkedIndexDefinition<int, string>(
                 "with_payload", index => index.SingleWord().LinkTo("tag", "id", "name").WithPayload(["slug"], row => row.GetString("slug"))),
             new LuiIndexDefinition<long>("null_function", (Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder>)null!),
             new LuiIndexDefinition<long>("own_failure", _ => throw new LuiConfigurationException("my own words")),

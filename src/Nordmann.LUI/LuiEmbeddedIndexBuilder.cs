@@ -99,7 +99,7 @@ public sealed class LuiEmbeddedIndexBuilder
             weight is null ? null : Identifier.ValidateApplicationName(weight, nameof(weight)),
             priority is null ? null : Identifier.ValidateApplicationName(priority, nameof(priority)));
 
-        return new LuiLinkedIndexBuilder(_kind, link, _options, _oldPath);
+        return new LuiLinkedIndexBuilder(_kind, link, _options);
     }
 
     /// <summary>

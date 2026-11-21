@@ -22,7 +22,28 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   a `LuiConfigurationException` on its first use, not where its field is initialised; a mismatch names the fields that differ,
   and the similarity is never one of them. The API stays synchronous: `Sync(IAsyncEnumerable<LuiEntry<long>>)` blocks.
 
+- **The payload variants of the definitions and handles** ([ADR-0073](.agents/adr/0073-the-index-definition-and-the-typed-handles.md), #269):
+  `LuiIndexDefinition<long, RecipePayload>` and `LuiLinkedIndexDefinition<long, ChefView>` declare the payload type once;
+  `catalog.Create(definition)` / `catalog.Index(definition)` return `LuiEmbeddedIndex<long, RecipePayload>` /
+  `LuiLinkedIndex<long, ChefView>` with the typed `LuiIndex<TKey, TPayload>`, `LuiEntry<TKey, TPayload>`, `LuiQuery<TKey, TPayload>`,
+  `LuiResult<TKey, TPayload>` and `LuiHit<TKey, TPayload>`. The payload comes right after the text in
+  `Upsert(key, text, payload, weight, priority, transaction)`; a handle with a payload has **no write without a payload**, a `null`
+  payload throws, and `entry with { … }` cannot set one to `null`. Until #260 the payload is written with the
+  `LuiCatalogOptions.PayloadSerializer` of the catalog — a typed write on a catalog without one is a `LuiConfigurationException`
+  naming the index. `hit.Payload` arrives with #262; until then a written payload is read through `catalog.Index(name)` and
+  `hit.GetPayload<T>()`. The new `LuiLinkedIndexBuilder<TPayload>` has the options of the untyped builder, so `WithPayload` and the
+  options can be called in any order; the map of a linked definition is code, never stored or compared, and each definition uses its own.
+
 ### Changed
+
+- **`LuiLinkedIndexBuilder.WithPayload<TPayload>` returns `LuiLinkedIndexBuilder<TPayload>`** (it returned the untyped
+  `LuiLinkedIndexBuilder`), and `TPayload` is `where TPayload : notnull`. The map stays typed end to end: the cast per hit and the
+  "the map built an 'X'" error of the payload path are gone for a definition. A `LuiLinkedIndexDefinition<long>` (no payload) no
+  longer takes a builder with `WithPayload`, and it is a compile error rather than a `LuiConfigurationException`. The old
+  `catalog.CreateLinked(name, index => index.….WithPayload(…))` keeps compiling: the new `CreateLinked<TPayload>(string,
+  Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>>)` takes the typed builder and goes through `Create(definition)`
+  (#268 removes it with the other old calls). Only a call that kept the result of `WithPayload` in a variable of the type
+  `LuiLinkedIndexBuilder` has to change its type.
 
 - **The builders describe, the catalog creates.** `LuiIndexKindBuilder`, `LuiEmbeddedIndexBuilder` and `LuiLinkedIndexBuilder`
   hold no catalog and no name any more. Their public `Create()` — documented as "the catalog calls this; an application does
