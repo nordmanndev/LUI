@@ -261,8 +261,8 @@ public sealed class IndexDefinitionTests
             _ => new LuiIndexDefinition<long>("tags", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors)),
         };
 
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(changed)).Message.ShouldContain(field);
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(changed)).Message.ShouldContain(field);
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(changed)).ShouldDifferIn(field);
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(changed)).ShouldDifferIn(field);
     }
 
     [Theory]
@@ -282,8 +282,36 @@ public sealed class IndexDefinitionTests
         var changed = new LuiLinkedIndexDefinition<long>(
             "linked_tags", index => index.SingleWord().LinkTo(table, key, text, weight, priority));
 
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(changed)).Message.ShouldContain(field);
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(changed)).Message.ShouldContain(field);
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(changed)).ShouldDifferIn(field);
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(changed)).ShouldDifferIn(field);
+    }
+
+    // The two fields below cannot be varied through a definition in this PR (its key type is `long`, `WithPayload` is no part
+    // of a definition before #269 and #270), so the stored side is written by the old path, which can. They are not rows of
+    // the theories above: their arrangement differs.
+    [Fact]
+    public void Changing_the_key_type_raises_a_mismatch()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Create("tags", index => index.SingleWord().WithKey(LuiKeyKind.Text));
+
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(Tags)).ShouldDifferIn("keyType");
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(Tags)).ShouldDifferIn("keyType");
+    }
+
+    [Fact]
+    public void Changing_the_payload_columns_raises_a_mismatch()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        catalog.CreateLinked("linked_tags", index => index.SingleWord()
+            .LinkTo("tag", "id", "name", weight: "usage_count")
+            .WithPayload(["slug"], row => row.GetString("slug")));
+
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(LinkedTags)).ShouldDifferIn("link.payloadColumns");
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(LinkedTags)).ShouldDifferIn("link.payloadColumns");
     }
 
     [Fact]
@@ -410,7 +438,7 @@ public sealed class IndexDefinitionTests
     }
 
     [Fact]
-    public void An_invalid_definition_keeps_its_exception()
+    public void An_invalid_definition_keeps_its_failure_and_throws_a_new_exception_each_time()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
@@ -419,7 +447,10 @@ public sealed class IndexDefinitionTests
         var first = Should.Throw<LuiConfigurationException>(() => catalog.Create(definition));
         var second = Should.Throw<LuiConfigurationException>(() => catalog.Create(definition));
 
-        second.ShouldBeSameAs(first);
+        second.ShouldNotBeSameAs(first, "one exception object thrown from many threads would have its stack trace overwritten");
+        second.Message.ShouldBe(first.Message);
+        first.InnerException.ShouldNotBeNull();
+        second.InnerException.ShouldBeSameAs(first.InnerException, "the cause is kept, it is the failure of the one run");
     }
 
     [Fact]
@@ -472,6 +503,20 @@ public sealed class IndexDefinitionTests
         Should.Throw<LuiIndexNotFoundException>(() => linked.Search("veg"));
         Should.Throw<LuiIndexNotFoundException>(() => linked.Sync());
         Should.Throw<LuiIndexNotFoundException>(() => linked.Refresh(1));
+    }
+
+    [Fact]
+    public void TriggerScript_is_pure_and_answers_on_a_handle_of_a_dropped_index()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = catalog.Create(LinkedTags);
+        var script = tags.TriggerScript();
+
+        catalog.DropIndex("linked_tags");
+
+        tags.TriggerScript().ShouldBe(script, "it builds the SQL from the definition and reads no database");
     }
 
     [Fact]
