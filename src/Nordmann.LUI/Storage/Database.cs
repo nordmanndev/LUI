@@ -183,6 +183,12 @@ internal sealed class Database : IDisposable
     internal CommandCounter? CommandCounter { get; set; }
 
     /// <summary>
+    /// Runs right after an operation read the schema counter — the place between the check and the work (ADR-0075). A seam of
+    /// the tests: they swap the index there, from another catalog, to see that the check and the work are one step.
+    /// </summary>
+    internal Action? AfterSchemaCheck { get; set; }
+
+    /// <summary>
     /// SQLite's schema counter — what <c>PRAGMA schema_version</c> reads: a number in the header of the file that changes
     /// whenever a table, an index or a trigger is created or dropped, and not when content is written (ADR-0075). It is
     /// <b>not</b> the LUI format version of <c>lui_meta.schema_version</c> (ADR-0073). One statement on the connection of

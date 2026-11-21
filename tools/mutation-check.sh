@@ -766,7 +766,7 @@ expect_caught "a-claim-of-a-round-that-does-not-stay-true" "${INTEGRATION_PROJEC
 #       catalogs has to see the old handle go on.
 expect_caught "a-handle-that-never-looks-at-the-schema-counter" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~TwoCatalogsTests.After_a_drop_and_a_recreate_by_one_catalog_the_old_handle_of_the_other_throws" \
-  "sed -i 's|        if (counter != Volatile.Read(ref _validatedAt))|        if (false \&\& counter != Volatile.Read(ref _validatedAt))|' src/Nordmann.LUI/Indexes/IndexGuard.cs"
+  "sed -i 's#        if (counter == Volatile.Read(ref _validatedAt)#        if (true || counter == Volatile.Read(ref _validatedAt)#' src/Nordmann.LUI/Indexes/IndexGuard.cs"
 
 # 35b. An open call that forgets the handle it handed out (issue #265, ADR-0075): every call builds a handle, and the thin
 #       handle — the same instance for the same definition, nothing allocated — is gone.
@@ -784,13 +784,27 @@ expect_caught "a-missing-name-that-is-not-remembered" "${INTEGRATION_PROJECT}" \
 #       stale, and the next index of that name gets the typo dictionary and the handle of the old one.
 expect_caught "a-drop-that-leaves-the-runtime-alive" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~ThinHandleTests.A_handle_of_an_index_that_this_catalog_dropped_stays_dropped_and_the_open_call_gives_a_new_one" \
-  "sed -i 's|        Runtimes.Drop(name);|        _ = name;|' src/Nordmann.LUI/LuiCatalog.cs"
+  "sed -i 's|        StaleHandlesOf(name);|        _ = name;|' src/Nordmann.LUI/LuiCatalog.cs"
 
 # 35e. A query that does not ask the guard (issue #265, ADR-0075): the search of a handle reads through the definition it was
 #       built from, whatever the file says now.
 expect_caught "a-query-that-does-not-ask-the-guard" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~TwoCatalogsTests.After_a_drop_and_a_recreate_by_one_catalog_the_old_handle_of_the_other_throws" \
   "sed -i 's|        _guard?.Check(connection, snapshot);|        _ = _guard;|' src/Nordmann.LUI/Querying/QueryRunner.cs"
+
+# 35f. A write whose transaction does not hold the write lock (issue #265, review of pull request 286): the check of the schema
+#       counter and the statement are two steps again, and another process can drop the index and create it again in between —
+#       the write lands in the new index, or fails with a bare SQLite error. The test that swaps the index between the two has
+#       to see it.
+expect_caught "a-write-that-does-not-hold-the-lock-between-check-and-statement" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~AtomicCheckTests.Upsert_never_lands_in_an_index_that_was_created_again_between_the_check_and_the_write" \
+  "sed -i 's|var transaction = connection.BeginTransaction(deferred: false);|var transaction = connection.BeginTransaction(deferred: true);|' src/Nordmann.LUI/Indexes/EmbeddedIndex.cs"
+
+# 35g. A count that checks outside its snapshot (issue #265, review of pull request 286): the check and the read are two
+#       snapshots, and the count can be the one of the index that was created again.
+expect_caught "a-count-that-checks-outside-its-snapshot" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~AtomicCheckTests.Count_answers_for_the_index_it_checked_or_throws_and_never_reads_the_new_one" \
+  "sed -i 's|        _guard?.Check(connection, snapshot);|        _guard?.Check(connection);|' src/Nordmann.LUI/Indexes/EmbeddedIndex.cs"
 
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"

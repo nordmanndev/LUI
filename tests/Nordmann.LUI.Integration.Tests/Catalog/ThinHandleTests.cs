@@ -277,7 +277,7 @@ public sealed class ThinHandleTests
         // nothing to read still creates a command
         var before = commands.Count;
         _ = recipes.Count();
-        (commands.Count - before).ShouldBe(2, "Count: PRAGMA schema_version, then the count");
+        (commands.Count - before).ShouldBe(4, "Count: the snapshot (BEGIN), PRAGMA schema_version, the count, the end of the snapshot — the check and the count are one step");
 
         before = commands.Count;
         _ = recipes.Search("kuc");

@@ -68,6 +68,9 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>The database: the connections it hands out, the lock of the writes, the operations that are running.</summary>
     internal Database Database { get; }
 
+    /// <summary>How many handles of definitions are alive in the catalog — the seam of the tests of the lifetime (ADR-0075).</summary>
+    internal int CachedHandles => _handles.Count();
+
     /// <summary>The typo dictionaries of the indexes, one per index.</summary>
     internal TypoDictionaries TypoDictionaries { get; } = new();
 
@@ -961,6 +964,9 @@ public sealed class LuiCatalog : IDisposable
     private THandle OpenFirst<THandle>(LuiIndexDefinitionBase definition, Func<IndexRuntime, LuiCatalog, THandle> make)
         where THandle : class
     {
+        // a handle that failed is not kept — whether the definition finds its index again or not
+        _ = _handles.Remove(definition);
+
         var resolved = definition.Resolve();
         var entry = FindStored(resolved.Name, resolved.Description.ToStored(resolved.KeyType), out var counter);
 
@@ -971,7 +977,7 @@ public sealed class LuiCatalog : IDisposable
                 return (THandle)handed.Handle;
             }
 
-            var runtime = Runtimes.Get(resolved, definition.GetType(), entry, counter);
+            var runtime = Runtimes.Build(resolved, entry, counter);
             var handle = make(runtime, this);
             _handles.AddOrUpdate(definition, new HandleOfDefinition(handle, runtime.Guard));
             return handle;
@@ -1096,7 +1102,7 @@ public sealed class LuiCatalog : IDisposable
         TypoDictionaries.Forget(name);
 
         // the handles that were handed out for it are stale from now on, and the definitions in memory are the file's
-        Runtimes.Drop(name);
+        StaleHandlesOf(name);
         _ = StoredIndexes.Reload();
         return existed;
     }
@@ -1133,6 +1139,19 @@ public sealed class LuiCatalog : IDisposable
             throw new LuiEnvironmentException(
                 $"LUI needs SQLite {MinimumSqliteVersion} or newer (the trigram tokenizer with "
                 + $"remove_diacritics); the loaded SQLite is {loaded}.");
+        }
+    }
+
+    /// <summary>
+    /// The index was dropped by this catalog: every handle that was handed out for it is stale from now on — the guard of its
+    /// runtime says so — and the next open call builds a new one.
+    /// </summary>
+    /// <param name="name">The name of the index.</param>
+    private void StaleHandlesOf(string name)
+    {
+        foreach (var (_, handed) in _handles.Where(pair => string.Equals(pair.Value.Guard.Name, name, StringComparison.Ordinal)))
+        {
+            handed.Guard.Dropped();
         }
     }
 

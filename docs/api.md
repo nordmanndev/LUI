@@ -267,7 +267,7 @@ whose index was dropped throws a `LuiIndexNotFoundException`, and one whose inde
 definition** throws a `LuiDefinitionMismatchException` — also when another process did it, see
 [several processes on one file](#several-processes-on-one-file); a handle never reads or writes through a stale definition. The failure is kept: take a
 fresh handle from `Create` or `Index` after the recipe for a changed definition. An index created again with the **same**
-definition is not stale — the handle goes on with it. on a disposed catalog an `ObjectDisposedException`; on a catalog
+definition is not stale — the handle goes on with it; but a handle that an operation met **between** the drop and the create is dead for good, so take a handle per request (a lookup) rather than holding one across someone else's recreate. On a disposed catalog an `ObjectDisposedException`; on a catalog
 opened with `OpenReadOnly`, a write is a `LuiReadOnlyException`. **Use `LuiIndex<TKey>` where a method only reads,
 `LuiEmbeddedIndex<TKey>` / `LuiLinkedIndex<TKey>` where it writes or syncs.** All of them are `where TKey : notnull`; `TKey` is
 the key type of the definition — see [the key types](#the-key-types) — so `hit.Key` and every key parameter have that type and a key
@@ -412,7 +412,9 @@ statements, its query runner — built once. **Content and state are never cache
   - throws a `LuiDefinitionMismatchException` — naming the fields — when the index is there with another definition,
   - goes on when it is the same definition. A change of the application's own tables only costs a harmless reload.
 
-  A handle that threw keeps throwing; a new `Create(definition)` or `Index(definition)` call gives a new one.
+  The check and the work are one step: a write holds the write lock from the check to its commit, a read checks in its own
+  snapshot — so an index that another process drops and creates again at that very moment is never written through the old
+  definition. A handle that threw keeps throwing; a new `Create(definition)` or `Index(definition)` call gives a new one.
 - **Two processes that create the same index at startup.** `Create` takes the write lock, reads `lui_meta` inside the transaction
   and then creates the index, or opens the one the other process just created: the same definition succeeds in both and leaves one
   index, another definition is a `LuiDefinitionMismatchException` in the one that comes second.

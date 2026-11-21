@@ -9,7 +9,7 @@ namespace Nordmann.LUI.Indexes;
 /// itself — definition, triggers, FTS5's integrity check against the content table —, and the rebuild of everything
 /// below the content table.
 /// </summary>
-internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Func<LuiKey, string> textOfKey, Func<object?, byte[]?> payloadBytes)
+internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Func<LuiKey, string> textOfKey, Func<object?, byte[]?> payloadBytes, IConnectionGuard? guard = null)
 {
     private const string Repair = "Rebuild() builds the search index anew from the content table.";
 
@@ -33,6 +33,7 @@ internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Fu
         try
         {
             using var transaction = connection.BeginTransaction(deferred: true);
+            guard?.Check(connection, transaction);
             NoteAll(connection, transaction, found, entries, cancellationToken);
 
             var (missing, missingKeys) = Finding(connection, transaction, EmbeddedSource.FoundKeysSql(found, EmbeddedSource.FoundMissing));
@@ -143,6 +144,7 @@ internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Fu
         {
             using var writer = database.OpenConnection();
             using var transaction = writer.BeginTransaction(deferred: false);
+            guard?.Check(writer, transaction);
             if (IndexCheck.Definition(writer, transaction, source, problems))
             {
                 Triggers(writer, transaction, problems);
@@ -163,6 +165,7 @@ internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Fu
         {
             using var writer = database.OpenConnection();
             using var transaction = writer.BeginTransaction(deferred: false);
+            guard?.Check(writer, transaction);
             Execute(writer, transaction, source.DropTriggersSql);
             foreach (var (_, sql) in source.TriggerStatements())
             {
@@ -182,6 +185,7 @@ internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Fu
         {
             using var writer = database.OpenConnection();
             using var transaction = writer.BeginTransaction(deferred: false);
+            guard?.Check(writer, transaction);
             Execute(writer, transaction, source.OptimizeSql);
             transaction.Commit();
         }

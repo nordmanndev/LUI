@@ -9,6 +9,7 @@ namespace Nordmann.LUI.Integration.Tests.Typos;
 /// belongs to the <b>index</b>: it is part of the stored definition, an index that is opened again knows how its
 /// dictionary was built, and a distance of <c>None</c> builds no dictionary at all.
 /// </summary>
+[Collection("Heap measurement")]
 public sealed class TypoDistanceTests
 {
     /// <summary>

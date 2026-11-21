@@ -72,16 +72,20 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     {
         using var scope = _database.Begin();
         using var connection = _database.OpenReadConnection();
-        _guard?.Check(connection);
-        return Scalar(connection, null, _source.CountSql);
+
+        // the check and the count in one snapshot (ADR-0075)
+        using var snapshot = _guard is null ? null : connection.BeginTransaction(deferred: true);
+        _guard?.Check(connection, snapshot);
+        return Scalar(connection, snapshot, _source.CountSql);
     }
 
     public LuiTriggerState Triggers()
     {
         using var scope = _database.Begin();
         using var connection = _database.OpenReadConnection();
-        _guard?.Check(connection);
-        return TriggerState(connection, null);
+        using var snapshot = _guard is null ? null : connection.BeginTransaction(deferred: true);
+        _guard?.Check(connection, snapshot);
+        return TriggerState(connection, snapshot);
     }
 
     private LuiTriggerState TriggerState(SqliteConnection connection, SqliteTransaction? transaction)
@@ -123,14 +127,31 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     {
         using var scope = _database.Begin();
         _guard?.Check();
-        _typos.EnsureBuilt(cancellationToken);
+        try
+        {
+            _typos.EnsureBuilt(cancellationToken);
+        }
+        catch (SqliteException exception) when (_guard is not null)
+        {
+            // the texts are read on a connection of their own: a table that is missing under the check is the check's answer
+            _guard.Explain(exception);
+            throw;
+        }
     }
 
     public void RebuildTypoDictionary(CancellationToken cancellationToken = default)
     {
         using var scope = _database.Begin();
         _guard?.Check();
-        _typos.Rebuild(cancellationToken);
+        try
+        {
+            _typos.Rebuild(cancellationToken);
+        }
+        catch (SqliteException exception) when (_guard is not null)
+        {
+            _guard.Explain(exception);
+            throw;
+        }
     }
 
     public bool Refresh(long key, SqliteTransaction? transaction = null) =>
@@ -199,8 +220,9 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     {
         using var scope = _database.Begin();
         using var connection = _database.OpenReadConnection();
-        _guard?.Check(connection);
-        return Guarded(() => Scalar(connection, null, _source.PendingCountSql));
+        using var snapshot = _guard is null ? null : connection.BeginTransaction(deferred: true);
+        _guard?.Check(connection, snapshot);
+        return Guarded(() => Scalar(connection, snapshot, _source.PendingCountSql));
     }
 
     /// <summary>Brings up to <see cref="PendingBatch"/> keys of the outbox in step, the smallest first, and takes them out.</summary>
@@ -309,7 +331,6 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     public LuiIntegrityReport Check()
     {
         using var scope = _database.Begin();
-        _guard?.Check();
         List<string> problems = [];
         var fits = false;
         try
@@ -319,6 +340,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
                 // the integrity check of FTS5 is an insert: it runs on a connection that may write, and the transaction is rolled back
                 using var writer = _database.OpenConnection();
                 using var transaction = writer.BeginTransaction(deferred: false);
+                _guard?.Check(writer, transaction);
                 fits = IndexCheck.Definition(writer, transaction, _source, problems) && TableFits(writer, transaction, problems);
                 if (fits)
                 {
@@ -348,6 +370,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         // the comparison with the table only reads: a snapshot of its own, beside the writers (review of pull request 18, S3)
         using var connection = _database.OpenReadConnection();
         using var snapshot = connection.BeginTransaction(deferred: true);
+        _guard?.Check(connection, snapshot);
         return CompareWithTable(connection, snapshot, problems);
     }
 
@@ -446,8 +469,9 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
             {
                 var connection = transaction.Connection
                     ?? throw new ArgumentException("The transaction is complete.", nameof(transaction));
-                _guard?.Check(connection, transaction);
+                _guard?.ThrowIfFailed();
                 EnsureSameDatabase(connection, transaction);
+                _guard?.Check(connection, transaction, application: true);
                 write(connection, transaction);
                 return;
             }

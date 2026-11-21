@@ -12,10 +12,10 @@
 - **Affects:**
   - `src/Nordmann.LUI/LuiCatalog.cs` — the definitions in memory, the cache of the handles, `Create`, `Index`, `DropIndex`
   - `src/Nordmann.LUI/Indexes/StoredIndexes.cs` — the stored definitions in memory, as snapshots of one SQLite schema counter
-  - `src/Nordmann.LUI/Indexes/IndexRuntimes.cs`, `src/Nordmann.LUI/Indexes/IndexRuntime.cs` — the runtime of an index, built once and kept
+  - `src/Nordmann.LUI/Indexes/IndexRuntimes.cs`, `src/Nordmann.LUI/Indexes/IndexRuntime.cs` — the runtime of an index, built once per definition object
   - `src/Nordmann.LUI/Indexes/IndexGuard.cs`, `src/Nordmann.LUI/Storage/IConnectionGuard.cs` — the check of every operation
   - `src/Nordmann.LUI/Indexes/IndexStore.cs`, `src/Nordmann.LUI/Indexes/IndexStoreEntry.cs` — all definitions in one read, the checks of a stored entry
-  - `src/Nordmann.LUI/Indexes/EmbeddedIndex.cs`, `src/Nordmann.LUI/Indexes/LinkedIndex.cs`, `src/Nordmann.LUI/Querying/QueryRunner.cs` — the guard on the connection of the operation
+  - `src/Nordmann.LUI/Indexes/EmbeddedIndex.cs`, `src/Nordmann.LUI/Indexes/LinkedIndex.cs`, `src/Nordmann.LUI/Indexes/EmbeddedSync.cs`, `src/Nordmann.LUI/Indexes/EmbeddedCheck.cs`, `src/Nordmann.LUI/Querying/QueryRunner.cs` — the guard on the connection, in the transaction of the operation
   - `src/Nordmann.LUI/Storage/Database.cs`, `src/Nordmann.LUI/Storage/CommandCounter.cs`, `src/Nordmann.LUI/Storage/CountingConnection.cs` — `ReadSchemaCounter`, the counting seam of the tests
   - `docs/api.md`, `docs/testing.md`, `CHANGELOG.md`, `.agents/adr/README.md`, `.agents/adr/0073-the-index-definition-and-the-typed-handles.md`
   - `tools/mutation-check.sh` — the mutations of the guard, the handle and the missing name
@@ -41,11 +41,16 @@ handle of an index that was dropped and created again under the same name worked
    the typo dictionary, `NeedsInitialSync` (#272), the sync lease (#271) — is read from the file when it is asked for, so what another
    process writes is always visible. A row that cannot be read (a kind this version does not know) is recorded as unreadable and says
    what is wrong with it when its index is asked for; it does not keep the catalog from opening.
-2. **The runtime is built once per index and kept** (`IndexRuntimes`): the source, the rules, the query runner (candidate reader, typo
-   correction, hit reader with its prepared SQL), the sync and the check. The key is the name, the closed type of the definition, the
-   stored definition it was built from — an index created again with another definition is another runtime — and the code the
-   definition brings, its similarity and the map of its payload, which are runtime only (0073 §6). The typo dictionary stays per
-   catalog and name (`TypoDictionaries`); it is not duplicated in the runtime.
+2. **The runtime is built once per definition object and lives with it** (`IndexRuntimes`): the source, the rules, the query runner
+   (candidate reader, typo correction, hit reader with its prepared SQL), the sync and the check — built from the stored
+   definition, with the code the definition brings: its similarity and the map of its payload, which are runtime only (0073 §6).
+   The catalog keeps it **with the handle, in the table keyed by the definition object** (a `ConditionalWeakTable`), not in a
+   dictionary of its own: a host may build a definition per request, with a similarity or a map that captures something, and a
+   runtime of about 20 KB per request that outlived its definition would be a leak for as long as the catalog lives. (An earlier
+   draft keyed the runtimes by name, type, stored definition, similarity and map in a strong dictionary; it grew with every
+   definition object, and kept one dead runtime per recreate.) Two definition objects of one index each have a runtime of their
+   own — they are two views of the same index. The typo dictionary stays per catalog and name (`TypoDictionaries`); it is not
+   duplicated in the runtime. A runtime whose guard failed is dropped from the table at the next open call.
 3. **A handle is thin and cached per definition.** `catalog.Index(definition)` and `catalog.Create(definition)` return **the same
    handle instance for the same definition object**. At the first call the stored definition is found in memory and compared with the
    declared one, once; after that the call is a lookup in a `ConditionalWeakTable` — **0 B allocated, no `SqliteCommand`**
@@ -56,10 +61,16 @@ handle of an index that was dropped and created again under the same name worked
    *The LUI format version* is `lui_meta.schema_version` (0073 §16): a value in a row that says in which format an index was written.
    They have nothing to do with each other, and the code, this record and the pages say "SQLite schema counter" and "LUI format
    version".
-5. **Every operation of a handle checks the counter, on its own connection, before its first statement.** The mechanism is
-   `PRAGMA schema_version`: one statement, no table read, on the connection the operation uses — the read connection of a query, in
-   the snapshot of the query; the write connection, inside the transaction that holds the write lock; the connection of the
-   application, in its transaction, for a write with a `transaction`. The guard of the runtime (`IndexGuard`) compares it with the
+5. **Every operation of a handle checks the counter, on its own connection, before its first statement — and the check and the
+   work are one step.** The mechanism is `PRAGMA schema_version`: one statement, no table read, on the connection the operation
+   uses and inside the transaction the work runs in, so that the answer is true for the work: a write of LUI's own — a single
+   `Upsert`, `UpdateWeight`, `UpdatePriority`, `Remove`, a batch, a sync batch, a rebuild — is `BEGIN IMMEDIATE`, check, work, commit:
+   nobody can drop the index, or create it again, between the check and the statement, because the write lock is held (another
+   process's drop waits for the commit); a read — a query, `Count`, `Pending`, the triggers — checks in the deferred snapshot it
+   reads in; a check or a sync checks in each of its transactions; a write with a `transaction` of the application checks on the
+   application's connection, in its transaction, after the transaction was found to be of this database. Only the typo
+   dictionary reads on a connection of its own: it checks first, and a missing table under it is explained by a second check, so
+   that it surfaces as the proper exception and not as a bare SQLite error. The guard of the runtime (`IndexGuard`) compares it with the
    counter it validated at. Equal: go on. Different: the guard looks at the definitions of the catalog — reloaded once from
    `lui_meta`, by whoever comes first — and
    - the index is gone: the operation throws `LuiIndexNotFoundException`;
@@ -71,15 +82,18 @@ handle of an index that was dropped and created again under the same name worked
    The guard **keeps the failure**: every later operation of that handle throws again, and the next open call builds a new runtime
    and a new handle (the failure is kept as a record, the exception is made anew every time). An operation that does not open a
    connection at its start — a sync, a check, a rebuild, the typo dictionary — takes a read connection for the one statement. A change
-   of the application's own tables only causes a harmless reload. The counter is validated at the value of the connection of the
-   operation, so an application's transaction that changed the schema itself does not reload at every operation.
+   of the application's own tables only causes a harmless reload. A counter that was read inside a
+   transaction of the application is that transaction's — it may have changed the schema itself, and may be rolled back — and is
+   **never published** to the other handles; the guard remembers it apart, for that transaction's operations only, so a migration
+   that creates a table and fills an index in one transaction does not reload at every operation. A failure of another LUI format
+   or key type is kept like the others, and reloads nothing again.
 6. **Unknown name.** The catalog reloads the definitions **once**; if the index is still missing it throws
    `LuiIndexNotFoundException`, and the name is remembered **until the counter changes** — asking again costs the one statement that
    reads the counter, and no reload. When the stored definition differs from the declared one, the counter is looked at once before
    it is a mismatch: the definitions in memory may be old, and a new open call after a recreate by another process sees the new
    definition.
-7. **`DropIndex` and `Create` write the file and the memory.** `DropIndex` forgets the typo dictionary, marks every runtime of the
-   index as dropped — the handles that were handed out are stale from now on ("index objects that were created before do not survive
+7. **`DropIndex` and `Create` write the file and the memory.** `DropIndex` forgets the typo dictionary, marks every handle of the
+   index that was handed out as dropped — the handles that were handed out are stale from now on ("index objects that were created before do not survive
    it", as the page says) — and reads the definitions again. `Create` already took the write lock (`BEGIN IMMEDIATE`) and read
    `lui_meta` inside the transaction: of two processes that create the same index at startup one creates it and the other finds it
    and compares — same definition: both succeed and one index is left; another definition: the second throws. The definitions are
@@ -91,11 +105,13 @@ handle of an index that was dropped and created again under the same name worked
 ## Consequences
 
 - An open call is a lookup: the first call of a definition after `Open` reads nothing either; a request can take its handle where
-  it needs it. The benchmark `OpenBenchmarks` (`Index_of_a_definition`, `Query_with_a_handle_per_request`,
-  `Query_with_a_held_handle`) is where the cost is measured; the measurement of the release is #275 (the owner, 2026-11-21: the
-  performance is checked once at the end of the release, not per pull request).
-- **The price is one statement per operation** — `PRAGMA schema_version` on the connection of the operation. It is a command and a
-  boxed number, no table read. The query path pays it inside its snapshot. Whether it is inside the budget is #275's question; the
+  it needs it. A host that builds a definition object per request pays a runtime per request (about 20 KB, as in 0.3.0) and no
+  more: it dies with the definition. The cost is measured once, at the end of the release: the benchmark of the open call
+  (`OpenBenchmarks`) comes with the performance analysis, #275 (the owner, 2026-11-21: the performance is checked once, not per
+  pull request).
+- **The price is one statement per operation, and the transaction of the work** — a single write is `BEGIN IMMEDIATE` … `COMMIT`
+  instead of one autocommit statement, a read has a snapshot; the check has to be in the transaction to be true. The check itself is `PRAGMA schema_version` on the connection of the
+  operation: a command and a boxed number, no table read. Whether it is inside the budget is #275's question; the
   alternative that costs less, if it is not, is the owner's to choose — this record does not tune it away by removing the check.
 - **What the counter does not see:** a row of `lui_meta` that changes without a change of the schema. LUI never writes one — an index
   is created and dropped with its tables — and the application never touches `lui_*` tables. A definition that appears or changes
@@ -109,8 +125,9 @@ handle of an index that was dropped and created again under the same name worked
   fresh handle from `Create` or `Index` after it recreated the index (0073 §7).
 - The typed handles still wrap `EmbeddedIndex` and `LinkedIndex`, which are the runtime; `IndexRuntime` is what the catalog caches —
   the index and its guard — and `IndexRuntimes` the cache.
-- The two seams of the tests are internal: `Database.CommandCounter` (counts the commands the connections of LUI create) and
-  `StoredIndexes.Reloads` (counts the reads of `lui_meta`).
+- The seams of the tests are internal: `Database.CommandCounter` (counts the commands the connections of LUI create),
+  `Database.AfterSchemaCheck` (runs between the check and the work — the tests swap the index there), `StoredIndexes.Reloads`
+  (counts the reads of `lui_meta`) and `LuiCatalog.CachedHandles` (the handles that are alive).
 
 ## Alternatives rejected
 

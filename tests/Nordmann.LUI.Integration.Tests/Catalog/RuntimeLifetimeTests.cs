@@ -8,6 +8,7 @@ namespace Nordmann.LUI.Integration.Tests.Catalog;
 /// per request — with a similarity or a map that captures something — must not grow the memory of the catalog by one runtime (about
 /// 20 KB) per request.
 /// </summary>
+[Collection("Heap measurement")]
 public sealed class RuntimeLifetimeTests
 {
     private const int Requests = 2_000;
@@ -60,12 +61,15 @@ public sealed class RuntimeLifetimeTests
         using var first = database.Open();
         using var second = database.Open();
         first.Create(Tags).Upsert(1, "vegan");
-        var old = new WeakReference(second.Index(Tags));
+        var old = WeakHandleOf(second);
         _ = second.Index(Tags).Count();
 
         first.DropIndex("tags");
         first.Create(TagsOfWords);
         Should.Throw<LuiDefinitionMismatchException>(() => second.Index(Tags).Count());
+
+        // the next open call finds the failed handle and does not keep it
+        Should.Throw<LuiDefinitionMismatchException>(() => second.Index(Tags));
         _ = second.Index(TagsOfWords).Count();
         CollectEverything();
 
@@ -87,6 +91,10 @@ public sealed class RuntimeLifetimeTests
         scored.Hits.ShouldAllBe(hit => hit.Similarity == 0.25, "the similarity of the definition takes effect");
         plain.Search("veg", new LuiQueryOptions { Rank = LuiRankingOrder.SimilarityOnly }).Hits.ShouldAllBe(hit => hit.Similarity != 0.25);
     }
+
+    /// <summary>The handle, held weakly — in a method of its own, so that no local of the test keeps it alive.</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static WeakReference WeakHandleOf(LuiCatalog catalog) => new(catalog.Index(Tags));
 
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
     private static void OpenWithADefinitionPerRequest(LuiCatalog catalog)

@@ -63,8 +63,8 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance);
         _runner = new QueryRunner(
             database, source, new SerializedPayload(Name, payload), similarity, _typos, typoDistance, guard);
-        _sync = new EmbeddedSync(database, source, KeyText, PayloadBytes, _typos);
-        _check = new EmbeddedCheck(database, source, KeyText, PayloadBytes);
+        _sync = new EmbeddedSync(database, source, KeyText, PayloadBytes, _typos, guard);
+        _check = new EmbeddedCheck(database, source, KeyText, PayloadBytes, guard);
     }
 
     public string Name { get; }
@@ -89,14 +89,15 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         {
             if (transaction is null)
             {
-                using var connection = _database.OpenConnection();
-                _guard?.Check(connection);
-                OwnStatements(connection).Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, bytes, null);
+                using var own = BeginOwnWrite();
+                OwnStatements(own.Connection).Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, bytes, own.Transaction);
+                own.Commit();
             }
             else
             {
+                var statements = StatementsFor(transaction);
                 CheckIn(transaction);
-                StatementsFor(transaction).Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, bytes, transaction);
+                statements.Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, bytes, transaction);
             }
         }
         catch (SqliteException exception) when (IsDocIdExhausted(exception))
@@ -138,8 +139,9 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
             }
             else
             {
+                var statements = StatementsFor(transaction);
                 CheckIn(transaction);
-                WriteBatch(StatementsFor(transaction), entries, transaction, written, cancellationToken);
+                WriteBatch(statements, entries, transaction, written, cancellationToken);
             }
         }
         catch (SqliteException exception) when (IsDocIdExhausted(exception))
@@ -234,7 +236,6 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         using var scope = _database.Begin();
         try
         {
-            _guard?.Check();
             return _sync.Run(entries, options ?? DefaultSyncOptions, cancellationToken);
         }
         catch (SqliteException exception) when (IsDocIdExhausted(exception))
@@ -262,7 +263,6 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     {
         try
         {
-            _guard?.Check();
             return _check.Against(entries, cancellationToken);
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
@@ -275,7 +275,6 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     {
         try
         {
-            _guard?.Check();
             return _check.Itself();
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
@@ -288,7 +287,6 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     {
         try
         {
-            _guard?.Check();
             _check.Rebuild();
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
@@ -301,7 +299,6 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     {
         try
         {
-            _guard?.Check();
             _check.Optimize();
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
@@ -321,13 +318,15 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         {
             if (transaction is not null)
             {
+                var statements = StatementsFor(transaction);
                 CheckIn(transaction);
-                return StatementsFor(transaction).UpdateWeight(keyText, weight, transaction);
+                return statements.UpdateWeight(keyText, weight, transaction);
             }
 
-            using var connection = _database.OpenConnection();
-            _guard?.Check(connection);
-            return OwnStatements(connection).UpdateWeight(keyText, weight, null);
+            using var own = BeginOwnWrite();
+            var updated = OwnStatements(own.Connection).UpdateWeight(keyText, weight, own.Transaction);
+            own.Commit();
+            return updated;
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
         {
@@ -346,13 +345,15 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         {
             if (transaction is not null)
             {
+                var statements = StatementsFor(transaction);
                 CheckIn(transaction);
-                return StatementsFor(transaction).UpdatePriority(keyText, (int)priority, transaction);
+                return statements.UpdatePriority(keyText, (int)priority, transaction);
             }
 
-            using var connection = _database.OpenConnection();
-            _guard?.Check(connection);
-            return OwnStatements(connection).UpdatePriority(keyText, (int)priority, null);
+            using var own = BeginOwnWrite();
+            var updated = OwnStatements(own.Connection).UpdatePriority(keyText, (int)priority, own.Transaction);
+            own.Commit();
+            return updated;
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
         {
@@ -370,13 +371,15 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         {
             if (transaction is not null)
             {
+                var statements = StatementsFor(transaction);
                 CheckIn(transaction);
-                return StatementsFor(transaction).Remove(keyText, transaction);
+                return statements.Remove(keyText, transaction);
             }
 
-            using var connection = _database.OpenConnection();
-            _guard?.Check(connection);
-            return OwnStatements(connection).Remove(keyText, null);
+            using var own = BeginOwnWrite();
+            var removed = OwnStatements(own.Connection).Remove(keyText, own.Transaction);
+            own.Commit();
+            return removed;
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
         {
@@ -387,23 +390,25 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     public void RebuildTypoDictionary(CancellationToken cancellationToken = default)
     {
         using var scope = _database.Begin();
-        _guard?.Check();
-        _typos.Rebuild(cancellationToken);
+        Cold(() => _typos.Rebuild(cancellationToken));
     }
 
     public void WarmUpTypoDictionary(CancellationToken cancellationToken = default)
     {
         using var scope = _database.Begin();
-        _guard?.Check();
-        _typos.EnsureBuilt(cancellationToken);
+        Cold(() => _typos.EnsureBuilt(cancellationToken));
     }
 
     public long Count()
     {
         using var scope = _database.Begin();
         using var connection = _database.OpenReadConnection();
-        _guard?.Check(connection);
+
+        // the check and the count in one snapshot: the index that was created again in between is not the one that is counted
+        using var snapshot = _guard is null ? null : connection.BeginTransaction(deferred: true);
+        _guard?.Check(connection, snapshot);
         using var command = connection.CreateCommand();
+        command.Transaction = snapshot;
         command.CommandText = _source.CountSql;
         return (long)command.ExecuteScalar()!;
     }
@@ -424,7 +429,85 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     {
         if (_guard is not null && transaction.Connection is { } connection)
         {
-            _guard.Check(connection, transaction);
+            _guard.Check(connection, transaction, application: true);
+        }
+    }
+
+    /// <summary>
+    /// A write of LUI's own, in one transaction that holds the write lock from the check to the commit (ADR-0075): nobody can drop the
+    /// index, or create it again, between the schema counter and the statement. An index of the old path has no guard to ask and
+    /// writes as a single statement, as it did.
+    /// </summary>
+    private OwnWrite BeginOwnWrite()
+    {
+        if (_guard is null)
+        {
+            return new OwnWrite(_database.OpenConnection(), null, null);
+        }
+
+        // a handle that failed says so without taking the write lock
+        _guard.ThrowIfFailed();
+
+        // the lock of the writes first, as a batch has it: two writers of one process do not wait for each other in SQLite
+        var gate = _database.WriterGate;
+        gate.Enter();
+        SqliteConnection? connection = null;
+        try
+        {
+            connection = _database.OpenConnection();
+            var transaction = connection.BeginTransaction(deferred: false);
+            try
+            {
+                _guard.Check(connection, transaction);
+            }
+            catch
+            {
+                transaction.Dispose();
+                throw;
+            }
+
+            return new OwnWrite(connection, transaction, gate);
+        }
+        catch
+        {
+            connection?.Dispose();
+            gate.Exit();
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// Work that cannot share a transaction with its check — the typo dictionary reads the texts on a connection of its own: the
+    /// check comes first, and a table that is missing under it is the answer of the check, not a bare SQLite error.
+    /// </summary>
+    private void Cold(Action work)
+    {
+        _guard?.Check();
+        try
+        {
+            work();
+        }
+        catch (SqliteException exception) when (_guard is not null)
+        {
+            _guard.Explain(exception);
+            throw;
+        }
+    }
+
+    /// <summary>A connection and, with a guard, the transaction of a write that was checked.</summary>
+    private readonly struct OwnWrite(SqliteConnection connection, SqliteTransaction? transaction, Lock? gate) : IDisposable
+    {
+        internal SqliteConnection Connection => connection;
+
+        internal SqliteTransaction? Transaction => transaction;
+
+        internal void Commit() => transaction?.Commit();
+
+        public void Dispose()
+        {
+            transaction?.Dispose();
+            connection.Dispose();
+            gate?.Exit();
         }
     }
 
@@ -434,6 +517,9 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     /// </summary>
     private WriteStatements StatementsFor(SqliteTransaction transaction)
     {
+        // a handle that failed says so before anything else is asked of a connection of the application
+        _guard?.ThrowIfFailed();
+
         var connection = transaction.Connection
             ?? throw new ArgumentException("The transaction is complete.", nameof(transaction));
 
