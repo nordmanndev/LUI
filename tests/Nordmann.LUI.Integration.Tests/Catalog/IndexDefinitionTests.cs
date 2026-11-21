@@ -320,6 +320,7 @@ public sealed class IndexDefinitionTests
     public void A_builders_Create_throws()
     {
         using var database = new TestDatabase();
+        Run(database, Table);
         using var catalog = database.Open();
         var thrown = new List<Exception>();
 
@@ -384,7 +385,7 @@ public sealed class IndexDefinitionTests
         var definition = new LuiIndexDefinition<long>("tags", index =>
         {
             Interlocked.Increment(ref runs);
-            Thread.Sleep(50);
+            Thread.SpinWait(5_000_000);
             return index.SingleWord();
         });
 

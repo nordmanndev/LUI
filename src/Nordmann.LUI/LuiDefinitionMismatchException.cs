@@ -39,6 +39,30 @@ public sealed class LuiDefinitionMismatchException : LuiException
     }
 
     /// <summary>
+    /// The stored definition and the declared one differ (ADR-0073): the message names the fields, and the way to change a
+    /// definition — <c>DropIndex</c>, <c>Create</c>, refill — or a new name next to the old index.
+    /// </summary>
+    internal LuiDefinitionMismatchException(string indexName, string stored, string requested, bool linked, IReadOnlyList<string> fields)
+        : base(
+            $"The index '{indexName}' exists with another definition.{Environment.NewLine}"
+            + $"  stored:    {stored}{Environment.NewLine}"
+            + $"  requested: {requested}{Environment.NewLine}"
+            + $"  differs in: {string.Join(", ", fields)}{Environment.NewLine}"
+            + "An index is never rebuilt silently, and LUI does not migrate a definition. To change it: "
+            + (linked
+                ? "LuiCatalog.DropIndex(name, dropTriggers: true) — its triggers on the table go with it —, "
+                  + "catalog.Create(definition), then Sync() it and create the triggers again if the application uses them. "
+                : "LuiCatalog.DropIndex(name), catalog.Create(definition), then fill it again (UpsertMany or Sync) — "
+                  + "the stored content is lost with the drop. ")
+            + "Or give the new definition a new name (for instance recipes_v2) next to the old index, switch over, and drop "
+            + "the old one: there is no window without a search.")
+    {
+        IndexName = indexName;
+        Stored = stored;
+        Requested = requested;
+    }
+
+    /// <summary>
     /// Creates the exception for the read path (ADR-0033): the index exists, but it is not the index that was asked
     /// for — another schema version, another folding, another key type, another payload type. An index that is opened
     /// is never rebuilt, so the way out is another way to open it.

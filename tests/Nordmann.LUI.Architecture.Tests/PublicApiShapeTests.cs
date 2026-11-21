@@ -470,7 +470,7 @@ public sealed class PublicApiShapeTests
             ],
             ["LuiEntry<TKey>"] =
             [
-                ".ctor(TKey key, string text)",
+                ".ctor(TKey Key, string Text)",
                 "LuiPriority Priority { get; init; }",
                 "TKey Key { get; init; }",
                 "int Weight { get; init; }",
@@ -518,12 +518,21 @@ public sealed class PublicApiShapeTests
         return type.GetMethod("<Clone>$") is null && equals?.DeclaringType == typeof(object);
     }
 
-    /// <summary>Whether a type parameter is declared <c>where T : notnull</c>: the compiler writes a <c>NullableAttribute(1)</c>.</summary>
-    private static bool HasNotNullConstraint(Type parameter) =>
-        parameter.GetCustomAttributesData().Any(attribute => string.Equals(attribute.AttributeType.Name, "NullableAttribute", StringComparison.Ordinal)
+    /// <summary>
+    /// Whether a type parameter is declared <c>where T : notnull</c>. The compiler writes no attribute for it: the parameter
+    /// has no <c>Nullable(2)</c> (that marks an unconstrained one) and its type is in a non-nullable context (<c>NullableContext(1)</c>).
+    /// </summary>
+    private static bool HasNotNullConstraint(Type parameter)
+    {
+        static bool Is(CustomAttributeData attribute, string name, byte value) =>
+            string.Equals(attribute.AttributeType.Name, name, StringComparison.Ordinal)
             && attribute.ConstructorArguments.Count == 1
-            && attribute.ConstructorArguments[0].Value is byte value
-            && value == 1);
+            && attribute.ConstructorArguments[0].Value is byte found
+            && found == value;
+
+        return !parameter.GetCustomAttributesData().Any(attribute => Is(attribute, "NullableAttribute", 2))
+            && parameter.DeclaringType!.GetCustomAttributesData().Any(attribute => Is(attribute, "NullableContextAttribute", 1));
+    }
 
     /// <summary>The public members a type declares, one string each: <c>ReturnType Name(Type name, …)</c> or <c>Type Name { get; init; }</c>.</summary>
     private static IEnumerable<string> MemberSignatures(Type type)

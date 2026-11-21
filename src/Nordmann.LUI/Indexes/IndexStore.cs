@@ -79,57 +79,137 @@ internal static class IndexStore
         Database database,
         ContentSource source,
         DateTimeOffset createdAt,
-        Action<SqliteConnection, SqliteTransaction>? verify = null)
+        Action<SqliteConnection, SqliteTransaction>? verify = null) =>
+        CreateAll(database, [(source, verify)], createdAt);
+
+    /// <summary>
+    /// Creates several indexes — or opens them, if they exist with the same definition — in <b>one transaction</b>: all or
+    /// none (ADR-0073). The exception names the index that failed.
+    /// </summary>
+    /// <param name="database">The database.</param>
+    /// <param name="indexes">The sources, each with the check of the application's table of a linked index.</param>
+    /// <param name="createdAt">The time that is stored with a new index.</param>
+    /// <exception cref="LuiDefinitionMismatchException">An index exists with another definition.</exception>
+    internal static void CreateAll(
+        Database database,
+        IReadOnlyList<(ContentSource Source, Action<SqliteConnection, SqliteTransaction>? Verify)> indexes,
+        DateTimeOffset createdAt)
     {
         try
         {
-            CreateIndex(database, source, createdAt, verify);
+            CreateIndexes(database, indexes, createdAt);
         }
         catch (SqliteException exception) when (Database.IsReadOnlyRefusal(exception))
         {
-            throw database.ReadOnlyRefusal("creating an index", source.IndexName, exception);
+            throw database.ReadOnlyRefusal("creating an index", indexes[0].Source.IndexName, exception);
         }
     }
 
-    private static void CreateIndex(
+    private static void CreateIndexes(
         Database database,
-        ContentSource source,
-        DateTimeOffset createdAt,
-        Action<SqliteConnection, SqliteTransaction>? verify)
+        IReadOnlyList<(ContentSource Source, Action<SqliteConnection, SqliteTransaction>? Verify)> indexes,
+        DateTimeOffset createdAt)
     {
         using var scope = database.Begin();
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
 
-        verify?.Invoke(connection, transaction);
-
-        var name = source.IndexName;
-        var definition = source.Definition;
-        var stored = ReadDefinition(connection, transaction, name);
-        if (stored is null)
+        foreach (var (source, verify) in indexes)
         {
-            foreach (var statement in source.CreateStatements())
+            verify?.Invoke(connection, transaction);
+
+            var name = source.IndexName;
+            var definition = source.Definition;
+            var stored = ReadDefinition(connection, transaction, name);
+            if (stored is null)
             {
-                Execute(connection, transaction, statement);
-            }
+                foreach (var statement in source.CreateStatements())
+                {
+                    Execute(connection, transaction, statement);
+                }
 
-            WriteDefinition(connection, transaction, name, definition, createdAt);
-        }
-        else if (stored != definition)
-        {
-            throw new LuiDefinitionMismatchException(name, stored.ToJson(), definition.ToJson(), linked: stored.Link is not null);
+                WriteDefinition(connection, transaction, name, definition, createdAt);
+            }
+            else if (stored != definition)
+            {
+                throw Mismatch(name, stored, definition);
+            }
         }
 
         transaction.Commit();
     }
 
+    /// <summary>The mismatch of a stored definition and a declared one, with the fields that differ and the way out (ADR-0073).</summary>
+    /// <param name="name">The name of the index.</param>
+    /// <param name="stored">The definition in <c>lui_meta</c>.</param>
+    /// <param name="declared">The definition the application declared.</param>
+    /// <returns>The exception.</returns>
+    internal static LuiDefinitionMismatchException Mismatch(string name, IndexDefinition stored, IndexDefinition declared) =>
+        new(name, stored.ToJson(), declared.ToJson(), linked: stored.Link is not null, fields: DifferingFields(stored, declared));
+
+    /// <summary>Whether an index of that name is in <c>lui_meta</c>.</summary>
+    /// <param name="database">The database.</param>
+    /// <param name="name">The name of the index.</param>
+    /// <returns><see langword="true"/> when the index exists.</returns>
+    internal static bool Exists(Database database, string name)
+    {
+        using var connection = database.OpenReadConnection();
+        using var command = connection.CreateCommand();
+        command.CommandText = "SELECT count(*) FROM lui_meta WHERE index_name = $name;";
+        command.Parameters.AddWithValue("$name", name);
+        return (long)command.ExecuteScalar()! > 0;
+    }
+
     /// <summary>
-    /// Removes an index with its tables, indexes and triggers and its row in <c>lui_meta</c>, whatever its stored
-    /// definition is. The triggers of a linked index on the application's table go only with <paramref name="dropTriggers"/>.
+    /// The fields in which two definitions differ, named as <c>lui_meta</c> stores them. Only what is stored is compared:
+    /// the similarity and the map of a payload are code, and they are no part of the definition (ADR-0073).
     /// </summary>
-    /// <returns><see langword="true"/> when the index existed.</returns>
-    /// <exception cref="InvalidOperationException">A linked index has triggers, and <paramref name="dropTriggers"/> is not set.</exception>
-    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
+    private static List<string> DifferingFields(IndexDefinition stored, IndexDefinition declared)
+    {
+        var fields = new List<string>();
+        Add(fields, "source", stored.Source, declared.Source);
+        Add(fields, "kind", stored.Kind, declared.Kind);
+        Add(fields, "keyType", stored.KeyType, declared.KeyType);
+        Add(fields, "germanTransliteration", stored.GermanTransliteration, declared.GermanTransliteration);
+        Add(fields, "foldTable", stored.FoldTable, declared.FoldTable);
+        Add(fields, "typoDistance", stored.TypoDistance, declared.TypoDistance);
+
+        if (stored.Link is null || declared.Link is null)
+        {
+            if (!(stored.Link is null && declared.Link is null))
+            {
+                fields.Add("link");
+            }
+
+            return fields;
+        }
+
+        Add(fields, "link.table", stored.Link.Table, declared.Link.Table);
+        Add(fields, "link.key", stored.Link.Key, declared.Link.Key);
+        Add(fields, "link.text", stored.Link.Text, declared.Link.Text);
+        Add(fields, "link.weight", stored.Link.Weight, declared.Link.Weight);
+        Add(fields, "link.priority", stored.Link.Priority, declared.Link.Priority);
+        if (!SameColumns(stored.Link.PayloadColumns, declared.Link.PayloadColumns))
+        {
+            fields.Add("link.payloadColumns");
+        }
+
+        return fields;
+    }
+
+    private static bool SameColumns(IReadOnlyList<string>? left, IReadOnlyList<string>? right) =>
+        left is null || right is null
+            ? left is null && right is null
+            : left.SequenceEqual(right, StringComparer.Ordinal);
+
+    private static void Add<T>(List<string> fields, string name, T stored, T declared)
+    {
+        if (!EqualityComparer<T>.Default.Equals(stored, declared))
+        {
+            fields.Add(name);
+        }
+    }
+
     internal static bool Drop(Database database, string name, bool dropTriggers)
     {
         try

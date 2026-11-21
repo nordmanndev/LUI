@@ -383,8 +383,12 @@ public sealed class LuiCatalog : IDisposable
     {
         ArgumentNullException.ThrowIfNull(index);
 
-        var builder = index(KindBuilder(name));
-        return builder.Create();
+        // a thin layer over the definition (ADR-0073): the builder chain is described, and the definition is created
+        var description = index(KindBuilder(name, out var validated)).Describe();
+        LuiIndexDefinitionBase definition = description.KeyKind == LuiKeyKind.Text
+            ? new LuiIndexDefinition<string>(validated, description)
+            : new LuiIndexDefinition<long>(validated, description);
+        return (EmbeddedIndex)CreateFrom(definition);
     }
 
     /// <summary>
@@ -409,8 +413,123 @@ public sealed class LuiCatalog : IDisposable
     {
         ArgumentNullException.ThrowIfNull(index);
 
-        var builder = index(KindBuilder(name));
-        return builder.Create();
+        var description = index(KindBuilder(name, out var validated)).Describe();
+        return (LinkedIndex)CreateFrom(new LuiLinkedIndexDefinition<long>(validated, description));
+    }
+
+    /// <summary>
+    /// Creates the index of a definition, or opens it if it exists with the same definition — safe on every start
+    /// (ADR-0073). An embedded definition gives an embedded handle. The index is created only: <b>nothing is synced and no
+    /// trigger is installed</b>. A different stored definition throws a <see cref="LuiDefinitionMismatchException"/>
+    /// that names the fields — the similarity is no part of the comparison. LUI does not migrate a definition: to change
+    /// one, <see cref="DropIndex"/> the index, create it again and fill it, or give the new definition a new name.
+    /// </summary>
+    /// <typeparam name="TKey">The type of the keys.</typeparam>
+    /// <param name="definition">The declaration of the index.</param>
+    /// <returns>The handle of the index; it reads and writes.</returns>
+    /// <exception cref="LuiConfigurationException">The definition is not valid.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
+    public LuiEmbeddedIndex<TKey> Create<TKey>(LuiIndexDefinition<TKey> definition)
+        where TKey : notnull
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        return new LuiEmbeddedIndex<TKey>(Database, (EmbeddedIndex)CreateFrom(definition));
+    }
+
+    /// <summary>
+    /// Creates the index of a linked definition, or opens it if it exists with the same definition (ADR-0073), and checks
+    /// the table of the application every time. The index starts empty: <b>nothing is synced and no trigger is
+    /// installed</b> — <c>Sync()</c> fills it, <c>CreateTriggers()</c> installs the triggers if the application wants them.
+    /// </summary>
+    /// <typeparam name="TKey">The type of the keys.</typeparam>
+    /// <param name="definition">The declaration of the index.</param>
+    /// <returns>The handle of the index; it reads and syncs.</returns>
+    /// <exception cref="LuiConfigurationException">The definition is not valid.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
+    /// <exception cref="LuiLinkedTableException">The table or a column is missing, or the key is not the table's INTEGER PRIMARY KEY.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
+    public LuiLinkedIndex<TKey> Create<TKey>(LuiLinkedIndexDefinition<TKey> definition)
+        where TKey : notnull
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        return new LuiLinkedIndex<TKey>(Database, (LinkedIndex)CreateFrom(definition));
+    }
+
+    /// <summary>
+    /// Creates or opens several definitions <b>in one transaction</b> (ADR-0073): all or none. The exception names the
+    /// definition that failed, and a name that occurs twice throws an <see cref="ArgumentException"/> before anything is
+    /// written. It returns nothing — a variable typed <see cref="LuiIndexDefinitionBase"/> binds here; the handles come from
+    /// <c>Index(definition)</c>.
+    /// </summary>
+    /// <param name="definitions">The declarations of the indexes.</param>
+    /// <exception cref="ArgumentException">A name occurs twice, or a definition is missing.</exception>
+    /// <exception cref="LuiConfigurationException">A definition is not valid.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">An index exists with another definition; nothing was created.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
+    public void Create(params LuiIndexDefinitionBase[] definitions)
+    {
+        ArgumentNullException.ThrowIfNull(definitions);
+        Database.ThrowIfDisposed();
+
+        var resolved = new List<ResolvedIndex>(definitions.Length);
+        foreach (var definition in definitions)
+        {
+            ArgumentNullException.ThrowIfNull(definition, nameof(definitions));
+            resolved.Add(definition.Resolve());
+        }
+
+        var names = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var name in resolved.Select(index => index.Name).Where(name => !names.Add(name)))
+        {
+            throw new ArgumentException($"The index '{name}' is declared twice: a name occurs once in a call of Create.", nameof(definitions));
+        }
+
+        if (resolved.Count == 0)
+        {
+            return;
+        }
+
+        var sources = resolved.Select(index => PrepareCreate(index.Name, index.Description, index.KeyType)).ToArray();
+        IndexStore.CreateAll(Database, [.. sources.Select(source => (source.Source, source.Verify))], TimeProvider.GetUtcNow());
+    }
+
+    /// <summary>
+    /// Opens the index of a definition that exists, and writes nothing (ADR-0073): one name for both sources — an
+    /// embedded definition gives an embedded handle, a linked definition a linked one. The stored definition is compared with
+    /// the declared one; the similarity of the definition takes effect, it is code. A catalog that was opened with
+    /// <c>OpenReadOnly</c> checks its definitions with this call instead of <c>Create</c>.
+    /// </summary>
+    /// <typeparam name="TKey">The type of the keys.</typeparam>
+    /// <param name="definition">The declaration of the index.</param>
+    /// <returns>The handle of the index; it reads, and it writes if the file allows it.</returns>
+    /// <exception cref="LuiConfigurationException">The definition is not valid.</exception>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The stored definition is another one; the message names the fields.</exception>
+    public LuiEmbeddedIndex<TKey> Index<TKey>(LuiIndexDefinition<TKey> definition)
+        where TKey : notnull
+    {
+        var (resolved, entry) = OpenStored(definition);
+        return new LuiEmbeddedIndex<TKey>(Database, OpenEmbedded(resolved.Name, entry, resolved.Description.Options.Similarity));
+    }
+
+    /// <summary>
+    /// Opens the index of a linked definition that exists, and writes nothing (ADR-0073) — the same call as for an
+    /// embedded definition: one name for both sources.
+    /// </summary>
+    /// <typeparam name="TKey">The type of the keys.</typeparam>
+    /// <param name="definition">The declaration of the index.</param>
+    /// <returns>The handle of the index; it reads and syncs, if the file allows it.</returns>
+    /// <exception cref="LuiConfigurationException">The definition is not valid.</exception>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The stored definition is another one; the message names the fields.</exception>
+    public LuiLinkedIndex<TKey> Index<TKey>(LuiLinkedIndexDefinition<TKey> definition)
+        where TKey : notnull
+    {
+        var (resolved, entry) = OpenStored(definition);
+        return new LuiLinkedIndex<TKey>(
+            Database,
+            OpenLinked(resolved.Name, entry.Definition, new NoPayload(resolved.Name), resolved.Description.Options.Similarity));
     }
 
     /// <summary>
@@ -542,8 +661,9 @@ public sealed class LuiCatalog : IDisposable
     /// </summary>
     /// <param name="name">The name of the index.</param>
     /// <param name="entry">What the file holds about the index.</param>
+    /// <param name="similarity">The similarity of the definition — code, not stored; <see langword="null"/> for the default of the kind.</param>
     /// <returns>The index; it reads, and it writes if the file allows it.</returns>
-    private EmbeddedIndex OpenEmbedded(string name, IndexStoreEntry entry)
+    private EmbeddedIndex OpenEmbedded(string name, IndexStoreEntry entry, ILuiSimilarity? similarity = null)
     {
         var source = new EmbeddedSource(name, entry.Definition);
 
@@ -555,7 +675,7 @@ public sealed class LuiCatalog : IDisposable
             TypoDictionaries,
             source,
             PayloadSerializer,
-            source.Rules.DefaultSimilarity,
+            similarity ?? source.Rules.DefaultSimilarity,
             typoDistance: entry.Definition.TypoDistance);
     }
 
@@ -614,11 +734,81 @@ public sealed class LuiCatalog : IDisposable
 
     /// <summary>The first step of the description of an index: the kind of it.</summary>
     /// <param name="name">The name of the index.</param>
+    /// <param name="validated">The name, validated.</param>
     /// <returns>The builder of the kind.</returns>
-    private LuiIndexKindBuilder KindBuilder(string name)
+    private LuiIndexKindBuilder KindBuilder(string name, out string validated)
     {
         Database.ThrowIfDisposed();
-        return new LuiIndexKindBuilder(this, Identifier.ValidateIndexName(name, nameof(name)));
+        validated = Identifier.ValidateIndexName(name, nameof(name));
+        return new LuiIndexKindBuilder(oldPath: true);
+    }
+
+    /// <summary>Creates the index of a definition — every way of creating goes through here (ADR-0073).</summary>
+    /// <param name="definition">The declaration of the index.</param>
+    /// <returns>The index below the handle: an <c>EmbeddedIndex</c> or a <c>LinkedIndex</c>.</returns>
+    private IMaintainedIndex CreateFrom(LuiIndexDefinitionBase definition)
+    {
+        Database.ThrowIfDisposed();
+        var resolved = definition.Resolve();
+        return CreateCore(resolved.Name, resolved.Description, resolved.KeyType);
+    }
+
+    /// <summary>
+    /// Creates the index of a description, or opens it if it exists with the same definition — what the builders did when
+    /// they were bound to the catalog, now in one place (ADR-0073).
+    /// </summary>
+    /// <param name="name">The validated name.</param>
+    /// <param name="description">What the builder chain described.</param>
+    /// <param name="keyType">The stored name of the key type.</param>
+    /// <returns>The index.</returns>
+    private IMaintainedIndex CreateCore(string name, IndexDescription description, string keyType)
+    {
+        var (source, verify) = PrepareCreate(name, description, keyType);
+        IndexStore.Create(Database, source, TimeProvider.GetUtcNow(), verify);
+
+        var similarity = description.Options.Similarity ?? source.Rules.DefaultSimilarity;
+        if (source is EmbeddedSource embedded)
+        {
+            return new EmbeddedIndex(Database, TypoDictionaries, embedded, PayloadSerializer, similarity, description.Options.TypoDistance);
+        }
+
+        var columns = description.Link?.PayloadColumns ?? [];
+        PayloadReader payload = description.PayloadMap is null
+            ? new NoPayload(name)
+            : new ColumnPayload(name, columns, description.PayloadMap);
+
+        return new LinkedIndex(Database, TypoDictionaries, (LinkedSource)source, payload, similarity, description.Options.TypoDistance);
+    }
+
+    /// <summary>The source of a description, and — for a linked index — the check of the application's table.</summary>
+    private static (ContentSource Source, Action<SqliteConnection, SqliteTransaction>? Verify) PrepareCreate(
+        string name,
+        IndexDescription description,
+        string keyType)
+    {
+        var definition = description.ToStored(keyType);
+        if (description.Source == LuiIndexSource.Embedded)
+        {
+            return (new EmbeddedSource(name, definition), null);
+        }
+
+        var link = description.Link!;
+        var columns = link.PayloadColumns ?? [];
+        return (new LinkedSource(name, definition), (connection, transaction) => LinkedTable.Verify(connection, transaction, link, columns));
+    }
+
+    /// <summary>The stored index of a definition, after the comparison of the stored definition with the declared one.</summary>
+    private (ResolvedIndex Resolved, IndexStoreEntry Entry) OpenStored(LuiIndexDefinitionBase definition)
+    {
+        ArgumentNullException.ThrowIfNull(definition);
+        Database.ThrowIfDisposed();
+
+        var resolved = definition.Resolve();
+        var entry = ReadEntry(resolved.Name);
+        var declared = resolved.Description.ToStored(resolved.KeyType);
+        return entry.Definition == declared
+            ? (resolved, entry)
+            : throw IndexStore.Mismatch(resolved.Name, entry.Definition, declared);
     }
 
     /// <summary>The stored index of a name, with the two checks every index has to pass: the schema version it was written
@@ -667,8 +857,9 @@ public sealed class LuiCatalog : IDisposable
     /// <param name="name">The name of the index.</param>
     /// <param name="definition">The stored definition.</param>
     /// <param name="payload">How the payload is read: none, or the map of the application.</param>
+    /// <param name="similarity">The similarity of the definition — code, not stored; <see langword="null"/> for the default of the kind.</param>
     /// <returns>The index; it reads, and it writes if the file allows it.</returns>
-    private LinkedIndex OpenLinked(string name, IndexDefinition definition, PayloadReader payload)
+    private LinkedIndex OpenLinked(string name, IndexDefinition definition, PayloadReader payload, ILuiSimilarity? similarity = null)
     {
         var source = new LinkedSource(name, definition);
         return new LinkedIndex(
@@ -676,7 +867,7 @@ public sealed class LuiCatalog : IDisposable
             TypoDictionaries,
             source,
             payload,
-            source.Rules.DefaultSimilarity,
+            similarity ?? source.Rules.DefaultSimilarity,
             typoDistance: definition.TypoDistance);
     }
 

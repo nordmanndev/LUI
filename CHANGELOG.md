@@ -10,6 +10,43 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 The public API may change until 1.0.0 ([ADR-0071](.agents/adr/0071-the-freeze-comes-with-1-0-0.md)): every break has a reason that makes the API clearer, a
 minor version, a migration note and its own record, and no member is marked `[Obsolete]` before 1.0.0.
 
+### Added
+
+- **The index definition** ([ADR-0073](.agents/adr/0073-the-index-definition-and-the-typed-handles.md), #261): an index is
+  declared once, as `LuiIndexDefinition<long>` (embedded) or `LuiLinkedIndexDefinition<long>` (linked) — typically a
+  `static readonly` field — and the catalog hands out **typed handles** for it: `catalog.Create(definition)` creates the index or
+  opens it (and compares the stored definition), `catalog.Index(definition)` opens one that is there, and
+  `catalog.Create(a, b, c)` creates several in one transaction. The handles are concrete classes — `LuiEmbeddedIndex<long>`,
+  `LuiLinkedIndex<long>`, the read side `LuiIndex<long>` — with typed `LuiEntry<long>`, `LuiQuery<long>`, `LuiResult<long>` and
+  `LuiHit<long>`. New: `LuiIndexDefinitionBase`, `LuiIndexSource`, `LuiConfigurationException`. An invalid definition throws
+  a `LuiConfigurationException` on its first use, not where its field is initialised; a mismatch names the fields that differ,
+  and the similarity is never one of them. The API stays synchronous: `Sync(IAsyncEnumerable<LuiEntry<long>>)` blocks.
+
+### Changed
+
+- **The builders describe, the catalog creates.** `LuiIndexKindBuilder`, `LuiEmbeddedIndexBuilder` and `LuiLinkedIndexBuilder`
+  hold no catalog and no name any more. Their public `Create()` — documented as "the catalog calls this; an application does
+  not" — now throws an `InvalidOperationException`; it never created anything on its own.
+
+### Migration
+
+Additive in this version: every call of 0.3.0 still works (`Create(name, …)`, `CreateLinked`, `Index(name)`, `LinkedIndex`,
+`As<T>()`) and is now a thin layer over the definition. They are removed with #268, before 0.4.0 is released. Move a call site
+over like this:
+
+```csharp
+// before (0.3.0) — the name and the type repeat at every call site
+catalog.Create("tags", index => index.SingleWord());
+var tags = catalog.Index("tags");
+
+// after — declared once, used everywhere
+public static readonly LuiIndexDefinition<long> Tags = new("tags", index => index.SingleWord());
+var tags = catalog.Create(Tags);          // at the start; or catalog.Index(Tags) where it is only read
+```
+
+A changed definition is still not migrated: `DropIndex(name)`, `Create(definition)`, fill it again — or a new name next to the
+old index (`docs/api.md`, "Changing a definition").
+
 ## [0.3.0] — 2026-11-19
 
 The round of **0.3.0**: the catalogue takes a **path** and owns its connections, there are **three ways** to open it, the read
