@@ -17,7 +17,7 @@ file into `0.4.0`.
 | 1 | #259 API freeze moves to 1.0.0 (ADR-0071) | every later break cites it; docs only | — | merged | #279 — the freeze comes with 1.0.0; no `[Obsolete]` bridges before it |
 | 2 | #274 Baseline: v0.3.0 against itself (`QueryBenchmarks`) | #258 needs the noise before the first code PR | #259 | merged | #281 — the baseline stands as measured; performance only at the end (#275), observations in #280 |
 | 3 | #261 Definitions and typed handles, `long` keys (ADR-0073) | the contract everything builds on — riskiest, first | #274 | merged | #282 — definitions and typed handles; a fourth narrow review was allowed by the owner |
-| 4 | #269 Payload variants, typed linked builder (ADR-0073) | extends the types of #261 | #261 | open | — |
+| 4 | #269 Payload variants, typed linked builder (ADR-0073) | extends the types of #261 | #261 | in review | #283 |
 | 5 | #270 Key types `int`/`string`/`Guid`, LUI format 2 (ADR-0073) | the file format #260/#272/#271 add to | #269 | open | — |
 | 6 | #265 Runtime in the catalog, 0 B open, several processes (ADR-0075) | the query path; its budget risk shows early | #270 | open | — |
 | 7 | #260 Payload registry, type and format fingerprint (ADR-0072) | needs definitions and the handle cache | #265 | open | — |
