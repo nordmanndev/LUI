@@ -93,8 +93,8 @@ public sealed class PublicApiShapeTests
             "LuiTypedHit", "LuiTypedResult",
         ];
 
-        // LuiHit and LuiResult have a generic form each (ADR-0073): the guard counts both forms of a name
-        const int genericForms = 2;
+        // LuiHit and LuiResult have two generic forms each (ADR-0073: without and with a payload): the guard counts all forms of a name
+        const int genericForms = 4;
 
         // the name without the arity: the runtime appends it to a generic type, the list names the type
         var offenders = LibraryAssembly
@@ -109,7 +109,7 @@ public sealed class PublicApiShapeTests
         offenders.ShouldBeEmpty("The results and options are built with named properties.");
         LibraryAssembly.GetExportedTypes().Count(type => named.Contains(TypeNames.Of(type), StringComparer.Ordinal)).ShouldBe(named.Length + genericForms);
         LibraryAssembly.GetExportedTypes().Where(type => type.IsGenericTypeDefinition && TypeNames.Of(type) is "LuiHit" or "LuiResult")
-            .Select(TypeNames.Of).Order(StringComparer.Ordinal).ShouldBe(["LuiHit", "LuiResult"]);
+            .Select(TypeNames.Of).Order(StringComparer.Ordinal).ShouldBe(["LuiHit", "LuiHit", "LuiResult", "LuiResult"]);
     }
 
     [Fact]
@@ -190,6 +190,14 @@ public sealed class PublicApiShapeTests
             .Order(StringComparer.Ordinal)
             .ToArray();
         typedSettings.ShouldBe(options, "LuiQuery<TKey> has the settings of LuiQuery, and no other.");
+
+        // and so has the query of an index with a payload (issue #269)
+        var payloadSettings = typeof(LuiQuery<,>).GetMethods(declared)
+            .Where(method => method.ReturnType.IsGenericType && method.ReturnType.GetGenericTypeDefinition() == typeof(LuiQuery<,>))
+            .Select(method => method.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        payloadSettings.ShouldBe(options, "LuiQuery<TKey, TPayload> has the settings of LuiQuery, and no other.");
     }
 
     [Fact]
@@ -251,25 +259,34 @@ public sealed class PublicApiShapeTests
         // embedded handle, a linked definition a linked handle — and `Create(params …)` creates several in one transaction.
         // The old calls stay, a thin layer over the same path, until their removal (issue #268).
         var created = Named("Create");
-        created.Length.ShouldBe(4, "the old `Create(name, …)`, one per definition type, and the many");
+        created.Length.ShouldBe(6, "the old `Create(name, …)`, one per definition type (four: with and without payload), and the many");
         var createdEmbedded = created.Single(method => method.GetParameters().Length == 2);
         createdEmbedded.IsGenericMethodDefinition.ShouldBeFalse();
         createdEmbedded.ReturnType.ShouldBe(typeof(ILuiEmbeddedIndex));
         createdEmbedded.GetParameters()[0].ParameterType.ShouldBe(typeof(string));
 
         var definitions = created.Where(method => method.GetParameters().Length == 1).ToArray();
-        definitions.Length.ShouldBe(3);
+        definitions.Length.ShouldBe(5);
         var many = definitions.Single(method => method.ReturnType == typeof(void));
         many.IsGenericMethodDefinition.ShouldBeFalse();
         many.GetParameters().Single().ParameterType.ShouldBe(typeof(LuiIndexDefinitionBase[]));
         many.GetParameters().Single().IsDefined(typeof(ParamArrayAttribute), inherit: false).ShouldBeTrue("`Create(a, b, c)`");
         Handle(definitions, typeof(LuiIndexDefinition<>), typeof(LuiEmbeddedIndex<>));
         Handle(definitions, typeof(LuiLinkedIndexDefinition<>), typeof(LuiLinkedIndex<>));
+        HandleWithPayload(definitions, typeof(LuiIndexDefinition<,>), typeof(LuiEmbeddedIndex<,>));
+        HandleWithPayload(definitions, typeof(LuiLinkedIndexDefinition<,>), typeof(LuiLinkedIndex<,>));
 
         var createdLinked = Named("CreateLinked");
-        createdLinked.Length.ShouldBe(1, "`CreateLinked` creates a linked index — and has no definition form: `Create` takes both");
-        createdLinked.ShouldAllBe(method => !method.IsGenericMethodDefinition);
-        createdLinked[0].ReturnType.ShouldBe(typeof(ILuiLinkedIndex));
+        createdLinked.Length.ShouldBe(2, "`CreateLinked` creates a linked index — and has no definition form: `Create` takes all four; the second takes the typed builder (issue #269)");
+        createdLinked.ShouldAllBe(method => method.ReturnType == typeof(ILuiLinkedIndex));
+        createdLinked.Count(method => !method.IsGenericMethodDefinition).ShouldBe(1);
+
+        // the bridge for the old calls with `WithPayload` (issue #269, until #268): the typed builder is the parameter, the payload type the one type argument
+        var bridge = createdLinked.Single(method => method.IsGenericMethodDefinition);
+        bridge.GetGenericArguments().Length.ShouldBe(1);
+        bridge.GetParameters().Select(parameter => parameter.ParameterType).ShouldBe(
+            [typeof(string), typeof(Func<,>).MakeGenericType(typeof(LuiIndexKindBuilder), typeof(LuiLinkedIndexBuilder<>).MakeGenericType(bridge.GetGenericArguments()[0]))]);
+        HasNotNullConstraint(bridge.GetGenericArguments()[0]).ShouldBeTrue("where TPayload : notnull");
 
         // the factory of the catalog stays: `Open` opens the catalog, `Index` opens the index (ADR-0033)
         typeof(LuiCatalog).GetMethod(
@@ -288,7 +305,7 @@ public sealed class PublicApiShapeTests
             [.. typeof(LuiCatalog).GetMethods(declared).Where(method => string.Equals(method.Name, name, StringComparison.Ordinal))];
 
         var opened = Named("Index");
-        opened.Length.ShouldBe(3, "an index is opened by its name, or by its definition — one name for both sources");
+        opened.Length.ShouldBe(5, "an index is opened by its name, or by its definition (four of them: with and without payload) — one name for both sources");
         var embedded = opened.Single(method => method.GetParameters()[0].ParameterType == typeof(string));
         embedded.IsGenericMethodDefinition.ShouldBeFalse();
         embedded.ReturnType.ShouldBe(typeof(ILuiEmbeddedIndex));
@@ -296,6 +313,8 @@ public sealed class PublicApiShapeTests
         var openedByDefinition = opened.Where(method => method != embedded).ToArray();
         Handle(openedByDefinition, typeof(LuiIndexDefinition<>), typeof(LuiEmbeddedIndex<>));
         Handle(openedByDefinition, typeof(LuiLinkedIndexDefinition<>), typeof(LuiLinkedIndex<>));
+        HandleWithPayload(openedByDefinition, typeof(LuiIndexDefinition<,>), typeof(LuiEmbeddedIndex<,>));
+        HandleWithPayload(openedByDefinition, typeof(LuiLinkedIndexDefinition<,>), typeof(LuiLinkedIndex<,>));
 
         var linked = Named("LinkedIndex");
         linked.Length.ShouldBe(2, "a linked index without payload columns, and one with them and the map of the application");
@@ -315,6 +334,19 @@ public sealed class PublicApiShapeTests
         method.GetGenericArguments().Length.ShouldBe(1);
         method.ReturnType.GetGenericTypeDefinition().ShouldBe(handle);
         method.ReturnType.GetGenericArguments().Single().ShouldBe(method.GetGenericArguments().Single());
+    }
+
+    /// <summary>The types of the key and of the payload are the two type arguments of the method, and the compiler infers them from the definition.</summary>
+    private static void HandleWithPayload(MethodInfo[] methods, Type definition, Type handle)
+    {
+        var method = methods.Single(candidate => candidate.IsGenericMethodDefinition
+            && candidate.GetParameters().Single().ParameterType.IsGenericType
+            && candidate.GetParameters().Single().ParameterType.GetGenericTypeDefinition() == definition);
+        var arguments = method.GetGenericArguments();
+        arguments.Length.ShouldBe(2);
+        method.ReturnType.GetGenericTypeDefinition().ShouldBe(handle);
+        method.ReturnType.GetGenericArguments().ShouldBe(arguments);
+        arguments.ShouldAllBe(argument => HasNotNullConstraint(argument), "where TKey : notnull where TPayload : notnull");
     }
 
     [Fact]
@@ -357,12 +389,15 @@ public sealed class PublicApiShapeTests
             .Where(type => type.IsSubclassOf(@base))
             .Select(type => type.Name)
             .Order(StringComparer.Ordinal)
-            .ShouldBe(["LuiIndexDefinition`1", "LuiLinkedIndexDefinition`1"]);
+            .ShouldBe(["LuiIndexDefinition`1", "LuiIndexDefinition`2", "LuiLinkedIndexDefinition`1", "LuiLinkedIndexDefinition`2"]);
         LibraryAssembly.GetTypes().Where(type => type.IsSubclassOf(@base)).ShouldAllBe(type => type.IsSealed, "a definition type does not derive from another");
 
         // the handles are closed in the same way: no constructor of the abstract read side can be called from outside
         typeof(LuiIndex<>).IsAbstract.ShouldBeTrue();
         typeof(LuiIndex<>).GetConstructors(all).ShouldAllBe(
+            constructor => !(constructor.IsPublic || constructor.IsFamily || constructor.IsFamilyOrAssembly));
+        typeof(LuiIndex<,>).IsAbstract.ShouldBeTrue();
+        typeof(LuiIndex<,>).GetConstructors(all).ShouldAllBe(
             constructor => !(constructor.IsPublic || constructor.IsFamily || constructor.IsFamilyOrAssembly));
     }
 
@@ -396,7 +431,91 @@ public sealed class PublicApiShapeTests
             .ShouldAllBe(type => IsReferenceEqual(type), "reference equality");
         new[] { typeof(LuiIndex<>), typeof(LuiEmbeddedIndex<>), typeof(LuiLinkedIndex<>), typeof(LuiEntry<>), typeof(LuiQuery<>), typeof(LuiResult<>), typeof(LuiHit<>), typeof(LuiIndexDefinition<>), typeof(LuiLinkedIndexDefinition<>) }
             .ShouldAllBe(type => HasNotNullConstraint(type.GetGenericArguments().Single()), "where TKey : notnull");
+
+        // the payload variants (ADR-0073, issue #269): the same shape, with a payload
+        typeof(LuiIndex<,>).IsAbstract.ShouldBeTrue();
+        typeof(LuiEmbeddedIndex<,>).BaseType!.GetGenericTypeDefinition().ShouldBe(typeof(LuiIndex<,>));
+        typeof(LuiLinkedIndex<,>).BaseType!.GetGenericTypeDefinition().ShouldBe(typeof(LuiIndex<,>));
+        Type[] payloadTypes = [typeof(LuiEmbeddedIndex<,>), typeof(LuiLinkedIndex<,>), typeof(LuiQuery<,>), typeof(LuiResult<,>), typeof(LuiHit<,>), typeof(LuiEntry<,>), typeof(LuiLinkedIndexBuilder<>)];
+        payloadTypes.ShouldAllBe(type => type.IsSealed && type.IsClass);
+        new[] { typeof(LuiEntry<,>), typeof(LuiHit<,>) }.ShouldAllBe(type => type.GetMethod("<Clone>$") != null, "records: value equality");
+        new[] { typeof(LuiIndex<,>), typeof(LuiEmbeddedIndex<,>), typeof(LuiLinkedIndex<,>), typeof(LuiQuery<,>), typeof(LuiResult<,>) }
+            .ShouldAllBe(type => IsReferenceEqual(type), "reference equality");
+        new[] { typeof(LuiIndex<,>), typeof(LuiEmbeddedIndex<,>), typeof(LuiLinkedIndex<,>), typeof(LuiEntry<,>), typeof(LuiQuery<,>), typeof(LuiResult<,>), typeof(LuiHit<,>), typeof(LuiIndexDefinition<,>), typeof(LuiLinkedIndexDefinition<,>) }
+            .ShouldAllBe(
+                type => HasNotNullConstraint(type.GetGenericArguments()[0]) && HasNotNullConstraint(type.GetGenericArguments()[1]),
+                "where TKey : notnull where TPayload : notnull");
+        HasNotNullConstraint(typeof(LuiLinkedIndexBuilder<>).GetGenericArguments().Single()).ShouldBeTrue("where TPayload : notnull");
+
+        // the type relations: the variants with a payload are other types, not subtypes of the ones without (a shared base can come later without a break)
+        IsSubclassOfGeneric(typeof(LuiIndex<,>), typeof(LuiIndex<>)).ShouldBeFalse();
+        IsSubclassOfGeneric(typeof(LuiHit<,>), typeof(LuiHit<>)).ShouldBeFalse();
+        IsSubclassOfGeneric(typeof(LuiEntry<,>), typeof(LuiEntry<>)).ShouldBeFalse();
+        typeof(LuiLinkedIndexBuilder<>).BaseType.ShouldBe(typeof(object), "the typed builder does not derive from LuiLinkedIndexBuilder");
+        typeof(LuiIndexDefinition<,>).BaseType.ShouldBe(typeof(LuiIndexDefinitionBase));
+        typeof(LuiLinkedIndexDefinition<,>).BaseType.ShouldBe(typeof(LuiIndexDefinitionBase));
     }
+
+    [Fact]
+    public void A_handle_with_a_payload_has_no_write_without_a_payload()
+    {
+        // issue #269: no entry without a payload can reach an index with a payload — no `Upsert(key, text, weight)`, no
+        // `LuiEntry<TKey>` and no payload-less `Sync` on the handle. With `TPayload = int`, `Upsert(1, "x", 5)` means the payload.
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        var embedded = typeof(LuiEmbeddedIndex<,>);
+        var payload = embedded.GetGenericArguments()[1];
+
+        embedded.GetMethods(declared).ShouldAllBe(method => !method.GetParameters().Any(parameter => Mentions(parameter.ParameterType, typeof(LuiEntry<>))),
+            "no write takes an entry without a payload");
+        embedded.GetMethods(declared).Where(method => string.Equals(method.Name, "Upsert", StringComparison.Ordinal)).ShouldAllBe(
+            method => method.GetParameters().Any(parameter => parameter.ParameterType == payload)
+                      || method.GetParameters().Any(parameter => Mentions(parameter.ParameterType, typeof(LuiEntry<,>))),
+            "every Upsert takes the payload or an entry that has one");
+        var upsert = embedded.GetMethods(declared).Single(method => string.Equals(method.Name, "Upsert", StringComparison.Ordinal) && method.GetParameters().Length == 6);
+        upsert.GetParameters().Select(parameter => parameter.Name).Take(3).ShouldBe(["key", "text", "payload"], "the payload comes right after the text, in the order of the entry");
+        typeof(LuiLinkedIndex<,>).GetMethods(declared).ShouldAllBe(method => !method.GetParameters().Any(parameter => Mentions(parameter.ParameterType, typeof(LuiEntry<>)) || Mentions(parameter.ParameterType, typeof(LuiEntry<,>))),
+            "a linked index writes nothing: the application's table is the content");
+    }
+
+    [Fact]
+    public void The_typed_linked_builder_has_the_option_methods_of_the_untyped_one()
+    {
+        // issue #269: `WithPayload` returns the typed builder, which does not derive from the untyped one — so the options must
+        // be on both, or the order of `WithPayload` and the options would not be free
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        string[] Options(Type type) =>
+            [.. type.GetMethods(declared).Where(method => !method.IsSpecialName && method.ReturnType.Name.StartsWith("LuiLinkedIndexBuilder", StringComparison.Ordinal))
+                .Select(method => $"{method.Name}({string.Join(", ", method.GetParameters().Select(parameter => parameter.ParameterType.Name))})")
+                .Order(StringComparer.Ordinal)];
+
+        var untyped = Options(typeof(LuiLinkedIndexBuilder)).Where(option => !option.StartsWith("WithPayload", StringComparison.Ordinal)).ToArray();
+        untyped.ShouldNotBeEmpty();
+        Options(typeof(LuiLinkedIndexBuilder<>)).ShouldBe(untyped, "the typed builder offers the options of the untyped one, and nothing else");
+
+        var withPayload = typeof(LuiLinkedIndexBuilder).GetMethods(declared).Single(method => string.Equals(method.Name, "WithPayload", StringComparison.Ordinal));
+        withPayload.IsGenericMethodDefinition.ShouldBeTrue();
+        withPayload.ReturnType.GetGenericTypeDefinition().ShouldBe(typeof(LuiLinkedIndexBuilder<>));
+        withPayload.ReturnType.GetGenericArguments().ShouldBe(withPayload.GetGenericArguments());
+        HasNotNullConstraint(withPayload.GetGenericArguments().Single()).ShouldBeTrue("where TPayload : notnull");
+        typeof(LuiLinkedIndexBuilder<>).GetMethods(declared).ShouldNotContain(method => string.Equals(method.Name, "WithPayload", StringComparison.Ordinal), "the payload is declared once");
+    }
+
+    private static bool IsSubclassOfGeneric(Type type, Type generic)
+    {
+        for (var current = type.BaseType; current is not null; current = current.BaseType)
+        {
+            if (current.IsGenericType && current.GetGenericTypeDefinition() == generic)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>Whether a parameter type is, or is a collection of, the generic type — <c>LuiEntry&lt;TKey&gt;</c>, <c>IEnumerable&lt;LuiEntry&lt;TKey&gt;&gt;</c>.</summary>
+    private static bool Mentions(Type type, Type generic) =>
+        type.IsGenericType && (type.GetGenericTypeDefinition() == generic || type.GetGenericArguments().Any(argument => Mentions(argument, generic)));
 
     /// <summary>The members of the typed handles of this release (ADR-0073): sorted by the test, listed here as the tables of the issue name them.</summary>
     private static Dictionary<string, string[]> ExpectedMembers()
@@ -445,7 +564,9 @@ public sealed class PublicApiShapeTests
                 "void DropTriggers()",
             ],
         }
+        .Concat(ExpectedPayloadVariants())
         .Concat(ExpectedValues())
+        .Concat(ExpectedPayloadValues())
         .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
     }
 
@@ -499,6 +620,116 @@ public sealed class PublicApiShapeTests
                 "string Query { get; init; }",
             ],
             ["LuiHit<TKey>"] =
+            [
+                ".ctor()",
+                "LuiPriority Priority { get; init; }",
+                "TKey Key { get; init; }",
+                "bool AtWordStart { get; init; }",
+                "double Similarity { get; init; }",
+                "int Weight { get; init; }",
+                "string Text { get; init; }",
+            ],
+        };
+    }
+
+    /// <summary>The definitions, the typed builder and the handles with a payload (ADR-0073, issue #269): the members of the tables of the issue.</summary>
+    private static Dictionary<string, string[]> ExpectedPayloadVariants()
+    {
+        return new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["LuiIndexDefinition<TKey, TPayload>"] =
+            [
+                ".ctor(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)",
+            ],
+            ["LuiLinkedIndexDefinition<TKey, TPayload>"] =
+            [
+                ".ctor(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>> index)",
+            ],
+            ["LuiLinkedIndexBuilder<TPayload>"] =
+            [
+                "LuiLinkedIndexBuilder<TPayload> GermanTransliteration(bool enabled)",
+                "LuiLinkedIndexBuilder<TPayload> Similarity(ILuiSimilarity similarity)",
+                "LuiLinkedIndexBuilder<TPayload> TypoTolerance(LuiTypoDistance distance = default)",
+            ],
+            ["LuiEmbeddedIndex<TKey, TPayload>"] =
+            [
+                "LuiIntegrityReport Check(IEnumerable<LuiEntry<TKey, TPayload>> entries, CancellationToken cancellationToken = default)",
+                "LuiSyncReport Sync(IAsyncEnumerable<LuiEntry<TKey, TPayload>> entries, LuiSyncOptions options = default, CancellationToken cancellationToken = default)",
+                "LuiSyncReport Sync(IEnumerable<LuiEntry<TKey, TPayload>> entries, LuiSyncOptions options = default, CancellationToken cancellationToken = default)",
+                "bool Remove(TKey key, SqliteTransaction transaction = default)",
+                "bool UpdatePriority(TKey key, LuiPriority priority, SqliteTransaction transaction = default)",
+                "bool UpdateWeight(TKey key, int weight, SqliteTransaction transaction = default)",
+                "int UpsertMany(IEnumerable<LuiEntry<TKey, TPayload>> entries, SqliteTransaction transaction = default, CancellationToken cancellationToken = default)",
+                "void Rebuild()",
+                "void Upsert(LuiEntry<TKey, TPayload> entry, SqliteTransaction transaction = default)",
+                "void Upsert(TKey key, string text, TPayload payload, int weight = default, LuiPriority priority = default, SqliteTransaction transaction = default)",
+            ],
+            ["LuiLinkedIndex<TKey, TPayload>"] =
+            [
+                "LuiLinkedSyncReport Sync(LuiSyncOptions options = default, CancellationToken cancellationToken = default)",
+                "LuiTriggerState Triggers()",
+                "bool Refresh(TKey key, SqliteTransaction transaction = default)",
+                "int ApplyPending(CancellationToken cancellationToken = default)",
+                "int RefreshMany(IEnumerable<TKey> keys, SqliteTransaction transaction = default, CancellationToken cancellationToken = default)",
+                "long Pending()",
+                "string TriggerScript()",
+                "void CreateTriggers()",
+                "void DropTriggers()",
+            ],
+        };
+    }
+
+    /// <summary>The entry, the query, the result and the hit of the handles with a payload (ADR-0073, issue #269). <c>Payload</c> of the hit arrives with #262.</summary>
+    private static Dictionary<string, string[]> ExpectedPayloadValues()
+    {
+        return new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["LuiIndex<TKey, TPayload>"] =
+            [
+                "LuiIndexKind Kind { get; }",
+                "LuiIntegrityReport Check()",
+                "LuiQuery<TKey, TPayload> Query(string text)",
+                "LuiResult<TKey, TPayload> Search(string text, LuiQueryOptions options = default, CancellationToken cancellationToken = default)",
+                "LuiTypoDictionaryState TypoDictionaryState { get; }",
+                "LuiTypoDistance TypoDistance { get; }",
+                "long Count()",
+                "string Name { get; }",
+                "void Optimize()",
+                "void RebuildTypoDictionary(CancellationToken cancellationToken = default)",
+                "void WarmUpTypoDictionary(CancellationToken cancellationToken = default)",
+            ],
+            ["LuiEntry<TKey, TPayload>"] =
+            [
+                ".ctor(TKey key, string text, TPayload payload)",
+                "LuiPriority Priority { get; init; }",
+                "TKey Key { get; }",
+                "TPayload Payload { get; }",
+                "int Weight { get; init; }",
+                "string Text { get; }",
+            ],
+            ["LuiQuery<TKey, TPayload>"] =
+            [
+                "LuiQuery<TKey, TPayload> Candidates(int candidates)",
+                "LuiQuery<TKey, TPayload> PriorityMode(LuiPriorityMode mode)",
+                "LuiQuery<TKey, TPayload> Rank(LuiRankingOrder order)",
+                "LuiQuery<TKey, TPayload> Similarity(ILuiSimilarity similarity)",
+                "LuiQuery<TKey, TPayload> Take(int maxResults)",
+                "LuiQuery<TKey, TPayload> TrackTimings(bool track = default)",
+                "LuiQuery<TKey, TPayload> TypoTolerance(bool enabled = default)",
+                "LuiResult<TKey, TPayload> Execute(CancellationToken cancellationToken = default)",
+            ],
+            ["LuiResult<TKey, TPayload>"] =
+            [
+                ".ctor()",
+                "IReadOnlyList<LuiHit<TKey, TPayload>> Hits { get; init; }",
+                "LuiTimings Timings { get; init; }",
+                "bool CorrectionSkipped { get; init; }",
+                "bool Truncated { get; init; }",
+                "int CandidatesConsidered { get; init; }",
+                "string CorrectedQuery { get; init; }",
+                "string Query { get; init; }",
+            ],
+            ["LuiHit<TKey, TPayload>"] =
             [
                 ".ctor()",
                 "LuiPriority Priority { get; init; }",
