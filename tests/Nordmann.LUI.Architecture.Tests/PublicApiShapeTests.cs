@@ -93,6 +93,9 @@ public sealed class PublicApiShapeTests
             "LuiTypedHit", "LuiTypedResult",
         ];
 
+        // LuiHit and LuiResult have a generic form each (ADR-0073): the guard counts both forms of a name
+        const int genericForms = 2;
+
         // the name without the arity: the runtime appends it to a generic type, the list names the type
         var offenders = LibraryAssembly
             .GetExportedTypes()
@@ -104,7 +107,9 @@ public sealed class PublicApiShapeTests
             .ToArray();
 
         offenders.ShouldBeEmpty("The results and options are built with named properties.");
-        LibraryAssembly.GetExportedTypes().Count(type => named.Contains(TypeNames.Of(type), StringComparer.Ordinal)).ShouldBe(named.Length);
+        LibraryAssembly.GetExportedTypes().Count(type => named.Contains(TypeNames.Of(type), StringComparer.Ordinal)).ShouldBe(named.Length + genericForms);
+        LibraryAssembly.GetExportedTypes().Where(type => type.IsGenericTypeDefinition && TypeNames.Of(type) is "LuiHit" or "LuiResult")
+            .Select(TypeNames.Of).Order(StringComparer.Ordinal).ShouldBe(["LuiHit", "LuiResult"]);
     }
 
     [Fact]
@@ -151,7 +156,8 @@ public sealed class PublicApiShapeTests
         exceptions.Select(type => type.Name).Order(StringComparer.Ordinal)
             .ShouldBe(
             [
-                "LuiCatalogNotFoundException", "LuiDefinitionMismatchException", "LuiEnvironmentException", "LuiException",
+                "LuiCatalogNotFoundException", "LuiConfigurationException", "LuiDefinitionMismatchException", "LuiEnvironmentException",
+                "LuiException",
                 "LuiIndexNotFoundException", "LuiLinkedTableException", "LuiPayloadException", "LuiReadOnlyException",
             ]);
     }
@@ -176,6 +182,14 @@ public sealed class PublicApiShapeTests
 
         options.ShouldNotBeEmpty();
         settings.ShouldBe(options, "LuiQuery has a method for every property of LuiQueryOptions, and no method without one.");
+
+        // the typed query of an index definition has the same settings (ADR-0073)
+        var typedSettings = typeof(LuiQuery<>).GetMethods(declared)
+            .Where(method => method.ReturnType.IsGenericType && method.ReturnType.GetGenericTypeDefinition() == typeof(LuiQuery<>))
+            .Select(method => method.Name)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        typedSettings.ShouldBe(options, "LuiQuery<TKey> has the settings of LuiQuery, and no other.");
     }
 
     [Fact]
@@ -233,20 +247,55 @@ public sealed class PublicApiShapeTests
         MethodInfo[] Named(string name) =>
             [.. typeof(LuiCatalog).GetMethods(declared).Where(method => string.Equals(method.Name, name, StringComparison.Ordinal))];
 
+        // ADR-0073: a definition is the single declaration. `Create` and `Index` take one — an embedded definition gives an
+        // embedded handle, a linked definition a linked handle — and `Create(params …)` creates several in one transaction.
+        // The old calls stay, a thin layer over the same path, until their removal (issue #268).
         var created = Named("Create");
-        created.Length.ShouldBe(1, "the route is named in the call: `Create` creates an embedded index");
-        created.ShouldAllBe(method => !method.IsGenericMethodDefinition);
-        created[0].ReturnType.ShouldBe(typeof(ILuiEmbeddedIndex));
+        created.Length.ShouldBe(4, "the old `Create(name, …)`, one per definition type, and the many");
+        var createdEmbedded = created.Single(method => method.GetParameters().Length == 2);
+        createdEmbedded.IsGenericMethodDefinition.ShouldBeFalse();
+        createdEmbedded.ReturnType.ShouldBe(typeof(ILuiEmbeddedIndex));
+        createdEmbedded.GetParameters()[0].ParameterType.ShouldBe(typeof(string));
+
+        var definitions = created.Where(method => method.GetParameters().Length == 1).ToArray();
+        definitions.Length.ShouldBe(3);
+        var many = definitions.Single(method => method.ReturnType == typeof(void));
+        many.IsGenericMethodDefinition.ShouldBeFalse();
+        many.GetParameters().Single().ParameterType.ShouldBe(typeof(LuiIndexDefinitionBase[]));
+        many.GetParameters().Single().IsDefined(typeof(ParamArrayAttribute), inherit: false).ShouldBeTrue("`Create(a, b, c)`");
+        Handle(definitions, typeof(LuiIndexDefinition<>), typeof(LuiEmbeddedIndex<>));
+        Handle(definitions, typeof(LuiLinkedIndexDefinition<>), typeof(LuiLinkedIndex<>));
 
         var createdLinked = Named("CreateLinked");
-        createdLinked.Length.ShouldBe(1, "`CreateLinked` creates a linked index");
+        createdLinked.Length.ShouldBe(1, "`CreateLinked` creates a linked index — and has no definition form: `Create` takes both");
         createdLinked.ShouldAllBe(method => !method.IsGenericMethodDefinition);
         createdLinked[0].ReturnType.ShouldBe(typeof(ILuiLinkedIndex));
 
-        var embedded = Named("Index").ShouldHaveSingleItem("an embedded index is opened by its name, and by nothing else");
+        // the factory of the catalog stays: `Open` opens the catalog, `Index` opens the index (ADR-0033)
+        typeof(LuiCatalog).GetMethod(
+            "Open",
+            BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly,
+            [typeof(string), typeof(LuiCatalogOptions)]).ShouldNotBeNull();
+    }
+
+    [Fact]
+    public void The_catalog_opens_an_index_by_its_name_or_by_its_definition()
+    {
+        // ADR-0033 and ADR-0073: `Index` is the read path, one name for both sources. A definition gives the handle of its
+        // source; there is no `LinkedIndex(definition)`. The old calls stay until their removal (issue #268).
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly;
+        MethodInfo[] Named(string name) =>
+            [.. typeof(LuiCatalog).GetMethods(declared).Where(method => string.Equals(method.Name, name, StringComparison.Ordinal))];
+
+        var opened = Named("Index");
+        opened.Length.ShouldBe(3, "an index is opened by its name, or by its definition — one name for both sources");
+        var embedded = opened.Single(method => method.GetParameters()[0].ParameterType == typeof(string));
         embedded.IsGenericMethodDefinition.ShouldBeFalse();
         embedded.ReturnType.ShouldBe(typeof(ILuiEmbeddedIndex));
         embedded.GetParameters().Select(parameter => parameter.ParameterType).ShouldBe([typeof(string)]);
+        var openedByDefinition = opened.Where(method => method != embedded).ToArray();
+        Handle(openedByDefinition, typeof(LuiIndexDefinition<>), typeof(LuiEmbeddedIndex<>));
+        Handle(openedByDefinition, typeof(LuiLinkedIndexDefinition<>), typeof(LuiLinkedIndex<>));
 
         var linked = Named("LinkedIndex");
         linked.Length.ShouldBe(2, "a linked index without payload columns, and one with them and the map of the application");
@@ -256,11 +305,305 @@ public sealed class PublicApiShapeTests
             && method.GetGenericArguments().Length == 1
             && method.GetParameters().Last().ParameterType.GetGenericTypeDefinition() == typeof(Func<,>));
 
-        // the factory of the catalog stays: `Open` opens the catalog, `Index` opens the index (ADR-0033)
-        typeof(LuiCatalog).GetMethod(
-            "Open",
-            BindingFlags.Public | BindingFlags.Static | BindingFlags.DeclaredOnly,
-            [typeof(string), typeof(LuiCatalogOptions)]).ShouldNotBeNull();
+    }
+
+    /// <summary>The type of the key is the one type argument of the method, and the compiler infers it from the definition.</summary>
+    private static void Handle(MethodInfo[] methods, Type definition, Type handle)
+    {
+        var method = methods.Single(candidate => candidate.IsGenericMethodDefinition
+            && candidate.GetParameters().Single().ParameterType.GetGenericTypeDefinition() == definition);
+        method.GetGenericArguments().Length.ShouldBe(1);
+        method.ReturnType.GetGenericTypeDefinition().ShouldBe(handle);
+        method.ReturnType.GetGenericArguments().Single().ShouldBe(method.GetGenericArguments().Single());
+    }
+
+    [Fact]
+    public void No_builder_holds_a_catalog()
+    {
+        // ADR-0073: a builder describes, the catalog creates — a builder that holds the catalog (or a name) is a builder
+        // that creates. The guard reads every field and every property of every builder, the private ones too.
+        const BindingFlags all = BindingFlags.Instance | BindingFlags.Static | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        var builders = LibraryAssembly.GetTypes()
+            .Where(type => type.Name.Contains("Builder", StringComparison.Ordinal) && !type.Name.StartsWith('<'))
+            .ToArray();
+        builders.Length.ShouldBeGreaterThanOrEqualTo(3, "the guard sees the three builders");
+
+        var offenders = builders
+            .SelectMany(type => type.GetFields(all).Select(field => (Member: $"{type.Name}.{field.Name}", Type: field.FieldType))
+                .Concat(type.GetProperties(all).Select(property => (Member: $"{type.Name}.{property.Name}", Type: property.PropertyType)))
+                .Concat(type.GetConstructors(all).SelectMany(constructor => constructor.GetParameters()
+                    .Select(parameter => (Member: $"{type.Name}..ctor({parameter.Name})", Type: parameter.ParameterType)))))
+            .Where(member => member.Type == typeof(LuiCatalog))
+            .Select(member => member.Member)
+            .ToArray();
+
+        offenders.ShouldBeEmpty("No builder holds a LuiCatalog: the catalog creates from the description.");
+    }
+
+    [Fact]
+    public void No_type_outside_LUI_can_derive_from_the_definition_base()
+    {
+        // ADR-0073: the two kinds of definition are the whole family — the overloads of Create and Index rely on it
+        const BindingFlags all = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.DeclaredOnly;
+        var @base = typeof(LuiIndexDefinitionBase);
+
+        @base.IsAbstract.ShouldBeTrue();
+        @base.GetConstructors(all).ShouldNotBeEmpty();
+        @base.GetConstructors(all).ShouldAllBe(
+            constructor => !(constructor.IsPublic || constructor.IsFamily || constructor.IsFamilyOrAssembly),
+            "a constructor that another assembly can call is a way to derive");
+
+        LibraryAssembly.GetTypes()
+            .Where(type => type.IsSubclassOf(@base))
+            .Select(type => type.Name)
+            .Order(StringComparer.Ordinal)
+            .ShouldBe(["LuiIndexDefinition`1", "LuiLinkedIndexDefinition`1"]);
+        LibraryAssembly.GetTypes().Where(type => type.IsSubclassOf(@base)).ShouldAllBe(type => type.IsSealed, "a definition type does not derive from another");
+
+        // the handles are closed in the same way: no constructor of the abstract read side can be called from outside
+        typeof(LuiIndex<>).IsAbstract.ShouldBeTrue();
+        typeof(LuiIndex<>).GetConstructors(all).ShouldAllBe(
+            constructor => !(constructor.IsPublic || constructor.IsFamily || constructor.IsFamilyOrAssembly));
+    }
+
+    [Fact]
+    public void The_typed_handles_have_exactly_the_members_of_the_release()
+    {
+        // ADR-0073 and issue #261: the members of the typed handles, as the tables of the issue name them — sorted, one
+        // string each. The target that every later pull request extends (payload variants, CheckPayloads, NeedsInitialSync, …).
+        // A change of the surface is a change of this list, in the same commit.
+        var expected = ExpectedMembers();
+
+        var actual = LibraryAssembly.GetExportedTypes()
+            .Where(type => type.IsGenericTypeDefinition || string.Equals(type.Name, nameof(LuiIndexDefinitionBase), StringComparison.Ordinal))
+            .Where(type => expected.ContainsKey(TypeText(type)))
+            .ToDictionary(TypeText, type => MemberSignatures(type).Order(StringComparer.Ordinal).ToArray(), StringComparer.Ordinal);
+
+        actual.Keys.Order(StringComparer.Ordinal).ShouldBe(expected.Keys.Order(StringComparer.Ordinal));
+        foreach (var (name, members) in expected)
+        {
+            actual[name].ShouldBe(members.Order(StringComparer.Ordinal).ToArray(), name);
+        }
+
+        // modifiers and equality (the tables of the issue)
+        typeof(LuiIndex<>).IsAbstract.ShouldBeTrue();
+        typeof(LuiEmbeddedIndex<>).BaseType!.GetGenericTypeDefinition().ShouldBe(typeof(LuiIndex<>));
+        typeof(LuiLinkedIndex<>).BaseType!.GetGenericTypeDefinition().ShouldBe(typeof(LuiIndex<>));
+        new[] { typeof(LuiEmbeddedIndex<>), typeof(LuiLinkedIndex<>), typeof(LuiQuery<>), typeof(LuiResult<>), typeof(LuiHit<>), typeof(LuiEntry<>) }
+            .ShouldAllBe(type => type.IsSealed && type.IsClass);
+        new[] { typeof(LuiEntry<>), typeof(LuiHit<>) }.ShouldAllBe(type => type.GetMethod("<Clone>$") != null, "records: value equality");
+        new[] { typeof(LuiIndex<>), typeof(LuiEmbeddedIndex<>), typeof(LuiLinkedIndex<>), typeof(LuiQuery<>), typeof(LuiResult<>) }
+            .ShouldAllBe(type => IsReferenceEqual(type), "reference equality");
+        new[] { typeof(LuiIndex<>), typeof(LuiEmbeddedIndex<>), typeof(LuiLinkedIndex<>), typeof(LuiEntry<>), typeof(LuiQuery<>), typeof(LuiResult<>), typeof(LuiHit<>), typeof(LuiIndexDefinition<>), typeof(LuiLinkedIndexDefinition<>) }
+            .ShouldAllBe(type => HasNotNullConstraint(type.GetGenericArguments().Single()), "where TKey : notnull");
+    }
+
+    /// <summary>The members of the typed handles of this release (ADR-0073): sorted by the test, listed here as the tables of the issue name them.</summary>
+    private static Dictionary<string, string[]> ExpectedMembers()
+    {
+        return new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["LuiIndexDefinitionBase"] =
+            [
+                "LuiIndexSource Source { get; }",
+                "string Name { get; }",
+                "string ToString()",
+                "Type KeyType { get; }",
+                "Type PayloadType { get; }",
+            ],
+            ["LuiIndexDefinition<TKey>"] =
+            [
+                ".ctor(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)",
+            ],
+            ["LuiLinkedIndexDefinition<TKey>"] =
+            [
+                ".ctor(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)",
+            ],
+            ["LuiEmbeddedIndex<TKey>"] =
+            [
+                "LuiIntegrityReport Check(IEnumerable<LuiEntry<TKey>> entries, CancellationToken cancellationToken = default)",
+                "LuiSyncReport Sync(IAsyncEnumerable<LuiEntry<TKey>> entries, LuiSyncOptions options = default, CancellationToken cancellationToken = default)",
+                "LuiSyncReport Sync(IEnumerable<LuiEntry<TKey>> entries, LuiSyncOptions options = default, CancellationToken cancellationToken = default)",
+                "bool Remove(TKey key, SqliteTransaction transaction = default)",
+                "bool UpdatePriority(TKey key, LuiPriority priority, SqliteTransaction transaction = default)",
+                "bool UpdateWeight(TKey key, int weight, SqliteTransaction transaction = default)",
+                "int UpsertMany(IEnumerable<LuiEntry<TKey>> entries, SqliteTransaction transaction = default, CancellationToken cancellationToken = default)",
+                "void Rebuild()",
+                "void Upsert(LuiEntry<TKey> entry, SqliteTransaction transaction = default)",
+                "void Upsert(TKey key, string text, int weight = default, LuiPriority priority = default, SqliteTransaction transaction = default)",
+            ],
+            ["LuiLinkedIndex<TKey>"] =
+            [
+                "LuiLinkedSyncReport Sync(LuiSyncOptions options = default, CancellationToken cancellationToken = default)",
+                "LuiTriggerState Triggers()",
+                "bool Refresh(TKey key, SqliteTransaction transaction = default)",
+                "int ApplyPending(CancellationToken cancellationToken = default)",
+                "int RefreshMany(IEnumerable<TKey> keys, SqliteTransaction transaction = default, CancellationToken cancellationToken = default)",
+                "long Pending()",
+                "string TriggerScript()",
+                "void CreateTriggers()",
+                "void DropTriggers()",
+            ],
+        }
+        .Concat(ExpectedValues())
+        .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+    }
+
+    /// <summary>The entry, the query, the result and the hit of the typed handles (ADR-0073).</summary>
+    private static Dictionary<string, string[]> ExpectedValues()
+    {
+        return new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["LuiIndex<TKey>"] =
+            [
+                "LuiIndexKind Kind { get; }",
+                "LuiIntegrityReport Check()",
+                "LuiQuery<TKey> Query(string text)",
+                "LuiResult<TKey> Search(string text, LuiQueryOptions options = default, CancellationToken cancellationToken = default)",
+                "LuiTypoDictionaryState TypoDictionaryState { get; }",
+                "LuiTypoDistance TypoDistance { get; }",
+                "long Count()",
+                "string Name { get; }",
+                "void Optimize()",
+                "void RebuildTypoDictionary(CancellationToken cancellationToken = default)",
+                "void WarmUpTypoDictionary(CancellationToken cancellationToken = default)",
+            ],
+            ["LuiEntry<TKey>"] =
+            [
+                ".ctor(TKey key, string text)",
+                "LuiPriority Priority { get; init; }",
+                "TKey Key { get; init; }",
+                "int Weight { get; init; }",
+                "string Text { get; init; }",
+            ],
+            ["LuiQuery<TKey>"] =
+            [
+                "LuiQuery<TKey> Candidates(int candidates)",
+                "LuiQuery<TKey> PriorityMode(LuiPriorityMode mode)",
+                "LuiQuery<TKey> Rank(LuiRankingOrder order)",
+                "LuiQuery<TKey> Similarity(ILuiSimilarity similarity)",
+                "LuiQuery<TKey> Take(int maxResults)",
+                "LuiQuery<TKey> TrackTimings(bool track = default)",
+                "LuiQuery<TKey> TypoTolerance(bool enabled = default)",
+                "LuiResult<TKey> Execute(CancellationToken cancellationToken = default)",
+            ],
+            ["LuiResult<TKey>"] =
+            [
+                ".ctor()",
+                "IReadOnlyList<LuiHit<TKey>> Hits { get; init; }",
+                "LuiTimings Timings { get; init; }",
+                "bool CorrectionSkipped { get; init; }",
+                "bool Truncated { get; init; }",
+                "int CandidatesConsidered { get; init; }",
+                "string CorrectedQuery { get; init; }",
+                "string Query { get; init; }",
+            ],
+            ["LuiHit<TKey>"] =
+            [
+                ".ctor()",
+                "LuiPriority Priority { get; init; }",
+                "TKey Key { get; init; }",
+                "bool AtWordStart { get; init; }",
+                "double Similarity { get; init; }",
+                "int Weight { get; init; }",
+                "string Text { get; init; }",
+            ],
+        };
+    }
+
+    /// <summary>Whether a type is no record and keeps the equality of <see cref="object"/> — two handles are the same only when they are one.</summary>
+    private static bool IsReferenceEqual(Type type)
+    {
+        var equals = type.GetMethod("Equals", [typeof(object)]);
+        return type.GetMethod("<Clone>$") is null && equals?.DeclaringType == typeof(object);
+    }
+
+    /// <summary>Whether a type parameter is declared <c>where T : notnull</c>: the compiler writes a <c>NullableAttribute(1)</c>.</summary>
+    private static bool HasNotNullConstraint(Type parameter) =>
+        parameter.GetCustomAttributesData().Any(attribute => string.Equals(attribute.AttributeType.Name, "NullableAttribute", StringComparison.Ordinal)
+            && attribute.ConstructorArguments.Count == 1
+            && attribute.ConstructorArguments[0].Value is byte value
+            && value == 1);
+
+    /// <summary>The public members a type declares, one string each: <c>ReturnType Name(Type name, …)</c> or <c>Type Name { get; init; }</c>.</summary>
+    private static IEnumerable<string> MemberSignatures(Type type)
+    {
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        var generated = new HashSet<string>(StringComparer.Ordinal) { "Equals", "GetHashCode", "Deconstruct", "<Clone>$" };
+        var isRecord = type.GetMethod("<Clone>$", declared | BindingFlags.NonPublic) is not null;
+
+        foreach (var constructor in type.GetConstructors(declared))
+        {
+            yield return $".ctor({Parameters(constructor)})";
+        }
+
+        foreach (var method in type.GetMethods(declared).Where(method => !method.IsSpecialName))
+        {
+            if (generated.Contains(method.Name) || (isRecord && string.Equals(method.Name, "ToString", StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            yield return $"{TypeText(method.ReturnType)} {method.Name}({Parameters(method)})";
+        }
+
+        foreach (var property in type.GetProperties(declared))
+        {
+            var setter = property.SetMethod is null
+                ? string.Empty
+                : property.SetMethod.ReturnParameter.GetRequiredCustomModifiers().Any(modifier => string.Equals(modifier.Name, "IsExternalInit", StringComparison.Ordinal))
+                    ? " init;"
+                    : " set;";
+            yield return $"{TypeText(property.PropertyType)} {property.Name} {{ get;{setter} }}";
+        }
+    }
+
+    private static string Parameters(MethodBase method) =>
+        string.Join(", ", method.GetParameters().Select(parameter =>
+            $"{TypeText(parameter.ParameterType)} {parameter.Name}{(parameter.IsOptional ? " = default" : string.Empty)}"));
+
+    /// <summary>A type as C# writes it: keywords for the simple types, the name without the arity, the arguments in angle brackets.</summary>
+    private static string TypeText(Type type)
+    {
+        if (type == typeof(void))
+        {
+            return "void";
+        }
+
+        if (type == typeof(long))
+        {
+            return "long";
+        }
+
+        if (type == typeof(int))
+        {
+            return "int";
+        }
+
+        if (type == typeof(string))
+        {
+            return "string";
+        }
+
+        if (type == typeof(bool))
+        {
+            return "bool";
+        }
+
+        if (type == typeof(double))
+        {
+            return "double";
+        }
+
+        if (type.IsGenericParameter)
+        {
+            return type.Name;
+        }
+
+        var name = TypeNames.Of(type);
+        return type.IsGenericType
+            ? $"{name}<{string.Join(", ", type.GetGenericArguments().Select(TypeText))}>"
+            : name;
     }
 
     [Fact]
