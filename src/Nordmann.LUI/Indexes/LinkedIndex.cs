@@ -15,7 +15,7 @@ namespace Nordmann.LUI.Indexes;
 /// </para>
 /// </summary>
 #pragma warning disable CA1001 // see TypoDictionary: the lock of the dictionary needs no disposal, and an index lives as long as its catalog
-internal sealed class LinkedIndex : ILuiLinkedIndex
+internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
 #pragma warning restore CA1001
 {
     /// <summary>The rows a sync indexes per statement: the cancellation is checked between chunks.</summary>

@@ -62,15 +62,7 @@ public sealed class InternalLayeringTests
     [InlineData("Indexes")]
     public void No_layer_goes_up_through_the_facade(string layer)
     {
-        // every builder of the public API, the ones to come included
-        var facade = LibraryAssembly
-            .GetExportedTypes()
-            .Where(type => string.Equals(type.Namespace, Root, StringComparison.Ordinal)
-                        && type.Name.Contains("Builder", StringComparison.Ordinal))
-            .Select(type => type.FullName!)
-            .ToList();
-        facade.ShouldNotBeEmpty();
-        facade.Add($"{Root}.LuiCatalog");
+        var facade = Facade();
 
         var result = Types
             .InAssembly(LibraryAssembly)
@@ -83,6 +75,68 @@ public sealed class InternalLayeringTests
         result.IsSuccessful.ShouldBeTrue(
             $"{Root}.{layer} must not depend on {string.Join(", ", facade)}. Failing types: "
             + string.Join(", ", result.FailingTypeNames ?? []));
+    }
+
+    /// <summary>
+    /// The facade: what stands above every layer. Every builder of the public API (the ones to come included), the catalog
+    /// and — ADR-0073 — the index definitions and the typed handles, which wrap the indexes of <c>Indexes</c> and are
+    /// created by the catalog: no type below the root may reference them.
+    /// </summary>
+    private static List<string> Facade()
+    {
+        var facade = LibraryAssembly
+            .GetExportedTypes()
+            .Where(type => string.Equals(type.Namespace, Root, StringComparison.Ordinal)
+                        && type.Name.Contains("Builder", StringComparison.Ordinal))
+            .Select(type => type.FullName!)
+            .ToList();
+        facade.ShouldNotBeEmpty();
+        facade.Add($"{Root}.LuiCatalog");
+
+        // the definitions and the handles are found by what they are, so the variants of #269 and #270 join without an edit:
+        // every public type that derives from the definition base or from the read side of a handle
+        facade.AddRange(LibraryAssembly
+            .GetExportedTypes()
+            .Where(type => string.Equals(type.Namespace, Root, StringComparison.Ordinal) && DerivesFrom(type))
+            .Select(type => type.FullName!));
+        return facade;
+    }
+
+    private static bool DerivesFrom(Type type)
+    {
+        for (var current = type; current is not null; current = current.BaseType)
+        {
+            var found = current == typeof(LuiIndexDefinitionBase)
+                || (current.IsGenericType && current.GetGenericTypeDefinition() == typeof(LuiIndex<>));
+            if (found)
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    [Fact]
+    public void The_facade_holds_the_definitions_and_the_handles()
+    {
+        // the derivation finds today's six (a sanity check of the derivation, not the source of the list): a layer below the
+        // root that takes a definition or a handle is a way up past the rule (#265 moves the runtime into the catalog)
+        var facade = Facade();
+        string[] expected =
+        [
+            $"{Root}.LuiIndexDefinitionBase",
+            $"{Root}.LuiIndexDefinition`1",
+            $"{Root}.LuiLinkedIndexDefinition`1",
+            $"{Root}.LuiIndex`1",
+            $"{Root}.LuiEmbeddedIndex`1",
+            $"{Root}.LuiLinkedIndex`1",
+        ];
+
+        foreach (var name in expected)
+        {
+            facade.ShouldContain(name, StringComparer.Ordinal, "the facade lists the definitions and the handles");
+        }
     }
 
     [Fact]
