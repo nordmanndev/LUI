@@ -14,7 +14,7 @@ file into `0.4.0`.
 
 | # | Issue | Why here | Depends on | Status | PR |
 |---|---|---|---|---|---|
-| 1 | #259 API freeze moves to 1.0.0 (ADR-0071) | every later break cites it; docs only | — | open | — |
+| 1 | #259 API freeze moves to 1.0.0 (ADR-0071) | every later break cites it; docs only | — | in review | #279 |
 | 2 | #274 Baseline: v0.3.0 against itself (`QueryBenchmarks`) | #258 needs the noise before the first code PR | #259 | open | — |
 | 3 | #261 Definitions and typed handles, `long` keys (ADR-0073) | the contract everything builds on — riskiest, first | #274 | open | — |
 | 4 | #269 Payload variants, typed linked builder (ADR-0073) | extends the types of #261 | #261 | open | — |
