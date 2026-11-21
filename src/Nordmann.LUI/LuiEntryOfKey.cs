@@ -7,18 +7,24 @@ namespace Nordmann.LUI;
 /// What is written into an embedded index through a definition (ADR-0073): a key, a text, a weight and a priority.
 /// It is a record — two entries with the same values are equal. The payload variants come with issue #269.
 /// </summary>
-/// <param name="Key">The key of the entry.</param>
-/// <param name="Text">The text of the entry — what the search finds. It may not be empty.</param>
 /// <typeparam name="TKey">The type of the keys of the index.</typeparam>
-public sealed record LuiEntry<TKey>(TKey Key, string Text)
+public sealed record LuiEntry<TKey>
     where TKey : notnull
 {
-    /// <summary>The text of the entry — what the search finds. It may not be empty.</summary>
-    public string Text
+    /// <summary>Creates an entry.</summary>
+    /// <param name="key">The key of the entry.</param>
+    /// <param name="text">The text of the entry — what the search finds. It may not be empty.</param>
+    public LuiEntry(TKey key, string text)
     {
-        get;
-        init => field = Setting.NotEmpty(value, nameof(Text));
-    } = Setting.NotEmpty(Text, nameof(Text));
+        Key = key;
+        Text = Setting.NotEmpty(text, nameof(text));
+    }
+
+    /// <summary>The key of the entry.</summary>
+    public TKey Key { get; }
+
+    /// <summary>The text of the entry — what the search finds. It may not be empty.</summary>
+    public string Text { get; }
 
     /// <summary>The weight, 0 to 536,870,911: the popularity that orders the candidates. The default is 0.</summary>
     public int Weight
