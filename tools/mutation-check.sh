@@ -798,13 +798,32 @@ expect_caught "a-query-that-does-not-ask-the-guard" "${INTEGRATION_PROJECT}" \
 #       to see it.
 expect_caught "a-write-that-does-not-hold-the-lock-between-check-and-statement" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~AtomicCheckTests.Upsert_never_lands_in_an_index_that_was_created_again_between_the_check_and_the_write" \
-  "sed -i 's|var transaction = connection.BeginTransaction(deferred: false);|var transaction = connection.BeginTransaction(deferred: true);|' src/Nordmann.LUI/Indexes/EmbeddedIndex.cs"
+  "sed -i 's|^            var transaction = connection.BeginTransaction(deferred: false);|            var transaction = connection.BeginTransaction(deferred: true);|' src/Nordmann.LUI/Indexes/EmbeddedIndex.cs"
 
 # 35g. A count that checks outside its snapshot (issue #265, review of pull request 286): the check and the read are two
 #       snapshots, and the count can be the one of the index that was created again.
 expect_caught "a-count-that-checks-outside-its-snapshot" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~AtomicCheckTests.Count_answers_for_the_index_it_checked_or_throws_and_never_reads_the_new_one" \
   "sed -i 's|        _guard?.Check(connection, snapshot);|        _guard?.Check(connection);|' src/Nordmann.LUI/Indexes/EmbeddedIndex.cs"
+
+# 35h. A decision that is made on a snapshot another thread has replaced (issue #265, review of pull request 286): the open
+#       call throws a mismatch from the stale entry — and the message advises a drop. The test in which another thread
+#       reloads first has to see the false exception.
+expect_caught "an-open-call-that-throws-from-a-replaced-snapshot" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OpenCallTests.A_mismatch_that_was_judged_on_a_snapshot_another_thread_has_replaced_is_decided_again" \
+  "sed -i 's#        return ReloadIfChanged() || !ReferenceEquals(Current, judged);#        return ReloadIfChanged();#' src/Nordmann.LUI/Indexes/StoredIndexes.cs"
+
+# 35i. A guard that judges the newest definitions and not the snapshot of its operation (issue #265, review of pull request 286):
+#       a read that pinned its snapshot between a drop and a create runs on tables that are not there.
+expect_caught "a-guard-that-judges-another-snapshot-than-the-operation" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~GuardTests.A_read_that_pinned_its_snapshot_between_a_drop_and_a_create_ends_in_the_proper_exception" \
+  "sed -i 's|IndexStore.ReadIndex(connection, transaction, Name);|IndexStore.ReadIndex(_stored.Database, Name);|' src/Nordmann.LUI/Indexes/IndexGuard.cs"
+
+# 35j. A dictionary that is not looked at after it was built (issue #265, review of pull request 286): the texts of an index that
+#       was created again under the handle are the dictionary of the old one.
+expect_caught "a-dictionary-that-is-not-checked-after-its-build" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~AtomicCheckTests.The_typo_dictionary_of_a_handle_does_not_take_in_the_texts_of_an_index_that_was_created_again_under_it" \
+  "sed -i 's|            CheckAfterTheWork();|            _ = _guard;|' src/Nordmann.LUI/Indexes/EmbeddedIndex.cs"
 
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"

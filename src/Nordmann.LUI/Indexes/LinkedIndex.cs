@@ -53,7 +53,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         _source = source;
         Name = source.IndexName;
         Kind = source.Rules.Kind;
-        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance);
+        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance, source.Definition.ToJson());
         _runner = new QueryRunner(database, source, payload, similarity, _typos, typoDistance, guard);
         _payloadColumns = payload.Columns;
     }
@@ -130,6 +130,9 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         try
         {
             _typos.EnsureBuilt(cancellationToken);
+
+            // the index may have been created again while the texts were read: the dictionary is of another definition then
+            CheckAfterTheWork();
         }
         catch (SqliteException exception) when (_guard is not null)
         {
@@ -146,6 +149,9 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         try
         {
             _typos.Rebuild(cancellationToken);
+
+            // the index may have been created again while the texts were read: the dictionary is of another definition then
+            CheckAfterTheWork();
         }
         catch (SqliteException exception) when (_guard is not null)
         {
@@ -511,6 +517,20 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     /// A table that changed under the index — a column renamed, the table dropped — answers with a statement that names
     /// what is missing, not with a bare SQLite error (review of pull request 16, S4).
     /// </summary>
+    /// <summary>The check after the texts were read on a connection of their own: a dictionary of an index that was created again under it is let go.</summary>
+    private void CheckAfterTheWork()
+    {
+        try
+        {
+            _guard?.Check();
+        }
+        catch (Exception exception) when (exception is LuiIndexNotFoundException or LuiDefinitionMismatchException)
+        {
+            _typos.Discard();
+            throw;
+        }
+    }
+
     private T Guarded<T>(Func<T> run)
     {
         try

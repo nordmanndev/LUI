@@ -332,7 +332,21 @@ internal static class IndexStore
     internal static IndexStoreEntry? ReadIndex(Database database, string indexName)
     {
         using var connection = database.OpenReadConnection();
+        return ReadIndex(connection, null, indexName);
+    }
+
+    /// <summary>
+    /// The same read on a connection and in a transaction that are given: the row as the snapshot of an operation sees it
+    /// (ADR-0075) — what the guard of a handle has to judge, not what another connection sees a moment later.
+    /// </summary>
+    /// <param name="connection">A connection to the file.</param>
+    /// <param name="transaction">Its transaction, when it has one.</param>
+    /// <param name="indexName">The name of the index.</param>
+    /// <returns>What <c>lui_meta</c> holds, or <see langword="null"/> when there is no such index.</returns>
+    internal static IndexStoreEntry? ReadIndex(SqliteConnection connection, SqliteTransaction? transaction, string indexName)
+    {
         using var command = connection.CreateCommand();
+        command.Transaction = transaction;
         command.CommandText = ReadSql;
         command.Parameters.AddWithValue("$name", indexName);
 
@@ -345,7 +359,7 @@ internal static class IndexStore
     /// definitions in memory. A row that cannot be read — a kind this version does not know, an empty definition — is
     /// recorded as <see langword="null"/> and not thrown: one row that is not readable must not keep the catalog from
     /// opening, and the index that is asked for reads its row again and throws what was wrong with it
-    /// (<see cref="ReadIndex"/>), as it did before the definitions were kept.
+    /// (<see cref="ReadIndex(Database, string)"/>), as it did before the definitions were kept.
     /// </summary>
     /// <param name="connection">A connection to the file.</param>
     /// <param name="transaction">Its transaction, when it has one — the counter and the definitions are read in one snapshot.</param>

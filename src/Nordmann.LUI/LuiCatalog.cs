@@ -960,15 +960,41 @@ public sealed class LuiCatalog : IDisposable
             : OpenFirst(definition, make);
     }
 
-    /// <summary>The first call of a definition, and the call after its handle failed: the stored definition is found in memory, compared with the declared one, and the runtime is built or taken.</summary>
+    /// <summary>A seam of the tests (ADR-0075): runs when a call has entered the slow path of the open call, before it judges anything.</summary>
+    internal Action? AfterSlowPathStarted { get; set; }
+
+    /// <summary>
+    /// The first call of a definition, and the call after its handle failed: the stored definition is found in memory, compared
+    /// with the declared one, and the runtime is built. The handles are made and replaced under one lock, and a handle that failed
+    /// is removed only there, and only when it is still the one in the table: a definition object has <b>one</b> handle, and no
+    /// handle that was handed out escapes <c>DropIndex</c>.
+    /// </summary>
     private THandle OpenFirst<THandle>(LuiIndexDefinitionBase definition, Func<IndexRuntime, LuiCatalog, THandle> make)
         where THandle : class
     {
-        // a handle that failed is not kept — whether the definition finds its index again or not
-        _ = _handles.Remove(definition);
+        AfterSlowPathStarted?.Invoke();
 
-        var resolved = definition.Resolve();
-        var entry = FindStored(resolved.Name, resolved.Description.ToStored(resolved.KeyType), out var counter);
+        IndexStoreEntry entry;
+        ResolvedIndex resolved;
+        long counter;
+        try
+        {
+            resolved = definition.Resolve();
+            entry = FindStored(resolved.Name, resolved.Description.ToStored(resolved.KeyType), out counter);
+        }
+        catch
+        {
+            // a handle that failed is not kept — whether the definition finds its index again or not
+            lock (_handleGate)
+            {
+                if (_handles.TryGetValue(definition, out var failed) && failed.Guard.HasFailed)
+                {
+                    _ = _handles.Remove(definition);
+                }
+            }
+
+            throw;
+        }
 
         lock (_handleGate)
         {
@@ -986,9 +1012,9 @@ public sealed class LuiCatalog : IDisposable
 
     /// <summary>
     /// The stored index of a name, from the definitions in memory, after the comparison with the declared one. The definitions in
-    /// memory may be old — another process may have created, dropped or created the index again: before the answer is a
-    /// "not found" or a mismatch, the file's schema counter is looked at once, and the definitions are read again when it
-    /// changed.
+    /// memory may be old — another process may have created, dropped or created the index again — so an answer that is "not
+    /// found" or a mismatch is thrown only from a snapshot that is the newest one and at the counter of the file: when another
+    /// thread has replaced the snapshot in the meantime, or the file has moved, the decision is made again from the current one.
     /// </summary>
     /// <param name="name">The validated name of the index.</param>
     /// <param name="declared">The definition the application declared.</param>
@@ -998,19 +1024,30 @@ public sealed class LuiCatalog : IDisposable
     /// <exception cref="LuiDefinitionMismatchException">The stored definition is another one; the message names the fields.</exception>
     private IndexStoreEntry FindStored(string name, IndexDefinition declared, out long counter)
     {
-        var entry = StoredIndexes.Find(name, out counter) ?? throw new LuiIndexNotFoundException(name);
-        entry.EnsureReadable(name);
-        if (entry.Definition == declared)
+        var entry = StoredIndexes.Find(name, out var snapshot);
+        if (entry is not null)
         {
-            return entry;
+            entry.EnsureReadable(name);
+            if (entry.Definition == declared)
+            {
+                counter = snapshot.Counter;
+                return entry;
+            }
+
+            if (!StoredIndexes.Refresh(snapshot))
+            {
+                throw IndexStore.Mismatch(name, entry.Definition, declared);
+            }
+
+            entry = StoredIndexes.Find(name, out snapshot);
         }
 
-        if (!StoredIndexes.ReloadIfChanged())
+        counter = snapshot.Counter;
+        if (entry is null)
         {
-            throw IndexStore.Mismatch(name, entry.Definition, declared);
+            throw new LuiIndexNotFoundException(name);
         }
 
-        entry = StoredIndexes.Find(name, out counter) ?? throw new LuiIndexNotFoundException(name);
         entry.EnsureReadable(name);
         return entry.Definition == declared ? entry : throw IndexStore.Mismatch(name, entry.Definition, declared);
     }

@@ -60,7 +60,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         Kind = source.Rules.Kind;
         _keyType = KeyCodec.TypeOf(source.Definition.KeyType);
         KeyKind = KeyCodec.KindOf(_keyType);
-        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance);
+        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance, source.Definition.ToJson());
         _runner = new QueryRunner(
             database, source, new SerializedPayload(Name, payload), similarity, _typos, typoDistance, guard);
         _sync = new EmbeddedSync(database, source, KeyText, PayloadBytes, _typos, guard);
@@ -486,10 +486,28 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         try
         {
             work();
+            CheckAfterTheWork();
         }
         catch (SqliteException exception) when (_guard is not null)
         {
             _guard.Explain(exception);
+            throw;
+        }
+    }
+
+    /// <summary>
+    /// The check after work that read on a connection of its own: the index may have been created again while it read, and the
+    /// dictionary is then built from the texts of another definition — it is let go, and the handle says so.
+    /// </summary>
+    private void CheckAfterTheWork()
+    {
+        try
+        {
+            _guard?.Check();
+        }
+        catch (Exception exception) when (exception is LuiIndexNotFoundException or LuiDefinitionMismatchException)
+        {
+            _typos.Discard();
             throw;
         }
     }

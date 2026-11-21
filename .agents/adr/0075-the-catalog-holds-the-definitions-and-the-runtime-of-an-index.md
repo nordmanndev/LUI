@@ -49,8 +49,9 @@ handle of an index that was dropped and created again under the same name worked
    runtime of about 20 KB per request that outlived its definition would be a leak for as long as the catalog lives. (An earlier
    draft keyed the runtimes by name, type, stored definition, similarity and map in a strong dictionary; it grew with every
    definition object, and kept one dead runtime per recreate.) Two definition objects of one index each have a runtime of their
-   own — they are two views of the same index. The typo dictionary stays per catalog and name (`TypoDictionaries`); it is not
-   duplicated in the runtime. A runtime whose guard failed is dropped from the table at the next open call.
+   own — they are two views of the same index. The typo dictionary stays per catalog, name **and stored definition** (`TypoDictionaries`): it is built from the texts, the
+   normalisation and the distance of one definition, so an index that another process created again under the same name with another
+   one gets a dictionary of its own and the old one is let go; it is not duplicated in the runtime. A runtime whose guard failed is dropped from the table at the next open call.
 3. **A handle is thin and cached per definition.** `catalog.Index(definition)` and `catalog.Create(definition)` return **the same
    handle instance for the same definition object**. At the first call the stored definition is found in memory and compared with the
    declared one, once; after that the call is a lookup in a `ConditionalWeakTable` — **0 B allocated, no `SqliteCommand`**
@@ -69,8 +70,11 @@ handle of an index that was dropped and created again under the same name worked
    process's drop waits for the commit); a read — a query, `Count`, `Pending`, the triggers — checks in the deferred snapshot it
    reads in; a check or a sync checks in each of its transactions; a write with a `transaction` of the application checks on the
    application's connection, in its transaction, after the transaction was found to be of this database. Only the typo
-   dictionary reads on a connection of its own: it checks first, and a missing table under it is explained by a second check, so
-   that it surfaces as the proper exception and not as a bare SQLite error. The guard of the runtime (`IndexGuard`) compares it with the
+   dictionary reads on a connection of its own: it checks first and **after** — a dictionary built while the index was dropped or
+   created again with another definition is let go and the handle throws — and a missing table under it is explained by a check, so
+   that it surfaces as the proper exception and not as a bare SQLite error. When the counter differs, the guard judges **the row as
+   the snapshot of the operation sees it** (it reads `lui_meta` on the connection and in the transaction of the operation), not the
+   newest definitions: a read that pinned its snapshot between a drop and a create ends in the exception of that snapshot. The guard of the runtime (`IndexGuard`) compares it with the
    counter it validated at. Equal: go on. Different: the guard looks at the definitions of the catalog — reloaded once from
    `lui_meta`, by whoever comes first — and
    - the index is gone: the operation throws `LuiIndexNotFoundException`;
@@ -84,14 +88,19 @@ handle of an index that was dropped and created again under the same name worked
    connection at its start — a sync, a check, a rebuild, the typo dictionary — takes a read connection for the one statement. A change
    of the application's own tables only causes a harmless reload. A counter that was read inside a
    transaction of the application is that transaction's — it may have changed the schema itself, and may be rolled back — and is
-   **never published** to the other handles; the guard remembers it apart, for that transaction's operations only, so a migration
+   **never published** to the other handles; the guard remembers it apart, **keyed by that transaction object**, for that transaction's operations only (another transaction that
+   reaches the same number is judged anew), so a migration
    that creates a table and fills an index in one transaction does not reload at every operation. A failure of another LUI format
    or key type is kept like the others, and reloads nothing again.
-6. **Unknown name.** The catalog reloads the definitions **once**; if the index is still missing it throws
+6. **Unknown name, and a stale snapshot under concurrency.** The catalog reloads the definitions **once**; if the index is still missing it throws
    `LuiIndexNotFoundException`, and the name is remembered **until the counter changes** — asking again costs the one statement that
    reads the counter, and no reload. When the stored definition differs from the declared one, the counter is looked at once before
    it is a mismatch: the definitions in memory may be old, and a new open call after a recreate by another process sees the new
-   definition.
+   definition. **A decision is thrown only from a snapshot that is still the newest and at the counter of the file**: when another thread
+   has replaced the snapshot meanwhile (it reloaded first), the call decides again from the current one — a false mismatch would
+   advise the application to drop an index that is right. A reload never replaces a newer snapshot with an older one. The handles are
+   made, and a failed one is replaced, under one lock: a definition object has one handle, whatever the number of threads, and no
+   handle that was handed out escapes `DropIndex`.
 7. **`DropIndex` and `Create` write the file and the memory.** `DropIndex` forgets the typo dictionary, marks every handle of the
    index that was handed out as dropped — the handles that were handed out are stale from now on ("index objects that were created before do not survive
    it", as the page says) — and reads the definitions again. `Create` already took the write lock (`BEGIN IMMEDIATE`) and read

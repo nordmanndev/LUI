@@ -30,7 +30,7 @@ internal sealed class IndexGuard : IConnectionGuard
     private readonly StoredIndexes _stored;
     private readonly IndexDefinition _expected;
     private long _validatedAt;
-    private long _validatedInTransaction = long.MinValue;
+    private InTransaction? _validatedInTransaction;
     private Failure? _failure;
 
     /// <param name="stored">The definitions of the catalog.</param>
@@ -72,12 +72,12 @@ internal sealed class IndexGuard : IConnectionGuard
 
         var counter = Database.ReadSchemaCounter(connection, transaction);
         _stored.Database.AfterSchemaCheck?.Invoke();
-        if (counter == Volatile.Read(ref _validatedAt) || (application && counter == Volatile.Read(ref _validatedInTransaction)))
+        if (counter == Volatile.Read(ref _validatedAt) || (application && IsValidatedIn(transaction, counter)))
         {
             return;
         }
 
-        Revalidate(counter, application);
+        Revalidate(connection, transaction, counter, application);
     }
 
     /// <summary>
@@ -115,21 +115,24 @@ internal sealed class IndexGuard : IConnectionGuard
         }
     }
 
-    private void Revalidate(long counter, bool application)
+    private bool IsValidatedIn(SqliteTransaction? transaction, long counter) =>
+        Volatile.Read(ref _validatedInTransaction) is { } validated
+        && validated.Counter == counter
+        && validated.Transaction.TryGetTarget(out var known)
+        && ReferenceEquals(known, transaction);
+
+    private void Revalidate(SqliteConnection connection, SqliteTransaction? transaction, long counter, bool application)
     {
-        var snapshot = _stored.Current;
-        if (snapshot.Counter != counter)
+        // the definitions of the catalog are brought up to date for the open calls — but the guard judges the row as the snapshot
+        // of the operation sees it: a read that pinned its snapshot between a drop and a create must end in the exception of that
+        // snapshot, not in a bare "no such table" after the newest definitions said "fine"
+        if (_stored.Current.Counter != counter)
         {
-            snapshot = _stored.Reload();
+            _ = _stored.Reload();
         }
 
-        if (!snapshot.Entries.TryGetValue(Name, out var entry))
-        {
-            throw Fail(new Failure());
-        }
-
-        // a row this version cannot read says what is wrong with it when it is read again
-        entry ??= IndexStore.ReadIndex(_stored.Database, Name);
+        // a row this version cannot read says what is wrong with it
+        var entry = IndexStore.ReadIndex(connection, transaction, Name);
         if (entry is null)
         {
             throw Fail(new Failure());
@@ -152,9 +155,13 @@ internal sealed class IndexGuard : IConnectionGuard
 
         // validated at the counter of the connection of the operation: a counter that was read inside a transaction of the
         // application is that transaction's — it may be rolled back — and is kept apart from the one of the file
-        if (application)
+        if (application && transaction is not null)
         {
-            Volatile.Write(ref _validatedInTransaction, counter);
+            Volatile.Write(ref _validatedInTransaction, new InTransaction(new WeakReference<SqliteTransaction>(transaction), counter));
+        }
+        else if (application)
+        {
+            // a connection of the application without a transaction: nothing to key the counter by, and nothing is kept
         }
         else
         {
@@ -167,6 +174,9 @@ internal sealed class IndexGuard : IConnectionGuard
         _ = Interlocked.CompareExchange(ref _failure, failure, comparand: null);
         return Volatile.Read(ref _failure)!.ToException(Name, _expected);
     }
+
+    /// <summary>A counter that was validated inside one transaction of the application — and in no other.</summary>
+    private sealed record InTransaction(WeakReference<SqliteTransaction> Transaction, long Counter);
 
     /// <summary>
     /// Why the runtime is of no use, as a record: the index is gone (nothing is set), another definition is stored
