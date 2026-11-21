@@ -174,6 +174,54 @@ public sealed class IndexDefinitionTests
         database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(0);
     }
 
+    [Fact]
+    public void Create_names_the_definition_whose_linked_table_is_broken()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+
+        var good = new LuiLinkedIndexDefinition<long>("good", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        var broken = new LuiLinkedIndexDefinition<long>("broken", index => index.SingleWord().LinkTo("tag", "id", "no_such_column"));
+
+        var exception = Should.Throw<LuiLinkedTableException>(() => catalog.Create(good, broken));
+
+        exception.Message.ShouldContain("broken", Case.Sensitive, "the exception names the definition that failed");
+        exception.Message.ShouldContain("no_such_column", Case.Sensitive, "and keeps the detail of the table");
+        exception.InnerException.ShouldBeOfType<LuiLinkedTableException>();
+        database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(0);
+    }
+
+    [Fact]
+    public void Create_names_the_definition_whose_table_is_missing_when_both_link_to_it()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+
+        var first = new LuiLinkedIndexDefinition<long>("first", index => index.SingleWord().LinkTo("nowhere", "id", "name"));
+        var second = new LuiLinkedIndexDefinition<long>("second", index => index.SingleWord().LinkTo("nowhere", "id", "name"));
+
+        Should.Throw<LuiLinkedTableException>(() => catalog.Create(first, second)).Message.ShouldContain("first", Case.Sensitive);
+    }
+
+    [Fact]
+    public void A_read_only_refusal_names_the_definition_whose_write_was_refused()
+    {
+        using var database = new TestDatabase();
+        using (var writer = database.Open())
+        {
+            writer.Create(Tags);
+        }
+
+        using var reader = LuiCatalog.OpenReadOnly(database.FilePath);
+        var second = new LuiIndexDefinition<long>("second", index => index.SingleWord());
+
+        var exception = Should.Throw<LuiReadOnlyException>(() => reader.Create(Tags, second));
+
+        exception.Message.ShouldContain("second", Case.Sensitive, "tags exists and needs no write: the refused write is the one of 'second'");
+        exception.Message.ShouldNotContain("'tags'", Case.Sensitive);
+    }
+
     // ---- what is compared ------------------------------------------------------------------------------------------
 
     [Fact]
