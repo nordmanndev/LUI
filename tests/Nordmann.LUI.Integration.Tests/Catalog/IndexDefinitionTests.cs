@@ -470,11 +470,11 @@ public sealed class IndexDefinitionTests
         var good = new LuiIndexDefinition<long>("good", index => index.SingleWord());
         LuiIndexDefinitionBase[] broken =
         [
-            new LuiIndexDefinition<int>("ints", index => index.SingleWord()),
+            new LuiIndexDefinition<double>("doubles", index => index.SingleWord()),
             new LuiIndexDefinition<long>("with_key", index => index.SingleWord().WithKey(LuiKeyKind.Text)),
             // `WithPayload` inside a LuiLinkedIndexDefinition<long> no longer compiles (issue #269); the payload variants are
             // definitions of their own, and a key type that is not allowed fails there, too
-            new LuiLinkedIndexDefinition<int, string>(
+            new LuiLinkedIndexDefinition<double, string>(
                 "with_payload", index => index.SingleWord().LinkTo("tag", "id", "name").WithPayload(["slug"], row => row.GetString("slug"))),
             new LuiIndexDefinition<long>("null_function", (Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder>)null!),
             new LuiIndexDefinition<long>("own_failure", _ => throw new LuiConfigurationException("my own words")),
@@ -645,7 +645,7 @@ public sealed class IndexDefinitionTests
     {
         public static readonly LuiIndexDefinition<long> BadName = new("Bad Name", index => index.SingleWord());
 
-        public static readonly LuiIndexDefinition<int> UnsupportedKey = new("ints", index => index.SingleWord());
+        public static readonly LuiIndexDefinition<double> UnsupportedKey = new("doubles", index => index.SingleWord());
 
         public static readonly LuiIndexDefinition<long> WithKeyInside =
             new("texts", index => index.SingleWord().WithKey(LuiKeyKind.Text));

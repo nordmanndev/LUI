@@ -287,18 +287,18 @@ public sealed class ReadPathTests
     [Fact]
     public void A_definition_with_a_kind_of_key_this_version_does_not_know_says_so_when_it_is_opened()
     {
-        // review of PR 60, M3: a key type that is neither "long" nor "string" is not read as numbers — the first hit
-        // would fail far from the cause, in long.Parse
+        // review of PR 60, M3: a key type that is none of the four of this version ("long", "int", "string", "guid") is not read as
+        // numbers — the first hit would fail far from the cause, in long.Parse
         using var database = new TestDatabase();
         using var catalog = database.Open();
         catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
         var stored = database.Scalar<string>("SELECT definition FROM lui_meta WHERE index_name = 'tags';");
-        WriteDefinition(database, "tags", stored.Replace("\"keyType\":\"long\"", "\"keyType\":\"int\"", StringComparison.Ordinal));
+        WriteDefinition(database, "tags", stored.Replace("\"keyType\":\"long\"", "\"keyType\":\"decimal\"", StringComparison.Ordinal));
 
         var exception = Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index("tags"));
 
         exception.IndexName.ShouldBe("tags");
-        exception.Message.ShouldContain("int");
+        exception.Message.ShouldContain("decimal");
     }
 
     [Fact]
