@@ -120,6 +120,9 @@ internal sealed class IndexFixture : IDisposable
     /// <summary>The corpus the index was built from.</summary>
     internal Corpus Corpus { get; }
 
+    /// <summary>The catalog the index lives in: the benchmark of the open call takes its handle from it.</summary>
+    internal LuiCatalog Catalog => _catalog;
+
     /// <summary>The index itself.</summary>
     internal ILuiIndex Index { get; }
 
