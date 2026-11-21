@@ -16,7 +16,7 @@ file into `0.4.0`.
 |---|---|---|---|---|---|
 | 1 | #259 API freeze moves to 1.0.0 (ADR-0071) | every later break cites it; docs only | — | merged | #279 — the freeze comes with 1.0.0; no `[Obsolete]` bridges before it |
 | 2 | #274 Baseline: v0.3.0 against itself (`QueryBenchmarks`) | #258 needs the noise before the first code PR | #259 | merged | #281 — the baseline stands as measured; performance only at the end (#275), observations in #280 |
-| 3 | #261 Definitions and typed handles, `long` keys (ADR-0073) | the contract everything builds on — riskiest, first | #274 | in review | #282 |
+| 3 | #261 Definitions and typed handles, `long` keys (ADR-0073) | the contract everything builds on — riskiest, first | #274 | stopped — round limit, owner decision | #282 |
 | 4 | #269 Payload variants, typed linked builder (ADR-0073) | extends the types of #261 | #261 | open | — |
 | 5 | #270 Key types `int`/`string`/`Guid`, LUI format 2 (ADR-0073) | the file format #260/#272/#271 add to | #269 | open | — |
 | 6 | #265 Runtime in the catalog, 0 B open, several processes (ADR-0075) | the query path; its budget risk shows early | #270 | open | — |
@@ -37,6 +37,15 @@ file into `0.4.0`.
 gate: performance is checked once, at the end (#275) — did 0.4.0 get markedly worse or better than 0.3.0. Observations about
 performance on the way go into one performance issue for the next milestone, not into the PRs. The code PRs of this run
 need no per-PR A/B measurement (owner, 2026-11-21: performance is looked at at the end).
+
+**Stopped (2026-11-21, #261 / PR #282):** three review rounds are used and round 3 still had one blocker (a configuration
+failure inside `Create(a, b, c)` did not name its definition). The blocker is fixed on the branch (commits `0d3c4da`,
+`0e8cbff`; format, build and all four suites green locally), but no reviewer has seen that state, and the rules forbid a
+fourth round. Options: **A** the owner merges #282 as is, or reads the last two commits (about 100 lines) and says
+"merge"; **B** a fourth, narrow review of only those two commits (an exception to the round rule); **C** rework. The
+rounds found, in turn: round 1 three blockers (the `LuiEntry` constructor, the failing definition not named, the layering
+guard), round 2 one blocker (a transaction write on a dropped index), round 3 one blocker (the name in one more branch) —
+each narrower than the last. Recommendation: **B**. #269 to #268 build on #261, so nothing else can proceed.
 
 Risks of the whole run:
 
