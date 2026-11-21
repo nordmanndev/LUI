@@ -438,6 +438,29 @@ public sealed class IndexDefinitionTests
     }
 
     [Fact]
+    public void A_builder_function_that_returns_null_or_throws_anything_is_a_configuration_exception()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var returnsNull = new LuiIndexDefinition<long>("nothing", _ => null!);
+        var throws = new LuiIndexDefinition<long>("boom", _ => throw new FormatException("the application's mistake"));
+        var linkedNull = new LuiLinkedIndexDefinition<long>("linked_nothing", _ => null!);
+
+        foreach (var definition in new LuiIndexDefinitionBase[] { returnsNull, throws, linkedNull })
+        {
+            var first = Should.Throw<LuiConfigurationException>(() => catalog.Create(definition));
+            var second = Should.Throw<LuiConfigurationException>(() => catalog.Create(definition));
+
+            first.Message.ShouldContain(definition.Name, Case.Sensitive);
+            first.InnerException.ShouldNotBeNull();
+            second.ShouldNotBeSameAs(first);
+            second.InnerException.ShouldBeSameAs(first.InnerException);
+        }
+
+        Should.Throw<LuiConfigurationException>(() => catalog.Index(throws)).InnerException.ShouldBeOfType<FormatException>();
+    }
+
+    [Fact]
     public void An_invalid_definition_keeps_its_failure_and_throws_a_new_exception_each_time()
     {
         using var database = new TestDatabase();
@@ -517,6 +540,31 @@ public sealed class IndexDefinitionTests
         catalog.DropIndex("linked_tags");
 
         tags.TriggerScript().ShouldBe(script, "it builds the SQL from the definition and reads no database");
+    }
+
+    [Fact]
+    public void A_write_with_a_transaction_of_the_application_on_a_dropped_index_throws_index_not_found()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = catalog.Create(Tags);
+        var linked = catalog.Create(LinkedTags);
+        catalog.DropIndex("tags").ShouldBeTrue();
+        catalog.DropIndex("linked_tags").ShouldBeTrue();
+
+        using var connection = database.Connect();
+        using var transaction = connection.BeginTransaction();
+        var entry = new LuiEntry<long>(1, "vegan");
+
+        Should.Throw<LuiIndexNotFoundException>(() => tags.Upsert(1, "vegan", transaction: transaction)).IndexName.ShouldBe("tags");
+        Should.Throw<LuiIndexNotFoundException>(() => tags.Upsert(entry, transaction));
+        Should.Throw<LuiIndexNotFoundException>(() => tags.UpsertMany([entry], transaction));
+        Should.Throw<LuiIndexNotFoundException>(() => tags.Remove(1, transaction));
+        Should.Throw<LuiIndexNotFoundException>(() => tags.UpdateWeight(1, 5, transaction));
+        Should.Throw<LuiIndexNotFoundException>(() => tags.UpdatePriority(1, LuiPriority.Normal, transaction));
+        Should.Throw<LuiIndexNotFoundException>(() => linked.Refresh(1, transaction)).IndexName.ShouldBe("linked_tags");
+        Should.Throw<LuiIndexNotFoundException>(() => linked.RefreshMany([1L], transaction));
     }
 
     [Fact]
