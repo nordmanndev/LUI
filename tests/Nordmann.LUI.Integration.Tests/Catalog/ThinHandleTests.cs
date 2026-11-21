@@ -12,7 +12,7 @@ namespace Nordmann.LUI.Integration.Tests.Catalog;
 /// a lookup: it allocates nothing and executes no SQL, a request can take its handle where it needs it.
 /// <para>
 /// What is measured is a number of bytes and a number of commands, which are the same on every machine, so they are held in
-/// tests (<c>docs/testing.md</c>); how long a call takes is a benchmark's business (<c>OpenBenchmarks</c>).
+/// tests (<c>docs/testing.md</c>); how long a call takes is the business of the performance analysis of the release (#275).
 /// </para>
 /// </summary>
 public sealed class ThinHandleTests

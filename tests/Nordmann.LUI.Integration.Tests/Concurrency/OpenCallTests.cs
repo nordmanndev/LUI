@@ -1,0 +1,174 @@
+using Nordmann.LUI.Integration.Tests.Catalog;
+using Shouldly;
+
+namespace Nordmann.LUI.Integration.Tests.Concurrency;
+
+/// <summary>
+/// The open call under concurrency (ADR-0075, issue #265, review of pull request 286, round 2). The definitions in memory may be
+/// stale — another process dropped the index and created it again — and many threads of a host take their handle at once:
+/// <b>no call may throw for a stale snapshot</b> when the file holds the index that was declared (a mismatch says "drop it and
+/// create it again" — a false one destroys an index), and a definition object has <b>one handle</b>, whoever replaces a handle that
+/// failed. The interleavings that matter are made by seams, not by luck; the stress tests beside them only add pressure.
+/// </summary>
+public sealed class OpenCallTests
+{
+    private const int Threads = 16;
+
+    private static readonly LuiIndexDefinition<long> Tags = new("tags", index => index.SingleWord());
+
+    private static readonly LuiIndexDefinition<long> TagsOfWords = new("tags", index => index.MultiWord());
+
+    // ---- a stale snapshot, a reload that another thread made first -----------------------------------------------------
+
+    [Fact]
+    public void A_mismatch_that_was_judged_on_a_snapshot_another_thread_has_replaced_is_decided_again()
+    {
+        using var database = new TestDatabase();
+        using var first = database.Open();
+        using var second = database.Open();
+        first.Create(TagsOfWords);
+        _ = second.Index(TagsOfWords).Count();
+        first.DropIndex("tags");
+        first.Create(Tags);
+
+        // the thread that judges the stale snapshot is overtaken: another thread reloads before it looks at the counter
+        second.StoredIndexes.BeforeCounterCheck = () =>
+        {
+            second.StoredIndexes.BeforeCounterCheck = null;
+            _ = second.StoredIndexes.Reload();
+        };
+
+        second.Index(Tags).Kind.ShouldBe(LuiIndexKind.SingleWord, "the file holds the declared index; a mismatch from the stale snapshot is false");
+    }
+
+    [Fact]
+    public void A_missing_name_that_was_judged_on_a_snapshot_another_thread_has_replaced_is_decided_again()
+    {
+        using var database = new TestDatabase();
+        using var first = database.Open();
+        using var second = database.Open();
+        Should.Throw<LuiIndexNotFoundException>(() => second.Index(Tags));
+        first.Create(Tags);
+
+        second.StoredIndexes.BeforeCounterCheck = () =>
+        {
+            second.StoredIndexes.BeforeCounterCheck = null;
+            _ = second.StoredIndexes.Reload();
+        };
+
+        second.Index(Tags).Name.ShouldBe("tags", "the file holds the index now; the remembered missing name is a stale answer");
+    }
+
+    [Fact]
+    public void Concurrent_open_calls_on_stale_definitions_throw_no_false_mismatch_and_no_false_not_found()
+    {
+        for (var round = 0; round < 20; round++)
+        {
+            using var database = new TestDatabase();
+            using var first = database.Open();
+            using var second = database.Open();
+            first.Create(TagsOfWords);
+            _ = second.Index(TagsOfWords).Count();
+            first.DropIndex("tags");
+            first.Create(Tags);
+
+            var failures = new List<Exception>();
+            AtTheSameTime.Run(Threads, number =>
+            {
+                try
+                {
+                    _ = second.Index(Tags).Name + number;
+                }
+                catch (Exception exception)
+                {
+                    lock (failures)
+                    {
+                        failures.Add(exception);
+                    }
+                }
+            });
+
+            failures.ShouldBeEmpty($"round {round} (stale mismatch): " + string.Join(" | ", failures.Select(failure => failure.GetType().Name)));
+        }
+
+        for (var round = 0; round < 20; round++)
+        {
+            using var database = new TestDatabase();
+            using var first = database.Open();
+            using var second = database.Open();
+            Should.Throw<LuiIndexNotFoundException>(() => second.Index(Tags));
+            first.Create(Tags);
+
+            var failures = new List<Exception>();
+            AtTheSameTime.Run(Threads, number =>
+            {
+                try
+                {
+                    _ = second.Index(Tags).Name + number;
+                }
+                catch (Exception exception)
+                {
+                    lock (failures)
+                    {
+                        failures.Add(exception);
+                    }
+                }
+            });
+
+            failures.ShouldBeEmpty($"round {round} (remembered missing name): " + string.Join(" | ", failures.Select(failure => failure.GetType().Name)));
+        }
+    }
+
+    // ---- one handle for a definition object --------------------------------------------------------------------------
+
+    [Fact]
+    public void A_failed_handle_that_is_replaced_by_two_calls_at_once_gives_one_handle()
+    {
+        using var database = new TestDatabase();
+        using var first = database.Open();
+        using var second = database.Open();
+        first.Create(Tags);
+        var failed = second.Index(Tags);
+        first.DropIndex("tags");
+        Should.Throw<LuiIndexNotFoundException>(() => failed.Count());
+        first.Create(Tags);
+
+        // a second call comes into the slow path while the first one is in it, and finishes completely
+        LuiEmbeddedIndex<long>? nested = null;
+        second.AfterSlowPathStarted = () =>
+        {
+            second.AfterSlowPathStarted = null;
+            nested = second.Index(Tags);
+        };
+
+        var outer = second.Index(Tags);
+
+        outer.ShouldBeSameAs(nested, "a definition object has one handle");
+        second.Index(Tags).ShouldBeSameAs(outer);
+        second.DropIndex("tags");
+        Should.Throw<LuiIndexNotFoundException>(() => outer.Count(), "the handle that was handed out is the one DropIndex marks — no orphan");
+    }
+
+    [Fact]
+    public void Concurrent_open_calls_after_a_handle_failed_give_one_handle_that_a_drop_stops()
+    {
+        for (var round = 0; round < 20; round++)
+        {
+            using var database = new TestDatabase();
+            using var first = database.Open();
+            using var second = database.Open();
+            first.Create(Tags);
+            var failed = second.Index(Tags);
+            first.DropIndex("tags");
+            Should.Throw<LuiIndexNotFoundException>(() => failed.Count());
+            first.Create(Tags);
+
+            var handles = new LuiEmbeddedIndex<long>[Threads];
+            AtTheSameTime.Run(Threads, number => handles[number] = second.Index(Tags));
+
+            handles.Distinct().Count().ShouldBe(1, $"round {round}: one handle for one definition object");
+            second.DropIndex("tags");
+            Should.Throw<LuiIndexNotFoundException>(() => handles[0].Count(), $"round {round}: no handle escaped the drop");
+        }
+    }
+}

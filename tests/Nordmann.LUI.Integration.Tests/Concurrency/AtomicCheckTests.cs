@@ -22,6 +22,10 @@ public sealed class AtomicCheckTests
 
     private static readonly LuiIndexDefinition<long> TagsOfWords = new("tags", index => index.MultiWord());
 
+    private static readonly LuiIndexDefinition<long> Corrected = new("corrected", index => index.SingleWord().TypoTolerance());
+
+    private static readonly LuiIndexDefinition<long> CorrectedOfWords = new("corrected", index => index.MultiWord().TypoTolerance());
+
     private static readonly LuiLinkedIndexDefinition<long> LinkedTags =
         new("linked_tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
 
@@ -120,6 +124,48 @@ public sealed class AtomicCheckTests
         failure = Record.Exception(() => pending = linked.Pending());
         IsProper(failure).ShouldBeTrue(Describe(failure));
         _ = pending;
+    }
+
+    // ---- the typo dictionary ---------------------------------------------------------------------------------------
+
+    [Fact]
+    public void The_typo_dictionary_of_a_handle_does_not_take_in_the_texts_of_an_index_that_was_created_again_under_it()
+    {
+        using var database = new TestDatabase();
+        using var first = database.Open();
+        using var second = database.Open();
+        first.Create(Corrected).Upsert(1, "kuchen");
+        var old = second.Index(Corrected);
+
+        // the swap is complete before the dictionary reads: it reads on a connection of its own, and nothing holds a lock
+        second.Database.AfterSchemaCheck = () =>
+        {
+            second.Database.AfterSchemaCheck = null;
+            first.DropIndex("corrected");
+            first.Create(CorrectedOfWords).Upsert(1, "torte");
+        };
+
+        Should.Throw<LuiDefinitionMismatchException>(() => old.WarmUpTypoDictionary(), "the check after the work says that the index is another one");
+        old.TypoDictionaryState.ShouldNotBe(LuiTypoDictionaryState.Current, "the words of the new index are not the dictionary of the old handle");
+    }
+
+    [Fact]
+    public void A_recreate_by_another_catalog_does_not_hand_the_old_typo_dictionary_to_the_new_definition()
+    {
+        using var database = new TestDatabase();
+        using var first = database.Open();
+        using var second = database.Open();
+        first.Create(Corrected).Upsert(1, "kuchen");
+        var old = second.Index(Corrected);
+        old.WarmUpTypoDictionary();
+        old.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+
+        first.DropIndex("corrected");
+        first.Create(CorrectedOfWords).Upsert(1, "torte");
+
+        second.Index(CorrectedOfWords).TypoDictionaryState.ShouldBe(
+            LuiTypoDictionaryState.NotBuilt,
+            "the dictionary was built from the texts and the normalisation of another definition");
     }
 
     // ---- many operations, the index swapped under them --------------------------------------------------------------
