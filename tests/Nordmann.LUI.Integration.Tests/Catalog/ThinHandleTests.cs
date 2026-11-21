@@ -1,3 +1,4 @@
+using Nordmann.LUI.Integration.Tests.Concurrency;
 using Nordmann.LUI.Storage;
 using Shouldly;
 using static Nordmann.LUI.Integration.Tests.Linked.LinkedTable;
@@ -332,12 +333,10 @@ public sealed class ThinHandleTests
         }
 
         using var catalog = LuiCatalog.Open(database.FilePath);
-        using var barrier = new Barrier(8);
         var handles = new LuiEmbeddedIndex<long>[8];
 
-        Parallel.For(0, 8, new ParallelOptions { MaxDegreeOfParallelism = 8 }, number =>
+        AtTheSameTime.Run(8, number =>
         {
-            barrier.SignalAndWait();
             handles[number] = catalog.Index(Recipes);
         });
 

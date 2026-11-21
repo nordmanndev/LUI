@@ -212,12 +212,9 @@ public sealed class TwoCatalogsTests
             using var database = new TestDatabase();
             using var first = database.Open();
             using var second = database.Open();
-            using var barrier = new Barrier(2);
-
             var handles = new LuiEmbeddedIndex<long>[2];
-            Parallel.For(0, 2, new ParallelOptions { MaxDegreeOfParallelism = 2 }, number =>
+            AtTheSameTime.Run(2, number =>
             {
-                barrier.SignalAndWait();
                 handles[number] = (number == 0 ? first : second).Create(Tags);
             });
 
@@ -235,12 +232,9 @@ public sealed class TwoCatalogsTests
             using var database = new TestDatabase();
             using var first = database.Open();
             using var second = database.Open();
-            using var barrier = new Barrier(2);
-
             var failures = new Exception?[2];
-            Parallel.For(0, 2, new ParallelOptions { MaxDegreeOfParallelism = 2 }, number =>
+            AtTheSameTime.Run(2, number =>
             {
-                barrier.SignalAndWait();
                 try
                 {
                     _ = number == 0 ? first.Create(Tags) : second.Create(TagsOfWords);
