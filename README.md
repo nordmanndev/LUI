@@ -27,7 +27,7 @@ use Lucene, SeekStorm or FTS5 directly. Not a key–value store. Not a server wi
 ## Contents
 
 - [What LUI is](#what-lui-is) · [The problem](#the-problem) · [Highlights](#highlights) · [Install](#install) · [Quick start](#quick-start)
-- [Loading many entries](#loading-many-entries) · [Performance](#performance) · [The kinds of an index](#the-kinds-of-an-index) · [Embedded or linked](#embedded-or-linked)
+- [Loading many entries](#loading-many-entries) · [Performance](#performance) · [The kinds of an index](#the-kinds-of-an-index) · [Embedded or linked](#embedded-or-linked) · [Linked indexes and the sync](#linked-indexes-and-the-sync)
 - [A payload](#a-payload) · [In an ASP.NET Core application](#in-an-aspnet-core-application) · [Only read](#only-read) · [The API](#the-api)
 - [The sample application](#the-sample-application) · [The documentation](#the-documentation) · [Status](#status) · [Working on LUI](#working-on-lui) · [Licence](#licence)
 
@@ -318,6 +318,57 @@ The two are independent of the kind of the index: every combination of them exis
 the content table** — the library (`lui_<index>`) or your application. A `Linked` index keeps the
 normalised text in the search index and the weight and the priority in the order of the candidates — your row itself
 is never copied.
+
+## Linked indexes and the sync
+
+A `Linked` index starts empty, and LUI does nothing on its own: **you** fill it, once, with `Sync()`, and keep it current with the
+triggers, `Refresh(id)` or the next `Sync()`. The order matters — **create the triggers first, then run the first sync**, so that a row
+written between the two calls is noted in the outbox and not lost:
+
+```csharp
+using Microsoft.Data.Sqlite;
+using Nordmann.LUI;
+
+// the table of the application is there before the index is
+using (var application = new SqliteConnection("Data Source=articles.db"))
+{
+    application.Open();
+    using var setup = application.CreateCommand();
+    setup.CommandText = """
+        CREATE TABLE IF NOT EXISTS article (id INTEGER PRIMARY KEY, title TEXT);
+        INSERT OR REPLACE INTO article(id, title) VALUES (1, 'Gedeckter Apfelkuchen'), (2, 'Bratapfelkuchen');
+        """;
+    setup.ExecuteNonQuery();
+}
+
+using var articlesCatalog = LuiCatalog.OpenOrCreate("articles.db");
+var articles = articlesCatalog.Create(new LuiLinkedIndexDefinition<long>("articles", index => index.SingleWord().LinkTo("article", "id", "title")));
+
+articles.CreateTriggers();            // first: a row written from here on is noted — and does nothing if they are there
+if (articles.NeedsInitialSync)        // the first complete Sync() has not run yet
+{
+    articles.Sync();                  // batches of 10,000 rows, each in a transaction of its own
+}
+```
+
+What the sync does, and what it does not:
+
+- It works **in batches**, each in a transaction of its own (`LuiSyncOptions.BatchSize`, 10,000 by default), and merges the search index
+  in steps at the end. The write-ahead log then grows by one transaction at a time — a few tens of megabytes at a million rows (measured: 42 MB beside two writers, for a database of 322 MB) —
+  and not by the whole index, as a sync in one transaction would have it; the sync truncates the log (a checkpoint that never waits) before each transaction. A reader of your
+  own that holds a snapshot for a long time still stops the log from starting over while it lives.
+- It can be **cancelled**: the batches that are committed stay, `NeedsInitialSync` stays `true`, the lease is released — run `Sync()`
+  again, it is always correct.
+- It **never shows an empty index**: a search during the sync sees the old state plus the batches written so far. A linked sync is not
+  atomic — the index is partly old and partly new while it runs.
+- **One sync per index at a time**: a second `Sync()` of the same index — in this process or another — throws a
+  `LuiSyncInProgressException`; a lease of a process that died expires after a minute.
+- Do the **first sync before the application accepts writes** — at startup, as above. A sync of a table of hundreds of thousands of rows
+  or more, beside an application that writes all the time, **can make the application's writes wait**: SQLite has no queue for its one
+  write lock, a waiting writer polls (at most every 100 ms), and the sync takes the lock again right after each commit, so a writer can
+  starve for a long time. Give the application a **generous busy timeout** (30 seconds, **set explicitly**: `Default Timeout=30` in the connection string of a `Microsoft.Data.Sqlite` connection — measured, a plain connection waits 30 s for a lock on its own, but a setting you do not state is one you do not control; LUI's own connections wait `LuiPragmas.BusyTimeout`, five seconds by default) and **retry** a write that
+  fails with `SQLITE_BUSY`; open the application's own write transactions with **`BEGIN IMMEDIATE`** (in `Microsoft.Data.Sqlite`:
+  `connection.BeginTransaction(deferred: false)`), so that a busy file is found at the start and not in the middle of a transaction.
 
 ## A payload
 

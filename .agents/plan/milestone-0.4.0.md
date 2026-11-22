@@ -23,7 +23,7 @@ file into `0.4.0`.
 | 7 | #260 Payload registry, type and format fingerprint (ADR-0072) | needs definitions and the handle cache | #265 | merged | #288 — the registry; an object, an interface or an abstract class is no payload type (no catch-all) |
 | 8 | #262 `hit.Payload` loaded with the query, `CheckPayloads()` (ADR-0074) | needs the registry; its own budget | #260 | merged | #289 — the hit carries its payload, CheckPayloads; a typed handle without a payload type selects no payload column |
 | 9 | #272 State of a linked index: `NeedsInitialSync`, idempotent `CreateTriggers()` (ADR-0077) | precondition of #271 and #266 | #262 | merged | #290 — NeedsInitialSync stored in lui_meta; triggers first, then the first sync |
-| 10 | #271 Linked `Sync()` in batches, generation, merge, lease (ADR-0077) | needs `NeedsInitialSync`; `Initialize()` needs the lease | #272 | open | — |
+| 10 | #271 Linked `Sync()` in batches, generation, merge, lease (ADR-0077) | needs `NeedsInitialSync`; `Initialize()` needs the lease | #272 | merged | #291 — the linked sync in batches; option C: starvation documented, README section; the WAL grows one transaction at a time |
 | 11 | #273 Maintenance by name (ADR-0076) | needs `LuiKeyType` and the fingerprint; #266 adds to `LuiIndexInfo` | #271 | open | — |
 | 12 | #266 `catalog.Initialize()`, `AddLuiOutbox`, host pattern (ADR-0076) | puts every step before it together | #273 | open | — |
 | 13 | #268 Remove every replaced member, move every caller (ADR-0073) | only when every replacement exists | #266 | open | — |
@@ -46,7 +46,14 @@ review of the last two commits (option B, again); it was LGTM and #286 was merge
 4 one, 5 none. Its suggestions went to the follow-up issue (a handle can escape `DropIndex` when the drop moves no schema
 counter — an index whose tables an application removed by hand).
 
-Risks of the whole run:Risks of the whole run:
+**Decision (owner, 2026-11-22, #271):** the stop condition (a writer beside the million-row sync got `SQLITE_BUSY`) was settled
+with option **C**: no pause between the transactions of the sync, no new option; the starvation of an application writer
+beside a very large sync is documented (README section "Linked indexes and the sync", `docs/api.md`, ADR-0077). The WAL
+stays small because of the batches — the owner's main concern. A second million-row run passed (0 of 45 writes failed,
+by 40 ms); the removal step fell from 3.14 s to 0.42 s once FTS5's automerge was off there. The longest merge step (1.81 s)
+and `DefaultMergePages` are measured again in #275.
+
+Risks of the whole run:
 
 - **The SDK.** `global.json` pins SDK `10.0.403` (`rollForward: latestPatch`); the image ships only `10.0.114`. The
   environment now allows `builds.dotnet.microsoft.com` and its setup script installs `10.0.403` into `/usr/lib/dotnet`

@@ -13,17 +13,21 @@ namespace Nordmann.LUI;
 public interface ILuiLinkedIndex : ILuiIndex
 {
     /// <summary>
-    /// Indexes the whole table anew, in one transaction of LUI's own: the first build, and the repair after writes the
-    /// index did not hear of. The search index is written in the order of the rowid and merged at the end. A row
-    /// without a text, or with a key outside 0 … 4,294,967,295, is left out and counted — never refused.
+    /// Takes the whole table into the index, <b>in batches of 10,000 rows</b>, each in a transaction of its own (ADR-0077): the first build, and
+    /// the repair after writes the index did not hear of. There is no clear at the start — a search during the sync sees the old state plus
+    /// the batches that are committed, so <b>a linked sync is not atomic</b>. What the table no longer has is removed at the end, by the
+    /// generation of the sync, and the search index is merged in steps. A row without a text, or with a key outside 0 … 4,294,967,295, is left
+    /// out and counted — never refused.
     /// <para>
-    /// SQLite has one writer per file (ADR-0015, ADR-0046): other writers wait while a sync runs, <b>up to their busy timeout</b> — a
-    /// million rows take about half a minute, so a writer with a shorter timeout gets <c>SQLITE_BUSY</c>. Run a large
-    /// sync when writes are rare, or give the writers a longer timeout.
+    /// One sync of an index runs at a time: it holds a lease, and a second <c>Sync()</c> — in this process or another — throws a
+    /// <see cref="LuiSyncInProgressException"/>. SQLite has one writer per file (ADR-0015, ADR-0046): other writers wait for one transaction
+    /// at a time, not for the whole sync — a chance between the batches, not a bound; give them a generous busy timeout (30 seconds) and let them retry on <c>SQLITE_BUSY</c>.
     /// </para>
     /// </summary>
-    /// <param name="cancellationToken">Checked between chunks of rows; a cancelled sync changes nothing.</param>
-    /// <returns>What was indexed, and what was left out.</returns>
+    /// <param name="cancellationToken">Checked between the batches and the steps; a cancelled sync keeps the batches it committed, leaves <c>NeedsInitialSync</c> as it was and releases its lease.</param>
+    /// <returns>What was indexed, what was left out, and how the sync worked.</returns>
+    /// <exception cref="LuiSyncInProgressException">Another sync of this index is running.</exception>
+    /// <exception cref="Microsoft.Data.Sqlite.SqliteException">The write lock of the file stayed with another writer for the whole busy timeout (<c>SQLITE_BUSY</c>, ADR-0046): run the sync again.</exception>
     LuiLinkedSyncReport Sync(CancellationToken cancellationToken = default);
 
     /// <summary>

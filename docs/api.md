@@ -90,7 +90,7 @@ The settings of the catalog. Every one of them has a default; none of them has t
 | `LuiPragmas Pragmas` | `new LuiPragmas()` | the settings of the connections of the catalog — see below |
 | `LuiPayloadRegistry? Payloads` | none | the serializers of the payloads, **by payload type** ([the payload registry](#luipayloadregistry)): `new LuiPayloadRegistry().Use(AppJsonContext.Default)`. The registry is **frozen when the catalog is opened** — a later call on it changes nothing for that catalog. Setting it together with `PayloadSerializer` is a `LuiConfigurationException` at open. |
 | `ILuiPayloadSerializer? PayloadSerializer` | none | the serialiser of the payloads of the **old calls** — one for every index that was created with `Create(name, …)`; the issue #268 removes it with them. A definition with a payload does not use it: it needs a registry. |
-| `TimeProvider TimeProvider` | `TimeProvider.System` | the clock of the catalog, for the timings and for tests |
+| `TimeProvider TimeProvider` | `TimeProvider.System` | the clock of the catalog: the `created_at` of an index and the **lease of a linked sync** (ADR-0077 — its expiry is read from this clock, in UTC), and a seam for tests |
 
 The file decides whether writing is allowed at all: a catalog opened with `OpenReadOnly` writes nothing, and SQLite refuses
 every write — LUI turns the refusal into a `LuiReadOnlyException` that says why (ADR-0068).
@@ -322,7 +322,7 @@ belongs to the application.
 
 | Member | What it does |
 |---|---|
-| `LuiLinkedSyncReport Sync(LuiSyncOptions? options = null, CancellationToken cancellationToken = default)` | takes the whole table into the index. The options are accepted — the batches of a sync come with #271 and take effect then. |
+| `LuiLinkedSyncReport Sync(LuiSyncOptions? options = null, CancellationToken cancellationToken = default)` | takes the whole table into the index, **in batches** (ADR-0077): `options.BatchSize` rows of the table at a time, each batch in a transaction of its own, with no clear at the start — **a linked sync is not atomic**, while it runs the index is partly old and partly new. The entries of rows that are gone are removed at the end by their generation, the search index is merged in steps, and the transaction of the last step clears `NeedsInitialSync`. One sync of an index runs at a time (a lease): a second `Sync()` throws a `LuiSyncInProgressException`. `options.Progress` is told after every batch. See [the sync of a linked index](#the-sync-of-a-linked-index). |
 | `bool Refresh(TKey key, SqliteTransaction? transaction = null)` | takes one row into the index |
 | `int RefreshMany(IEnumerable<TKey> keys, SqliteTransaction? transaction = null, CancellationToken cancellationToken = default)` | takes many rows into the index |
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the changes a trigger collected |
@@ -574,7 +574,7 @@ read. The write path belongs to the application.
 |---|---|
 | `bool Refresh(long key, SqliteTransaction? transaction = null)` | takes one row of the table into the index |
 | `int RefreshMany(IEnumerable<long> keys, SqliteTransaction? transaction = null, CancellationToken cancellationToken = default)` | takes many rows into the index |
-| `LuiLinkedSyncReport Sync(CancellationToken cancellationToken = default)` | takes the whole table into the index |
+| `LuiLinkedSyncReport Sync(CancellationToken cancellationToken = default)` | takes the whole table into the index, in batches of 10,000 rows (ADR-0077; the typed handle takes `LuiSyncOptions`): see [the sync of a linked index](#the-sync-of-a-linked-index) |
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the changes a trigger collected — the outbox |
 | `long Pending()` | how many changes are waiting |
 | `string TriggerScript()` | the SQL of the triggers, for the application that wants to install them itself — pure: no database is read, it also answers on a handle whose index was dropped |
@@ -763,8 +763,8 @@ Console.WriteLine($"{report.Added} added, {report.Changed} changed, {report.Remo
 
 | Member | Default | What it is |
 |---|---|---|
-| `int BatchSize` | 10,000 (1 to 1,000,000, `LuiSyncOptions.MaxBatchSize`) | how many entries one transaction holds |
-| `IProgress<LuiSyncReport>? Progress` | none | the progress of the load — what the sample shows |
+| `int BatchSize` | 10,000 (1 to 1,000,000, `LuiSyncOptions.MaxBatchSize`) | how many entries one transaction holds — for a linked index, how many **rows of the table** |
+| `IProgress<LuiSyncReport>? Progress` | none | the progress of the load — what the sample shows. A linked sync tells it `Read` (rows of the table read so far), `Batches` and `Removed`, and at its very end `Merged = true`; it has no `Added`, `Changed` or `Unchanged` — it does not compare. Told on the thread of the sync, outside of every lock. |
 
 ### `LuiSyncReport`
 
@@ -777,9 +777,50 @@ Console.WriteLine($"{report.Added} added, {report.Changed} changed, {report.Remo
 
 ### `LuiLinkedSyncReport`
 
-The report of a `Sync` of a linked index: `Indexed`, `WithoutText` (the rows with no text — they are not indexed) and
-`KeyOutOfRange` (the rows whose key cannot be the key of the index: outside `0 … 4,294,967,295`, and for an `int` index outside
-`0 … 2,147,483,647`).
+The report of a `Sync` of a linked index:
+
+| Member | What it is |
+|---|---|
+| `long Indexed` | the entries in the index when the sync is through |
+| `long WithoutText` | the rows with no text — they are not indexed |
+| `long KeyOutOfRange` | the rows whose key cannot be the key of the index: outside `0 … 4,294,967,295`, and for an `int` index outside `0 … 2,147,483,647` |
+| `int Batches` | how many batches of rows of the table were written, each in a transaction of its own (an empty table has none) |
+| `long Removed` | how many entries were removed at the end because their row is not in the table any more |
+| `TimeSpan LongestLock` | the longest time the sync held the write lock of the file in one transaction — a batch, a step of the removal or of the merge, the lease — the checkpoint before it plus the time from its begin to its commit; the time the sync waited for the lock of the application to begin is not counted. Another writer waits for the lock at most this long per transaction — plus the batches that follow each other: a writer can starve (see below) |
+
+### The sync of a linked index
+
+`Sync` of a linked index (ADR-0077, extending ADR-0016) works in batches, like the sync of an embedded index, and merges at the end:
+
+- **Batches.** The rows of the table are read in the order of their key, `BatchSize` at a time; each batch is indexed — added or replaced by
+  key — and committed in a transaction of its own. Between two batches another writer can take the file. There is **no clear at the start**:
+  a search during the sync sees the old state plus the batches committed so far, never an empty index (except on the very first sync).
+  **A linked sync is not atomic**: while it runs, the index is partly old and partly new.
+- **Removal by generation.** Every sync takes the next generation number (`lui_meta.sync_generation`), and every row a batch writes carries
+  it (`gen` of LUI's table of the index). When every batch is written, the entries that still carry an older generation — the rows that are
+  in the index and not in the table any more — are removed, in batches of `BatchSize`, each in a transaction of its own. Until then nothing
+  of the previous state goes. A row that the application deletes *during* the sync, in a range that is done, is removed by the triggers'
+  outbox (`ApplyPending()`) or by the next sync: **create the triggers before the first sync** — what `Initialize()` does by its order.
+- **The merge, in steps.** FTS5's automatic merge is off while a batch loads and back on before its commit. At the end the search index is
+  merged by FTS5's `merge` command in steps of 4,096 pages, each in a transaction of its own, until a step reports that nothing is left —
+  not by one `optimize`, which over a large index is one long write transaction. The transaction of the last step clears
+  `NeedsInitialSync`. A built typo dictionary is rebuilt once, after it.
+- **One sync at a time.** A sync takes a **lease** on its index — the owner and the time it expires (60 seconds, in UTC, from the clock of
+  the catalog) in `lui_meta` — and renews it in every transaction. A second `Sync()` of the same index — in this process or another —
+  while the lease is valid throws a `LuiSyncInProgressException` that names the owner and the expiry; it does not wait for the lease. (A sync that cannot get the **write lock of the file** within the busy timeout — a writer of the application that holds it — fails like any write of LUI with the `SqliteException` `SQLITE_BUSY` of ADR-0046; run it again.) The lease of a
+  process that stopped expires, and the next sync takes it over; a sync that finds at its next batch that it lost its lease stops with the
+  same exception and writes nothing more.
+- **Cancellation and failure.** A sync that is cancelled or fails keeps the batches it committed, removes nothing that was not removed yet,
+  does not finish the merge, leaves `NeedsInitialSync` as it was, and releases its lease. Running it again is always correct.
+- **The cost, and what is not promised.** Other writers wait for the file for one transaction of the sync at a time — `LongestLock` of the
+  report says how long that was at most — instead of for the whole sync, and the write-ahead log grows by one transaction at a time and not by the whole index (a few tens of megabytes at a million rows: 42 MB for a database of 322 MB, measured; a reader of the application that holds a snapshot for long still stops the log from starting over). **A writer can still
+  starve.** SQLite has no queue for its one write lock: a waiting writer polls (at most every 100 ms), and the sync takes the lock again
+  within microseconds of a commit, so beside a very large sync (hundreds of thousands of rows or more) and a busy application a write can wait
+  a long time — in three million-row runs a writer with a busy timeout of twice a batch (2 s) had 4 of 38, 0 of 45 and 6 of 35 writes fail with `SQLITE_BUSY` (the longest wait of a write that
+  succeeded: 1.99 s, 1.96 s and 1.82 s; in the third run, which also had a writer with a timeout of 30 s, that one was never refused). LUI adds **no pause between the transactions** (ADR-0077 records why). What to do: run the
+  **first sync before the application accepts writes**; give the application's writers a **generous busy timeout** (30 seconds, set explicitly — `Default Timeout=30` in the connection string of a `Microsoft.Data.Sqlite` connection; measured, a plain connection waits 30 s on its own,
+  but a setting that is not stated is not controlled; LUI's own connections wait `LuiPragmas.BusyTimeout`, five seconds by default) and **retry** a write that fails with `SQLITE_BUSY`; open the application's own write transactions with `BEGIN IMMEDIATE`
+  (`connection.BeginTransaction(deferred: false)`), so that a busy file is found at their start. The README has the same advice, with the code.
 
 ### `LuiIntegrityReport`
 
@@ -997,6 +1038,7 @@ library.
 | `LuiFormatException` | the file was written in another LUI format than this version reads — thrown when the catalog is **opened** (Open, OpenReadOnly and OpenOrCreate of a file that has indexes). Format 2 is the format of 0.4.0; a file of 0.3.0 has format 1 and is not read (no migration): "The file 'app.db' was written by LUI 0.3.0 (format 1); this version reads format 2. Recreate the indexes." A newer format is rejected the same way. It carries `Path`, `FoundFormat` and `SupportedFormat`. |
 | `LuiKeyException` | a stored key does not convert to the key type of its definition — a damaged file, not an expected state (LUI only writes keys that convert, so there is no check to run). The message names the index and the stored key. It carries `IndexName`, `StoredKey` and `KeyType`. |
 | `LuiPayloadException` | a payload cannot be read in the type asked for — and, for a handle with a payload, a query meets a payload that is missing, that the serializer cannot read, or that a map did not build (it threw, or it returned null): the query fails and the message names the index, the key and the type. It carries `IndexName`, `Key` and `RequestedType`; the exception of the serializer or the map is the inner one. |
+| `LuiSyncInProgressException` | another sync of the linked index is running — or this one lost its lease (it did not renew it in time and another sync took it over, or the index was dropped and created again), and stops before it writes another batch. Thrown at once, the sync does not wait. It carries `IndexName`, `Owner` and `ExpiresAt` (UTC) of the lease — the last two are not set (null) when nobody holds it now. |
 | `LuiReadOnlyException` | SQLite refused a write because the file may not be written. The message names the reason — the catalog was opened read-only, or the file and its directory may not be written — the operation and the index; the error of SQLite is the inner exception. It carries `Operation`. |
 
 ---
@@ -1115,6 +1157,7 @@ Fifty-nine public type names in `Nordmann.LUI` (seventy-three types: a generic t
 | `LuiLinkedTableException` | class | [the exceptions](#the-exceptions) |
 | `LuiPayloadException` | class | [the exceptions](#the-exceptions) |
 | `LuiReadOnlyException` | class | [the exceptions](#the-exceptions) |
+| `LuiSyncInProgressException` | class | [the exceptions](#the-exceptions) |
 | `LuiConfigurationException` | class | [the exceptions](#the-exceptions) |
 | `LuiServiceCollectionExtensions` | class | [the hosting package](#the-hosting-package) |
 | `LuiWarmupOptions` | class | [the hosting package](#the-hosting-package) |

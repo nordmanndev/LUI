@@ -159,6 +159,7 @@ public sealed class PublicApiShapeTests
                 "LuiCatalogNotFoundException", "LuiConfigurationException", "LuiDefinitionMismatchException", "LuiEnvironmentException",
                 "LuiException", "LuiFormatException",
                 "LuiIndexNotFoundException", "LuiKeyException", "LuiLinkedTableException", "LuiPayloadException", "LuiReadOnlyException",
+                "LuiSyncInProgressException",
             ]);
     }
 
@@ -191,6 +192,38 @@ public sealed class PublicApiShapeTests
             "the file and the two formats");
         typeof(LuiFormatException).GetConstructors().ShouldBeEmpty("only the library throws it");
         typeof(LuiKeyException).GetConstructors().ShouldBeEmpty("only the library throws it");
+    }
+
+    [Fact]
+    public void The_linked_sync_reports_what_it_did_and_a_second_sync_is_a_sync_in_progress_exception()
+    {
+        // ADR-0077, issue #271: the linked sync works in batches and one sync of an index runs at a time. The report says how many batches
+        // it took, how many entries it removed and how long the write lock of the file was held at most; the refusal of a second sync
+        // names the index, the owner of the lease and its expiry — and only the library throws it.
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        static string[] Surface(Type type) =>
+            [.. type.GetProperties(declared).Select(property => $"{TypeText(property.PropertyType)} {property.Name} {{ get; }}")
+                .Concat(type.GetConstructors(declared).Select(constructor => $".ctor({Parameters(constructor)})"))
+                .Concat(type.GetMethods(declared).Where(method => !method.IsSpecialName).Select(method => $"{TypeText(method.ReturnType)} {method.Name}({Parameters(method)})"))
+                .Order(StringComparer.Ordinal)];
+
+        typeof(LuiSyncInProgressException).IsSealed.ShouldBeTrue();
+        typeof(LuiSyncInProgressException).BaseType.ShouldBe(typeof(LuiException));
+        Surface(typeof(LuiSyncInProgressException)).ShouldBe(
+            ["Nullable<DateTimeOffset> ExpiresAt { get; }", "string IndexName { get; }", "string Owner { get; }"],
+            "the index, and who holds the lease until when (nothing, when the lease was lost and nobody holds it)");
+        typeof(LuiSyncInProgressException).GetConstructors().ShouldBeEmpty("only the library throws it");
+
+        // a record has members of its own beside its properties: the properties are the report
+        typeof(LuiLinkedSyncReport).GetProperties(declared).Select(property => $"{TypeText(property.PropertyType)} {property.Name} {{ get; }}")
+            .Order(StringComparer.Ordinal)
+            .ToArray()
+            .ShouldBe(
+                [
+                    "TimeSpan LongestLock { get; }", "int Batches { get; }", "long Indexed { get; }", "long KeyOutOfRange { get; }",
+                    "long Removed { get; }", "long WithoutText { get; }",
+                ],
+                "what was indexed, what was left out and why, and how the sync worked: the batches, the removal and the longest lock");
     }
 
     [Fact]

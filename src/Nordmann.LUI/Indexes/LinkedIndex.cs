@@ -18,9 +18,6 @@ namespace Nordmann.LUI.Indexes;
 internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
 #pragma warning restore CA1001
 {
-    /// <summary>The rows a sync indexes per statement: the cancellation is checked between chunks.</summary>
-    internal const int SyncChunk = 10_000;
-
     /// <summary>The keys of the outbox that <c>ApplyPending</c> brings in step per transaction.</summary>
     internal const int PendingBatch = 1_000;
 
@@ -80,7 +77,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     }
 
     /// <summary>
-    /// Whether the first complete <see cref="Sync"/> is still to be done (ADR-0077). It is read from the file on every call — in the
+    /// Whether the first complete <see cref="Sync(LuiSyncOptions?, CancellationToken)"/> is still to be done (ADR-0077). It is read from the file on every call — in the
     /// snapshot that the guard checked — because another process can complete the sync without a change of the SQLite schema.
     /// </summary>
     /// <returns><see langword="true"/> from the creation of the index until its first complete sync.</returns>
@@ -284,17 +281,19 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         return keys.Count;
     }
 
-    public LuiLinkedSyncReport Sync(CancellationToken cancellationToken = default)
+    public LuiLinkedSyncReport Sync(CancellationToken cancellationToken = default) => Sync(null, cancellationToken);
+
+    /// <summary>
+    /// Takes the whole table into the index, in batches (ADR-0077): see <see cref="LinkedSync"/>. A built typo dictionary is rebuilt once, at
+    /// the end, from the table as it is then.
+    /// </summary>
+    /// <param name="options">The options of the sync; <see langword="null"/> for the defaults.</param>
+    /// <param name="cancellationToken">Checked between the batches and the steps.</param>
+    /// <returns>What was indexed, what was left out, and how the sync worked.</returns>
+    public LuiLinkedSyncReport Sync(LuiSyncOptions? options, CancellationToken cancellationToken = default)
     {
         using var scope = _database.Begin();
-        LuiLinkedSyncReport? result = null;
-        Guarded(() => Write(null, (connection, transaction) =>
-        {
-            result = SyncAll(connection, transaction, cancellationToken);
-
-            // the first complete sync is a fact of the file: it commits with the content, or not at all (ADR-0077)
-            IndexStore.MarkSynced(connection, transaction, Name);
-        }));
+        var result = Guarded(() => new LinkedSync(_database, _source, _guard).Run(options ?? new LuiSyncOptions(), cancellationToken));
 
         // the words of the table as they are now: a built dictionary is built anew
         if (_typos.IsBuilt)
@@ -313,52 +312,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
             }
         }
 
-        return result!;
-    }
-
-    /// <summary>Clears the index and fills it again from the table, a chunk of rows at a time, then merges it.</summary>
-    private LuiLinkedSyncReport SyncAll(SqliteConnection connection, SqliteTransaction transaction, CancellationToken cancellationToken)
-    {
-        Execute(connection, transaction, _source.ClearSql);
-
-        using var end = Command(connection, transaction, _source.ChunkEndSql);
-        using var chunk = Command(connection, transaction, _source.SyncChunkSql);
-        end.Parameters.AddWithValue("$size", SyncChunk);
-        var endFrom = end.Parameters.Add("$from", SqliteType.Integer);
-        var from = chunk.Parameters.Add("$from", SqliteType.Integer);
-        var to = chunk.Parameters.Add("$to", SqliteType.Integer);
-
-        // from the smallest key on; a key out of range is left out by the statement and counted below
-        var last = long.MinValue;
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            endFrom.Value = last;
-            var upper = end.ExecuteScalar() is long next ? next : long.MaxValue;
-
-            from.Value = last;
-            to.Value = upper;
-            chunk.ExecuteNonQuery();
-
-            if (upper == long.MaxValue)
-            {
-                break;
-            }
-
-            last = upper;
-        }
-
-        Execute(connection, transaction, _source.OptimizeSql);
-
-        using var skipped = Command(connection, transaction, _source.SkippedSql);
-        using var reader = skipped.ExecuteReader();
-        reader.Read();
-        return new LuiLinkedSyncReport
-        {
-            Indexed = Scalar(connection, transaction, _source.CountSql),
-            WithoutText = reader.GetInt64(0),
-            KeyOutOfRange = reader.GetInt64(1),
-        };
+        return result;
     }
 
     public void Optimize()

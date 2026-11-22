@@ -79,22 +79,34 @@ internal static class IndexStore
             throw new LuiFormatException(database.Path, (int)Math.Clamp(found, int.MinValue, int.MaxValue), Meta.SchemaVersion);
         }
 
-        // format 2 gained the column of the state of a linked index (ADR-0077) before any release had it: a file with indexes that an
-        // early build wrote without it cannot be used — it is refused here, with its own words, and not at the first read or write of
-        // the state. A lui_meta without a row has no format to reject — it may be the table of 0.3.0, whose last index was dropped —
-        // and the first Create adds the column in its transaction (AddStateColumn)
-        if (!HasStateColumn(connection) && HasAnyIndex(connection))
+        // format 2 gained the columns of the state of a linked index and of its sync (ADR-0077) before any release had them: a file with
+        // indexes that an early build wrote without them cannot be used — it is refused here, with its own words, and not at the first
+        // read or write of the state. A lui_meta without a row has no format to reject — it may be the table of 0.3.0, whose last index
+        // was dropped — and the first Create adds the columns in its transaction (EnsureStateColumns)
+        var missing = MissingStateColumns(connection);
+        if (missing.Count > 0 && HasAnyIndex(connection))
         {
-            throw new LuiFormatException(database.Path, "needs_initial_sync", Meta.SchemaVersion);
+            throw new LuiFormatException(database.Path, missing[0].Name, Meta.SchemaVersion);
         }
     }
 
-    private static bool HasStateColumn(SqliteConnection connection, SqliteTransaction? transaction = null)
+    /// <summary>The columns of <see cref="Meta.StateColumns"/> that <c>lui_meta</c> lacks, in their order.</summary>
+    private static List<(string Name, string Declaration)> MissingStateColumns(SqliteConnection connection, SqliteTransaction? transaction = null)
     {
         using var columns = connection.CreateCommand();
         columns.Transaction = transaction;
-        columns.CommandText = "SELECT count(*) FROM pragma_table_info('lui_meta') WHERE name = 'needs_initial_sync';";
-        return (long)columns.ExecuteScalar()! != 0;
+        columns.CommandText = "SELECT name FROM pragma_table_info('lui_meta');";
+
+        var present = new HashSet<string>(StringComparer.Ordinal);
+        using (var reader = columns.ExecuteReader())
+        {
+            while (reader.Read())
+            {
+                present.Add(reader.GetString(0));
+            }
+        }
+
+        return [.. Meta.StateColumns.Where(column => !present.Contains(column.Name))];
     }
 
     private static bool HasAnyIndex(SqliteConnection connection, SqliteTransaction? transaction = null)
@@ -106,26 +118,30 @@ internal static class IndexStore
     }
 
     /// <summary>
-    /// The first <c>Create</c> in the file adds the column of the state to a <c>lui_meta</c> that has none and no row (the empty
-    /// table of 0.3.0), in the transaction that creates the index. A table with rows and no column is refused when the catalog is
-    /// opened; one that became so since is refused here.
+    /// The first <c>Create</c> in the file adds the columns of the state and of the sync to a <c>lui_meta</c> that has none of them and no
+    /// row (the empty table of 0.3.0), in the transaction that creates the index. A table with rows and a column missing is refused when
+    /// the catalog is opened; one that became so since is refused here.
     /// </summary>
-    private static void EnsureStateColumn(Database database, SqliteConnection connection, SqliteTransaction transaction)
+    private static void EnsureStateColumns(Database database, SqliteConnection connection, SqliteTransaction transaction)
     {
-        if (HasStateColumn(connection, transaction))
+        var missing = MissingStateColumns(connection, transaction);
+        if (missing.Count == 0)
         {
             return;
         }
 
         if (HasAnyIndex(connection, transaction))
         {
-            throw new LuiFormatException(database.Path, "needs_initial_sync", Meta.SchemaVersion);
+            throw new LuiFormatException(database.Path, missing[0].Name, Meta.SchemaVersion);
         }
 
-        using var add = connection.CreateCommand();
-        add.Transaction = transaction;
-        add.CommandText = "ALTER TABLE lui_meta ADD COLUMN needs_initial_sync INTEGER NOT NULL DEFAULT 0;";
-        add.ExecuteNonQuery();
+        foreach (var (name, declaration) in missing)
+        {
+            using var add = connection.CreateCommand();
+            add.Transaction = transaction;
+            add.CommandText = $"ALTER TABLE lui_meta ADD COLUMN {name} {declaration};";
+            add.ExecuteNonQuery();
+        }
     }
 
     private static bool HasMetaTable(SqliteConnection connection)
@@ -203,7 +219,7 @@ internal static class IndexStore
         using var scope = database.Begin();
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
-        EnsureStateColumn(database, connection, transaction);
+        EnsureStateColumns(database, connection, transaction);
 
         foreach (var (source, verify) in indexes)
         {

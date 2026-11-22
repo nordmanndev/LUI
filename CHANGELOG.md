@@ -94,6 +94,28 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   or failing sync leaves it `true`. LUI does nothing on its own: the application reads the state and decides. `Create(definition)` of a linked index
   still syncs nothing and installs no trigger, and checks that the table of the application exists (a `LuiLinkedTableException` naming the index otherwise).
 
+- **The linked sync in batches** ([ADR-0077](.agents/adr/0077-the-state-of-a-linked-index.md), extending ADR-0016, #271): `Sync(options, cancellationToken)` of a linked index
+  reads the rows of the application's table in the order of their key, `LuiSyncOptions.BatchSize` (10,000 by default) rows at a time, and writes each batch — added or replaced
+  by key — in a transaction of its own; `options.Progress` is told after every batch. There is **no clear at the start**: a search during the sync sees the old state plus the
+  batches committed so far, never an empty index. **A linked sync is not atomic**: while it runs the index is partly old and partly new. The entries of rows that are gone
+  are removed at the end **by generation** — every sync takes the next generation number (`lui_meta.sync_generation`) and every row it writes carries it in the new column `gen` of
+  LUI's table of the index —, in batches of `BatchSize`, each in a transaction of its own, and only when every batch is written; then FTS5's index is merged in **steps** (FTS5
+  `merge`, 4,096 pages a step, each in a transaction of its own) instead of one `optimize`, and the transaction of the last step clears `NeedsInitialSync`. FTS5's automatic
+  merge is off while a batch loads and back on before its commit. A sync that is cancelled or fails keeps the batches it committed, removes nothing that was not removed yet,
+  does not finish the merge, leaves `NeedsInitialSync` as it was and releases its lease; running it again is always correct. The sync truncates the write-ahead log (a best-effort checkpoint that never waits) right before each of its transactions, so the log grows by one transaction at a time — a few tens of megabytes at a million rows (measured: 16 MB in the batches of a first sync, 42 MB in the batches of a second sync, which replace every entry, 37 MB in a step of the removal; the database was 322 MB) — and not by the whole index, also beside writers of the application; a reader of the application that holds a snapshot for long still stops the log from starting over. A built typo dictionary is rebuilt once, at the end.
+  `LuiLinkedSyncReport` gets `Batches`, `Removed` and `LongestLock` (the longest time the sync held the write lock of the file in one transaction).
+
+- **One sync of a linked index at a time — `LuiSyncInProgressException`** (ADR-0077, #271): a sync takes a **lease** on its index — the owner and the expiry (60 seconds, UTC, from
+  `LuiCatalogOptions.TimeProvider`) in `lui_meta` — and renews it in every transaction. A second `Sync()` of the same index, in this process or another, while the lease is valid
+  throws the new `LuiSyncInProgressException` (`IndexName`, `Owner`, `ExpiresAt`); it does not wait. The lease of a process that stopped expires and is taken over; a sync that
+  finds at its next batch that it lost its lease — it paused for longer than the lease and another sync took it over, or the index was dropped and created again — stops with the
+  same exception and writes nothing more.
+
+- **Linked indexes and the sync — the README says how to deal with it** (#271): a section "Linked indexes and the sync" — triggers first, then the first sync
+  (`if (index.NeedsInitialSync) index.Sync()`), before the application accepts writes; the write-ahead log grows by a transaction at a time and not by the whole index; a cancelled sync keeps its
+  batches; one sync per index; and the **starvation that is not fixed**: SQLite has no lock queue, so a very large sync beside a busy application can make
+  the application's writes wait — give them a generous busy timeout, retry on `SQLITE_BUSY`, begin write transactions with `BEGIN IMMEDIATE`.
+
 ### Changed
 
 - **A payload definition needs a payload registry** (#260, ADR-0072): `LuiIndexDefinition<TKey, TPayload>` is created and opened with the serializer
@@ -157,6 +179,10 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   does nothing — it never throws because triggers exist. Before, every call dropped the three triggers and created them anew, also when they were current.
   The state is read and acted on in one guarded write transaction.
 
+- **The linked `Sync()` is no longer one transaction** (#271, ADR-0077): until 0.3.0 it cleared LUI's table of the index and filled it again in chunks, all in one
+  transaction — other writers of the file waited for the whole sync (26.7 s for a million rows), a cancelled sync changed nothing and a search saw the old state until the commit.
+  Now it works in batches (see *Added*): other writers wait for one transaction at a time, a cancelled sync keeps its batches, and the index is partly old and partly new while it runs.
+
 ### Migration
 
 **A break the compiler does not see — read it first: files of 0.3.0 are not read.** A catalog file that holds an index written by 0.3.0
@@ -207,6 +233,21 @@ and the flag, already `false`, would never ask for another one.
 The new column of `lui_meta` belongs to LUI format 2, which no release has had: a file that an early build of 0.4.0 wrote without it is refused when the catalog is
 opened, with a `LuiFormatException` that names the column — recreate its indexes like the files of 0.3.0. A catalog of 0.3.0 that holds no index opens as before; its first
 `Create` adds the column.
+
+**The linked `Sync()` in batches** (#271): the sync is **no longer one transaction**, and what relied on that changes. (1) A search during a sync no longer sees the old state until
+the commit and then the new one: it sees the old state with the batches that are committed — partly old, partly new. Do not read a linked index for a decision that needs a
+consistent state while `Sync()` runs; `NeedsInitialSync` tells whether the first complete sync is done. (2) A cancelled or failing `Sync()` no longer changes nothing: the batches it committed stay,
+the entries of rows that are gone stay until a complete sync, and `NeedsInitialSync` is as it was — run `Sync()` again; it is always correct. (3) **A second `Sync()` of the same index, in this
+process or another, throws `LuiSyncInProgressException`** while the first one runs: catch it where you start a sync from more than one place (a startup job and an admin endpoint), and
+try again — or leave it, the other sync is doing the work. A lease that its process did not release (a crash) expires after 60 seconds. (4) Other writers of the file wait for **one
+transaction of the sync at a time** (`LuiLinkedSyncReport.LongestLock`), not for the whole sync — but SQLite has no queue, and **a writer can starve beside a very large sync**: give the
+application's writes a generous busy timeout (30 seconds), retry on `SQLITE_BUSY`, begin them with `BEGIN IMMEDIATE`, and run the first sync before the application accepts writes. (5) **Create the triggers before the first
+sync**: a row the application deletes in a part of the table the sync has done is noted by the triggers' outbox (`ApplyPending()`) — without triggers the next `Sync()` removes it.
+(6) `LuiLinkedSyncReport.Batches`, `Removed` and `LongestLock` are new; `LuiSyncOptions.BatchSize` and `Progress` now apply to a linked index (the progress tells `Read`, `Batches`,
+`Removed`, and `Merged` at the very end; there is no `Added`, `Changed` or `Unchanged` — a linked sync does not compare). The columns `sync_generation`, `sync_lease_owner` and
+`sync_lease_expires` of `lui_meta` and the column `gen` of LUI's table of a linked index belong to LUI format 2: a file that an early build of 0.4.0 wrote without them is refused when
+the catalog is opened with a `LuiFormatException` that names the column — recreate its indexes like the files of 0.3.0; a catalog of 0.3.0 that holds no index opens as before and its
+first `Create` adds the columns.
 
 ## [0.3.0] — 2026-11-19
 

@@ -63,6 +63,15 @@ internal sealed class Database : IDisposable
     /// <summary>The full path of the file of the catalog.</summary>
     internal string Path { get; }
 
+    /// <summary>The busy timeout of the connections of the catalog in milliseconds (<see cref="LuiPragmas.BusyTimeout"/>, ADR-0046).</summary>
+    internal long BusyTimeoutMilliseconds => (long)_options.Pragmas.BusyTimeout.TotalMilliseconds;
+
+    /// <summary>The clock of the catalog (<see cref="LuiCatalogOptions.TimeProvider"/>): <c>created_at</c> and the lease of a sync (ADR-0077).</summary>
+    internal TimeProvider TimeProvider => _options.TimeProvider;
+
+    /// <summary>A random id of this catalog instance: the part of the owner of a sync lease that says which catalog holds it (ADR-0077).</summary>
+    internal string InstanceId { get; } = Guid.NewGuid().ToString("N")[..8];
+
     /// <summary>The mode of every connection of the catalog (ADR-0066).</summary>
     internal SqliteOpenMode Mode { get; }
 
@@ -187,6 +196,18 @@ internal sealed class Database : IDisposable
     /// the tests: they swap the index there, from another catalog, to see that the check and the work are one step.
     /// </summary>
     internal Action? AfterSchemaCheck { get; set; }
+
+    /// <summary>
+    /// The pages of FTS5 that one step of the merge at the end of a linked sync merges (ADR-0077); <see langword="null"/> is the default of
+    /// the sync. A seam of the tests: they make the steps small to see the merge in steps.
+    /// </summary>
+    internal int? MergePages { get; set; }
+
+    /// <summary>
+    /// Runs after each transaction of a linked sync has committed, with the phase it was — <c>lease</c>, <c>batch</c>, <c>removal</c>,
+    /// <c>merge</c> — outside the write lock, on the thread of the sync. A seam of the tests (ADR-0077); <see langword="null"/> in production.
+    /// </summary>
+    internal Action<string>? AfterSyncTransaction { get; set; }
 
     /// <summary>
     /// SQLite's schema counter — what <c>PRAGMA schema_version</c> reads: a number in the header of the file that changes

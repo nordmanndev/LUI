@@ -189,21 +189,22 @@ public sealed class AtomicCheckTests
         linked.WarmUpTypoDictionary();
         linked.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
 
-        // the first check is the one of the sync's own transaction; the second is the one before the dictionary is built again
-        var checks = 0;
-        second.Database.AfterSchemaCheck = () =>
+        // the sync is through — its last report says so, outside of every lock — and the swap comes before the dictionary is built again
+        var swapped = false;
+        var options = new LuiSyncOptions
         {
-            if (++checks != 2)
+            Progress = new Progress(report =>
             {
-                return;
-            }
-
-            second.Database.AfterSchemaCheck = null;
-            first.DropIndex("linked_corrected");
-            first.Create(LinkedCorrectedOfWords);
+                if (report.Merged && !swapped)
+                {
+                    swapped = true;
+                    first.DropIndex("linked_corrected");
+                    first.Create(LinkedCorrectedOfWords);
+                }
+            }),
         };
 
-        Should.Throw<LuiDefinitionMismatchException>(() => linked.Sync(), "the dictionary is not built again from the texts of another index, and no bare SQLite error");
+        Should.Throw<LuiDefinitionMismatchException>(() => linked.Sync(options), "the dictionary is not built again from the texts of another index, and no bare SQLite error");
     }
 
     [Fact]
@@ -351,6 +352,12 @@ public sealed class AtomicCheckTests
     {
         tags.Upsert(1000 + (round % 50), "vegetable " + round);
         return round;
+    }
+
+    /// <summary>A progress that runs where it is told — on the thread of the sync — and not on the pool, as <c>Progress&lt;T&gt;</c> would.</summary>
+    private sealed class Progress(Action<LuiSyncReport> action) : IProgress<LuiSyncReport>
+    {
+        public void Report(LuiSyncReport value) => action(value);
     }
 
     private static bool IsProper(Exception? exception) =>
