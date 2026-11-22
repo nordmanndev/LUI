@@ -488,7 +488,7 @@ expect_caught "a-payload-that-is-not-stored-is-no-failure" "${INTEGRATION_PROJEC
 # 24b6. A map that throws escapes as it threw (ADR-0074): the query does not name the index, the key and the type.
 expect_caught "a-throwing-map-is-not-wrapped" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~HitPayloadTests" \
-  "sed -i 's|when (_payloadType is not null && exception is not (OperationCanceledException or LuiPayloadException))|when (exception.Message.Length < 0)|' src/Nordmann.LUI/Querying/ColumnPayload.cs"
+  "sed -i 's|when (_payloadType is not null && exception is not (OperationCanceledException or LuiPayloadException))|when (_payloadType is not null \&\& exception.Message.Length < 0)|' src/Nordmann.LUI/Querying/ColumnPayload.cs"
 
 # 24b7. The runtime of a handle without a payload type selects the payload column again (ADR-0074): the bytes that the old
 #       calls stored are copied for every hit of a query that has no use for them.
