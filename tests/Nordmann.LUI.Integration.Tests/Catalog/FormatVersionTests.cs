@@ -58,6 +58,32 @@ public sealed class FormatVersionTests
         exception.SupportedFormat.ShouldBe(2);
     }
 
+    [Theory]
+    [InlineData("Open")]
+    [InlineData("OpenReadOnly")]
+    [InlineData("OpenOrCreate")]
+    public void A_format_2_file_of_an_early_build_without_the_state_column_is_rejected_on_open(string way)
+    {
+        // #272, ADR-0077: lui_meta gained the column needs_initial_sync inside format 2, which no release had. A file that an early
+        // build wrote without it is refused when the catalog opens, with a clear exception — not with a SQLite error at the first
+        // read or write of the state
+        using var database = new TestDatabase();
+        using (var catalog = database.Open())
+        {
+            catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
+        }
+
+        Run(database, "ALTER TABLE lui_meta DROP COLUMN needs_initial_sync;");
+
+        var exception = Should.Throw<LuiFormatException>(() => OpenWay(way, database.FilePath));
+
+        exception.Message.ShouldContain("needs_initial_sync");
+        exception.Message.ShouldContain(Path.GetFileName(database.FilePath));
+        exception.Message.ShouldContain("Recreate the indexes");
+        exception.FoundFormat.ShouldBe(2);
+        exception.SupportedFormat.ShouldBe(2);
+    }
+
     [Fact]
     public void A_file_with_one_index_of_another_format_is_rejected_as_a_whole()
     {
