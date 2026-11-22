@@ -967,6 +967,35 @@ expect_caught "a-failing-context-is-cached-as-its-own-exception" "${UNIT_PROJECT
   "FullyQualifiedName~LuiPayloadRegistryTests.A_context_that_fails_is_kept_as_a_failure_and_thrown_anew_naming_the_definition" \
   "sed -i 's|catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException or ThreadAbortException))|catch (LuiConfigurationException exception)|' src/Nordmann.LUI/Querying/FrozenPayloadRegistry.cs"
 
+# 35zb. The first sync clears the flag before it has run (issue #272, ADR-0077): a sync that is cancelled would leave the index
+#       reporting that it is synced — an empty index that the application believes it need not fill.
+expect_caught "a-cancelled-sync-clears-the-initial-sync-flag" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedStateTests.It_stays_true_after_a_cancelled_sync" \
+  "perl -0pi -e 's|        LuiLinkedSyncReport\\? result = null;\\n|        LuiLinkedSyncReport? result = null;\\n        Write(null, (connection, transaction) => IndexStore.MarkSynced(connection, transaction, Name));\\n|' src/Nordmann.LUI/Indexes/LinkedIndex.cs"
+
+# 35zc. A complete sync does not clear the flag (issue #272, ADR-0077): the application would sync at every start.
+expect_caught "a-complete-sync-leaves-the-initial-sync-flag" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedStateTests.It_becomes_false_after_a_complete_sync" \
+  "sed -i 's|            IndexStore.MarkSynced(connection, transaction, Name);||' src/Nordmann.LUI/Indexes/LinkedIndex.cs"
+
+# 35zd. The state is read without the check of the guard (issue #272, ADR-0075, ADR-0077): an index that was created again with
+#       another definition would answer as if nothing had happened.
+expect_caught "the-initial-sync-flag-is-read-without-the-guard" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedStateTests.The_state_of_an_index_that_was_created_again_with_another_definition_is_a_mismatch" \
+  "perl -0pi -e 's|        _guard\\?\\.Check\\(connection, snapshot\\);\\n        return IndexStore.ReadNeedsInitialSync|        return IndexStore.ReadNeedsInitialSync|' src/Nordmann.LUI/Indexes/LinkedIndex.cs"
+
+# 35ze. CreateTriggers drops and creates the triggers that are current (issue #272, ADR-0077): the triggers an application installed
+#       itself would be rewritten by a call that has nothing to do.
+expect_caught "create-triggers-on-current-drops-and-recreates" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedTriggerTests.CreateTriggers_does_nothing_on_Current" \
+  "sed -i -e 's|            if (state == LuiTriggerState.Current)|            if (state == (LuiTriggerState)(-1))|' -e 's|            if (state == LuiTriggerState.Stale)|            if (state != LuiTriggerState.None)|' src/Nordmann.LUI/Indexes/LinkedIndex.cs"
+
+# 35zf. Create installs the triggers of a linked index (issue #272, ADR-0077): LUI would change the application's table on its own
+#       (ADR-0015).
+expect_caught "create-installs-the-triggers-of-a-linked-index" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedTriggerTests.Create_of_a_linked_index_installs_no_triggers" \
+  "perl -0pi -e 's|(                WriteDefinition\\(connection, transaction, name, definition, createdAt\\);\\n)|\$1                if (source is LinkedSource linked)\\n                {\\n                    Execute(connection, transaction, linked.TriggerScript());\\n                }\\n|' src/Nordmann.LUI/Indexes/IndexStore.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
