@@ -116,6 +116,19 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   batches; one sync per index; and the **starvation that is not fixed**: SQLite has no lock queue, so a very large sync beside a busy application can make
   the application's writes wait — give them a generous busy timeout, retry on `SQLITE_BUSY`, begin write transactions with `BEGIN IMMEDIATE`.
 
+- **Maintenance by name — `Indexes()`, `Count(name)`, `Check(name)`, `Optimize(name)`, `Rebuild(name)`** ([ADR-0076](.agents/adr/0076-maintenance-works-by-name.md), #273): a tool, an admin
+  endpoint or a health check inspects and maintains every index of a catalog **without its definition and without its payload type**. `catalog.Indexes()` returns one `LuiIndexInfo` per
+  index — `Name`, `Source` (`LuiIndexSource.Embedded` or `Linked`), `Kind`, `PayloadType` and `PayloadFormat` (stored for an embedded index with a payload type, `null` otherwise), `KeyType`,
+  `TypoDistance`, `TypoDictionaryState` — in the order of the names; the definition fields come from the memory of the catalog, with no statement that reads them (one statement asks whether the
+  schema counter moved), and the state of the typo dictionary is read when it is called. `Count(name)`, `Check(name)` (structure only: **it reads no payload and calls no map**) and
+  `Optimize(name)` work for embedded and linked indexes; `Rebuild(name)` for an embedded index only — for a linked one it throws an `InvalidOperationException`
+  (`'chefs' is a linked index; rebuild it from its table with Sync() on its handle.`). None of them returns a handle or writes an entry. They meet the guards of every operation
+  (ADR-0075): the check of the schema counter and the work are one step, an index that is gone is a `LuiIndexNotFoundException` that names it, and a call by name declares no definition, so
+  an index that another process created again with another definition is used as it is stored. A name that is not known reloads the definitions once and is remembered as missing until the
+  schema counter changes. A catalog opened with `OpenReadOnly` lists and counts; `Optimize`, `Rebuild` and `Check` are a `LuiReadOnlyException` that names the index. **Migration: none — the
+  members are new.** Which check for what: `Check()` / `catalog.Check(name)` is cheap (health endpoints, every probe), `CheckPayloads()` reads every stored payload (maintenance, after a change
+  of the payload type). New public type: `LuiIndexInfo`.
+
 ### Changed
 
 - **A payload definition needs a payload registry** (#260, ADR-0072): `LuiIndexDefinition<TKey, TPayload>` is created and opened with the serializer

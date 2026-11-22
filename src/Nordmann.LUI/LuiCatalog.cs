@@ -891,6 +891,30 @@ public sealed class LuiCatalog : IDisposable
             });
 
     /// <summary>
+    /// Rebuilds the search index of an embedded index from its content table, by name (ADR-0076): the triggers anew, the search index
+    /// anew, merged — one transaction, whatever the payload type of the index is; no payload is read. It is for an <b>embedded</b> index
+    /// only: the content of a linked index is the application's table, and its search index is built from it by <c>Sync()</c> on its handle.
+    /// </summary>
+    /// <param name="name">The name of the index.</param>
+    /// <exception cref="ArgumentException">The name is no index name.</exception>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database — or it was dropped under the call.</exception>
+    /// <exception cref="InvalidOperationException">The index is a linked one: "'chefs' is a linked index; rebuild it from its table with Sync() on its handle."</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding).</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written; the message names the index.</exception>
+    /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
+    public void Rebuild(string name) =>
+        Maintain(
+            name,
+            runtime =>
+            {
+                ((EmbeddedIndex)runtime.Index).Rebuild();
+                return true;
+            },
+            entry => string.Equals(entry.Source, LinkedSource.SourceName, StringComparison.Ordinal)
+                ? new InvalidOperationException($"'{name}' is a linked index; rebuild it from its table with Sync() on its handle.")
+                : null);
+
+    /// <summary>
     /// The runtime of an index by its stored definition, for one operation by name (ADR-0076). The name is looked up in the definitions
     /// in memory — an unknown name reloads them once and is remembered as missing until the schema counter changes
     /// (<see cref="StoredIndexes.Find"/>, ADR-0075) — and the operation runs on a runtime that is built from what was found, with the guard
