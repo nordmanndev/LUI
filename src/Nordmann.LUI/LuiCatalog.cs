@@ -531,6 +531,8 @@ public sealed class LuiCatalog : IDisposable
     /// Creates the index of a linked definition, or opens it if it exists with the same definition (ADR-0073), and checks
     /// the table of the application every time. The index starts empty: <b>nothing is synced and no trigger is
     /// installed</b> — <c>Sync()</c> fills it, <c>CreateTriggers()</c> installs the triggers if the application wants them.
+    /// The table is the application's own schema and has to exist before this call. A new index reports
+    /// <c>NeedsInitialSync == true</c> until its first complete <c>Sync()</c>; LUI does nothing on its own (ADR-0077).
     /// </summary>
     /// <typeparam name="TKey">The type of the keys.</typeparam>
     /// <param name="definition">The declaration of the index.</param>
@@ -573,7 +575,8 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>
     /// Creates the index of a linked definition with a payload, or opens it if it exists with the same definition
     /// (ADR-0073), and checks the table of the application every time. The map of the definition builds the payload; the
-    /// index starts empty: <b>nothing is synced and no trigger is installed</b>.
+    /// index starts empty: <b>nothing is synced and no trigger is installed</b>, and <c>NeedsInitialSync</c> is <see langword="true"/>
+    /// until its first complete <c>Sync()</c> (ADR-0077).
     /// </summary>
     /// <typeparam name="TKey">The type of the keys.</typeparam>
     /// <typeparam name="TPayload">The type the map builds.</typeparam>

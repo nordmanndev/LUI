@@ -79,6 +79,22 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         return Scalar(connection, snapshot, _source.CountSql);
     }
 
+    /// <summary>
+    /// Whether the first complete <see cref="Sync"/> is still to be done (ADR-0077). It is read from the file on every call — in the
+    /// snapshot that the guard checked — because another process can complete the sync without a change of the SQLite schema.
+    /// </summary>
+    /// <returns><see langword="true"/> from the creation of the index until its first complete sync.</returns>
+    public bool NeedsInitialSync()
+    {
+        using var scope = _database.Begin();
+        using var connection = _database.OpenReadConnection();
+
+        // the check and the read in one snapshot (ADR-0075): the answer is the one of the index the guard judged
+        using var snapshot = connection.BeginTransaction(deferred: true);
+        _guard?.Check(connection, snapshot);
+        return IndexStore.ReadNeedsInitialSync(connection, snapshot, Name) ?? throw new LuiIndexNotFoundException(Name);
+    }
+
     public LuiTriggerState Triggers()
     {
         using var scope = _database.Begin();
@@ -272,7 +288,13 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     {
         using var scope = _database.Begin();
         LuiLinkedSyncReport? result = null;
-        Guarded(() => Write(null, (connection, transaction) => result = SyncAll(connection, transaction, cancellationToken)));
+        Guarded(() => Write(null, (connection, transaction) =>
+        {
+            result = SyncAll(connection, transaction, cancellationToken);
+
+            // the first complete sync is a fact of the file: it commits with the content, or not at all (ADR-0077)
+            IndexStore.MarkSynced(connection, transaction, Name);
+        }));
 
         // the words of the table as they are now: a built dictionary is built anew
         if (_typos.IsBuilt)
