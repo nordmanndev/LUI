@@ -457,10 +457,22 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     public void CreateTriggers()
     {
         using var scope = _database.Begin();
+
+        // the state is read and acted on in the one write transaction that the guard checked (ADR-0075, ADR-0077): another process
+        // cannot create, drop or change the triggers between the reading and the work
         Write(null, (connection, transaction) =>
         {
-            // a second call replaces them: the definition of the index may have changed the expressions
-            Execute(connection, transaction, LinkedSource.DropTriggersSql(Name));
+            var state = TriggerState(connection, transaction);
+            if (state == LuiTriggerState.Current)
+            {
+                return;
+            }
+
+            if (state == LuiTriggerState.Stale)
+            {
+                Execute(connection, transaction, LinkedSource.DropTriggersSql(Name));
+            }
+
             Execute(connection, transaction, _source.TriggerScript());
         });
     }
