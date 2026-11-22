@@ -67,7 +67,7 @@ internal static class IndexStore
     /// </summary>
     /// <param name="database">The database.</param>
     /// <param name="connection">A connection to it.</param>
-    /// <exception cref="LuiFormatException">An index of the file was written in another format.</exception>
+    /// <exception cref="LuiFormatException">An index of the file was written in another format, or the table lacks a column of format 2.</exception>
     private static void EnsureFormat(Database database, SqliteConnection connection)
     {
         using var command = connection.CreateCommand();
@@ -77,6 +77,15 @@ internal static class IndexStore
         if (command.ExecuteScalar() is long found)
         {
             throw new LuiFormatException(database.Path, (int)Math.Clamp(found, int.MinValue, int.MaxValue), Meta.SchemaVersion);
+        }
+
+        // format 2 gained the column of the state of a linked index (ADR-0077) before any release had it: a file that an early build
+        // wrote without it cannot be used — it is refused here, with its own words, and not at the first read or write of the state
+        using var columns = connection.CreateCommand();
+        columns.CommandText = "SELECT count(*) FROM pragma_table_info('lui_meta') WHERE name = 'needs_initial_sync';";
+        if ((long)columns.ExecuteScalar()! == 0)
+        {
+            throw new LuiFormatException(database.Path, "needs_initial_sync", Meta.SchemaVersion);
         }
     }
 
