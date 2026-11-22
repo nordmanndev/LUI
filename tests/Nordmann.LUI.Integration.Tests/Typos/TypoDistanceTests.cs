@@ -57,6 +57,28 @@ public sealed class TypoDistanceTests
     }
 
     [Fact]
+    public void An_index_opened_through_its_definition_keeps_its_distance_and_corrects_without_the_query_asking_for_it()
+    {
+        var definition = new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors));
+        using var database = new TestDatabase();
+        using (var catalog = database.Open())
+        {
+            catalog.Create(definition).Upsert(1, "Kartoffel", 10);
+        }
+
+        // a new process, the same file: the typed way in takes the distance of the stored definition, too
+        using var reopened = database.Open();
+        var index = reopened.Index(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors)));
+
+        index.TypoDistance.ShouldBe(LuiTypoDistance.TwoErrors);
+        index.WarmUpTypoDictionary();
+        var result = index.Search("krttoffel");
+
+        result.CorrectedQuery.ShouldBe("kartoffel");
+        result.Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
+    }
+
+    [Fact]
     public void An_index_that_forgives_nothing_builds_no_dictionary()
     {
         using var database = new TestDatabase();

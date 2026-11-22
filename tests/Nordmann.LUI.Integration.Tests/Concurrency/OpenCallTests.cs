@@ -171,4 +171,117 @@ public sealed class OpenCallTests
             Should.Throw<LuiIndexNotFoundException>(() => handles[0].Count(), $"round {round}: no handle escaped the drop");
         }
     }
+
+    // ---- a handle that is opened while this catalog drops the index -----------------------------------------------------
+
+    [Fact]
+    public void A_handle_that_was_judged_before_a_drop_and_made_after_it_is_not_returned_on_the_old_snapshot()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Create(Tags).Upsert(1, "vegan");
+        var fresh = new LuiIndexDefinition<long>("tags", index => index.SingleWord());
+
+        // the call has found "tags" in the definitions of the catalog; DropIndex runs, completely, before the call takes the lock
+        catalog.BeforeHandleLock = () =>
+        {
+            catalog.BeforeHandleLock = null;
+            catalog.DropIndex("tags");
+        };
+
+        LuiEmbeddedIndex<long>? handle = null;
+        var failure = Record.Exception(() => handle = catalog.Index(fresh));
+        catalog.Create(Tags);
+
+        // either the call saw the drop and said so, or the handle it returned is stale — never a handle that works on the index
+        // that was created again after the drop
+        if (handle is null)
+        {
+            failure.ShouldBeOfType<LuiIndexNotFoundException>();
+        }
+        else
+        {
+            Should.Throw<LuiIndexNotFoundException>(() => handle.Count(), "a handle that DropIndex did not mark escaped it");
+        }
+    }
+
+    [Fact]
+    public void No_handle_that_was_returned_before_DropIndex_returned_answers_after_the_index_was_created_again()
+    {
+        for (var round = 0; round < 25; round++)
+        {
+            using var database = new TestDatabase();
+            using var catalog = database.Open();
+            catalog.Create(Tags);
+            var race = new OpenRace(catalog);
+            race.Start(4);
+
+            Thread.Sleep(5);
+            catalog.DropIndex("tags");
+            race.DropReturned();
+            catalog.Create(Tags);
+
+            foreach (var handle in race.Stop())
+            {
+                Should.Throw<LuiIndexNotFoundException>(() => handle.Count(), $"round {round}: a handle that was returned before DropIndex returned works on the new index");
+            }
+        }
+    }
+
+    /// <summary>Threads that open handles of fresh definition objects — every call a first call — and keep those returned before the drop returned.</summary>
+    private sealed class OpenRace(LuiCatalog catalog)
+    {
+        private readonly List<LuiEmbeddedIndex<long>> _before = [];
+        private readonly List<Thread> _threads = [];
+        private volatile bool _stop;
+        private volatile bool _dropReturned;
+
+        internal void Start(int threads)
+        {
+            for (var number = 0; number < threads; number++)
+            {
+                var thread = new Thread(Open) { IsBackground = true };
+                _threads.Add(thread);
+                thread.Start();
+            }
+        }
+
+        internal void DropReturned() => _dropReturned = true;
+
+        internal LuiEmbeddedIndex<long>[] Stop()
+        {
+            _stop = true;
+            foreach (var thread in _threads)
+            {
+                thread.Join(TimeSpan.FromSeconds(30)).ShouldBeTrue("the openers ended");
+            }
+
+            lock (_before)
+            {
+                return [.. _before];
+            }
+        }
+
+        private void Open()
+        {
+            while (!_stop)
+            {
+                try
+                {
+                    var handle = catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
+                    if (!_dropReturned)
+                    {
+                        lock (_before)
+                        {
+                            _before.Add(handle);
+                        }
+                    }
+                }
+                catch (LuiIndexNotFoundException)
+                {
+                    // after the drop, before the create
+                }
+            }
+        }
+    }
 }

@@ -29,6 +29,12 @@ public sealed class AtomicCheckTests
     private static readonly LuiLinkedIndexDefinition<long> LinkedTags =
         new("linked_tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
 
+    private static readonly LuiLinkedIndexDefinition<long> LinkedCorrected =
+        new("linked_corrected", index => index.SingleWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count"));
+
+    private static readonly LuiLinkedIndexDefinition<long> LinkedCorrectedOfWords =
+        new("linked_corrected", index => index.MultiWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count"));
+
     private static readonly LuiLinkedIndexDefinition<long> LinkedOfWords =
         new("linked_tags", index => index.MultiWord().LinkTo("tag", "id", "name", weight: "usage_count"));
 
@@ -166,6 +172,53 @@ public sealed class AtomicCheckTests
         second.Index(CorrectedOfWords).TypoDictionaryState.ShouldBe(
             LuiTypoDictionaryState.NotBuilt,
             "the dictionary was built from the texts and the normalisation of another definition");
+    }
+
+    [Fact]
+    public void A_linked_sync_that_rebuilds_the_dictionary_after_its_commit_says_so_when_the_index_was_created_again_by_then()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "vegan", 1));
+        using var first = database.Open();
+        using var second = database.Open();
+        first.Create(LinkedCorrected).Sync();
+        var linked = second.Index(LinkedCorrected);
+        linked.WarmUpTypoDictionary();
+        linked.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+
+        // the first check is the one of the sync's own transaction; the second is the one before the dictionary is built again
+        var checks = 0;
+        second.Database.AfterSchemaCheck = () =>
+        {
+            if (++checks != 2)
+            {
+                return;
+            }
+
+            second.Database.AfterSchemaCheck = null;
+            first.DropIndex("linked_corrected");
+            first.Create(LinkedCorrectedOfWords);
+        };
+
+        Should.Throw<LuiDefinitionMismatchException>(() => linked.Sync(), "the dictionary is not built again from the texts of another index, and no bare SQLite error");
+    }
+
+    [Fact]
+    public void A_typo_dictionary_that_is_forgotten_while_another_definition_replaces_it_does_not_fail()
+    {
+        var dictionaries = new Nordmann.LUI.Typos.TypoDictionaries();
+        _ = dictionaries.For("words", new Nordmann.LUI.Normalization.NormalizationOptions(), () => [("kuchen", 1)], LuiTypoDistance.OneError, "A");
+        dictionaries.BeforeReplace = () =>
+        {
+            dictionaries.BeforeReplace = null;
+            dictionaries.Forget("words");
+        };
+
+        var replaced = dictionaries.For("words", new Nordmann.LUI.Normalization.NormalizationOptions(), () => [("torte", 1)], LuiTypoDistance.OneError, "B");
+
+        replaced.ShouldNotBeNull();
+        dictionaries.For("words", new Nordmann.LUI.Normalization.NormalizationOptions(), () => [], LuiTypoDistance.OneError, "B").ShouldBeSameAs(replaced);
     }
 
     // ---- many operations, the index swapped under them --------------------------------------------------------------
