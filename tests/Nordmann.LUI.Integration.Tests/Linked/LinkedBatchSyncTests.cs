@@ -806,23 +806,32 @@ public sealed class LinkedBatchSyncTests
     }
 
     [Fact]
-    public void The_automatic_merge_of_FTS5_is_back_on_after_every_batch()
+    public void The_automatic_merge_of_FTS5_is_back_on_after_every_batch_and_every_step_of_the_removal()
     {
         using var database = new TestDatabase();
         Run(database, Table);
         Fill(database, 60);
         using var catalog = database.Open();
         var tags = catalog.Create(LinkedTags);
+        tags.Sync();
+        Run(database, "DELETE FROM tag WHERE id % 2 = 0;");
         var seen = new List<long>();
 
+        var removals = new List<long>();
         tags.Sync(new LuiSyncOptions
         {
             BatchSize = 10,
-            Progress = Hear(_ => seen.Add(database.Scalar<long>("SELECT v FROM lui_tags_fts_config WHERE k = 'automerge'"))),
+            Progress = Hear(report =>
+            {
+                var value = database.Scalar<long>("SELECT v FROM lui_tags_fts_config WHERE k = 'automerge'");
+                (report.Removed > 0 ? removals : seen).Add(value);
+            }),
         });
 
-        seen.ShouldNotBeEmpty();
+        seen.Count.ShouldBe(3, "thirty rows are left in three batches");
         seen.ShouldAllBe(value => value == 4, "a batch turns it off while it loads and sets the default again before its commit");
+        removals.ShouldNotBeEmpty("thirty entries are removed, ten at a time");
+        removals.ShouldAllBe(value => value == 4, "and so does a step of the removal: its deletes write into the search index, too");
         database.Scalar<long>("SELECT v FROM lui_tags_fts_config WHERE k = 'automerge'").ShouldBe(4);
     }
 

@@ -362,6 +362,10 @@ internal sealed class LinkedSync
 
     private int RemoveBatch(SqliteConnection connection, SqliteTransaction transaction, int size, CancellationToken cancellationToken)
     {
+        // a delete writes into the search index, and with FTS5's own merge on, the commit of the batch can merge the segments of the whole
+        // index in this one transaction: it is off while the sync runs — the removal included — and back on before the commit; the merge is
+        // the business of the steps at the end
+        Execute(connection, transaction, _source.AutomergeSql(0));
         var stale = new List<long>(Math.Min(size, 10_000));
         using (var select = Command(connection, transaction, _source.StaleEntriesSql))
         {
@@ -383,6 +387,7 @@ internal sealed class LinkedSync
             remove.ExecuteNonQuery();
         }
 
+        Execute(connection, transaction, _source.AutomergeSql(DefaultAutomerge));
         return stale.Count;
     }
 
