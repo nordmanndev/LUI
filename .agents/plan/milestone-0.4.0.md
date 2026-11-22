@@ -46,14 +46,14 @@ review of the last two commits (option B, again); it was LGTM and #286 was merge
 4 one, 5 none. Its suggestions went to the follow-up issue (a handle can escape `DropIndex` when the drop moves no schema
 counter — an index whose tables an application removed by hand).
 
-**Decision (owner, 2026-11-22, #271):** the stop condition (a writer beside the million-row sync got ) was settled
+**Decision (owner, 2026-11-22, #271):** the stop condition (a writer beside the million-row sync got `SQLITE_BUSY`) was settled
 with option **C**: no pause between the transactions of the sync, no new option; the starvation of an application writer
-beside a very large sync is documented (README section "Linked indexes and the sync", , ADR-0077). The WAL
+beside a very large sync is documented (README section "Linked indexes and the sync", `docs/api.md`, ADR-0077). The WAL
 stays small because of the batches — the owner's main concern. A second million-row run passed (0 of 45 writes failed,
 by 40 ms); the removal step fell from 3.14 s to 0.42 s once FTS5's automerge was off there. The longest merge step (1.81 s)
-and  are measured again in #275.
+and `DefaultMergePages` are measured again in #275.
 
-Risks of the whole run:Risks of the whole run:
+Risks of the whole run:
 
 - **The SDK.** `global.json` pins SDK `10.0.403` (`rollForward: latestPatch`); the image ships only `10.0.114`. The
   environment now allows `builds.dotnet.microsoft.com` and its setup script installs `10.0.403` into `/usr/lib/dotnet`
