@@ -130,7 +130,7 @@ creation, and LUI does nothing on its own. An application — or the host of #26
     reader of the application does not hold the sync up by five seconds a batch. It changes no setting of the file and no pragma that the application can see (ADR-0066:
     the connection's busy timeout is restored, and the test `The_connection_of_a_sync_goes_back_to_the_pool_with_the_busy_timeout_of_the_catalog` and the mutation `the-sync-leaves-the-busy-timeout-at-zero` hold it); a file that is not in write-ahead logging has nothing to do. After it the log is the biggest single transaction of the sync plus
     what the application's writers committed in between; the biggest transaction is a batch, or a step of the removal (10,000 deletes write into the tombstones of every segment:
-    about 40 MB at 400,000 rows). The test `The_write_ahead_log_stays_a_batch_in_size_when_another_writer_commits_between_the_batches` commits a write between every two batches and
+    about 40 MB at 400,000 rows). The test `The_write_ahead_log_is_not_the_whole_index_when_another_writer_commits_between_the_batches` commits a write between every two batches and
     asserts that the log stays smaller than the database (a third of it, measured; 3.3 times without the checkpoint); the million-row test measures each sync from a truncated log
     and asserts that the peak stays under six times the peak of the batches of the first sync (16 MB there: 96 MB; the measured peak is 42 MB, a sync that puts the index into the log
     — 322 MB — fails; and the bound follows the size of a batch, not the size of the table). It runs by hand: `performance.yml` runs `BudgetPerformance` only, **no CI lane runs this test**. A reader of the

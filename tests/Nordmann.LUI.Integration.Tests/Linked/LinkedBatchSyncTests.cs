@@ -900,7 +900,7 @@ public sealed class LinkedBatchSyncTests
     }
 
     [Fact]
-    public void The_write_ahead_log_stays_a_batch_in_size_when_another_writer_commits_between_the_batches()
+    public void The_write_ahead_log_is_not_the_whole_index_when_another_writer_commits_between_the_batches()
     {
         // review of #291, B2: SQLite starts the log over only when the connection that begins to write has read nothing from it. A writer of the
         // application that commits between two batches leaves frames that are not backfilled, the log is not started over, and without the sync's
@@ -957,10 +957,10 @@ public sealed class LinkedBatchSyncTests
     [Trait("Category", "Timing")]
     public async Task A_write_of_LUI_after_a_sync_waits_for_a_lock_that_is_held_for_a_while_and_does_not_fail_at_once()
     {
-        // the busy timeout of the catalog is 4 s; the lock is held for 2.5 s — longer than the one second that the provider retries on its own (ADR-0046), shorter than
+        // the busy timeout of the catalog is 15 s; the lock is held for 2.5 s — longer than the one second that the provider retries on its own (ADR-0046), shorter than
         // the timeout: a connection that came back from the sync with a timeout of 0 fails after that second, one that came back right waits and writes
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(4) } });
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(15) } });
         Run(database, Table);
         Fill(database, 20);
         var tags = catalog.Create(LinkedTags);
@@ -985,6 +985,70 @@ public sealed class LinkedBatchSyncTests
 
         await write.WaitAsync(Deadline);
         embedded.Search("veg").Hits.ShouldHaveSingleItem();
+    }
+
+    [Fact]
+    [Trait("Category", "Timing")]
+    public void The_checkpoint_of_the_sync_does_not_wait_for_a_reader_that_holds_a_snapshot_of_the_log()
+    {
+        // review of #291, round 3, B1: the checkpoint that truncates the log would wait for the reader — and with the busy timeout of the catalog, in every
+        // transaction of the sync, holding SQLite's writer lock and locking out the writers of the application. It never waits. The busy timeout is 10 s; a wait
+        // of it, in even one transaction, takes the sync past the bound of 8 s — the sync itself, five batches, takes a few hundred milliseconds
+        using var database = new TestDatabase();
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(10) } });
+        Run(database, Table);
+        Fill(database, 50);
+        var tags = catalog.Create(LinkedTags);
+
+        using var reader = database.Connect();
+        using (var begin = reader.CreateCommand())
+        {
+            begin.CommandText = "BEGIN; SELECT count(*) FROM tag;";
+            begin.ExecuteScalar();
+        }
+
+        var clock = System.Diagnostics.Stopwatch.StartNew();
+        var report = tags.Sync(new LuiSyncOptions { BatchSize = 10 });
+        clock.Elapsed.ShouldBeLessThan(TimeSpan.FromSeconds(8), "a checkpoint that waited for the reader would take the busy timeout, 10 s, in each transaction");
+
+        report.Indexed.ShouldBe(50);
+        using var end = reader.CreateCommand();
+        end.CommandText = "COMMIT;";
+        end.ExecuteNonQuery();
+    }
+
+    [Fact]
+    [Trait("Category", "Timing")]
+    public async Task LongestLock_does_not_count_the_time_the_sync_waited_for_the_lock_of_the_application()
+    {
+        // review of #291, round 3, B2: the application holds the write lock for 1.5 s while the sync starts. The sync waits — that is the application's lock, not
+        // the sync's: no transaction of the sync held the file for more than a few milliseconds, and the report says so (bound: one second, headroom for a slow runner)
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        Run(database, Table);
+        Fill(database, 30);
+        var tags = catalog.Create(LinkedTags);
+
+        using var holder = database.Connect();
+        using (var begin = holder.CreateCommand())
+        {
+            begin.CommandText = "BEGIN IMMEDIATE;";
+            begin.ExecuteNonQuery();
+        }
+
+        var sync = Task.Run(() => tags.Sync(new LuiSyncOptions { BatchSize = 10 }));
+        await Task.Delay(TimeSpan.FromMilliseconds(1_500));
+        sync.IsCompleted.ShouldBeFalse("the sync waits for the lock of the application");
+        using (var commit = holder.CreateCommand())
+        {
+            commit.CommandText = "COMMIT;";
+            commit.ExecuteNonQuery();
+        }
+
+        var report = await sync.WaitAsync(Deadline);
+
+        report.Indexed.ShouldBe(30);
+        report.LongestLock.ShouldBeLessThan(TimeSpan.FromSeconds(1), "the wait for the lock is not time that the sync held it");
     }
 
     // ---- the catalog and the sync ------------------------------------------------------------------------------------

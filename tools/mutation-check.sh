@@ -1104,7 +1104,7 @@ expect_caught "the-removal-takes-the-entries-a-refresh-wrote" "${INTEGRATION_PRO
 # 35zza. The sync does not give the write-ahead log back before a transaction (issue #271, review of pull request 291, B2): with another writer committing between the batches the log
 #        is not started over and grows to the size of the whole index.
 expect_caught "the-sync-does-not-give-the-log-back" "${INTEGRATION_PROJECT}" \
-  "FullyQualifiedName~LinkedBatchSyncTests.The_write_ahead_log_stays_a_batch_in_size_when_another_writer_commits_between_the_batches" \
+  "FullyQualifiedName~LinkedBatchSyncTests.The_write_ahead_log_is_not_the_whole_index_when_another_writer_commits_between_the_batches" \
   "sed -i '/^            ResetTheLog(writer);/d' src/Nordmann.LUI/Indexes/LinkedSync.cs"
 
 # 35zzb. The sync leaves the busy timeout of its connection at 0 after its checkpoint (issue #271, ADR-0077 decision 13, review of pull request 291, round 2): the connection goes back to the pool
@@ -1117,6 +1117,17 @@ expect_caught "the-sync-leaves-the-busy-timeout-at-zero" "${INTEGRATION_PROJECT}
 expect_caught "a-write-after-the-sync-does-not-wait-for-the-lock" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~LinkedBatchSyncTests.A_write_of_LUI_after_a_sync_waits_for_a_lock_that_is_held_for_a_while_and_does_not_fail_at_once" \
   "sed -i 's/PRAGMA busy_timeout = {_database.BusyTimeoutMilliseconds};/PRAGMA busy_timeout = {_database.BusyTimeoutMilliseconds * 0};/' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zzd. The checkpoint of the sync waits for a reader that holds a snapshot of the log (issue #271, ADR-0077 decision 13, review of pull request 291, round 3): it takes SQLite's writer lock and
+#        waits the busy timeout in every transaction of the sync, and the writers of the application are locked out.
+expect_caught "the-checkpoint-waits-for-a-reader" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.The_checkpoint_of_the_sync_does_not_wait_for_a_reader_that_holds_a_snapshot_of_the_log" \
+  "sed -i '/Execute(writer, null, \"PRAGMA busy_timeout = 0;\");/d' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zze. LongestLock counts the time the sync waited for the lock of the application (issue #271, review of pull request 291, round 3, B2): it is no time that the sync held it.
+expect_caught "longest-lock-counts-the-wait-for-the-lock" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.LongestLock_does_not_count_the_time_the_sync_waited_for_the_lock_of_the_application" \
+  "sed -i 's/var held = Stopwatch.StartNew();/var held = checkpoint;/' src/Nordmann.LUI/Indexes/LinkedSync.cs"
 
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
