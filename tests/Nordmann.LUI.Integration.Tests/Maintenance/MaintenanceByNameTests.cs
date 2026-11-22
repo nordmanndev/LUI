@@ -162,6 +162,25 @@ public sealed class MaintenanceByNameTests
         states["recipes"].ShouldBe(LuiTypoDictionaryState.NotBuilt);
     }
 
+    [Fact]
+    public void The_dictionary_of_another_definition_is_not_the_dictionary_of_the_stored_one()
+    {
+        using var database = new TestDatabase();
+        using var first = database.Open();
+        using var second = database.Open();
+        first.Create(new LuiIndexDefinition<long>("corrected", index => index.SingleWord().TypoTolerance())).Upsert(1, "kuchen");
+        second.WarmUpTypoDictionaries(["corrected"]);
+        second.Indexes().Single().TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+
+        // another process: the same name, another definition — the dictionary of this catalog was built from the texts and the rules of the old one
+        first.DropIndex("corrected");
+        first.Create(new LuiIndexDefinition<long>("corrected", index => index.MultiWord().TypoTolerance())).Upsert(1, "torte");
+
+        var info = second.Indexes().Single();
+        info.Kind.ShouldBe(LuiIndexKind.MultiWord);
+        info.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt, "the dictionary that was built is of the definition that is gone");
+    }
+
     // ---- no SQL for the definition fields; no payload, no map ------------------------------------------------------
 
     [Fact]

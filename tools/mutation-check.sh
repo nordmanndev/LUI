@@ -1129,6 +1129,47 @@ expect_caught "longest-lock-counts-the-wait-for-the-lock" "${INTEGRATION_PROJECT
   "FullyQualifiedName~LinkedBatchSyncTests.LongestLock_does_not_count_the_time_the_sync_waited_for_the_lock_of_the_application" \
   "sed -i 's/var held = Stopwatch.StartNew();/var held = checkpoint;/' src/Nordmann.LUI/Indexes/LinkedSync.cs"
 
+# 35zzf. A call by name that takes a stale snapshot for the truth (issue #273, ADR-0076): the index that another process created again with another definition is
+#        a mismatch for a caller that declared no definition — a false exception, thrown from a snapshot that the file has left.
+expect_caught "a-call-by-name-throws-a-mismatch-from-a-stale-snapshot" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.An_index_that_was_created_again_with_another_definition_is_used_as_it_is_stored_and_throws_no_mismatch" \
+  "sed -i 's|LuiDefinitionMismatchException \&\& runtime.Guard.HasFailed)|LuiDefinitionMismatchException \&\& runtime.Guard.HasFailed \&\& exception is null)|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35zzg. Indexes() reads the definitions from the file at every call (issue #273, ADR-0076): the definition fields come from memory, and only a move of the
+#        schema counter reads lui_meta again.
+expect_caught "indexes-reads-the-definitions-from-the-file-at-every-call" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.Indexes_executes_no_SQL_for_the_definition_fields" \
+  "sed -i 's|        _ = StoredIndexes.ReloadIfChanged();|        _ = StoredIndexes.Reload();|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35zzh. Indexes() lists the memory of the catalog without asking whether the file moved (issue #273, ADR-0076): an index that another process created or dropped is
+#        not in the list — a stale list.
+expect_caught "indexes-lists-a-stale-snapshot" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.Indexes_finds_an_index_that_another_catalog_created_after_the_open" \
+  "sed -i 's|        _ = StoredIndexes.ReloadIfChanged();|        _ = StoredIndexes.Current;|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35zzi. Rebuild of a linked index is not refused (issue #273, ADR-0076): the cast of the runtime fails instead of the message of the issue.
+expect_caught "rebuild-of-a-linked-index-is-not-refused" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.Rebuild_of_a_linked_index_throws_with_the_message" \
+  "sed -i 's|            entry => string.Equals(entry.Source, LinkedSource.SourceName, StringComparison.Ordinal)|            entry => entry is null|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35zzj. The refusal of Rebuild is thrown from a snapshot that the file has not been asked about (issue #273, ADR-0076): a linked name that another process
+#        created again as an embedded index is refused for what it was.
+expect_caught "rebuild-is-refused-on-the-word-of-a-stale-snapshot" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.A_linked_name_that_another_catalog_created_again_as_an_embedded_index_is_rebuilt_and_not_refused" \
+  "perl -0pi -e 's|                if \(StoredIndexes.Refresh\(snapshot\)\)\n                \{\n                    continue;\n                \}\n\n                throw refusal;|                throw refusal;|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35zzk. A missing name reloads the definitions twice (issue #273, ADR-0076): the name that a user types on an admin endpoint costs two reads of lui_meta,
+#        and the memory of the missing name does not save the second one.
+expect_caught "a-missing-name-reloads-twice" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.A_missing_name_asked_twice_reloads_once" \
+  "perl -0pi -e 's|(FindStoredByName\(string name, out StoredIndexes.Snapshot snapshot\)\n    \{\n        while \(true\)\n        \{\n)|\$1            _ = StoredIndexes.Reload();\n|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35zzl. The state of a typo dictionary in the list is the one of a dictionary of another definition (issue #273, ADR-0076): the index was created again under the same name,
+#        and the dictionary of the old definition is reported as the dictionary of the new one.
+expect_caught "indexes-reports-the-dictionary-of-another-definition" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.The_dictionary_of_another_definition_is_not_the_dictionary_of_the_stored_one" \
+  "sed -i 's|_byIndex.TryGetValue(indexName, out var entry) \&\& string.Equals(entry.Fingerprint, fingerprint, StringComparison.Ordinal)|_byIndex.TryGetValue(indexName, out var entry)|' src/Nordmann.LUI/Typos/TypoDictionaries.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
