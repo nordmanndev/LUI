@@ -913,7 +913,7 @@ expect_caught "object-is-a-payload-type" "${UNIT_PROJECT}" \
 #       calls writes bytes of its own format into an index that stores another one.
 expect_caught "the-old-write-path-ignores-the-fingerprint" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~PayloadFingerprintTests.The_old_write_path_by_name_refuses_a_payload_for_an_index_that_stores_a_format" \
-  "sed -i 's|? new StoredFormatPayloadSerialization(PayloadSerialization, storedType, storedFormat)|? PayloadSerialization|' src/Nordmann.LUI/LuiCatalog.cs"
+  "sed -i 's|PayloadFormat: { } storedFormat }$|PayloadFormat: { } storedFormat } \&\& storedFormat.Length < 0|' src/Nordmann.LUI/LuiCatalog.cs"
 
 # 35za. A context that fails is cached as the exception it threw (issue #260, review of pull request 288): the same instance on every use, without
 #       the name of the definition.
