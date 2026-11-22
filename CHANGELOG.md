@@ -111,6 +111,11 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   finds at its next batch that it lost its lease — it paused for longer than the lease and another sync took it over, or the index was dropped and created again — stops with the
   same exception and writes nothing more.
 
+- **Linked indexes and the sync — the README says how to deal with it** (#271): a section "Linked indexes and the sync" — triggers first, then the first sync
+  (`if (index.NeedsInitialSync) index.Sync()`), before the application accepts writes; batches keep the write-ahead log small; a cancelled sync keeps its
+  batches; one sync per index; and the **starvation that is not fixed**: SQLite has no lock queue, so a very large sync beside a busy application can make
+  the application's writes wait — give them a generous busy timeout, retry on `SQLITE_BUSY`, begin write transactions with `BEGIN IMMEDIATE`.
+
 ### Changed
 
 - **A payload definition needs a payload registry** (#260, ADR-0072): `LuiIndexDefinition<TKey, TPayload>` is created and opened with the serializer
@@ -235,7 +240,8 @@ consistent state while `Sync()` runs; `NeedsInitialSync` tells whether the first
 the entries of rows that are gone stay until a complete sync, and `NeedsInitialSync` is as it was — run `Sync()` again; it is always correct. (3) **A second `Sync()` of the same index, in this
 process or another, throws `LuiSyncInProgressException`** while the first one runs: catch it where you start a sync from more than one place (a startup job and an admin endpoint), and
 try again — or leave it, the other sync is doing the work. A lease that its process did not release (a crash) expires after 60 seconds. (4) Other writers of the file wait for **one
-transaction of the sync at a time** (`LuiLinkedSyncReport.LongestLock`), not for the whole sync; SQLite has no queue, so give them a busy timeout of a few seconds. (5) **Create the triggers before the first
+transaction of the sync at a time** (`LuiLinkedSyncReport.LongestLock`), not for the whole sync — but SQLite has no queue, and **a writer can starve beside a very large sync**: give the
+application's writes a generous busy timeout (30 seconds), retry on `SQLITE_BUSY`, begin them with `BEGIN IMMEDIATE`, and run the first sync before the application accepts writes. (5) **Create the triggers before the first
 sync**: a row the application deletes in a part of the table the sync has done is noted by the triggers' outbox (`ApplyPending()`) — without triggers the next `Sync()` removes it.
 (6) `LuiLinkedSyncReport.Batches`, `Removed` and `LongestLock` are new; `LuiSyncOptions.BatchSize` and `Progress` now apply to a linked index (the progress tells `Read`, `Batches`,
 `Removed`, and `Merged` at the very end; there is no `Added`, `Changed` or `Unchanged` — a linked sync does not compare). The columns `sync_generation`, `sync_lease_owner` and

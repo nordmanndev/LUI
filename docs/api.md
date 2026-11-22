@@ -812,9 +812,15 @@ The report of a `Sync` of a linked index:
   same exception and writes nothing more.
 - **Cancellation and failure.** A sync that is cancelled or fails keeps the batches it committed, removes nothing that was not removed yet,
   does not finish the merge, leaves `NeedsInitialSync` as it was, and releases its lease. Running it again is always correct.
-- **The cost.** Other writers wait for the file for one transaction at a time — `LongestLock` of the report says how long that was at most —
-  instead of for the whole sync. SQLite has no queue: a waiting writer polls, and the sync takes the lock again right after a commit, so
-  this is a chance for the other writers and not a bound; give them a busy timeout of a few seconds.
+- **The cost, and what is not promised.** Other writers wait for the file for one transaction of the sync at a time — `LongestLock` of the
+  report says how long that was at most — instead of for the whole sync, and the batches keep the write-ahead log small. **A writer can still
+  starve.** SQLite has no queue for its one write lock: a waiting writer polls (at most every 100 ms), and the sync takes the lock again
+  within microseconds of a commit, so beside a very large sync (hundreds of thousands of rows or more) and a busy application a write can wait
+  a long time — in a million-row run a writer with a busy timeout of twice a batch (2 s) had 4 of 38 writes fail with `SQLITE_BUSY`, and the
+  longest wait of a write that succeeded was 1.99 s. LUI adds **no pause between the transactions** (ADR-0077 records why). What to do: run the
+  **first sync before the application accepts writes**; give the application's writers a **generous busy timeout** (30 seconds, not the default
+  five) and **retry** a write that fails with `SQLITE_BUSY`; open the application's own write transactions with `BEGIN IMMEDIATE`
+  (`connection.BeginTransaction(deferred: false)`), so that a busy file is found at their start. The README has the same advice, with the code.
 
 ### `LuiIntegrityReport`
 

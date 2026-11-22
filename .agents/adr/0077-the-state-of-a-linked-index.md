@@ -149,13 +149,26 @@ The batched sync (decisions 7–12) had alternatives too:
   would sync again. This is also the order of #266. The docs say it wherever they name both calls.
 - **The application decides.** `NeedsInitialSync`, `Triggers()` and the two calls are the whole setup; `catalog.Initialize()` (#266) is
   a loop over them, not a new mechanism. It treats a lease that is held as "running elsewhere" and skips (#266).
-- **A linked sync is not atomic and the write lock is shared, not queued (#271).** Another writer waits for one transaction of the sync at a time — `LongestLock` of the
-  report — instead of for the whole sync (26.7 s for a million rows in 0.3.0). SQLite has no queue: a waiting writer polls with a growing pause, and the sync
-  takes the lock again right after a commit, so the file is given to the others by chance and not by a bound (0016, "Consequences"). A probe at 400,000 rows
-  with a writer that has a busy timeout of 2 s: sixteen writes in the ten seconds of a sync, the longest wait 1.8 s; the same sync with a pause of 120 ms after every
-  transaction — longer than the longest pause of SQLite's busy handler, so that every polling writer lands in it — eighty-three writes, the longest wait 0.9 s, and
-  a sync that took half as long again. A pause is not part of this decision; the numbers are for the owner and for #275 (the criterion of #271, a writer with a busy
-  timeout of twice a batch that never gets `SQLITE_BUSY`, is the test `A_writer_beside_a_linked_sync_of_a_million_rows_never_gets_busy`).
+- **A linked sync is not atomic, and the write lock is shared, not queued: starvation is accepted and documented (#271, the owner's option C).** Another writer waits
+  for one transaction of the sync at a time — `LongestLock` of the report — instead of for the whole sync (26.7 s for a million rows in 0.3.0), and the batches keep
+  the **write-ahead log small**, which is the reason for them. SQLite has no queue: a waiting writer polls with a pause of at most 100 ms, and the sync takes the lock again
+  within microseconds of a commit, so the file is given to the others by chance and not by a bound (0016, "Consequences"). **What was measured** (4-core container; the
+  test `A_linked_sync_of_a_million_rows_beside_a_writer_…`, formerly `…never_gets_busy`): in the first million-row run a writer with a busy timeout of twice the longest batch
+  (2 s) had 4 of 38 writes fail with `SQLITE_BUSY`, the longest wait of a success 1.99 s; in the second (after the removal had automerge off) 0 of 45 failed, the longest wait
+  1.96 s — a pass by 40 ms, which is luck and not fairness. **The first criterion of the issue — a writer with a busy timeout of twice a batch never gets `SQLITE_BUSY` —
+  is withdrawn**: it asks for a property that SQLite cannot give without a pause. It is replaced by what the sync does promise, and the test asserts: a writer with a
+  *generous* timeout (30 s) is never refused; the sync is cancellable; a count never sees a short index; the peak of the `-wal` file stays under sixteen batches' share of
+  the database; no transaction holds the lock for an absurd time (10 s). The starvation of a tight timeout stays a log line.
+  **Rejected for now: a pause between the transactions of the sync** (an option `LuiSyncOptions.PauseBetweenTransactions`). A probe at 400,000 rows with a writer of a 2 s busy
+  timeout: 16 writes in a sync of ten seconds and a longest wait of 1.81 s without a pause; 83 writes and 0.90 s with a pause of 120 ms after every transaction (longer than the
+  longest pause of SQLite's busy handler, so that every polling writer lands in it) — and the sync **56 % longer**. The reasons against: the cost on every sync for an edge
+  case (a very large sync beside a write-heavy application), a new public option to explain, and it helps only writers that poll — those of the application; another process
+  with its own busy handler or none gets nothing from it. The way out for an application is its own: run the first sync before it accepts writes, a generous busy timeout
+  (30 s) and a retry on `SQLITE_BUSY`, `BEGIN IMMEDIATE` for its write transactions — the README and `docs/api.md` say so. It is recorded so that a report from a real application can
+  reopen it with the numbers above.
+- **An open item for #275: the merge step.** In the second run the longest merge step held the lock for 1.81 s (batches 0.54 s, removal steps 0.42 s) with `DefaultMergePages`
+  = 4,096; in the first run the merge had nothing left to do, because FTS5's own merge had run in the removal. Whether 4,096 pages is too many is measured again there; the
+  lock bound of the test (10 s) is not the promise of a step of a batch's length.
 - **Format 2 gains more columns; no release had format 2.** `lui_meta` has `sync_generation`, `sync_lease_owner` and `sync_lease_expires` beside `needs_initial_sync`; the open
   check refuses a file with indexes that misses any of them, naming the first one, and the first `Create` in the empty `lui_meta` of 0.3.0 adds them all. The table of a
   linked index has `gen`. The golden schema of the file changes with the DDL of `lui_meta` (the entry table of a linked index is no part of it).
