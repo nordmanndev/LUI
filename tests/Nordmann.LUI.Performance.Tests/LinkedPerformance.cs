@@ -166,7 +166,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     /// releases its lease, and the sync that follows completes;</item>
     /// <item>a search or a count <b>never sees an empty or a short index</b> while a sync replaces every entry;</item>
     /// <item>the <b>write-ahead log stays small</b> — the owner's main concern, the reason for the batches: the peak size of the <c>-wal</c> file
-    /// of each measured sync — the log truncated before it — stays under half of the database file, where a sync in one transaction would put the
+    /// of each measured sync — the log truncated before it — stays under six times the peak of the batches of the first sync, where a sync in one transaction would put the
     /// whole index into it;</item>
     /// <item>no transaction of the sync holds the lock for an absurd time, and the sync is complete at its end.</item>
     /// </list>
@@ -176,13 +176,13 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     /// writer finds a gap long before; a writer that is still refused after 30 s is starved for a whole sync, which is the defect this test
     /// looks for — and the provider takes the timeout of SQLite from the command, in seconds, and may retry once more. <b>The lock bound is
     /// 10 s</b>, three times the longest lock ever logged: a step that long is a step that holds the file for a third of the sync. <b>The WAL
-    /// bound is half of the database file</b>: the log is the biggest transaction of the sync plus what the application's writers commit in between,
-    /// and the biggest transaction is a batch, a step of the removal (10,000 deletes write into the tombstones of every segment: about 40 MB at
-    /// 400,000 rows) or of the merge — a few percent of the index each; a sync in one transaction puts the whole index into the log. The first version
-    /// of this bound (sixteen batches' share) was argued from a 100,000-row run where it was 160 % of the file, and failed at a million rows
-    /// (341 MB of log for a database of 322 MB): the log did not shrink, because the sync's own checkpoint at a commit cannot start the log over
-    /// when another writer has committed since or a reader meets it — the sync now truncates the log right before each transaction (ADR-0077),
-    /// and the test measures each sync from a log that was truncated first, for the -wal file keeps its high-water mark.
+    /// bound is six times the peak of the batches of the first sync</b>: the log is the biggest transaction of the sync plus what the application's writers commit
+    /// in between, and the biggest transaction is a batch, a step of the removal (10,000 deletes write into the tombstones of every segment) or of the merge — a few
+    /// percent of the index each, however large the table; a sync in one transaction puts the whole index into the log. At a million rows the first sync's batches
+    /// peaked at 16 MB and the whole run at 42 MB (a factor of 2.6, so six leaves room), against 341 MB before the sync truncated the log. A bound of half the
+    /// database would grow with the table and would not see a log that grows slowly with the index; this one follows the size of a batch. Each sync is measured from
+    /// a log that was truncated first, for the -wal file keeps its high-water mark. A reader of the application that holds a snapshot for long would stop the log
+    /// from starting over; this test has none. <b>No CI lane runs this test</b>: it is run by hand (<c>performance.yml</c> runs <c>BudgetPerformance</c> only).
     /// </para>
     /// <para>
     /// The starvation itself is a <b>log line</b>, not an assertion: a second writer, beside the first one, has the timeout of twice the longest
@@ -234,9 +234,9 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         await stop.CancelAsync();
         await Task.WhenAll(writers);
 
-        var sizeBytes = ReportTheWriters(database, generous, tight, tightSeconds, third);
+        ReportTheWriters(database, generous, tight, tightSeconds, third);
 
-        AssertTheRun(database, linked, generous, third, sizeBytes, rows);
+        AssertTheRun(database, linked, generous, third, first, rows);
     }
 
     /// <summary>Cancellable: the first sync stops after five batches of 10,000 rows, keeps them, and the flag and the lease say that it did not finish.</summary>
@@ -251,7 +251,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         database.Scalar<long>("SELECT count(*) FROM lui_meta WHERE sync_lease_owner IS NOT NULL").ShouldBe(0, "the lease of a cancelled sync is released");
     }
 
-    private long ReportTheWriters(TestDatabase database, WriterRun generous, WriterRun tight, int tightSeconds, SyncRun third)
+    private void ReportTheWriters(TestDatabase database, WriterRun generous, WriterRun tight, int tightSeconds, SyncRun third)
     {
         var sizeBytes = (long)(database.FileMegabytes() * 1_048_576);
         Report($"generous writer ({GenerousSeconds} s): {generous.Waits.Count} writes succeeded, the longest wait {generous.LongestWait / 1000:F2} s, {generous.Failures} failed with SQLITE_BUSY");
@@ -260,17 +260,16 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         Report($"sync: longest lock {third.Report.LongestLock.TotalSeconds:F2} s, {third.Report.Batches} batches, {third.Report.Removed:N0} removed, "
             + $"transactions by phase (count / longest / median s): {third.Summary()}");
         Report($"write-ahead log: the peak of the -wal file {_peakWalBytes / 1_048_576.0:F0} MB, the database file {sizeBytes / 1_048_576.0:F0} MB");
-        return sizeBytes;
     }
 
-    private void AssertTheRun(TestDatabase database, LuiLinkedIndex<long> linked, WriterRun generous, SyncRun third, long sizeBytes, int rows)
+    private void AssertTheRun(TestDatabase database, LuiLinkedIndex<long> linked, WriterRun generous, SyncRun third, SyncRun first, int rows)
     {
         generous.Failures.ShouldBe(0, "a writer with a generous busy timeout gets the file between the transactions of the sync");
         generous.Waits.Count.ShouldBeGreaterThan(0, "the writer wrote while the sync ran: the test has seen the batches, the removal and the merge");
         third.Report.LongestLock.TotalSeconds.ShouldBeLessThan(10, "no transaction of the sync holds the lock for an absurd time");
         ((double)_peakWalBytes).ShouldBeLessThan(
-            sizeBytes / 2.0,
-            "the batches keep the write-ahead log small — under half of the database at most: a sync in one transaction would put the whole index into it");
+            6.0 * first.WalPeaks["batch"],
+            "the log grows by a transaction at a time: it stays under six times the peak of the batches of the first sync, however large the table — a sync in one transaction puts the whole index into it");
         _peakWalBytes.ShouldBeGreaterThan(0, "the log was looked at");
         third.Report.Removed.ShouldBe(rows / 10);
         third.Report.Indexed.ShouldBe(rows - (rows / 10));
@@ -303,9 +302,6 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
 
     /// <summary>The seconds of the busy timeout of the writer that must never be refused: about the length of a sync (see the test).</summary>
     private const int GenerousSeconds = 30;
-
-    /// <summary>The rows of a batch of the default size — the unit the bound of the write-ahead log is counted in.</summary>
-    private const int DefaultBatchRows = 10_000;
 
     /// <summary>The peak size of the <c>-wal</c> file seen after any transaction of a sync of this run.</summary>
     private long _peakWalBytes;

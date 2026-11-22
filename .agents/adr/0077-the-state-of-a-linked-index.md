@@ -112,7 +112,8 @@ creation, and LUI does nothing on its own. An application — or the host of #26
     after the last step.
 11. **The report.** `LuiLinkedSyncReport` gets `Batches` (the batches of rows written — an empty table has none), `Removed` (the entries of an older generation that
     were removed) and `LongestLock` — the longest time the sync held the write lock of the file in one transaction (a batch, a step of the removal or of the merge, the
-    lease), measured from the begin of the transaction to its commit. It is what another writer waits for.
+    lease), measured from the checkpoint that precedes the transaction (decision 13 — it holds SQLite's writer lock while it backfills) to its commit. It is the time that one transaction keeps
+    another writer out; a writer that is unlucky waits for several of them in a row (the starvation below).
 12. **Every transaction of the sync is guarded** (0075): the guard is checked inside each transaction — the lease, every batch, every step of the removal and of
     the merge — together with the lease, in the same transaction that does the work, so an index that another process drops and creates again between two
     batches is a `LuiIndexNotFoundException`, a `LuiDefinitionMismatchException` (another definition) or, for the same definition, the lost lease of decision 9 — and
@@ -125,13 +126,15 @@ creation, and LUI does nothing on its own. An application — or the host of #26
     only grows (it keeps its high-water mark; it is not truncated by a checkpoint). A probe at 400,000 rows without writers showed the log at 20 MB, one batch, in every
     phase; with two polling writers it reached 44 MB, and the probe's `wal_checkpoint(PASSIVE)` showed the log growing by a transaction each time the restart was missed.
     The run therefore executes `PRAGMA wal_checkpoint(TRUNCATE)` on its own connection **right before the begin** of each transaction, in the same hold of the writer gate, with
-    the busy timeout set to **0 for that one statement** and put back after it: best effort and never a wait — a reader or a writer in the way leaves the log as it is, and a long
+    the busy timeout set to **0 for that one statement** and put back after it (in invariant culture; a restore that fails clears the pool, so that a connection that was left at 0 is not given out as a configured one): best effort and never a wait — a reader or a writer in the way leaves the log as it is, and a long
     reader of the application does not hold the sync up by five seconds a batch. It changes no setting of the file and no pragma that the application can see (ADR-0066:
-    the connection's busy timeout is restored); a file that is not in write-ahead logging has nothing to do. After it the log is the biggest single transaction of the sync plus
+    the connection's busy timeout is restored, and the test `The_connection_of_a_sync_goes_back_to_the_pool_with_the_busy_timeout_of_the_catalog` and the mutation `the-sync-leaves-the-busy-timeout-at-zero` hold it); a file that is not in write-ahead logging has nothing to do. After it the log is the biggest single transaction of the sync plus
     what the application's writers committed in between; the biggest transaction is a batch, or a step of the removal (10,000 deletes write into the tombstones of every segment:
     about 40 MB at 400,000 rows). The test `The_write_ahead_log_stays_a_batch_in_size_when_another_writer_commits_between_the_batches` commits a write between every two batches and
     asserts that the log stays smaller than the database (a third of it, measured; 3.3 times without the checkpoint); the million-row test measures each sync from a truncated log
-    and asserts half of the database. **The million-row run after the change** (each sync from a truncated log; the peak of the `-wal` file after each phase): first sync 16 MB
+    and asserts that the peak stays under six times the peak of the batches of the first sync (16 MB there: 96 MB; the measured peak is 42 MB, a sync that puts the index into the log
+    — 322 MB — fails; and the bound follows the size of a batch, not the size of the table). It runs by hand: `performance.yml` runs `BudgetPerformance` only, **no CI lane runs this test**. A reader of the
+    application that holds a snapshot for long still stops the log from starting over; the checkpoint is best effort and says so. **The million-row run after the change** (each sync from a truncated log; the peak of the `-wal` file after each phase): first sync 16 MB
     (batches) and 17 MB (merge); second sync 42 MB (batches) and 17 MB (merge); third sync, beside two writers, 35 MB (batches), 37 MB (removal), 17 MB (merge) — **42 MB at most, for a
     database of 322 MB; 341 MB before.** The generous writer (30 s) had 39 writes and 0 failures, the longest wait 2.41 s; the writer with the tight timeout (2 s) 29 writes and 6 failures
     (logged, not asserted); the longest lock 1.73 s (a merge step; the removal steps 0.37 s). `journal_size_limit` was not taken: it shortens a file after a reset and does not prevent the growth.
@@ -180,13 +183,13 @@ The batched sync (decisions 7–12) had alternatives too:
   1.96 s — a pass by 40 ms, which is luck and not fairness. **The first criterion of the issue — a writer with a busy timeout of twice a batch never gets `SQLITE_BUSY` —
   is withdrawn**: it asks for a property that SQLite cannot give without a pause. It is replaced by what the sync does promise, and the test asserts: a writer with a
   *generous* timeout (30 s) is never refused; the sync is cancellable; a count never sees a short index; the peak of the `-wal` file of each measured sync (the log truncated before it) stays
-  under half of the database; no transaction holds the lock for an absurd time (10 s). The starvation of a tight timeout stays a log line.
+  under six times the peak of the batches of the first sync; no transaction holds the lock for an absurd time (10 s). The starvation of a tight timeout stays a log line.
   **Rejected for now: a pause between the transactions of the sync** (an option `LuiSyncOptions.PauseBetweenTransactions`). A probe at 400,000 rows with a writer of a 2 s busy
   timeout: 16 writes in a sync of ten seconds and a longest wait of 1.81 s without a pause; 83 writes and 0.90 s with a pause of 120 ms after every transaction (longer than the
   longest pause of SQLite's busy handler, so that every polling writer lands in it) — and the sync **56 % longer**. The reasons against: the cost on every sync for an edge
   case (a very large sync beside a write-heavy application), a new public option to explain, and it helps only writers that poll — those of the application; another process
   with its own busy handler or none gets nothing from it. The way out for an application is its own: run the first sync before it accepts writes, a generous busy timeout
-  (30 s) and a retry on `SQLITE_BUSY`, `BEGIN IMMEDIATE` for its write transactions — the README and `docs/api.md` say so. It is recorded so that a report from a real application can
+  (30 s, set explicitly — measured with the provider of this release, a plain connection waits 30 s for a lock by the retries of the provider, and `Default Timeout=3` waits 3 s; ADR-0066's "waits 0 ms" is SQLite's own busy handler, which the provider retries on top of) and a retry on `SQLITE_BUSY`, `BEGIN IMMEDIATE` for its write transactions — the README and `docs/api.md` say so. It is recorded so that a report from a real application can
   reopen it with the numbers above.
 - **An open item for #275: the merge step.** In the second run the longest merge step held the lock for 1.81 s (batches 0.54 s, removal steps 0.42 s) with `DefaultMergePages`
   = 4,096; in the first run the merge had nothing left to do, because FTS5's own merge had run in the removal. Whether 4,096 pages is too many is measured again there; the

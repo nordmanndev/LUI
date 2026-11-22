@@ -813,13 +813,13 @@ The report of a `Sync` of a linked index:
 - **Cancellation and failure.** A sync that is cancelled or fails keeps the batches it committed, removes nothing that was not removed yet,
   does not finish the merge, leaves `NeedsInitialSync` as it was, and releases its lease. Running it again is always correct.
 - **The cost, and what is not promised.** Other writers wait for the file for one transaction of the sync at a time — `LongestLock` of the
-  report says how long that was at most — instead of for the whole sync, and the batches keep the write-ahead log small. **A writer can still
+  report says how long that was at most — instead of for the whole sync, and the write-ahead log grows by one transaction at a time and not by the whole index (a few tens of megabytes at a million rows: 42 MB for a database of 322 MB, measured; a reader of the application that holds a snapshot for long still stops the log from starting over). **A writer can still
   starve.** SQLite has no queue for its one write lock: a waiting writer polls (at most every 100 ms), and the sync takes the lock again
   within microseconds of a commit, so beside a very large sync (hundreds of thousands of rows or more) and a busy application a write can wait
-  a long time — in a million-row run a writer with a busy timeout of twice a batch (2 s) had 4 of 38 writes fail with `SQLITE_BUSY`, and the
-  longest wait of a write that succeeded was 1.99 s. LUI adds **no pause between the transactions** (ADR-0077 records why). What to do: run the
-  **first sync before the application accepts writes**; give the application's writers a **generous busy timeout** (30 seconds — `LuiPragmas.BusyTimeout` is five, `Default Timeout` of a `Microsoft.Data.Sqlite` connection of the application
-  is already 30) and **retry** a write that fails with `SQLITE_BUSY`; open the application's own write transactions with `BEGIN IMMEDIATE`
+  a long time — in three million-row runs a writer with a busy timeout of twice a batch (2 s) had 4 of 38, 0 of 45 and 6 of 35 writes fail with `SQLITE_BUSY` (the longest wait of a write that
+  succeeded: 1.99 s, 1.96 s and 1.82 s; in the third run, which also had a writer with a timeout of 30 s, that one was never refused). LUI adds **no pause between the transactions** (ADR-0077 records why). What to do: run the
+  **first sync before the application accepts writes**; give the application's writers a **generous busy timeout** (30 seconds, set explicitly — `Default Timeout=30` in the connection string of a `Microsoft.Data.Sqlite` connection; measured, a plain connection waits 30 s on its own,
+  but a setting that is not stated is not controlled; LUI's own connections wait `LuiPragmas.BusyTimeout`, five seconds by default) and **retry** a write that fails with `SQLITE_BUSY`; open the application's own write transactions with `BEGIN IMMEDIATE`
   (`connection.BeginTransaction(deferred: false)`), so that a busy file is found at their start. The README has the same advice, with the code.
 
 ### `LuiIntegrityReport`

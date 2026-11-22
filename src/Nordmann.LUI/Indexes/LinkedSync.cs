@@ -145,11 +145,11 @@ internal sealed class LinkedSync
         T result;
         lock (_database.WriterGate)
         {
+            // the checkpoint takes the writer lock of SQLite while it backfills, so the time of another writer starts with it
+            var held = Stopwatch.StartNew();
             ResetTheLog(writer);
             using var transaction = writer.BeginTransaction(deferred: false);
 
-            // the lock of the file is held from here: this is the time another writer waits for
-            var held = Stopwatch.StartNew();
             _guard?.Check(writer, transaction);
             if (ownsTheLease)
             {
@@ -195,24 +195,36 @@ internal sealed class LinkedSync
         try
         {
             Execute(writer, null, "PRAGMA busy_timeout = 0;");
-            try
+        }
+        catch (SqliteException)
+        {
+            // the timeout was not changed, and nothing is asked of the log: the transaction that begins says what is wrong with the file
+            return;
+        }
+
+        try
+        {
+            using var checkpoint = writer.CreateCommand();
+            checkpoint.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+            using var result = checkpoint.ExecuteReader();
+            while (result.Read())
             {
-                using var checkpoint = writer.CreateCommand();
-                checkpoint.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
-                using var result = checkpoint.ExecuteReader();
-                while (result.Read())
-                {
-                    // (busy, frames in the log, frames backfilled): a busy 1 is the answer "not now" — nothing else is asked of it
-                }
-            }
-            finally
-            {
-                Execute(writer, null, $"PRAGMA busy_timeout = {_database.BusyTimeoutMilliseconds};");
+                // (busy, frames in the log, frames backfilled): a busy 1 is the answer "not now" — nothing else is asked of it
             }
         }
         catch (SqliteException)
         {
             // the log is somebody else's business this time: a transaction that begins and finds the lock busy says so itself
+        }
+
+        try
+        {
+            Execute(writer, null, string.Create(System.Globalization.CultureInfo.InvariantCulture, $"PRAGMA busy_timeout = {_database.BusyTimeoutMilliseconds};"));
+        }
+        catch (SqliteException)
+        {
+            // a connection that is left with a timeout of 0 must not go back to the pool as a configured one — the pool does not give it its pragmas again
+            SqliteConnection.ClearPool(writer);
         }
     }
 

@@ -1038,7 +1038,7 @@ expect_caught "the-old-generation-is-removed-before-the-batches-are-done" "${INT
 # 35zn. The removal takes the current generation with the old ones (issue #271, ADR-0077): everything the batches wrote is removed again.
 expect_caught "the-removal-takes-the-current-generation-too" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~LinkedBatchSyncTests.After_the_sync_the_index_holds_exactly_the_rows_of_the_table" \
-  "sed -i 's/WHERE gen < \$gen AND gen <> -\$gen ORDER BY/WHERE gen <= \$gen AND gen <> -\$gen ORDER BY/' src/Nordmann.LUI/Schema/LinkedSource.cs"
+  "sed -i 's/WHERE gen > -\$gen AND gen < \$gen ORDER BY/WHERE gen > -\$gen AND gen <= \$gen ORDER BY/' src/Nordmann.LUI/Schema/LinkedSource.cs"
 
 # 35zo. A batch does not set FTS5's automerge back (issue #271, ADR-0077, ADR-0016): the index would not merge on its own after the sync.
 expect_caught "a-batch-leaves-the-automerge-off" "${INTEGRATION_PROJECT}" \
@@ -1099,7 +1099,7 @@ expect_caught "a-batch-keeps-the-entry-of-a-row-that-is-gone" "${INTEGRATION_PRO
 # 35zz. The removal takes the entries that a refresh wrote beside the sync (issue #271, ADR-0077): a row refreshed in a range that is done would go with the old generation.
 expect_caught "the-removal-takes-the-entries-a-refresh-wrote" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~LinkedBatchSyncTests.A_row_that_a_refresh_wrote_beside_the_sync_stays_when_the_old_generation_is_removed" \
-  "sed -i 's/ AND gen <> -\$gen ORDER BY/ ORDER BY/' src/Nordmann.LUI/Schema/LinkedSource.cs"
+  "sed -i 's/WHERE gen > -\$gen AND gen < \$gen ORDER BY/WHERE gen < \$gen ORDER BY/' src/Nordmann.LUI/Schema/LinkedSource.cs"
 
 # 35zza. The sync does not give the write-ahead log back before a transaction (issue #271, review of pull request 291, B2): with another writer committing between the batches the log
 #        is not started over and grows to the size of the whole index.

@@ -102,7 +102,7 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   LUI's table of the index —, in batches of `BatchSize`, each in a transaction of its own, and only when every batch is written; then FTS5's index is merged in **steps** (FTS5
   `merge`, 4,096 pages a step, each in a transaction of its own) instead of one `optimize`, and the transaction of the last step clears `NeedsInitialSync`. FTS5's automatic
   merge is off while a batch loads and back on before its commit. A sync that is cancelled or fails keeps the batches it committed, removes nothing that was not removed yet,
-  does not finish the merge, leaves `NeedsInitialSync` as it was and releases its lease; running it again is always correct. The sync truncates the write-ahead log (a best-effort checkpoint that never waits) right before each of its transactions, so the log stays a batch in size beside writers of the application. A built typo dictionary is rebuilt once, at the end.
+  does not finish the merge, leaves `NeedsInitialSync` as it was and releases its lease; running it again is always correct. The sync truncates the write-ahead log (a best-effort checkpoint that never waits) right before each of its transactions, so the log grows by one transaction at a time — a few tens of megabytes at a million rows (42 MB for a database of 322 MB, measured; a batch is about 16 MB, a step of the removal about 37 MB) — and not by the whole index, also beside writers of the application; a reader of the application that holds a snapshot for long still stops the log from starting over. A built typo dictionary is rebuilt once, at the end.
   `LuiLinkedSyncReport` gets `Batches`, `Removed` and `LongestLock` (the longest time the sync held the write lock of the file in one transaction).
 
 - **One sync of a linked index at a time — `LuiSyncInProgressException`** (ADR-0077, #271): a sync takes a **lease** on its index — the owner and the expiry (60 seconds, UTC, from
@@ -112,7 +112,7 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   same exception and writes nothing more.
 
 - **Linked indexes and the sync — the README says how to deal with it** (#271): a section "Linked indexes and the sync" — triggers first, then the first sync
-  (`if (index.NeedsInitialSync) index.Sync()`), before the application accepts writes; batches keep the write-ahead log small; a cancelled sync keeps its
+  (`if (index.NeedsInitialSync) index.Sync()`), before the application accepts writes; the write-ahead log grows by a transaction at a time and not by the whole index; a cancelled sync keeps its
   batches; one sync per index; and the **starvation that is not fixed**: SQLite has no lock queue, so a very large sync beside a busy application can make
   the application's writes wait — give them a generous busy timeout, retry on `SQLITE_BUSY`, begin write transactions with `BEGIN IMMEDIATE`.
 

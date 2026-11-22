@@ -21,7 +21,7 @@ public interface ILuiLinkedIndex : ILuiIndex
     /// <para>
     /// One sync of an index runs at a time: it holds a lease, and a second <c>Sync()</c> — in this process or another — throws a
     /// <see cref="LuiSyncInProgressException"/>. SQLite has one writer per file (ADR-0015, ADR-0046): other writers wait for one transaction
-    /// at a time, not for the whole sync — a chance between the batches, not a bound; give them a busy timeout of a few seconds.
+    /// at a time, not for the whole sync — a chance between the batches, not a bound; give them a generous busy timeout (30 seconds) and let them retry on <c>SQLITE_BUSY</c>.
     /// </para>
     /// </summary>
     /// <param name="cancellationToken">Checked between the batches and the steps; a cancelled sync keeps the batches it committed, leaves <c>NeedsInitialSync</c> as it was and releases its lease.</param>

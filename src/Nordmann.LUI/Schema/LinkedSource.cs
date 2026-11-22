@@ -189,12 +189,13 @@ internal sealed class LinkedSource : ContentSource
 
     /// <summary>
     /// The entries of an earlier generation, the oldest first, at most <c>$n</c>, <b>except those that a refresh wrote beside this sync</b>
-    /// (<c>-$gen</c>, see <see cref="CurrentGeneration"/>): <c>(doc_id, s_rowid)</c>. Generations only grow, and the
+    /// (<c>-$gen</c>, see <see cref="CurrentGeneration"/>): <c>(doc_id, s_rowid)</c>. The range is <c>(-$gen, $gen)</c> — nothing lies below
+    /// <c>-$gen</c> — so the index on <c>gen</c> starts above those entries and a step of the removal does not read them again and again. Generations only grow, and the
     /// lease holds that no other sync runs, so "another generation than the current one" is "an older one" — which the index on
     /// <c>gen</c> reads as a range, where <c>&lt;&gt;</c> would read the whole table for every batch of the removal.
     /// </summary>
     internal string StaleEntriesSql =>
-        $"SELECT doc_id, s_rowid FROM {EntryTable} WHERE gen < $gen AND gen <> -$gen ORDER BY gen, doc_id LIMIT $n;";
+        $"SELECT doc_id, s_rowid FROM {EntryTable} WHERE gen > -$gen AND gen < $gen ORDER BY gen, doc_id LIMIT $n;";
 
     /// <summary>Removes the entry of <c>$id</c> and its search entry — one entry of the previous generation.</summary>
     internal string RemoveStaleSql => RemoveSql("$id");

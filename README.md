@@ -354,7 +354,9 @@ if (articles.NeedsInitialSync)        // the first complete Sync() has not run y
 What the sync does, and what it does not:
 
 - It works **in batches**, each in a transaction of its own (`LuiSyncOptions.BatchSize`, 10,000 by default), and merges the search index
-  in steps at the end. That keeps the **write-ahead log small** — a sync in one transaction would put the whole index into it.
+  in steps at the end. The write-ahead log then grows by one transaction at a time — a few tens of megabytes at a million rows (measured: 42 MB beside two writers, for a database of 322 MB) —
+  and not by the whole index, as a sync in one transaction would have it; the sync truncates the log (a checkpoint that never waits) before each transaction. A reader of your
+  own that holds a snapshot for a long time still stops the log from starting over while it lives.
 - It can be **cancelled**: the batches that are committed stay, `NeedsInitialSync` stays `true`, the lease is released — run `Sync()`
   again, it is always correct.
 - It **never shows an empty index**: a search during the sync sees the old state plus the batches written so far. A linked sync is not
@@ -364,7 +366,7 @@ What the sync does, and what it does not:
 - Do the **first sync before the application accepts writes** — at startup, as above. A sync of a table of hundreds of thousands of rows
   or more, beside an application that writes all the time, **can make the application's writes wait**: SQLite has no queue for its one
   write lock, a waiting writer polls (at most every 100 ms), and the sync takes the lock again right after each commit, so a writer can
-  starve for a long time. Give the application a **generous busy timeout** (30 seconds: the `Default Timeout` of a `Microsoft.Data.Sqlite` connection is that already; `LuiPragmas.BusyTimeout` of LUI's own connections is five) and **retry** a write that
+  starve for a long time. Give the application a **generous busy timeout** (30 seconds, **set explicitly**: `Default Timeout=30` in the connection string of a `Microsoft.Data.Sqlite` connection — measured, a plain connection waits 30 s for a lock on its own, but a setting you do not state is one you do not control; LUI's own connections wait `LuiPragmas.BusyTimeout`, five seconds by default) and **retry** a write that
   fails with `SQLITE_BUSY`; open the application's own write transactions with **`BEGIN IMMEDIATE`** (in `Microsoft.Data.Sqlite`:
   `connection.BeginTransaction(deferred: false)`), so that a busy file is found at the start and not in the middle of a transaction.
 
