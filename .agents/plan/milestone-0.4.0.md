@@ -19,7 +19,7 @@ file into `0.4.0`.
 | 3 | #261 Definitions and typed handles, `long` keys (ADR-0073) | the contract everything builds on — riskiest, first | #274 | merged | #282 — definitions and typed handles; a fourth narrow review was allowed by the owner |
 | 4 | #269 Payload variants, typed linked builder (ADR-0073) | extends the types of #261 | #261 | merged | #283 — payload variants over the #261 handles; the typed builder has no Create() |
 | 5 | #270 Key types `int`/`string`/`Guid`, LUI format 2 (ADR-0073) | the file format #260/#272/#271 add to | #269 | merged | #284 — key types and LUI format 2; the sample test no longer counts the outbox rows the host loop may have applied first |
-| 6 | #265 Runtime in the catalog, 0 B open, several processes (ADR-0075) | the query path; its budget risk shows early | #270 | in review | #286 |
+| 6 | #265 Runtime in the catalog, 0 B open, several processes (ADR-0075) | the query path; its budget risk shows early | #270 | stopped — round limit, owner decision | #286 |
 | 7 | #260 Payload registry, type and format fingerprint (ADR-0072) | needs definitions and the handle cache | #265 | open | — |
 | 8 | #262 `hit.Payload` loaded with the query, `CheckPayloads()` (ADR-0074) | needs the registry; its own budget | #260 | open | — |
 | 9 | #272 State of a linked index: `NeedsInitialSync`, idempotent `CreateTriggers()` (ADR-0077) | precondition of #271 and #266 | #262 | open | — |
@@ -40,6 +40,16 @@ need no per-PR A/B measurement (owner, 2026-11-21: performance is looked at at t
 
 **Decision (owner, 2026-11-21, #261):** after three rounds with a blocker left, the owner allowed a fourth, narrow review of
 the last two commits (option B); it was LGTM and #282 was merged. Rounds: 1 three blockers, 2 one, 3 one, 4 none.
+
+**Stopped (2026-11-22, #265 / PR #286):** three review rounds are used and round 3 still had one blocker (a handle opened
+during this catalog's own `DropIndex` escaped it). It is fixed on the branch (commits `44ca5c7`, `0d05db5`, with the round-3
+suggestions; format, build, Unit 307, Architecture 142, Integration 675 twice, Sample 47 green locally; the mutations of
+the touched files caught one by one), but no reviewer has seen that state and the rules forbid a fourth round. Options:
+**A** the owner merges #286 as is; **B** a fourth, narrow review of the last two commits (an exception to the round rule,
+as granted for #261); **C** rework. The rounds found, in turn: round 1 two blockers (check and write not atomic, unbounded
+runtime cache), round 2 two (false exceptions from a stale snapshot, several handles per definition), round 3 one (the
+handle escaping `DropIndex`) — each narrower than the last. Recommendation: **B**. #260 and everything after build on
+#265, so nothing else can proceed.
 
 Risks of the whole run:
 
