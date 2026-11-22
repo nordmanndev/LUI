@@ -1176,6 +1176,21 @@ expect_caught "check-by-name-ignores-the-payload-columns" "${INTEGRATION_PROJECT
   "FullyQualifiedName~MaintenanceByNameTests.Check_by_name_finds_a_payload_column_that_is_gone_from_the_table_without_a_map" \
   "sed -i 's|entry, counter, byName: true);|entry, counter);|' src/Nordmann.LUI/Indexes/IndexRuntimes.cs"
 
+# 35zzn. A definition that is no JSON surfaces as the bare error of the parser (issue #273, review of pull request 292, B2): it names no index, and the operator of an admin endpoint cannot tell which one to drop.
+expect_caught "a-malformed-definition-names-no-index" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.A_row_that_cannot_be_read_is_a_mismatch_that_names_the_index_on_every_path_and_spoils_no_other_index" \
+  "sed -i 's|        catch (System.Text.Json.JsonException exception)\$|        catch (System.Text.Json.JsonException exception) when (json is null)|' src/Nordmann.LUI/Indexes/IndexStore.cs"
+
+# 35zzo. A definition of 'null' is an InvalidOperationException that is no LuiException (issue #273, review of pull request 292, B2).
+expect_caught "an-empty-definition-is-no-mismatch" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.A_row_that_cannot_be_read_is_a_mismatch_that_names_the_index_on_every_path_and_spoils_no_other_index" \
+  "sed -i 's|throw new LuiDefinitionMismatchException(indexName, \"an empty definition\", \"a definition of this version\", advice)|throw new InvalidOperationException(\"empty\")|' src/Nordmann.LUI/Indexes/IndexStore.cs"
+
+# 35zzp. The drop does not take a row it cannot read (issue #273, ADR-0076): the way out of a damaged row is closed.
+expect_caught "the-drop-cannot-take-a-damaged-row" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.A_row_that_cannot_be_read_is_a_mismatch_that_names_the_index_on_every_path_and_spoils_no_other_index" \
+  "sed -i 's|        catch (System.Text.Json.JsonException)\$|        catch (System.Text.Json.JsonException) when (indexName is null)|' src/Nordmann.LUI/Indexes/IndexStore.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

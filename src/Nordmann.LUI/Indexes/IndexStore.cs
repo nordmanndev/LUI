@@ -413,8 +413,7 @@ internal static class IndexStore
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
 
-        var stored = ReadDefinition(connection, transaction, name);
-        var existed = stored is not null;
+        var (stored, existed) = ReadForDrop(connection, transaction, name);
 
         if (!dropTriggers && stored?.Link is { } link && HasTriggers(connection, transaction, name))
         {
@@ -517,13 +516,30 @@ internal static class IndexStore
     {
         var kind = ReadKind(reader.GetString(firstColumn), indexName);
         var source = reader.GetString(firstColumn + 1);
-        var definition = IndexDefinition.FromJson(reader.GetString(firstColumn + 2))
-            ?? throw new InvalidOperationException(
-                $"The definition of the index '{indexName}' in lui_meta is empty; the file was written by another version "
-                + "of LUI and cannot be read: remove the index (LuiCatalog.DropIndex) and create it again.");
+        var definition = ParseDefinition(reader.GetString(firstColumn + 2), indexName);
         var schemaVersion = reader.GetInt32(firstColumn + 3);
 
         return new IndexStoreEntry(kind, source, definition, schemaVersion);
+    }
+
+    /// <summary>
+    /// The definition of a row. A row that cannot be parsed — malformed JSON, or <c>null</c> — is a <see cref="LuiDefinitionMismatchException"/>
+    /// that names the index, like a kind this version does not know (ADR-0076): the file was written by something else, and the way out is the
+    /// drop. The error of the parser is kept as the inner exception.
+    /// </summary>
+    private static IndexDefinition ParseDefinition(string json, string indexName)
+    {
+        const string advice = "The definition in lui_meta cannot be read; the file was written by another version of LUI or was changed by hand: "
+            + "remove the index with LuiCatalog.DropIndex(name) and create it again.";
+        try
+        {
+            return IndexDefinition.FromJson(json)
+                ?? throw new LuiDefinitionMismatchException(indexName, "an empty definition", "a definition of this version", advice);
+        }
+        catch (System.Text.Json.JsonException exception)
+        {
+            throw new LuiDefinitionMismatchException(indexName, "a definition that is no JSON of this version", "a definition of this version", advice, exception);
+        }
     }
 
     /// <summary>
@@ -558,6 +574,32 @@ internal static class IndexStore
                 $"a kind of this version ({string.Join(", ", Enum.GetNames<LuiIndexKind>())})",
                 "The index was written by another version of LUI: remove it with LuiCatalog.DropIndex(name) and create "
                 + "it again.");
+
+    /// <summary>
+    /// The definition of an index that is about to be dropped, and whether the row is there. The drop is the way out of a row that cannot be
+    /// read (ADR-0076): a definition that is <c>null</c> or no JSON is no reason to keep the row — it is dropped with the statements of an
+    /// embedded index, as a definition of no source always was.
+    /// </summary>
+    private static (IndexDefinition? Stored, bool Existed) ReadForDrop(SqliteConnection connection, SqliteTransaction transaction, string indexName)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT definition FROM lui_meta WHERE index_name = $name;";
+        command.Parameters.AddWithValue("$name", indexName);
+        if (command.ExecuteScalar() is not string json)
+        {
+            return (null, false);
+        }
+
+        try
+        {
+            return (IndexDefinition.FromJson(json), true);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return (null, true);
+        }
+    }
 
     /// <summary>The stored definition of an index, or <see langword="null"/> when there is none.</summary>
     internal static IndexDefinition? ReadDefinition(SqliteConnection connection, SqliteTransaction? transaction, string indexName)
