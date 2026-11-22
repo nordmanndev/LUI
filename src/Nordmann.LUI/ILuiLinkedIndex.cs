@@ -115,7 +115,9 @@ public interface ILuiLinkedIndex : ILuiIndex
     string TriggerScript();
 
     /// <summary>
-    /// Creates the triggers of <see cref="TriggerScript"/> on the application's table — only when it is called. They note
+    /// Brings the triggers of <see cref="TriggerScript"/> on the application's table into place — only when it is called, and
+    /// idempotent (ADR-0077): <see cref="LuiTriggerState.None"/> creates them, <see cref="LuiTriggerState.Stale"/> replaces them,
+    /// <see cref="LuiTriggerState.Current"/> does nothing, and triggers that exist never make it throw. They note
     /// the key of every row that any code inserts, changes or deletes, in a plain table of LUI's (an outbox), in the same
     /// transaction as the write; <see cref="ApplyPending"/> brings those rows into the index.
     /// <para>

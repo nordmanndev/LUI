@@ -58,6 +58,65 @@ public sealed class FormatVersionTests
         exception.SupportedFormat.ShouldBe(2);
     }
 
+    [Theory]
+    [InlineData("Open")]
+    [InlineData("OpenReadOnly")]
+    [InlineData("OpenOrCreate")]
+    public void A_format_2_file_of_an_early_build_without_the_state_column_is_rejected_on_open(string way)
+    {
+        // #272, ADR-0077: lui_meta gained the column needs_initial_sync inside format 2, which no release had. A file that an early
+        // build wrote without it is refused when the catalog opens, with a clear exception — not with a SQLite error at the first
+        // read or write of the state
+        using var database = new TestDatabase();
+        using (var catalog = database.Open())
+        {
+            catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
+        }
+
+        Run(database, "ALTER TABLE lui_meta DROP COLUMN needs_initial_sync;");
+
+        var exception = Should.Throw<LuiFormatException>(() => OpenWay(way, database.FilePath));
+
+        exception.Message.ShouldContain("needs_initial_sync");
+        exception.Message.ShouldContain(Path.GetFileName(database.FilePath));
+        exception.Message.ShouldContain("Recreate the indexes");
+        exception.FoundFormat.ShouldBe(2);
+        exception.SupportedFormat.ShouldBe(2);
+    }
+
+    [Theory]
+    [InlineData("Open")]
+    [InlineData("OpenReadOnly")]
+    [InlineData("OpenOrCreate")]
+    public void A_catalog_of_0_3_0_without_an_index_still_opens_and_its_first_create_adds_the_state_column(string way)
+    {
+        // review of #290, round 2: a lui_meta of 0.3.0 with no row has no format to reject (#270), and the check of the state column
+        // must not turn it into an "early build" — also after its last index was dropped. The column is added by the first Create, in its own transaction
+        using var database = new TestDatabase();
+        Run(database, Linked.LinkedTable.Table);
+        Run(
+            database,
+            "CREATE TABLE lui_meta (index_name TEXT PRIMARY KEY, kind TEXT NOT NULL, source TEXT NOT NULL, definition TEXT NOT NULL, "
+            + "schema_version INTEGER NOT NULL, created_at TEXT NOT NULL);");
+        using (var catalog = OpenWay(way, database.FilePath))
+        {
+            if (string.Equals(way, "OpenReadOnly", StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            var tags = catalog.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", "name")));
+            _ = catalog.Create(new LuiIndexDefinition<long>("embedded", index => index.SingleWord()));
+
+            tags.NeedsInitialSync.ShouldBeTrue();
+            tags.Sync();
+            tags.NeedsInitialSync.ShouldBeFalse();
+        }
+
+        using var reopened = LuiCatalog.Open(database.FilePath);
+        reopened.Index(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", "name"))).NeedsInitialSync.ShouldBeFalse();
+    }
+
     [Fact]
     public void A_file_with_one_index_of_another_format_is_rejected_as_a_whole()
     {

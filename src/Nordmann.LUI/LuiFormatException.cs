@@ -18,6 +18,16 @@ public sealed class LuiFormatException : LuiException
         SupportedFormat = supportedFormat;
     }
 
+    internal LuiFormatException(string path, string missingColumn, int format)
+        : base(
+            $"The file '{System.IO.Path.GetFileName(path)}' was written by an early build of LUI 0.4.0: its table 'lui_meta' has no column '{missingColumn}' "
+            + $"(format {format.ToString(System.Globalization.CultureInfo.InvariantCulture)} gained it before the release). Recreate the indexes.")
+    {
+        Path = path;
+        FoundFormat = format;
+        SupportedFormat = format;
+    }
+
     /// <summary>The full path of the file.</summary>
     public string Path { get; }
 

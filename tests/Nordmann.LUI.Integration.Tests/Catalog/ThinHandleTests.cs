@@ -19,6 +19,7 @@ public sealed class ThinHandleTests
 {
     private const int Warmup = 200;
     private const int Calls = 1_000;
+    private const int Rounds = 5;
 
     private static readonly LuiIndexDefinition<long> Recipes = new("recipes", index => index.SingleWord());
 
@@ -177,8 +178,15 @@ public sealed class ThinHandleTests
         var recipes = catalog.Create(Recipes);
         recipes.UpsertMany(Enumerable.Range(1, 2_000).Select(key => new LuiEntry<long>(key, "kuchen " + key) { Weight = key }));
 
-        var held = Allocated(() => recipes.Search("kuc"));
-        var perRequest = Allocated(() => catalog.Index(Recipes).Search("kuc"));
+        // the two paths alternate and each one counts its smallest round: the noise of an allocation (a tier of the compiler that
+        // arrives in the middle of one round, a buffer of the thread that is grown) only adds bytes, and it must not decide
+        var held = long.MaxValue;
+        var perRequest = long.MaxValue;
+        for (var round = 0; round < Rounds; round++)
+        {
+            held = Math.Min(held, Allocated(() => recipes.Search("kuc")));
+            perRequest = Math.Min(perRequest, Allocated(() => catalog.Index(Recipes).Search("kuc")));
+        }
 
         // the handle adds nothing: the difference is the noise of the allocation of a query (the tiers of the compiler, a buffer
         // of a thread that was grown), a few bytes per call at most — the open call itself is 0 B

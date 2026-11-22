@@ -160,7 +160,7 @@ var articles = catalog.CreateLinked(
 // The script for the application's own migration.
 Console.WriteLine(articles.TriggerScript());
 
-// Or: create the triggers right away.
+// Or: create the triggers right away — before the first Sync(), so that no row written in between is lost.
 articles.CreateTriggers();
 Console.WriteLine(articles.Triggers());
 

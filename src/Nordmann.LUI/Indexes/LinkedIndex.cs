@@ -79,6 +79,22 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         return Scalar(connection, snapshot, _source.CountSql);
     }
 
+    /// <summary>
+    /// Whether the first complete <see cref="Sync"/> is still to be done (ADR-0077). It is read from the file on every call — in the
+    /// snapshot that the guard checked — because another process can complete the sync without a change of the SQLite schema.
+    /// </summary>
+    /// <returns><see langword="true"/> from the creation of the index until its first complete sync.</returns>
+    public bool NeedsInitialSync()
+    {
+        using var scope = _database.Begin();
+        using var connection = _database.OpenReadConnection();
+
+        // the check and the read in one snapshot (ADR-0075): the answer is the one of the index the guard judged
+        using var snapshot = connection.BeginTransaction(deferred: true);
+        _guard?.Check(connection, snapshot);
+        return IndexStore.ReadNeedsInitialSync(connection, snapshot, Name) ?? throw new LuiIndexNotFoundException(Name);
+    }
+
     public LuiTriggerState Triggers()
     {
         using var scope = _database.Begin();
@@ -272,7 +288,13 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     {
         using var scope = _database.Begin();
         LuiLinkedSyncReport? result = null;
-        Guarded(() => Write(null, (connection, transaction) => result = SyncAll(connection, transaction, cancellationToken)));
+        Guarded(() => Write(null, (connection, transaction) =>
+        {
+            result = SyncAll(connection, transaction, cancellationToken);
+
+            // the first complete sync is a fact of the file: it commits with the content, or not at all (ADR-0077)
+            IndexStore.MarkSynced(connection, transaction, Name);
+        }));
 
         // the words of the table as they are now: a built dictionary is built anew
         if (_typos.IsBuilt)
@@ -457,10 +479,22 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     public void CreateTriggers()
     {
         using var scope = _database.Begin();
+
+        // the state is read and acted on in the one write transaction that the guard checked (ADR-0075, ADR-0077): another process
+        // cannot create, drop or change the triggers between the reading and the work
         Write(null, (connection, transaction) =>
         {
-            // a second call replaces them: the definition of the index may have changed the expressions
-            Execute(connection, transaction, LinkedSource.DropTriggersSql(Name));
+            var state = TriggerState(connection, transaction);
+            if (state == LuiTriggerState.Current)
+            {
+                return;
+            }
+
+            if (state == LuiTriggerState.Stale)
+            {
+                Execute(connection, transaction, LinkedSource.DropTriggersSql(Name));
+            }
+
             Execute(connection, transaction, _source.TriggerScript());
         });
     }

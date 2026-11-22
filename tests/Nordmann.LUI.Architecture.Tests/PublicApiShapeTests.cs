@@ -593,6 +593,7 @@ public sealed class PublicApiShapeTests
                 "string TriggerScript()",
                 "void CreateTriggers()",
                 "void DropTriggers()",
+                "bool NeedsInitialSync { get; }",
             ],
         }
         .Concat(ExpectedPayloadVariants())
@@ -743,6 +744,7 @@ public sealed class PublicApiShapeTests
                 "string TriggerScript()",
                 "void CreateTriggers()",
                 "void DropTriggers()",
+                "bool NeedsInitialSync { get; }",
             ],
         };
     }

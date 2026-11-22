@@ -113,8 +113,15 @@ public sealed class LuiLinkedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     /// <returns>The script.</returns>
     public string TriggerScript() => _index.TriggerScript();
 
-    /// <summary>Creates the triggers on the table of the application — only when the application asks for it.</summary>
+    /// <summary>
+    /// Brings the triggers on the table of the application to the current ones — only when the application asks for it, and it is
+    /// <b>idempotent</b> (ADR-0077): on <see cref="LuiTriggerState.None"/> it creates them, on <see cref="LuiTriggerState.Stale"/> it
+    /// replaces them, on <see cref="LuiTriggerState.Current"/> it does nothing. It never throws because triggers exist. The state is
+    /// read and acted on in one transaction.
+    /// </summary>
     /// <exception cref="LuiIndexNotFoundException">The index was dropped.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index was created again with another definition.</exception>
+    /// <exception cref="LuiReadOnlyException">The catalog is read-only and the triggers would have to be written (<c>None</c> or <c>Stale</c>).</exception>
     public void CreateTriggers()
     {
         try
@@ -138,6 +145,32 @@ public sealed class LuiLinkedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
         catch (Exception exception) when (IsDropped(exception))
         {
             throw Dropped();
+        }
+    }
+
+    /// <summary>
+    /// Whether the first complete <see cref="Sync"/> is still to be done: <see langword="true"/> from the creation of the index until
+    /// a sync has run to its end — the application decides what to do with it, LUI does nothing on its own (ADR-0077). The value is
+    /// <b>read from the file on every call</b>, so another process that completed the sync is seen at once, without a reopen. A sync
+    /// that is cancelled or fails leaves it <see langword="true"/>: the flag is written in the transaction that commits the sync.
+    /// (A cancellation while the typo dictionary is rebuilt <i>after</i> that commit leaves it <see langword="false"/> — the index
+    /// itself is complete.)
+    /// </summary>
+    /// <value>The state.</value>
+    /// <exception cref="LuiIndexNotFoundException">The index was dropped.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index was created again with another definition.</exception>
+    public bool NeedsInitialSync
+    {
+        get
+        {
+            try
+            {
+                return _index.NeedsInitialSync();
+            }
+            catch (Exception exception) when (IsDropped(exception))
+            {
+                throw Dropped();
+            }
         }
     }
 

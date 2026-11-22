@@ -29,8 +29,8 @@ public sealed class LuiDefinitionMismatchException : LuiException
             + "An index is never rebuilt silently. Ask for the stored definition, "
             + (linked
                 ? "or remove the index with LuiCatalog.DropIndex(name, dropTriggers: true) — its triggers on the table go "
-                  + "with it — and create it again: then Sync() it, and create the triggers again if the application "
-                  + "uses them."
+                  + "with it — and create it again: then create the triggers again if the application "
+                  + "uses them, and Sync() it (the triggers first, so that no row written in between is lost)."
                 : "or remove the index with LuiCatalog.DropIndex(name) and create it again."))
     {
         IndexName = indexName;
@@ -58,7 +58,7 @@ public sealed class LuiDefinitionMismatchException : LuiException
             + "An index is never rebuilt silently, and LUI does not migrate a definition. To change it: "
             + (linked
                 ? "LuiCatalog.DropIndex(name, dropTriggers: true) — its triggers on the table go with it —, "
-                  + "catalog.Create(definition), then Sync() it and create the triggers again if the application uses them. "
+                  + "catalog.Create(definition), then create the triggers again if the application uses them (first) and Sync() it. "
                 : "LuiCatalog.DropIndex(name), catalog.Create(definition), then fill it again (UpsertMany or Sync) — "
                   + "the stored content is lost with the drop. ")
             + "Or give the new definition a new name (for instance recipes_v2) next to the old index, switch over, and drop "

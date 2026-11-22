@@ -67,7 +67,7 @@ internal static class IndexStore
     /// </summary>
     /// <param name="database">The database.</param>
     /// <param name="connection">A connection to it.</param>
-    /// <exception cref="LuiFormatException">An index of the file was written in another format.</exception>
+    /// <exception cref="LuiFormatException">An index of the file was written in another format, or the table lacks a column of format 2.</exception>
     private static void EnsureFormat(Database database, SqliteConnection connection)
     {
         using var command = connection.CreateCommand();
@@ -78,6 +78,54 @@ internal static class IndexStore
         {
             throw new LuiFormatException(database.Path, (int)Math.Clamp(found, int.MinValue, int.MaxValue), Meta.SchemaVersion);
         }
+
+        // format 2 gained the column of the state of a linked index (ADR-0077) before any release had it: a file with indexes that an
+        // early build wrote without it cannot be used — it is refused here, with its own words, and not at the first read or write of
+        // the state. A lui_meta without a row has no format to reject — it may be the table of 0.3.0, whose last index was dropped —
+        // and the first Create adds the column in its transaction (AddStateColumn)
+        if (!HasStateColumn(connection) && HasAnyIndex(connection))
+        {
+            throw new LuiFormatException(database.Path, "needs_initial_sync", Meta.SchemaVersion);
+        }
+    }
+
+    private static bool HasStateColumn(SqliteConnection connection, SqliteTransaction? transaction = null)
+    {
+        using var columns = connection.CreateCommand();
+        columns.Transaction = transaction;
+        columns.CommandText = "SELECT count(*) FROM pragma_table_info('lui_meta') WHERE name = 'needs_initial_sync';";
+        return (long)columns.ExecuteScalar()! != 0;
+    }
+
+    private static bool HasAnyIndex(SqliteConnection connection, SqliteTransaction? transaction = null)
+    {
+        using var any = connection.CreateCommand();
+        any.Transaction = transaction;
+        any.CommandText = "SELECT count(*) FROM lui_meta;";
+        return (long)any.ExecuteScalar()! != 0;
+    }
+
+    /// <summary>
+    /// The first <c>Create</c> in the file adds the column of the state to a <c>lui_meta</c> that has none and no row (the empty
+    /// table of 0.3.0), in the transaction that creates the index. A table with rows and no column is refused when the catalog is
+    /// opened; one that became so since is refused here.
+    /// </summary>
+    private static void EnsureStateColumn(Database database, SqliteConnection connection, SqliteTransaction transaction)
+    {
+        if (HasStateColumn(connection, transaction))
+        {
+            return;
+        }
+
+        if (HasAnyIndex(connection, transaction))
+        {
+            throw new LuiFormatException(database.Path, "needs_initial_sync", Meta.SchemaVersion);
+        }
+
+        using var add = connection.CreateCommand();
+        add.Transaction = transaction;
+        add.CommandText = "ALTER TABLE lui_meta ADD COLUMN needs_initial_sync INTEGER NOT NULL DEFAULT 0;";
+        add.ExecuteNonQuery();
     }
 
     private static bool HasMetaTable(SqliteConnection connection)
@@ -155,6 +203,7 @@ internal static class IndexStore
         using var scope = database.Begin();
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
+        EnsureStateColumn(database, connection, transaction);
 
         foreach (var (source, verify) in indexes)
         {
@@ -356,7 +405,7 @@ internal static class IndexStore
             throw new InvalidOperationException(
                 $"The linked index '{name}' has triggers on the table '{link.Table}'. They write into the tables of the index "
                 + "and go with it: call DropIndex(name, dropTriggers: true), and take them out of the application's migration "
-                + "too. After a new Create() the index is empty and has no triggers — Sync() it and create them again.");
+                + "too. After a new Create() the index is empty and has no triggers — create them again, then Sync() it (the triggers first, so that no row written in between is lost).");
         }
 
         foreach (var statement in ContentSources.DropStatements(name, stored))
@@ -515,14 +564,51 @@ internal static class IndexStore
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
         command.CommandText =
-            "INSERT INTO lui_meta(index_name, kind, source, definition, schema_version, created_at) "
-            + "VALUES ($name, $kind, $source, $definition, $version, $created);";
+            "INSERT INTO lui_meta(index_name, kind, source, definition, schema_version, created_at, needs_initial_sync) "
+            + "VALUES ($name, $kind, $source, $definition, $version, $created, $needsSync);";
         command.Parameters.AddWithValue("$name", indexName);
         command.Parameters.AddWithValue("$kind", definition.Kind.ToString());
         command.Parameters.AddWithValue("$source", definition.Source);
         command.Parameters.AddWithValue("$definition", definition.ToJson());
         command.Parameters.AddWithValue("$version", Meta.SchemaVersion);
         command.Parameters.AddWithValue("$created", createdAt.ToString("O", CultureInfo.InvariantCulture));
+
+        // a linked index starts with its first sync still to do; an embedded one has none (ADR-0077)
+        command.Parameters.AddWithValue("$needsSync", definition.Link is null ? 0 : 1);
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>
+    /// Whether the linked index of that name still waits for its first complete sync (ADR-0077): the column of its row, read on the
+    /// connection and in the snapshot that are given — the caller has checked the guard in the same snapshot.
+    /// </summary>
+    /// <param name="connection">A connection to the file.</param>
+    /// <param name="transaction">Its transaction.</param>
+    /// <param name="indexName">The name of the index.</param>
+    /// <returns>The state; <see langword="null"/> when the snapshot has no such index.</returns>
+    internal static bool? ReadNeedsInitialSync(SqliteConnection connection, SqliteTransaction? transaction, string indexName)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT needs_initial_sync FROM lui_meta WHERE index_name = $name;";
+        command.Parameters.AddWithValue("$name", indexName);
+
+        return command.ExecuteScalar() is long flag ? flag != 0 : null;
+    }
+
+    /// <summary>
+    /// The first complete sync of a linked index is done (ADR-0077). It runs in the transaction of the sync, after its last
+    /// statement: the flag and the content commit together or not at all.
+    /// </summary>
+    /// <param name="connection">The connection of the sync.</param>
+    /// <param name="transaction">The transaction of the sync.</param>
+    /// <param name="indexName">The name of the index.</param>
+    internal static void MarkSynced(SqliteConnection connection, SqliteTransaction transaction, string indexName)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "UPDATE lui_meta SET needs_initial_sync = 0 WHERE index_name = $name;";
+        command.Parameters.AddWithValue("$name", indexName);
         command.ExecuteNonQuery();
     }
 

@@ -465,7 +465,7 @@ public sealed class LuiCatalog : IDisposable
     /// </para>
     /// <para>
     /// The index starts empty: fill it with <c>Sync()</c>. That holds after a <c>DropIndex</c> too — a new linked
-    /// index is empty and has no triggers until <c>Sync()</c> and, if wanted, <c>CreateTriggers()</c>.
+    /// index is empty and has no triggers until <c>CreateTriggers()</c>, if wanted — first — and <c>Sync()</c>.
     /// </para>
     /// </summary>
     /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
@@ -530,7 +530,9 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>
     /// Creates the index of a linked definition, or opens it if it exists with the same definition (ADR-0073), and checks
     /// the table of the application every time. The index starts empty: <b>nothing is synced and no trigger is
-    /// installed</b> — <c>Sync()</c> fills it, <c>CreateTriggers()</c> installs the triggers if the application wants them.
+    /// installed</b> — <c>CreateTriggers()</c> installs the triggers if the application wants them, and then <c>Sync()</c> fills the index: the triggers come first, so that no row written in between is lost.
+    /// The table is the application's own schema and has to exist before this call. A new index reports
+    /// <c>NeedsInitialSync == true</c> until its first complete <c>Sync()</c>; LUI does nothing on its own (ADR-0077).
     /// </summary>
     /// <typeparam name="TKey">The type of the keys.</typeparam>
     /// <param name="definition">The declaration of the index.</param>
@@ -573,7 +575,8 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>
     /// Creates the index of a linked definition with a payload, or opens it if it exists with the same definition
     /// (ADR-0073), and checks the table of the application every time. The map of the definition builds the payload; the
-    /// index starts empty: <b>nothing is synced and no trigger is installed</b>.
+    /// index starts empty: <b>nothing is synced and no trigger is installed</b>, and <c>NeedsInitialSync</c> is <see langword="true"/>
+    /// until its first complete <c>Sync()</c> (ADR-0077).
     /// </summary>
     /// <typeparam name="TKey">The type of the keys.</typeparam>
     /// <typeparam name="TPayload">The type the map builds.</typeparam>
@@ -1231,7 +1234,7 @@ public sealed class LuiCatalog : IDisposable
     /// the table, are removed only with <paramref name="dropTriggers"/>: they write into the tables that go, so they
     /// cannot stay — but a migration of the application may count on them, and their removal is not done silently
     /// (review of pull request 16, M3). <b>After the drop and a new <c>Create()</c> a linked index is empty and has no
-    /// triggers</b>: <c>Sync()</c> fills it, and <c>CreateTriggers()</c> — or the migration — sets them again.
+    /// triggers</b>: <c>CreateTriggers()</c> — or the migration — sets them again, <b>first</b>, and then <c>Sync()</c> fills it: a row written in between is noted by the triggers and not lost.
     /// </para>
     /// </summary>
     /// <param name="name">The name of the index.</param>
