@@ -100,5 +100,6 @@ untyped payload.
   finds the entries. A health endpoint calls `Check()`, which reads no payload; a maintenance job calls `CheckPayloads()`.
 - **`CheckPayloads()` lists every unreadable entry**: on an index whose payload type was changed it holds one object per entry until the
   entries are rewritten — a list of the size of the index, held for the length of the call.
-- **A map that throws is wrapped for every linked index**, also on the old calls (`LinkedIndex(name, map)`), until #268: the exception
-  that the map threw is the inner one of a `LuiPayloadException`.
+- **A map that throws is wrapped on the typed handles only.** The exception that the map threw is the inner one of the
+  `LuiPayloadException`. The old calls (`CreateLinked`, `LinkedIndex(name, map)`) name no payload type and keep the exception of the map as
+  it was, until #268 removes them.

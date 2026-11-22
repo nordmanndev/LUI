@@ -182,7 +182,7 @@ old index (`docs/api.md`, "Changing a definition").
 `hit.GetPayload<T>()` of an untyped hit, and declare the index with `LuiIndexDefinition<long, T>`. A payload that cannot be read now fails the
 whole query with a `LuiPayloadException` instead of throwing where the hit is read — find the entries with `CheckPayloads()` and write them
 again. A hit of an index without a payload type has no payload; `HasPayload` has no counterpart. A map of a linked index that throws is wrapped
-in a `LuiPayloadException` (the inner exception is the one the map threw), also on the old calls.
+in a `LuiPayloadException` on a typed handle (the inner exception is the one the map threw); the old calls keep the exception of the map.
 
 A handle that was taken before the index was dropped and created again (by your code or another process) used to work on the new
 index; it throws now, and the open call gives a new handle. Take the handle from `catalog.Index(definition)` where you use it — it is
