@@ -49,7 +49,7 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 | `static LuiCatalog OpenOrCreate(string path, LuiCatalogOptions? options = null)` | opens the catalog and sets the file up: the file is created when it is missing, `lui_meta` is created when the file has none (the database of an application), and a catalog that is there is not written. **LUI sets the write-ahead logging only in a file it creates itself**; a file that is there keeps its journal mode, empty or not (ADR-0066, ADR-0068). |
 | `static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, **to read only**: every connection of it is read-only, and SQLite refuses every write, which LUI turns into a `LuiReadOnlyException`. A file that is missing or is no catalog is a `LuiCatalogNotFoundException`. |
 | `LuiEmbeddedIndex<TKey> Create<TKey>(LuiIndexDefinition<TKey> definition)` | creates the index of an **embedded definition**, or opens it if it exists with the same definition — safe on every start — and returns its typed handle. It creates only: it never syncs and never installs triggers. A different stored definition is a `LuiDefinitionMismatchException` that names the fields. The handle is the one `Index(definition)` gives for the same definition object. When two processes create the same index at once, one creates it and the other opens it — see [several processes on one file](#several-processes-on-one-file). |
-| `LuiLinkedIndex<TKey> Create<TKey>(LuiLinkedIndexDefinition<TKey> definition)` | the same for a **linked definition**: LUI's tables are created and the table of the application is checked, every time. |
+| `LuiLinkedIndex<TKey> Create<TKey>(LuiLinkedIndexDefinition<TKey> definition)` | the same for a **linked definition**: LUI's tables are created and the table of the application is checked, every time. The table is the application's own schema and has to exist before the call (`LuiLinkedTableException` naming the index otherwise). It syncs nothing and installs no trigger: the new index has `NeedsInitialSync == true` and `Triggers() == None` until the application calls `Sync()` and, if it wants them, `CreateTriggers()` (ADR-0077). |
 | `LuiEmbeddedIndex<TKey, TPayload> Create<TKey,TPayload>(LuiIndexDefinition<TKey, TPayload> definition)` | the same for an **embedded definition with a payload**: the handle writes typed payloads with the serializer that the `Payloads` registry of the catalog holds for `TPayload`. The type is looked up **before anything is written**: a type that is not registered is a `LuiConfigurationException` that names the definition, and no index is created for it. The index stores the name of the payload type and the format of its serializer ([the fingerprint](#the-fingerprint-of-a-payload)). |
 | `LuiLinkedIndex<TKey, TPayload> Create<TKey,TPayload>(LuiLinkedIndexDefinition<TKey, TPayload> definition)` | the same for a **linked definition with a payload**: the map of the definition builds the payload from the row. |
 | `void Create(params LuiIndexDefinitionBase[] definitions)` | creates or opens **several** definitions in **one transaction**: all or none. The exception names the definition that failed — a mismatch and a missing index by their `IndexName`, a broken table of a linked index as a `LuiLinkedTableException` whose message starts `Index 'name': …` and whose inner exception is the original, a refused write on a read-only catalog by the index whose write was refused; a name that occurs twice is an `ArgumentException` before anything is written. It **returns nothing**: a variable typed `LuiIndexDefinitionBase` binds here, and the handles come from `Index(definition)`. |
@@ -254,7 +254,7 @@ LUI does not migrate a definition. The recipe, which the message of a `LuiDefini
 
 1. `catalog.DropIndex(name)` (`dropTriggers: true` for a linked index that has triggers), then `catalog.Create(definition)`;
 2. fill it again — `UpsertMany` or `Sync` for an embedded index (its stored content is lost with the drop), `Sync()` for a
-   linked one, and `CreateTriggers()` if the application uses them.
+   linked one (`NeedsInitialSync` says that it is still to be done), and `CreateTriggers()` if the application uses them.
 
 Or give the new definition a **new name** (`recipes_v2`) next to the old index, switch the application over, and drop the old
 one — there is no window without a search.
@@ -327,7 +327,8 @@ belongs to the application.
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the changes a trigger collected |
 | `long Pending()` | how many changes are waiting |
 | `string TriggerScript()` | the SQL of the triggers — pure: built from the definition, no database is read, so it also answers on a handle whose index was dropped |
-| `void CreateTriggers()` | creates the triggers on the table — only when the application asks |
+| `bool NeedsInitialSync { get; }` | `true` from the creation of the index until its first complete `Sync()` (ADR-0077). Stored in `lui_meta` and **read from the file on every call**: another process that completed the sync is seen at once, without a reopen. A cancelled or failing sync leaves it `true`; it is cleared in the transaction that commits a complete sync. LUI never syncs on its own — the application decides what to do with it. Throws `LuiIndexNotFoundException` / `LuiDefinitionMismatchException` like every operation of the handle. |
+| `void CreateTriggers()` | brings the triggers on the table to the current ones — only when the application asks, **idempotent** (ADR-0077): `None` creates them, `Stale` replaces them, `Current` does nothing; it never throws because triggers exist |
 | `void DropTriggers()` | drops them again |
 | `LuiTriggerState Triggers()` | `None`, `Current` or `Stale` |
 
@@ -386,7 +387,7 @@ weight. The payload comes **right after the text**, the order of the entry.
 #### `LuiLinkedIndex<TKey, TPayload>` — the handle of a linked index with a payload
 
 Sealed, derives from `LuiIndex<TKey, TPayload>`; the members are those of `LuiLinkedIndex<TKey>` — `Sync(options, ct)`, `Refresh`,
-`RefreshMany`, `ApplyPending`, `Pending`, `TriggerScript`, `CreateTriggers`, `DropTriggers`, `Triggers` — and the payload comes
+`RefreshMany`, `ApplyPending`, `Pending`, `TriggerScript`, `CreateTriggers`, `DropTriggers`, `Triggers`, `NeedsInitialSync` — and the payload comes
 from the map of the definition.
 
 | Type | What it is |
@@ -576,7 +577,7 @@ read. The write path belongs to the application.
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the changes a trigger collected — the outbox |
 | `long Pending()` | how many changes are waiting |
 | `string TriggerScript()` | the SQL of the triggers, for the application that wants to install them itself — pure: no database is read, it also answers on a handle whose index was dropped |
-| `void CreateTriggers()` | creates the triggers on the table of the application — only when the application asks for it |
+| `void CreateTriggers()` | brings the triggers on the table of the application to the current ones — only when the application asks for it; idempotent (ADR-0077): `None` creates, `Stale` replaces, `Current` does nothing |
 | `void DropTriggers()` | drops them again |
 | `LuiTriggerState Triggers()` | `None`, `Current` or `Stale` |
 | `LuiIntegrityReport Check()` | compares the index with its table |

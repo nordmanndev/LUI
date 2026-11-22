@@ -87,6 +87,13 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   rewrite every entry with `Upsert`, `UpsertMany` or `Sync`, `CheckPayloads()` listing the ones still missing. Upgrading payloads belongs to the
   migration topic of a later release (`docs/api.md`, "Changing a payload type").
 
+- **The state of a linked index — `NeedsInitialSync`** ([ADR-0077](.agents/adr/0077-the-state-of-a-linked-index.md), #272): `LuiLinkedIndex<TKey>.NeedsInitialSync` and
+  `LuiLinkedIndex<TKey, TPayload>.NeedsInitialSync` are `true` from the creation of the index until its first complete `Sync()`. The flag is the new
+  column `needs_initial_sync` of `lui_meta` (part of LUI format 2; the stored definition of an index does not change), it is **read from the file on every call**,
+  so a second catalog sees a sync that another process completed at once, and it is cleared in the transaction that commits a complete sync — a cancelled
+  or failing sync leaves it `true`. LUI does nothing on its own: the application reads the state and decides. `Create(definition)` of a linked index
+  still syncs nothing and installs no trigger, and checks that the table of the application exists (a `LuiLinkedTableException` naming the index otherwise).
+
 ### Changed
 
 - **A payload definition needs a payload registry** (#260, ADR-0072): `LuiIndexDefinition<TKey, TPayload>` is created and opened with the serializer
@@ -146,6 +153,10 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   index at once leave one index. A section on several processes on one file is on `docs/api.md`. The SQLite schema counter is not the LUI
   format version of `lui_meta.schema_version`.
 
+- **`CreateTriggers()` is idempotent** (#272, ADR-0077): on `LuiTriggerState.None` it creates the triggers, on `Stale` it replaces them, on `Current` it
+  does nothing — it never throws because triggers exist. Before, every call dropped the three triggers and created them anew, also when they were current.
+  The state is read and acted on in one guarded write transaction.
+
 ### Migration
 
 **A break the compiler does not see — read it first: files of 0.3.0 are not read.** A catalog file that holds an index written by 0.3.0
@@ -187,6 +198,11 @@ in a `LuiPayloadException` on a typed handle (the inner exception is the one the
 A handle that was taken before the index was dropped and created again (by your code or another process) used to work on the new
 index; it throws now, and the open call gives a new handle. Take the handle from `catalog.Index(definition)` where you use it — it is
 a lookup now — instead of holding it across a recreate.
+
+**`CreateTriggers()` and the state of a linked index** (#272): a call on triggers that are current no longer rewrites them — the triggers an application
+installed itself with its own white space stay as they are — and no code needs to guard the call with `Triggers()` any more. A start that wants a
+working linked index reads the state instead of remembering an event: `if (index.NeedsInitialSync) index.Sync(); if (index.Triggers() != LuiTriggerState.Current) index.CreateTriggers();`.
+The new column of `lui_meta` belongs to LUI format 2, which no release has had: a file that an early build of 0.4.0 wrote without it is created again like the files of 0.3.0.
 
 ## [0.3.0] — 2026-11-19
 
