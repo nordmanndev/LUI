@@ -62,7 +62,7 @@ public sealed class LinkedStateTests
         Should.Throw<OperationCanceledException>(() => tags.Sync(cancellationToken: cancelled.Token));
 
         tags.NeedsInitialSync.ShouldBeTrue();
-        tags.Count().ShouldBe(0, "a cancelled sync changes nothing");
+        tags.Count().ShouldBe(0, "a sync that is cancelled before its first batch has written nothing");
     }
 
     [Fact]
