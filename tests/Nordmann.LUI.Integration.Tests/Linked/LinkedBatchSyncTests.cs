@@ -423,6 +423,70 @@ public sealed class LinkedBatchSyncTests
         tags.Check().IsHealthy.ShouldBeTrue();
     }
 
+    [Fact]
+    public void A_row_that_a_refresh_wrote_beside_the_sync_and_that_is_deleted_before_its_batch_is_gone_after_the_sync()
+    {
+        // review of #291, B1: the refresh writes an entry for a row in a range the sync has not reached; the row goes before the batch comes
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Fill(database, 30);
+        using var catalog = database.Open();
+        var tags = catalog.Create(LinkedTags);
+        tags.Sync();
+
+        tags.Sync(new LuiSyncOptions
+        {
+            BatchSize = 10,
+            Progress = Hear(report =>
+            {
+                if (report.Batches == 1 && !report.Merged)
+                {
+                    tags.Refresh(25).ShouldBeTrue();
+                    tags.Refresh(26).ShouldBeTrue();
+                    Run(database, "DELETE FROM tag WHERE id = 25; UPDATE tag SET name = NULL WHERE id = 26;");
+                }
+            }),
+        });
+
+        tags.Count().ShouldBe(28, "neither the deleted row nor the one without a text is in the index: the batch of their range did not take them, and the entries a refresh wrote are not 'reached by the sync'");
+        tags.Search("kuchen25").Hits.ShouldBeEmpty();
+        tags.Search("kuchen26").Hits.ShouldBeEmpty();
+        tags.Check().IsHealthy.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void A_row_that_ApplyPending_wrote_beside_the_sync_and_that_is_deleted_before_its_batch_is_gone_after_ApplyPending()
+    {
+        // review of #291, B1, with the triggers: the outbox must still hold the key when the sync is through
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Fill(database, 30);
+        using var catalog = database.Open();
+        var tags = catalog.Create(LinkedTags);
+        tags.CreateTriggers();
+        tags.Sync();
+
+        tags.Sync(new LuiSyncOptions
+        {
+            BatchSize = 10,
+            Progress = Hear(report =>
+            {
+                if (report.Batches == 1 && !report.Merged)
+                {
+                    Run(database, "UPDATE tag SET name = 'frisch' WHERE id = 25;");
+                    tags.ApplyPending().ShouldBe(1);
+                    Run(database, "DELETE FROM tag WHERE id = 25;");
+                }
+            }),
+        });
+
+        tags.Pending().ShouldBe(1, "the delete is noted, and nothing the batches did forgets the note: no batch wrote an entry for the row");
+        tags.ApplyPending().ShouldBe(1);
+        tags.Count().ShouldBe(29);
+        tags.Check().IsHealthy.ShouldBeTrue();
+        tags.Search("frisch").Hits.ShouldBeEmpty();
+    }
+
     // ---- one sync at a time: the lease ------------------------------------------------------------------------------
 
     [Fact]
