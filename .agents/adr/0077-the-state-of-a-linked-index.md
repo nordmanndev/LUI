@@ -131,7 +131,10 @@ creation, and LUI does nothing on its own. An application — or the host of #26
     what the application's writers committed in between; the biggest transaction is a batch, or a step of the removal (10,000 deletes write into the tombstones of every segment:
     about 40 MB at 400,000 rows). The test `The_write_ahead_log_stays_a_batch_in_size_when_another_writer_commits_between_the_batches` commits a write between every two batches and
     asserts that the log stays smaller than the database (a third of it, measured; 3.3 times without the checkpoint); the million-row test measures each sync from a truncated log
-    and asserts half of the database. `journal_size_limit` was not taken: it shortens a file after a reset and does not prevent the growth.
+    and asserts half of the database. **The million-row run after the change** (each sync from a truncated log; the peak of the `-wal` file after each phase): first sync 16 MB
+    (batches) and 17 MB (merge); second sync 42 MB (batches) and 17 MB (merge); third sync, beside two writers, 35 MB (batches), 37 MB (removal), 17 MB (merge) — **42 MB at most, for a
+    database of 322 MB; 341 MB before.** The generous writer (30 s) had 39 writes and 0 failures, the longest wait 2.41 s; the writer with the tight timeout (2 s) 29 writes and 6 failures
+    (logged, not asserted); the longest lock 1.73 s (a merge step; the removal steps 0.37 s). `journal_size_limit` was not taken: it shortens a file after a reset and does not prevent the growth.
 
 ## Alternatives
 
