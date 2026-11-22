@@ -73,9 +73,13 @@ creation, and LUI does nothing on its own. An application — or the host of #26
    `Batches`, `Removed` and, at the very end, `Merged`.
 8. **Removal by generation.** LUI's table of a linked index gets a column `gen INTEGER NOT NULL` with an index on it (format 2). Every sync takes the next
    generation — `lui_meta.sync_generation` plus one, in the transaction that takes the lease —, and every row a batch writes carries it. A single
-   `Refresh` / `ApplyPending` writes the **current** generation (`sync_generation`), so a row written beside a sync survives its removal. When the last batch
+   `Refresh` / `ApplyPending` writes **minus** the generation of the last sync: the minus says "written by a refresh beside that sync". The removal leaves such an entry — a
+   row refreshed in a range that is done must survive it — but the sync does **not count it as reached** (review of #291, B1): a batch whose range holds such an entry for a key
+   whose row is gone, or has no text, removes the entry and its search entry itself, and it forgets an outbox key only for an entry that the batch wrote from an indexable
+   row (`gen = +current`). Otherwise a row deleted after a refresh and before its batch would stay in the index with its note lost. A later sync takes the next generation, and
+   a minus entry of an earlier one is an old entry for it. When the last batch
    is written, the entries that carry **an older generation** are removed, `BatchSize` at a time, each batch in a transaction of its own — no anti-join over the
-   application's table. The statement says `gen < current`, not `gen <> current`: generations only grow and the lease holds that no other sync runs, so the two
+   application's table. The statement says `gen < current` (and not `-current`), not `gen <> current`: generations only grow and the lease holds that no other sync runs, so the two
    mean the same, and the first is a range of the index on `gen`, where `<>` would read the whole table for every batch. **Nothing of the previous state is
    removed before the new one is complete** — a sync that is cancelled leaves the index as it was plus the batches it wrote. A row the application deletes
    *during* the sync, in a range that is done, is noted by the triggers (the outbox: `ApplyPending()`) or found by the next sync — which is why the triggers come

@@ -233,6 +233,7 @@ internal sealed class LinkedSync
                 using var transaction = writer.BeginTransaction(deferred: false);
                 ReleaseIn(writer, transaction);
                 transaction.Commit();
+                _released = true;
             }
         }
         catch (Exception exception) when (exception is SqliteException or InvalidOperationException or ObjectDisposedException)
@@ -247,7 +248,6 @@ internal sealed class LinkedSync
         release.Parameters.AddWithValue("$name", _name);
         release.Parameters.AddWithValue("$owner", _owner);
         release.ExecuteNonQuery();
-        _released = true;
     }
 
     private long Now() => _database.TimeProvider.GetUtcNow().ToUnixTimeMilliseconds();
@@ -309,14 +309,10 @@ internal sealed class LinkedSync
             (read, withoutText, outOfRange) = (reader.GetInt64(0), reader.GetInt64(1), reader.GetInt64(2));
         }
 
-        if (read == 0)
-        {
-            return new BatchResult(upper, 0, 0, 0);
-        }
-
+        // a batch that read no row still runs: the range can hold the entry that a refresh wrote for a row that is gone now
         // FTS5 does not merge while the batch loads — one merge at the end, in steps — and the setting is back before the commit
         Execute(connection, transaction, _source.AutomergeSql(0));
-        foreach (var sql in new[] { _source.BatchDropReplacedSql, _source.BatchEntriesSql, _source.BatchSearchSql, _source.BatchForgetPendingSql })
+        foreach (var sql in new[] { _source.BatchDropUnreachedFtsSql, _source.BatchDropUnreachedEntriesSql, _source.BatchDropReplacedSql, _source.BatchEntriesSql, _source.BatchSearchSql, _source.BatchForgetPendingSql })
         {
             cancellationToken.ThrowIfCancellationRequested();
             using var statement = Command(connection, transaction, sql);
@@ -407,6 +403,8 @@ internal sealed class LinkedSync
             var nothingLeft = InTransaction(writer, "merge", ownsTheLease: true, (connection, transaction) => MergeStep(connection, transaction, pages));
             if (nothingLeft)
             {
+                // the commit of the last step has gone through: the lease went with it (set before it, a failing commit would leave the lease to expire)
+                _released = true;
                 options.Progress?.Report(Progress(merged: true));
                 return;
             }

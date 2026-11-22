@@ -133,6 +133,21 @@ internal sealed class LinkedSource : ContentSource
         + $"WHERE {_key} > $from AND {_key} <= $to;";
 
     /// <summary>
+    /// A statement of a batch, before the others: the search entries of the keys of <c>($from, $to]</c> that a refresh wrote beside this sync
+    /// (<c>gen = -$gen</c>) and whose row is gone, or has no text, or a key out of range now. The batch would not take such a row, and the
+    /// removal at the end leaves the entry — so the batch removes it, as the refresh would have, had it run now. Entries that exist from
+    /// the previous state are the removal's, not the batch's.
+    /// </summary>
+    internal string BatchDropUnreachedFtsSql =>
+        $"DELETE FROM {FtsTable} WHERE rowid IN (SELECT s.s_rowid FROM {EntryTable} s WHERE s.doc_id > $from AND s.doc_id <= $to AND s.gen = -$gen "
+        + $"AND NOT EXISTS (SELECT 1 FROM {ContentTable} h WHERE {_key} = s.doc_id AND {Indexable}));";
+
+    /// <summary>The entries themselves, after <see cref="BatchDropUnreachedFtsSql"/>.</summary>
+    internal string BatchDropUnreachedEntriesSql =>
+        $"DELETE FROM {EntryTable} WHERE doc_id > $from AND doc_id <= $to AND gen = -$gen "
+        + $"AND NOT EXISTS (SELECT 1 FROM {ContentTable} h WHERE {_key} = {EntryTable}.doc_id AND {Indexable});";
+
+    /// <summary>
     /// First statement of a batch: the search entries of the rows of the batch that exist already — and will be written again — leave the
     /// search index. An entry whose row is not indexable any more stays until the removal at the end: nothing of the previous state goes
     /// before the new one is complete.
@@ -173,12 +188,13 @@ internal sealed class LinkedSource : ContentSource
         + $"AND doc_id IN (SELECT doc_id FROM {EntryTable} WHERE doc_id > $from AND doc_id <= $to AND gen = $gen);";
 
     /// <summary>
-    /// The entries of an earlier generation, the oldest first, at most <c>$n</c>: <c>(doc_id, s_rowid)</c>. Generations only grow, and the
+    /// The entries of an earlier generation, the oldest first, at most <c>$n</c>, <b>except those that a refresh wrote beside this sync</b>
+    /// (<c>-$gen</c>, see <see cref="CurrentGeneration"/>): <c>(doc_id, s_rowid)</c>. Generations only grow, and the
     /// lease holds that no other sync runs, so "another generation than the current one" is "an older one" — which the index on
     /// <c>gen</c> reads as a range, where <c>&lt;&gt;</c> would read the whole table for every batch of the removal.
     /// </summary>
     internal string StaleEntriesSql =>
-        $"SELECT doc_id, s_rowid FROM {EntryTable} WHERE gen < $gen ORDER BY gen, doc_id LIMIT $n;";
+        $"SELECT doc_id, s_rowid FROM {EntryTable} WHERE gen < $gen AND gen <> -$gen ORDER BY gen, doc_id LIMIT $n;";
 
     /// <summary>Removes the entry of <c>$id</c> and its search entry — one entry of the previous generation.</summary>
     internal string RemoveStaleSql => RemoveSql("$id");
@@ -357,10 +373,13 @@ internal sealed class LinkedSource : ContentSource
     private string Indexable => $"{HasText} AND {KeyInRange}";
 
     /// <summary>
-    /// The generation a single row is written with — the one the last sync took (<c>lui_meta.sync_generation</c>, ADR-0077). A refresh
-    /// that runs beside a sync therefore writes the generation of that sync, and the removal at its end leaves the row.
+    /// The generation a single row is written with: <b>minus</b> the one the last sync took (<c>lui_meta.sync_generation</c>, ADR-0077). The
+    /// minus says "written by a refresh beside the sync of that generation". The removal at the end of the sync leaves such an entry — a
+    /// refresh in a range that is done must survive it — but the sync does not count it as <i>reached</i>: a batch that finds its row gone,
+    /// or without a text, removes it, and no outbox key is forgotten for it (<see cref="BatchDropUnreachedFtsSql"/>). A sync that comes later
+    /// takes the next generation, and an entry of this kind is an old one then.
     /// </summary>
-    private string CurrentGeneration => $"(SELECT sync_generation FROM lui_meta WHERE index_name = '{IndexName}')";
+    private string CurrentGeneration => $"-(SELECT sync_generation FROM lui_meta WHERE index_name = '{IndexName}')";
 
     /// <summary>The packed rowid of a row (ADR-0006) — the same expression as the generated column of <c>Embedded</c>.</summary>
     private string RowIdValue => $"({_priority} << 61) | (({RowId.MaxWeight} - {_weight}) << 32) | {_key}";
