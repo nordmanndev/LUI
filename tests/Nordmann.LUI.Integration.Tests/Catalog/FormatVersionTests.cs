@@ -117,6 +117,63 @@ public sealed class FormatVersionTests
         reopened.Index(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", "name"))).NeedsInitialSync.ShouldBeFalse();
     }
 
+    [Theory]
+    [InlineData("Open", "sync_generation")]
+    [InlineData("OpenReadOnly", "sync_lease_owner")]
+    [InlineData("OpenOrCreate", "sync_lease_expires")]
+    public void A_format_2_file_of_an_early_build_without_a_column_of_the_sync_is_rejected_on_open(string way, string column)
+    {
+        // #271, ADR-0077: lui_meta gained the generation of the sync and its lease inside format 2 as well. A file that the build of #272
+        // wrote — it has needs_initial_sync and none of these — is refused when the catalog opens, naming the column that is missing
+        using var database = new TestDatabase();
+        using (var catalog = database.Open())
+        {
+            catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
+        }
+
+        Run(database, $"ALTER TABLE lui_meta DROP COLUMN {column};");
+
+        var exception = Should.Throw<LuiFormatException>(() => OpenWay(way, database.FilePath));
+
+        exception.Message.ShouldContain(column);
+        exception.Message.ShouldContain(Path.GetFileName(database.FilePath));
+        exception.Message.ShouldContain("Recreate the indexes");
+        exception.FoundFormat.ShouldBe(2);
+        exception.SupportedFormat.ShouldBe(2);
+    }
+
+    [Fact]
+    public void The_file_of_the_build_of_272_with_every_column_of_the_sync_missing_names_the_first_one()
+    {
+        using var database = new TestDatabase();
+        using (var catalog = database.Open())
+        {
+            catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
+        }
+
+        Run(database, "ALTER TABLE lui_meta DROP COLUMN sync_generation; ALTER TABLE lui_meta DROP COLUMN sync_lease_owner; ALTER TABLE lui_meta DROP COLUMN sync_lease_expires;");
+
+        Should.Throw<LuiFormatException>(() => LuiCatalog.Open(database.FilePath)).Message.ShouldContain("sync_generation");
+    }
+
+    [Fact]
+    public void The_first_create_in_a_catalog_of_0_3_0_adds_every_column_of_the_state_and_the_sync()
+    {
+        using var database = new TestDatabase();
+        Run(
+            database,
+            "CREATE TABLE lui_meta (index_name TEXT PRIMARY KEY, kind TEXT NOT NULL, source TEXT NOT NULL, definition TEXT NOT NULL, "
+            + "schema_version INTEGER NOT NULL, created_at TEXT NOT NULL);");
+        using (var catalog = database.Open())
+        {
+            catalog.Create(new LuiIndexDefinition<long>("embedded", index => index.SingleWord()));
+        }
+
+        database.Scalar<string>("SELECT group_concat(name, ',') FROM (SELECT name FROM pragma_table_info('lui_meta') ORDER BY cid)")
+            .ShouldBe("index_name,kind,source,definition,schema_version,created_at,needs_initial_sync,sync_generation,sync_lease_owner,sync_lease_expires");
+        using var reopened = LuiCatalog.Open(database.FilePath);
+    }
+
     [Fact]
     public void A_file_with_one_index_of_another_format_is_rejected_as_a_whole()
     {
