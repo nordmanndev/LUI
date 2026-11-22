@@ -408,6 +408,57 @@ public sealed class MaintenanceByNameTests
         commands.Count.ShouldBe(4, "Count: the snapshot (BEGIN), PRAGMA schema_version, the count, the end of the snapshot — the check and the count are one step, and the name costs no statement");
     }
 
+    // ---- a row that cannot be read ---------------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{bad")]
+    [InlineData("")]
+    public void A_row_that_cannot_be_read_is_a_mismatch_that_names_the_index_on_every_path_and_spoils_no_other_index(string definition)
+    {
+        using var database = new TestDatabase();
+        WriteAllKinds(database);
+        using (var connection = database.Connect())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "UPDATE lui_meta SET definition = $definition WHERE index_name = 'recipes';";
+            command.Parameters.AddWithValue("$definition", definition);
+            command.ExecuteNonQuery();
+        }
+
+        using var tool = LuiCatalog.Open(database.FilePath);
+
+        // the list says which index is damaged, so that the operator can DropIndex it; it does not list the rest around the hole
+        Should.Throw<LuiDefinitionMismatchException>(() => tool.Indexes()).IndexName.ShouldBe("recipes");
+        Should.Throw<LuiDefinitionMismatchException>(() => tool.Count("recipes")).IndexName.ShouldBe("recipes");
+        Should.Throw<LuiDefinitionMismatchException>(() => tool.Check("recipes")).IndexName.ShouldBe("recipes");
+        Should.Throw<LuiDefinitionMismatchException>(() => tool.Optimize("recipes")).IndexName.ShouldBe("recipes");
+        Should.Throw<LuiDefinitionMismatchException>(() => tool.Rebuild("recipes")).IndexName.ShouldBe("recipes");
+        Should.Throw<LuiDefinitionMismatchException>(() => tool.Count("recipes")).Message.ShouldContain("DropIndex");
+
+        // the other indexes are as they were, by name
+        tool.Count("chips").ShouldBe(3);
+        tool.Check("linked_tags").IsHealthy.ShouldBeTrue();
+        tool.DropIndex("recipes").ShouldBeTrue("the way out of a damaged row is the drop");
+        tool.Indexes().Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public void A_row_that_was_damaged_after_the_open_is_found_when_the_schema_counter_moves()
+    {
+        using var database = new TestDatabase();
+        WriteAllKinds(database);
+        using var tool = LuiCatalog.Open(database.FilePath);
+        tool.Count("recipes").ShouldBe(2);
+
+        Run(database, "UPDATE lui_meta SET definition = '{bad' WHERE index_name = 'recipes'; CREATE TABLE somewhere_else(id INTEGER PRIMARY KEY);");
+
+        var exception = Should.Throw<LuiDefinitionMismatchException>(() => tool.Count("recipes"));
+        exception.IndexName.ShouldBe("recipes");
+        exception.InnerException.ShouldNotBeNull("the error of the parser is kept");
+        tool.Count("chips").ShouldBe(3);
+    }
+
     // ---- the rest of the contract ---------------------------------------------------------------------------------
 
     [Fact]
