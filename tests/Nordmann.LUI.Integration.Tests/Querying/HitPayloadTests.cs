@@ -282,7 +282,8 @@ public sealed class HitPayloadTests
             Enumerable.Range(1, 200).Select(key => new LuiEntry<long, SuggestionPayload>(
                 key,
                 $"apfel{key}",
-                new SuggestionPayload($"Apfelkuchen Nummer {key}", "Marianne Obstgarten", 45 + key, 4.5, "Kuchen und Torten")) { Weight = key }));
+                new SuggestionPayload($"Apfelkuchen Nummer {key}", "Marianne Obstgarten", 45 + key, 4.5, "Kuchen und Torten"))
+            { Weight = key }));
 
         var allocated = OnOwnThread(() => (Measure(suggestions), 0L)).Item1;
 

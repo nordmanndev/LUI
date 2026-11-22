@@ -3,6 +3,9 @@
 > **Superseded in part by [ADR-0072](./0072-the-serializer-is-bound-to-the-payload-type-through-a-registry.md) (2026-11-22):** the serialiser is
 > bound to the payload type through a registry, not to the catalog (§1), and an embedded index with a declared payload type stores the name of
 > the type and the format of its serializer (§6: "no type name in the file" holds for everything else). The old calls keep §1 until #268.
+>
+> **Superseded in part by [ADR-0074](./0074-the-hit-carries-its-payload.md) (2026-11-22):** for a handle with a payload type the hit carries its payload,
+> loaded with the query — *a payload that is never read costs nothing* no longer holds there; a hit without a payload type has none.
 
 - **Status:** Accepted
 - **Date:** 2026-11-06

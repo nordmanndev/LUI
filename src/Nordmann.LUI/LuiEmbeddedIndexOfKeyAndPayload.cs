@@ -213,6 +213,37 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
         }
     }
 
+    /// <summary>
+    /// Reads every stored payload and lists the entries whose payload cannot be read (ADR-0074) — <b>a full read of the index</b>, for
+    /// maintenance and not for every probe: <see cref="LuiIndex{TKey, TPayload}.Check()"/> stays the cheap structural check and reads no
+    /// payload. What cannot be read is the serializer's verdict: with <c>LuiPayloadSerializer.Json</c> a payload of an old shape does not
+    /// read. An entry on the list is written again — <c>Upsert</c>, <c>UpsertMany</c> or <c>Sync</c> — and is gone from the next check.
+    /// The index is read in one snapshot, on a connection that only reads; a read-only catalog may call it.
+    /// </summary>
+    /// <param name="cancellationToken">Checked between the entries.</param>
+    /// <returns>The entries that cannot be read, by key; healthy when there are none.</returns>
+    /// <exception cref="LuiIndexNotFoundException">The index was dropped.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index is another one than the definition of the handle.</exception>
+    /// <exception cref="OperationCanceledException">The token was cancelled.</exception>
+    public LuiPayloadCheck<TKey> CheckPayloads(CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            return new LuiPayloadCheck<TKey>
+            {
+                Unreadable =
+                [
+                    .. _index.UnreadablePayloads<TPayload>(cancellationToken)
+                        .Select(entry => new LuiUnreadablePayload<TKey> { Key = KeyConversion.FromKey<TKey>(entry.Key), Message = entry.Message }),
+                ],
+            };
+        }
+        catch (Exception exception) when (IsDropped(exception))
+        {
+            throw Dropped();
+        }
+    }
+
     /// <summary>Rebuilds the search index from the content table.</summary>
     /// <exception cref="LuiIndexNotFoundException">The index was dropped.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>

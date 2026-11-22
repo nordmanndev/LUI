@@ -282,6 +282,13 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         }
     }
 
+    /// <summary>The entries whose payload cannot be read as <typeparamref name="TPayload"/>, by key (ADR-0074).</summary>
+    /// <typeparam name="TPayload">The payload type of the handle.</typeparam>
+    /// <param name="cancellationToken">Checked between the entries.</param>
+    /// <returns>The key of each unreadable entry and why.</returns>
+    internal List<(LuiKey Key, string Message)> UnreadablePayloads<TPayload>(CancellationToken cancellationToken) =>
+        _check.UnreadablePayloads<TPayload>(PayloadSource.Serialized(Name, _payload), _keyType, cancellationToken);
+
     public void Rebuild()
     {
         try

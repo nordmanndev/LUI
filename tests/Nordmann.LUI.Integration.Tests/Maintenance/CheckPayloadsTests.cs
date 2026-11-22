@@ -140,9 +140,9 @@ public sealed class CheckPayloadsTests
         chips.Upsert(1, "vegan1", new Chip("again"));
 
         chips.CheckPayloads().Unreadable.Select(entry => entry.Key).ShouldBe([3L]);
-        chips.Sync(Enumerable.Range(1, 3).Select(key => new LuiEntry<long, Chip>(key, "vegan" + key, new Chip("chip" + key)))).Changed.ShouldBeGreaterThan(0);
+        chips.Sync(Enumerable.Range(1, 3).Select(key => new LuiEntry<long, Chip>(key, "vegan" + key, new Chip("chip" + key)))).Changed.ShouldBe(2, "the entry that was written again and the one that was not");
         chips.CheckPayloads().IsHealthy.ShouldBeTrue();
-        chips.Search("vegan").Hits.Select(hit => hit.Payload).ShouldBe([new Chip("again"), new Chip("chip2"), new Chip("chip3")], ignoreOrder: true);
+        chips.Search("vegan").Hits.Select(hit => hit.Payload).ShouldBe([new Chip("chip1"), new Chip("chip2"), new Chip("chip3")], ignoreOrder: true);
     }
 
     [Fact]
@@ -211,7 +211,7 @@ public sealed class CheckPayloadsTests
         dishes.Sync(LeanEntries()).Changed.ShouldBe(3);
 
         dishes.CheckPayloads().IsHealthy.ShouldBeTrue();
-        dishes.Search("pa").Hits.Select(hit => hit.Payload.Title).ShouldContain("Dish pasta");
+        dishes.Search("pa").Hits.Select(hit => hit.Payload.Title).ShouldContain("Dish pasta", StringComparer.Ordinal);
     }
 
     [Fact]
@@ -284,23 +284,12 @@ public sealed class CheckPayloadsTests
         var chips = second.Index(Chips);
         _ = chips.Count();
 
-        // the swap — a drop and a create with another definition, by another catalog — runs between the check and the read
-        Task? swap = null;
-        second.Database.AfterSchemaCheck = () =>
-        {
-            second.Database.AfterSchemaCheck = null;
-            swap = Task.Run(() =>
-            {
-                first.DropIndex("chips");
-                first.Create(new LuiIndexDefinition<long, Chip>("chips", index => index.MultiWord())).Upsert(2, "other", new Chip("two"));
-            });
-            _ = swap.Wait(TimeSpan.FromMilliseconds(400));
-        };
-
         LuiPayloadCheck<long>? check = null;
-        var failure = Record.Exception(() => check = chips.CheckPayloads());
-        second.Database.AfterSchemaCheck = null;
-        (swap ?? throw new InvalidOperationException("The operation did not check the schema counter: the seam did not run.")).Wait(TimeSpan.FromSeconds(30)).ShouldBeTrue();
+        var failure = MeetTheSwap(second, () => check = chips.CheckPayloads(), () =>
+        {
+            first.DropIndex("chips");
+            first.Create(new LuiIndexDefinition<long, Chip>("chips", index => index.MultiWord())).Upsert(2, "other", new Chip("two"));
+        });
 
         (failure is null or LuiIndexNotFoundException or LuiDefinitionMismatchException).ShouldBeTrue(failure?.ToString());
         check?.IsHealthy.ShouldBeTrue("the entries of the snapshot the check was made in");
@@ -326,6 +315,27 @@ public sealed class CheckPayloadsTests
 
         using var again = LuiCatalog.OpenReadOnly(database.FilePath, Json());
         again.Index(Chips).CheckPayloads().IsHealthy.ShouldBeTrue();
+    }
+
+    /// <summary>
+    /// Runs the operation; at the place between its check and its read the swap — a drop and a create by another catalog — is started
+    /// on a thread of its own and given a moment to finish. Returns what the operation threw, and waits for the swap.
+    /// </summary>
+    private static Exception? MeetTheSwap(LuiCatalog operating, Action operation, Action swapping)
+    {
+        Task? swap = null;
+        operating.Database.AfterSchemaCheck = () =>
+        {
+            operating.Database.AfterSchemaCheck = null;
+            swap = Task.Run(swapping);
+            _ = swap.Wait(TimeSpan.FromMilliseconds(400));
+        };
+
+        var failure = Record.Exception(operation);
+        operating.Database.AfterSchemaCheck = null;
+        var ran = swap ?? throw new InvalidOperationException("The operation did not check the schema counter: the seam did not run.");
+        ran.Wait(TimeSpan.FromSeconds(30)).ShouldBeTrue("the swap ends once the operation let go of the read");
+        return failure;
     }
 
     /// <summary>A serializer of the chips that cancels a token while it reads the payload number <c>after</c>.</summary>

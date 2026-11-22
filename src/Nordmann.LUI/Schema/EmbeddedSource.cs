@@ -46,6 +46,12 @@ internal sealed class EmbeddedSource : ContentSource
         + "ON CONFLICT(key) DO UPDATE SET text = excluded.text, weight = excluded.weight, "
         + "priority = excluded.priority, payload = excluded.payload;";
 
+    /// <summary>
+    /// The key and the stored payload of every entry, in the order of the rows: what <c>CheckPayloads()</c> reads — a full read of
+    /// the index, one row at a time, in the snapshot of its transaction (ADR-0074).
+    /// </summary>
+    internal string PayloadsSql => $"SELECT key, payload FROM {ContentTable} ORDER BY doc_id;";
+
     internal string UpdateWeight => $"UPDATE {ContentTable} SET weight = $weight WHERE key = $key;";
 
     internal string UpdatePriority => $"UPDATE {ContentTable} SET priority = $priority WHERE key = $key;";

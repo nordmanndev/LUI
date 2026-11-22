@@ -29,8 +29,7 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   `LuiResult<TKey, TPayload>` and `LuiHit<TKey, TPayload>`. The payload comes right after the text in
   `Upsert(key, text, payload, weight, priority, transaction)`; a handle with a payload has **no write without a payload**, a `null`
   payload throws, and `entry with { … }` cannot set one to `null`. The payload is written with the serializer that the
-  payload registry of the catalog holds for its type (#260, below). `hit.Payload` arrives with #262; until then a written payload is read through `catalog.Index(name)` and
-  `hit.GetPayload<T>()`. The new `LuiLinkedIndexBuilder<TPayload>` has the options of the untyped builder, so `WithPayload` and the
+  payload registry of the catalog holds for its type (#260, below). The hit carries it as `hit.Payload` (#262, below). The new `LuiLinkedIndexBuilder<TPayload>` has the options of the untyped builder, so `WithPayload` and the
   options can be called in any order; the map of a linked definition is code, never stored or compared, and each definition uses its own.
 
 - **The payload registry — a serializer per payload type** ([ADR-0072](.agents/adr/0072-the-serializer-is-bound-to-the-payload-type-through-a-registry.md), #260):
@@ -65,6 +64,28 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   `LuiLinkedSyncReport.KeyOutOfRange`. Any other key type is a `LuiConfigurationException` on first use that names the allowed types.
   New: `LuiKeyType` (`Long`, `Int`, `String`, `Guid`; `LuiKeyKind` stays until #268), `LuiKeyException` (a stored key that does not convert — a
   damaged file; it names the index and the key; there is no `CheckKeys()`, because a stored key always converts) and `LuiFormatException`.
+
+- **`hit.Payload` — the hit carries its payload, loaded with the query** ([ADR-0074](.agents/adr/0074-the-hit-carries-its-payload.md), #262):
+  `LuiHit<TKey, TPayload>.Payload` is a plain value, set when `Search` or `Execute` returns — no I/O, no serializer call, no map call, no
+  exception, no cache — and it works after the catalog has been disposed. An embedded index reads the payload bytes of the hits **with the hit
+  rows, in the snapshot of the query**, and deserializes them before the query returns (one call per hit); a linked index runs the map once per
+  hit. **A payload that cannot be read fails the query**: a serializer that throws, a stored payload that is missing, a map that throws or
+  returns `null` throw a `LuiPayloadException` naming the index, the key and the type — one broken payload fails the whole query instead of
+  returning a partial result, and accessing a hit never throws. What "unreadable" means is the serializer's verdict: the strict JSON of LUI
+  refuses a payload of an old shape, a tolerant serializer may read it. The cost is bounded by `MaxResults`; **"a payload that is never read
+  costs nothing" (ADR-0035) no longer holds** for an index with a payload — and a hit of an index **without** a payload type has none and
+  its query selects no payload column. The untyped `LuiHit` keeps `GetPayload<T>()` until #268.
+
+- **`CheckPayloads()` — finding the payloads that cannot be read** (ADR-0074, #262): `LuiEmbeddedIndex<TKey, TPayload>.CheckPayloads(ct)` returns a
+  `LuiPayloadCheck<TKey>` (`Unreadable`, `IsHealthy`) of `LuiUnreadablePayload<TKey>` (`Key`, `Message`): **a full read of the index** — every stored
+  payload once, in one snapshot, with the guard of the handle inside it — for maintenance, not for every probe. `Check()` stays the structural
+  check and reads **no payload** and calls **no map**. A linked index has no `CheckPayloads()`: its payload is not stored. **Changing a payload
+  type** (with `LuiPayloadSerializer.Json`): removing or renaming a field makes the old payloads unreadable, and every query whose result holds one
+  fails — **the search of that index is down until the entries are rewritten**, about 40 seconds per million entries at the rate of `UpsertMany`
+  (26,052/s, `docs/benchmarks.md`), and longer for a whole large index (87 s per million in "The build"); adding a field with a default keeps the
+  old payloads readable. The ways: a new index (`recipes_v2`) filled from the source and switched to — no window —, or deploy the new type and
+  rewrite every entry with `Upsert`, `UpsertMany` or `Sync`, `CheckPayloads()` listing the ones still missing. Upgrading payloads belongs to the
+  migration topic of a later release (`docs/api.md`, "Changing a payload type").
 
 ### Changed
 
@@ -156,6 +177,12 @@ var tags = catalog.Create(Tags);          // at the start; or catalog.Index(Tags
 
 A changed definition is still not migrated: `DropIndex(name)`, `Create(definition)`, fill it again — or a new name next to the
 old index (`docs/api.md`, "Changing a definition").
+
+**The payload of a hit** (#262): on a handle with a payload type, read `hit.Payload` where you read `hit.GetPayload()` of the typed view, or
+`hit.GetPayload<T>()` of an untyped hit, and declare the index with `LuiIndexDefinition<long, T>`. A payload that cannot be read now fails the
+whole query with a `LuiPayloadException` instead of throwing where the hit is read — find the entries with `CheckPayloads()` and write them
+again. A hit of an index without a payload type has no payload; `HasPayload` has no counterpart. A map of a linked index that throws is wrapped
+in a `LuiPayloadException` (the inner exception is the one the map threw), also on the old calls.
 
 A handle that was taken before the index was dropped and created again (by your code or another process) used to work on the new
 index; it throws now, and the open call gives a new handle. Take the handle from `catalog.Index(definition)` where you use it — it is

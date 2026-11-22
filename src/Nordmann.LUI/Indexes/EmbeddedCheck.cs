@@ -1,4 +1,5 @@
 using Microsoft.Data.Sqlite;
+using Nordmann.LUI.Querying;
 using Nordmann.LUI.Schema;
 using Nordmann.LUI.Storage;
 
@@ -130,6 +131,44 @@ internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Fu
         using var counting = Command(connection, transaction, countSql);
         var total = (long)counting.ExecuteScalar()!;
         return (total, Keys(connection, transaction, keysSql));
+    }
+
+    /// <summary>
+    /// Reads every stored payload and lists the entries whose payload cannot be read (ADR-0074) — a full read of the index, for
+    /// maintenance. It is one read: one read connection and one snapshot, the guard of the handle checks inside it as a query does,
+    /// and the payloads are read through the same source as the hits of a query, so an entry is unreadable here exactly when a
+    /// query that met it would fail.
+    /// </summary>
+    /// <typeparam name="TPayload">The payload type of the handle.</typeparam>
+    /// <param name="payloads">Where the payloads of the index come from: the serialisation of the handle.</param>
+    /// <param name="keyType">The key type of the index.</param>
+    /// <param name="cancellationToken">Checked between the entries.</param>
+    /// <returns>The key of each unreadable entry and why.</returns>
+    internal List<(LuiKey Key, string Message)> UnreadablePayloads<TPayload>(PayloadSource payloads, LuiKeyType keyType, CancellationToken cancellationToken)
+    {
+        using var scope = database.Begin();
+        using var connection = database.OpenReadConnection();
+        using var snapshot = connection.BeginTransaction(deferred: true);
+        guard?.Check(connection, snapshot);
+
+        var unreadable = new List<(LuiKey Key, string Message)>();
+        using var command = Command(connection, snapshot, source.PayloadsSql);
+        using var reader = command.ExecuteReader();
+        while (reader.Read())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var key = KeyCodec.FromText(reader.GetString(0), keyType, source.IndexName);
+            try
+            {
+                _ = payloads.Require<TPayload>(reader.IsDBNull(1) ? null : reader.GetFieldValue<byte[]>(1), key);
+            }
+            catch (LuiPayloadException exception)
+            {
+                unreadable.Add((key, exception.Message));
+            }
+        }
+
+        return unreadable;
     }
 
     /// <summary>
