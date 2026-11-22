@@ -33,7 +33,7 @@ public sealed class ThinHandleTests
     private static LuiCatalog CreateAll(TestDatabase database)
     {
         Run(database, Table);
-        var catalog = database.Open();
+        var catalog = database.Open(new LuiCatalogOptions { Payloads = new LuiPayloadRegistry().Use(ChipJsonContext.Default) });
         catalog.Create(Recipes, Chips, LinkedTags, Slugs);
         return catalog;
     }

@@ -1,11 +1,13 @@
+using Nordmann.LUI.Integration.Tests.Catalog;
 using Shouldly;
 
 namespace Nordmann.LUI.Integration.Tests.Embedded;
 
 /// <summary>
 /// The payload variants of the definitions and the handles (ADR-0073, issue #269): the definition declares the type of the
-/// payload, the handle writes typed payloads — and nothing else — with the serializer of the catalog. Until #262 a written
-/// payload is checked through the old untyped path (<c>catalog.Index(name)</c> and <c>hit.GetPayload&lt;T&gt;()</c>).
+/// payload, the handle writes typed payloads — and nothing else — with the serializer that the registry of the catalog holds for
+/// the type (ADR-0072, issue #260). Until #262 a written payload is checked through the old untyped path
+/// (<c>catalog.Index(name)</c> and <c>hit.GetPayload&lt;T&gt;()</c>).
 /// </summary>
 public sealed class TypedPayloadHandleTests
 {
@@ -15,11 +17,15 @@ public sealed class TypedPayloadHandleTests
 
     private static readonly LuiIndexDefinition<long> PlainChips = new("chips", index => index.SingleWord());
 
+    /// <summary>The registry of these tests: the chips as JSON, the numbers as four bytes.</summary>
+    private static LuiCatalogOptions Registered() =>
+        new() { Payloads = new LuiPayloadRegistry().Use(ChipJsonContext.Default).Use(new IntSerializer()) };
+
     [Fact]
     public void Index_of_a_payload_definition_returns_a_payload_handle()
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open();
+        using var catalog = database.Open(Registered());
         catalog.Create(Chips);
 
         LuiEmbeddedIndex<long, Chip> chips = catalog.Index(Chips);
@@ -40,7 +46,7 @@ public sealed class TypedPayloadHandleTests
     public void Typed_writes_store_the_payload()
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open();
+        using var catalog = database.Open(Registered());
         var chips = catalog.Create(Chips);
 
         chips.Upsert(1, "vegan", new Chip("one", "green"), weight: 5);
@@ -74,8 +80,8 @@ public sealed class TypedPayloadHandleTests
     {
         using var database = new TestDatabase();
         using var other = new TestDatabase();
-        using var catalog = database.Open();
-        using var otherCatalog = other.Open();
+        using var catalog = database.Open(Registered());
+        using var otherCatalog = other.Open(Registered());
         var chips = catalog.Create(Chips);
         var sameChips = otherCatalog.Create(Chips);
         LuiEntry<long, Chip>[] entries = [new(1, "vegan", new Chip("one")), new(2, "veganer", new Chip("two"))];
@@ -90,7 +96,7 @@ public sealed class TypedPayloadHandleTests
     public void The_typed_search_returns_typed_keys_and_the_fluent_query_runs()
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open();
+        using var catalog = database.Open(Registered());
         var chips = catalog.Create(Chips);
         chips.Upsert(42, "vegan", new Chip("v"));
 
@@ -110,7 +116,7 @@ public sealed class TypedPayloadHandleTests
     public void A_null_payload_throws()
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open();
+        using var catalog = database.Open(Registered());
         var chips = catalog.Create(Chips);
 
         Should.Throw<ArgumentNullException>(() => new LuiEntry<long, Chip>(1, "vegan", null!)).ParamName.ShouldBe("payload");
@@ -139,7 +145,7 @@ public sealed class TypedPayloadHandleTests
     public void With_an_int_payload_Upsert_1_x_5_writes_the_payload_5()
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open(new LuiCatalogOptions { PayloadSerializer = new IntSerializer() });
+        using var catalog = database.Open(Registered());
         var numbers = catalog.Create(Numbers);
 
         numbers.Upsert(1, "vegan", 5);
@@ -150,32 +156,34 @@ public sealed class TypedPayloadHandleTests
     }
 
     [Fact]
-    public void A_typed_write_without_a_serializer_throws_a_configuration_exception()
+    public void A_payload_definition_on_a_catalog_without_a_registry_is_refused_before_anything_is_written()
     {
+        // #260: the serializer is bound to the payload type, and a type that has none is refused when the index is created or
+        // opened — not at the first write. The read side of an index that is there needs no serializer.
         using var database = new TestDatabase();
-        using var catalog = LuiCatalog.OpenOrCreate(database.FilePath);
-        var chips = catalog.Create(Chips);
-        var entry = new LuiEntry<long, Chip>(1, "vegan", new Chip("one"));
+        using (var writer = database.Open(Registered()))
+        {
+            writer.Create(Chips).Upsert(1, "vegan", new Chip("one"));
+        }
 
-        Should.Throw<LuiConfigurationException>(() => chips.Upsert(1, "vegan", new Chip("one"))).Message.ShouldContain("chips", Case.Sensitive);
-        Should.Throw<LuiConfigurationException>(() => chips.Upsert(entry)).Message.ShouldContain(nameof(LuiCatalogOptions.PayloadSerializer));
-        Should.Throw<LuiConfigurationException>(() => chips.UpsertMany([entry])).Message.ShouldContain("chips", Case.Sensitive);
-        Should.Throw<LuiConfigurationException>(() => chips.Sync([entry])).Message.ShouldContain("chips", Case.Sensitive);
-        Should.Throw<LuiConfigurationException>(() => chips.Sync(Asynchronous([entry]))).Message.ShouldContain("chips", Case.Sensitive);
-        chips.Count().ShouldBe(0, "nothing was written");
-        chips.Search("vegan").Hits.ShouldBeEmpty("the read side needs no serializer");
+        using var catalog = LuiCatalog.OpenOrCreate(database.FilePath);
+
+        Should.Throw<LuiConfigurationException>(() => catalog.Create(Chips)).Message.ShouldContain("chips", Case.Sensitive);
+        Should.Throw<LuiConfigurationException>(() => catalog.Index(Chips)).Message.ShouldContain(nameof(LuiCatalogOptions.Payloads));
+        catalog.Index("chips").Search("vegan").Hits.ShouldHaveSingleItem().HasPayload.ShouldBeTrue();
+        catalog.Index("chips").Count().ShouldBe(1);
     }
 
     [Fact]
-    public void A_payload_definition_stores_the_definition_of_an_index_without_payload()
+    public void A_payload_definition_and_a_definition_without_payload_are_two_definitions()
     {
-        // the type of the payload is part of the stored definition from #260 on; until then the same row
+        // the type of the payload is part of the stored definition from #260 on: an index of one kind opens only as that kind
         using var database = new TestDatabase();
-        using var catalog = database.Open();
+        using var catalog = database.Open(Registered());
         catalog.Create(Chips);
 
-        Should.NotThrow(() => catalog.Index(PlainChips));
-        Should.NotThrow(() => catalog.Create(PlainChips));
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(PlainChips)).ShouldDifferIn("payloadType");
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(PlainChips)).ShouldDifferIn("payloadType");
         catalog.Index(Chips).Name.ShouldBe("chips");
     }
 
@@ -183,7 +191,7 @@ public sealed class TypedPayloadHandleTests
     public void Payload_definitions_are_created_in_one_call_with_the_others()
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open();
+        using var catalog = database.Open(Registered());
 
         catalog.Create(Chips, Numbers, new LuiIndexDefinition<long>("plain", index => index.MultiWord()));
 
@@ -196,7 +204,7 @@ public sealed class TypedPayloadHandleTests
     public void An_invalid_payload_definition_throws_a_configuration_exception_naming_the_definition()
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open();
+        using var catalog = database.Open(Registered());
         var broken = new (string Name, Action Create)[]
         {
             ("Bad Name", () => catalog.Create(new LuiIndexDefinition<long, Chip>("Bad Name", index => index.SingleWord()))),
@@ -218,7 +226,7 @@ public sealed class TypedPayloadHandleTests
     public void An_operation_on_a_dropped_index_throws_index_not_found()
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open();
+        using var catalog = database.Open(Registered());
         var chips = catalog.Create(Chips);
         var entry = new LuiEntry<long, Chip>(1, "vegan", new Chip("one"));
         catalog.DropIndex("chips").ShouldBeTrue();
@@ -238,7 +246,7 @@ public sealed class TypedPayloadHandleTests
     public void A_write_with_a_transaction_of_the_application_on_a_dropped_index_throws_index_not_found()
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open();
+        using var catalog = database.Open(Registered());
         var chips = catalog.Create(Chips);
         var entry = new LuiEntry<long, Chip>(1, "vegan", new Chip("one"));
         catalog.DropIndex("chips").ShouldBeTrue();
@@ -258,7 +266,7 @@ public sealed class TypedPayloadHandleTests
     public void An_operation_on_a_disposed_catalog_throws_object_disposed()
     {
         using var database = new TestDatabase();
-        var catalog = database.Open();
+        var catalog = database.Open(Registered());
         var chips = catalog.Create(Chips);
         catalog.Dispose();
 
@@ -272,7 +280,7 @@ public sealed class TypedPayloadHandleTests
     public void Writes_inside_a_transaction_of_the_application_commit_with_it()
     {
         using var database = new TestDatabase();
-        using var catalog = database.Open();
+        using var catalog = database.Open(Registered());
         var chips = catalog.Create(Chips);
         using var connection = database.Connect();
 
@@ -304,10 +312,12 @@ public sealed class TypedPayloadHandleTests
         }
     }
 
-    private sealed class IntSerializer : ILuiPayloadSerializer
+    private sealed class IntSerializer : ILuiPayloadSerializer<int>
     {
-        public byte[] Serialize(object payload) => BitConverter.GetBytes((int)payload);
+        public string Format => "int-le-v1";
 
-        public T Deserialize<T>(ReadOnlySpan<byte> bytes) => (T)(object)BitConverter.ToInt32(bytes);
+        public byte[] Serialize(int payload) => BitConverter.GetBytes(payload);
+
+        public int Deserialize(ReadOnlySpan<byte> bytes) => BitConverter.ToInt32(bytes);
     }
 }
