@@ -50,12 +50,12 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 | `static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, **to read only**: every connection of it is read-only, and SQLite refuses every write, which LUI turns into a `LuiReadOnlyException`. A file that is missing or is no catalog is a `LuiCatalogNotFoundException`. |
 | `LuiEmbeddedIndex<TKey> Create<TKey>(LuiIndexDefinition<TKey> definition)` | creates the index of an **embedded definition**, or opens it if it exists with the same definition — safe on every start — and returns its typed handle. It creates only: it never syncs and never installs triggers. A different stored definition is a `LuiDefinitionMismatchException` that names the fields. The handle is the one `Index(definition)` gives for the same definition object. When two processes create the same index at once, one creates it and the other opens it — see [several processes on one file](#several-processes-on-one-file). |
 | `LuiLinkedIndex<TKey> Create<TKey>(LuiLinkedIndexDefinition<TKey> definition)` | the same for a **linked definition**: LUI's tables are created and the table of the application is checked, every time. |
-| `LuiEmbeddedIndex<TKey, TPayload> Create<TKey,TPayload>(LuiIndexDefinition<TKey, TPayload> definition)` | the same for an **embedded definition with a payload**: the handle writes typed payloads, which the `PayloadSerializer` of the catalog serializes. |
+| `LuiEmbeddedIndex<TKey, TPayload> Create<TKey,TPayload>(LuiIndexDefinition<TKey, TPayload> definition)` | the same for an **embedded definition with a payload**: the handle writes typed payloads with the serializer that the `Payloads` registry of the catalog holds for `TPayload`. The type is looked up **before anything is written**: a type that is not registered is a `LuiConfigurationException` that names the definition, and no index is created for it. The index stores the name of the payload type and the format of its serializer ([the fingerprint](#the-fingerprint-of-a-payload)). |
 | `LuiLinkedIndex<TKey, TPayload> Create<TKey,TPayload>(LuiLinkedIndexDefinition<TKey, TPayload> definition)` | the same for a **linked definition with a payload**: the map of the definition builds the payload from the row. |
 | `void Create(params LuiIndexDefinitionBase[] definitions)` | creates or opens **several** definitions in **one transaction**: all or none. The exception names the definition that failed — a mismatch and a missing index by their `IndexName`, a broken table of a linked index as a `LuiLinkedTableException` whose message starts `Index 'name': …` and whose inner exception is the original, a refused write on a read-only catalog by the index whose write was refused; a name that occurs twice is an `ArgumentException` before anything is written. It **returns nothing**: a variable typed `LuiIndexDefinitionBase` binds here, and the handles come from `Index(definition)`. |
 | `LuiEmbeddedIndex<TKey> Index<TKey>(LuiIndexDefinition<TKey> definition)` | opens the index of an embedded definition that exists, and **writes nothing**. The stored definition is compared with the declared one: another one is a `LuiDefinitionMismatchException` naming the fields, a missing index a `LuiIndexNotFoundException`. **The catalog holds the stored definitions and the runtime of the index in memory** (read once, when it was opened): the call is a lookup — it returns **the same handle instance for the same definition object**, and after the first call it allocates nothing and executes no SQL, so a request can take its handle where it needs it. The comparison of the stored with the declared definition is done once, at the first call. |
 | `LuiLinkedIndex<TKey> Index<TKey>(LuiLinkedIndexDefinition<TKey> definition)` | the same for a linked definition. **One name for both sources** — there is no `LinkedIndex(definition)` and no `CreateLinked(definition)`. |
-| `LuiEmbeddedIndex<TKey, TPayload> Index<TKey,TPayload>(LuiIndexDefinition<TKey, TPayload> definition)` | opens the index of an embedded definition with a payload that exists, and **writes nothing**; compared like a definition without payload. |
+| `LuiEmbeddedIndex<TKey, TPayload> Index<TKey,TPayload>(LuiIndexDefinition<TKey, TPayload> definition)` | opens the index of an embedded definition with a payload that exists, and **writes nothing**; compared like a definition without payload — the name of the payload type and the format of its serializer are two of the compared fields. The serializer of `TPayload` is looked up at the first call, once for the runtime of the index; an unregistered type is a `LuiConfigurationException` at that call. |
 | `LuiLinkedIndex<TKey, TPayload> Index<TKey,TPayload>(LuiLinkedIndexDefinition<TKey, TPayload> definition)` | the same for a linked definition with a payload: the stored payload columns are compared, the map of the definition is code and takes effect. |
 | `ILuiEmbeddedIndex Create(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)` | the old call, a thin layer over `Create(definition)` until #268: creates an **embedded** index — the content lives in the library's own table. It is the write path and belongs in the migration of the application. |
 | `ILuiLinkedIndex CreateLinked(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)` | creates a **linked** index — the content stays in the table of the application. The route is named in the call, as it is on the side of opening (`Index` / `LinkedIndex`). |
@@ -88,7 +88,8 @@ The settings of the catalog. Every one of them has a default; none of them has t
 | Member | Default | What it is for |
 |---|---|---|
 | `LuiPragmas Pragmas` | `new LuiPragmas()` | the settings of the connections of the catalog — see below |
-| `ILuiPayloadSerializer? PayloadSerializer` | none | the serialiser of the payloads of this catalog — one for every index of it |
+| `LuiPayloadRegistry? Payloads` | none | the serializers of the payloads, **by payload type** ([the payload registry](#luipayloadregistry)): `new LuiPayloadRegistry().Use(AppJsonContext.Default)`. The registry is **frozen when the catalog is opened** — a later call on it changes nothing for that catalog. Setting it together with `PayloadSerializer` is a `LuiConfigurationException` at open. |
+| `ILuiPayloadSerializer? PayloadSerializer` | none | the serialiser of the payloads of the **old calls** — one for every index that was created with `Create(name, …)`; the issue #268 removes it with them. A definition with a payload does not use it: it needs a registry. |
 | `TimeProvider TimeProvider` | `TimeProvider.System` | the clock of the catalog, for the timings and for tests |
 
 The file decides whether writing is allowed at all: a catalog opened with `OpenReadOnly` writes nothing, and SQLite refuses
@@ -239,12 +240,13 @@ else, so the overloads of `Create` and `Index` are unambiguous. A variable typed
 | `germanTransliteration`, `foldTable` | `GermanTransliteration(…)`; the fold table of the library |
 | `typoDistance` | `TypoTolerance(…)` |
 | `link.table`, `link.key`, `link.text`, `link.weight`, `link.priority`, `link.payloadColumns` | `LinkTo(…)` and `WithPayload(…)` |
+| `payloadTypeName`, `payloadFormat` (an embedded definition with a payload; a linked one stores neither) | `TPayload` — its `[LuiPayloadName]` or its computed name — and the `Format` of the serializer the registry holds for it ([the fingerprint](#the-fingerprint-of-a-payload)) |
 
 | Runtime only | Why |
 |---|---|
 | `Similarity(…)` | a measure is code: it changes no table, so it is never a mismatch — it takes effect with the next start |
 | the `map` of a linked payload | a lambda: code of the application — a changed map takes effect with the next start, without drop and recreate |
-| the type of the payload | not stored until #260 (the payload registry); a payload definition and a definition without payload of the same index compare equal until then |
+| the settings of the serializer | only its `Format` is stored: a serializer with other settings and the same format is the same definition |
 
 ### Changing a definition
 
@@ -345,9 +347,11 @@ variants of the handles: `LuiIndex<TKey, TPayload>`, `LuiEmbeddedIndex<TKey, TPa
 entry, query, result and hit with the same two type arguments. They do **not derive** from the types without a payload — an index
 with a payload is another type than one without, and no payload-less write reaches it. Both type arguments are `where … : notnull`.
 
-**The payload is written with the `PayloadSerializer` of the catalog** (until #260 brings the registry); a typed write on a catalog
-without one throws a `LuiConfigurationException` that names the index, before anything is written. **`hit.Payload` arrives with
-#262**; until then a written payload is read through the old path, `catalog.Index(name)` and `hit.GetPayload<T>()`.
+**The payload is written with the serializer that the registry of the catalog holds for `TPayload`**
+([the payload registry](#luipayloadregistry)): it is looked up when the index is created or opened — a type that is not registered is
+a `LuiConfigurationException` at `Create` or `Index`, naming the definition — and the handle holds it, so a write never looks it up.
+**`hit.Payload` arrives with #262**; until then a written payload is read through the old path, `catalog.Index(name)` and
+`hit.GetPayload<T>()`, which resolves `T` through the registry when `Payloads` is set.
 
 #### `LuiIndex<TKey, TPayload>` — the read side
 
@@ -732,11 +736,58 @@ The report of a `Check`: `Problems` (the list of what is wrong), `IsHealthy`, `M
 
 ## The payload
 
+### `LuiPayloadRegistry`
+
+Maps **payload types** to the serializers that write and read them (ADR-0072). The serializer is bound to the type, not to the
+catalog: one catalog holds an index of JSON payloads next to an index of MessagePack payloads, each read with the serializer of its own
+type. Set it in `LuiCatalogOptions.Payloads`; the registry is **frozen when the catalog is opened** (a later call changes nothing for
+that catalog), and registration is safe from many threads.
+
+```csharp
+var options = new LuiCatalogOptions
+{
+    Payloads = new LuiPayloadRegistry()
+        .Use(AppJsonContext.Default)                       // every type the context lists, as strict JSON
+        .Use<Attachment>(new MessagePackAttachmentSerializer()),   // this type, in another format
+};
+```
+
+| Member | What it does |
+|---|---|
+| `LuiPayloadRegistry()` | an empty registry |
+| `LuiPayloadRegistry Use(JsonSerializerContext context)` | registers a source-generated JSON context: every payload type it lists is written and read as **strict JSON** with the format `json-strict-v1`. A context cannot list its types, so a type is looked up in the contexts when an index needs it. The same context twice is one registration. Returns the registry, to chain. |
+| `LuiPayloadRegistry Use<TPayload>(ILuiPayloadSerializer<TPayload> serializer)` | registers a serializer for **exactly one type** — the way to use any other format (MessagePack, protocol buffers, reflection-based `JsonSerializerOptions`, a format of the application). It wins over the contexts. `TPayload` is `where TPayload : notnull`; the `Format` of the serializer is read now. |
+
+**No silent precedence, no catch-all:**
+
+- a `Use<TPayload>` registration **wins** over the contexts — it is an explicit choice;
+- the same type registered twice with `Use<TPayload>` is a `LuiConfigurationException` **at the registration**;
+- **two contexts that both know a type** an index needs are a `LuiConfigurationException` when the index is created or opened, naming
+  both contexts — the order of the `Use` calls never decides;
+- there is no way to register one serializer for every type.
+
+A context also knows the types its listed types are made of (`int`, `string`): they need no entry of their own. **A payload type is
+one concrete type**: `object`, an interface and an abstract class are refused — a `LuiConfigurationException` naming the definition at
+`Create`/`Index` (embedded and linked), and at `Use<TPayload>` — because an index of one would hold the payloads of any type. Declare a
+sealed class or record, or a sealed envelope that holds the variants.
+
 ### `LuiPayloadSerializer`
 
 | Member | What it does |
 |---|---|
-| `static ILuiPayloadSerializer Json(JsonSerializerContext context)` | the serialiser of a source-generated JSON context — safe for trimming and AOT |
+| `static ILuiPayloadSerializer Json(JsonSerializerContext context)` | the serialiser of a source-generated JSON context for the **old calls** — safe for trimming and AOT; it writes the type a payload has and reads the type the caller asks for |
+| `static ILuiPayloadSerializer<TPayload> Json<TPayload>(JsonSerializerContext context)` | the strict JSON serializer of **one payload type**, the one `Use(context)` gives, with the format `json-strict-v1`. A type that is not in the context is a `LuiConfigurationException` that names both. `TPayload` is `where TPayload : notnull`. |
+
+Both read **strictly**: a member in the bytes that the type does not have, or a parameter of its constructor that the bytes do not
+have, is a `JsonException` — not an object filled with defaults.
+
+### `ILuiPayloadSerializer<TPayload>`
+
+The serializer of **one payload type** (ADR-0072): `string Format { get; }`, `byte[] Serialize(TPayload payload)` and
+`TPayload Deserialize(ReadOnlySpan<byte> bytes)`. `Format` is a name — `json-strict-v1`, `msgpack-v1` — that an embedded index
+stores and compares when it is opened; **a serializer that changes its wire format must change its `Format`**, LUI compares the name,
+not the bytes. An implementation is used from many threads at once. It does not derive from `ILuiPayloadSerializer`: there is no
+catch-all.
 
 ### `ILuiPayloadSerializer`
 
@@ -745,8 +796,55 @@ The report of a `Check`: `Problems` (the list of what is wrong), `IsHealthy`, `M
 | `byte[] Serialize(object payload)` | writes a payload |
 | `T Deserialize<T>(ReadOnlySpan<byte> bytes)` | reads a payload in the type asked for |
 
-The serialiser belongs to the **catalog**: one for every index of it. A catalog without a serialiser writes entries
-without a payload.
+The serialiser of the **old calls**: one for the catalog (`LuiCatalogOptions.PayloadSerializer`). A catalog without a serialiser
+writes entries without a payload. The issue #268 removes it with the old calls.
+
+### `LuiPayloadNameAttribute`
+
+`[LuiPayloadName("recipe")]` on a class, struct, interface or enum gives the payload type the name an embedded index stores for it.
+
+| Member | What it does |
+|---|---|
+| `LuiPayloadNameAttribute(string name)` | the name; not empty |
+| `string Name { get; }` | the name |
+
+**Put it on every payload type.** Without it LUI computes a stable name from the namespace and the class, so renaming the class or its
+namespace is a changed definition — and for an embedded index that means drop and fill again. With it the class can be renamed and
+moved, and the stored name stays. **Two different types with the same name look the same to LUI**: a duplicate is not detected across
+types. On a generic payload type the attribute keeps the type arguments after its name (`wrapped<MyApp.Tag>`).
+
+### The fingerprint of a payload
+
+An **embedded** index with a payload stores two fields next to its definition in `lui_meta`, and compares both whenever it is created
+or opened (part of LUI format 2):
+
+| Field | What it is |
+|---|---|
+| `payloadTypeName` | the value of `[LuiPayloadName]`, or the **stable name that LUI computes** — without assembly name, version or key |
+| `payloadFormat` | the `Format` of the serializer that writes the payloads |
+
+The computed name of a non-generic type is its namespace-qualified name (`MyApp.Recipes.RecipePayload`, nested types `Outer+Inner`); of
+a generic type the namespace-qualified name without the arity and with the names of its arguments
+(`MyApp.Envelope<MyApp.Recipes.RecipePayload>`, `System.Collections.Generic.Dictionary<System.String,System.Int32>`); of an array the
+name of its element type with `[]` (`[,]` for two dimensions). The name is the same in two builds with different assembly versions.
+
+- **Another type** is a `LuiDefinitionMismatchException`: `payload type: stored 'recipe', declared 'MyApp.Other'` — with the hint to
+  use `[LuiPayloadName]` when the two names differ only in the namespace.
+- **The same type in another format** is one, too: `the payloads of 'recipes' were written in format 'json-strict-v1', the registered
+  serializer writes 'msgpack-v1'`.
+- **One index, one kind of definition**: an index stored with a payload type opens only with a `LuiIndexDefinition<TKey, TPayload>`, an
+  index stored without one only with a `LuiIndexDefinition<TKey>` — otherwise a mismatch that says which to use.
+- A **linked** index stores neither field and needs no registry entry: the map of its definition builds the payload from the columns.
+- Only the **name** of the format is stored — not the settings of the serializer. The fingerprint checks **identity, not shape**: adding,
+  renaming or removing a field of the payload is the business of the serializer and the application (the migration topic, #262).
+
+**Errors.** A configuration that is wrong is a `LuiConfigurationException`, never a `LuiPayloadException`: a payload type that no
+registration knows, that two contexts know, a catalog without a registry — thrown by `Create` and `Index`, with the name of the
+definition, before anything is written —, both `Payloads` and `PayloadSerializer` set (when the catalog is opened), a type registered
+twice. `LuiPayloadException` stays for a payload that cannot be read. On the old read path (`catalog.Index(name)` and
+`hit.GetPayload<T>()`) `T` is resolved through the registry when `Payloads` is set; with a registry there is no untyped payload — an
+entry of an index without a declared payload type cannot carry one, and an index that was opened by name and stores a payload type and
+a format refuses every payload write (write through `Index(definition)`).
 
 ### `LuiPayloadRow`
 
@@ -812,9 +910,9 @@ library.
 |---|---|
 | `LuiException` | the base of them all |
 | `LuiEnvironmentException` | the environment is not what the library needs — the SQLite is too old, or it folds differently than the one the library was measured with |
-| `LuiDefinitionMismatchException` | the index in the file was written with another definition, another LUI format (an index that changes under an open catalog — a file that is opened with another format is rejected at once, with the exception for a wrong format), another key type or another folding. It carries `IndexName`, `Stored` and `Requested`; for a definition, the message names the fields that differ and the way to change a definition. |
+| `LuiDefinitionMismatchException` | the index in the file was written with another definition, another LUI format (an index that changes under an open catalog — a file that is opened with another format is rejected at once, with the exception for a wrong format), another key type, another folding, another payload type or another payload format. It carries `IndexName`, `Stored` and `Requested`; for a definition, the message names the fields that differ and the way to change a definition. |
 | `LuiIndexNotFoundException` | there is no index of that name in the database — or the handle belongs to an index that was dropped. It carries `IndexName`. |
-| `LuiConfigurationException` | an index definition is not valid: a name that is no name, a key type that is not allowed, a step the definition does not know. It is thrown on the **first use** of the definition by a catalog, never in the initializer of its field; an invalid argument of a call stays an argument error. |
+| `LuiConfigurationException` | the configuration is wrong: an index definition that is not valid (a name that is no name, a key type that is not allowed, a step the definition does not know) — thrown on the **first use** of the definition by a catalog, never in the initializer of its field —, or the payload registry (a payload type that no registration knows or that two contexts know, a type registered twice, the registry and the serializer of the old calls both set). The message names the definition. An invalid argument of a call stays an argument error. |
 | `LuiCatalogNotFoundException` | there is no catalog at the path: the file is missing, it is no SQLite database, or it has no lui_meta table. The ways to open a catalog that is there do not create one; the way that creates one refuses a file that is no SQLite database. It carries `Path`. |
 | `LuiLinkedTableException` | the table of the application is missing, or a column of it, or its key is not the `INTEGER PRIMARY KEY` |
 | `LuiFormatException` | the file was written in another LUI format than this version reads — thrown when the catalog is **opened** (Open, OpenReadOnly and OpenOrCreate of a file that has indexes). Format 2 is the format of 0.4.0; a file of 0.3.0 has format 1 and is not read (no migration): "The file 'app.db' was written by LUI 0.3.0 (format 1); this version reads format 2. Recreate the indexes." A newer format is rejected the same way. It carries `Path`, `FoundFormat` and `SupportedFormat`. |
@@ -914,6 +1012,8 @@ Fifty-seven public type names in `Nordmann.LUI` (seventy-one types: a generic ty
 | `LuiIntegrityReport` | record | [the bulk path](#the-bulk-path--loading-many-entries) |
 | `LuiPayloadSerializer` | class | [the payload](#the-payload) |
 | `ILuiPayloadSerializer` | interface | [the payload](#the-payload) |
+| `LuiPayloadRegistry` | class | [the payload](#the-payload) |
+| `LuiPayloadNameAttribute` | class | [the payload](#the-payload) |
 | `LuiPayloadRow` | class | [the payload](#the-payload) |
 | `ILuiSimilarity` | interface | [the similarity](#the-similarity) |
 | `LuiSimilarity` | class | [the similarity](#the-similarity) |

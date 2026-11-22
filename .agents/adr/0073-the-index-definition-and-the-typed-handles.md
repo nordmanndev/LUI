@@ -148,6 +148,12 @@ chain ended in a `Create()` that the catalog called — the description and the 
     drops the `lui_*` tables and `lui_meta` of its own database once, from a migration — the one case where the tables are touched by hand —,
     and creates the indexes again. The golden schema of `lui_meta` does not change — the format is a value in a row, not a column.
 
+17. **The payload registry takes over (#260, [0072](./0072-the-serializer-is-bound-to-the-payload-type-through-a-registry.md)).** The transition of §14
+    ends for the typed handles: they serialize with the serializer that `LuiCatalogOptions.Payloads` holds for the payload type — looked up when
+    the index is created or opened, so an unregistered type is a `LuiConfigurationException` at `Create`/`Index` and not at the first write —, and
+    the payload type name and format are stored and compared from now on (§6, §10: a definition with a payload and one without are two
+    definitions). `PayloadSerializer` serves the old calls only, until #268.
+
 ## Consequences
 
 - The old calls (`Create(name, …)`, `CreateLinked`, `Index(name)`, `LinkedIndex`, `As<T>()`, the untyped handles) keep working

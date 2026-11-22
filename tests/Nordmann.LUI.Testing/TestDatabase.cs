@@ -42,9 +42,10 @@ public sealed class TestDatabase : IDisposable
     public LuiCatalog Open(LuiCatalogOptions? options = null)
     {
         // the payloads of the tests are chips (ADR-0035: the serialiser is the catalog's); a test that wants another one,
-        // or none, says so in its options or opens the catalog itself
+        // or none, says so in its options or opens the catalog itself. A test that brings a registry (ADR-0072) gets no
+        // serialiser besides it: the two are refused together
         options ??= new LuiCatalogOptions();
-        options = options.PayloadSerializer is null ? options with { PayloadSerializer = ChipSerializer } : options;
+        options = options.PayloadSerializer is null && options.Payloads is null ? options with { PayloadSerializer = ChipSerializer } : options;
 
         var catalog = LuiCatalog.OpenOrCreate(FilePath, options);
         _catalogs.Add(catalog);

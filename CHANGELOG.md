@@ -28,11 +28,32 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   `LuiLinkedIndex<long, ChefView>` with the typed `LuiIndex<TKey, TPayload>`, `LuiEntry<TKey, TPayload>`, `LuiQuery<TKey, TPayload>`,
   `LuiResult<TKey, TPayload>` and `LuiHit<TKey, TPayload>`. The payload comes right after the text in
   `Upsert(key, text, payload, weight, priority, transaction)`; a handle with a payload has **no write without a payload**, a `null`
-  payload throws, and `entry with { … }` cannot set one to `null`. Until #260 the payload is written with the
-  `LuiCatalogOptions.PayloadSerializer` of the catalog — a typed write on a catalog without one is a `LuiConfigurationException`
-  naming the index. `hit.Payload` arrives with #262; until then a written payload is read through `catalog.Index(name)` and
+  payload throws, and `entry with { … }` cannot set one to `null`. The payload is written with the serializer that the
+  payload registry of the catalog holds for its type (#260, below). `hit.Payload` arrives with #262; until then a written payload is read through `catalog.Index(name)` and
   `hit.GetPayload<T>()`. The new `LuiLinkedIndexBuilder<TPayload>` has the options of the untyped builder, so `WithPayload` and the
   options can be called in any order; the map of a linked definition is code, never stored or compared, and each definition uses its own.
+
+- **The payload registry — a serializer per payload type** ([ADR-0072](.agents/adr/0072-the-serializer-is-bound-to-the-payload-type-through-a-registry.md), #260):
+  the serializer is bound to the **type** of the payload, not to the catalog, so two indexes of one file can use two formats.
+  `LuiPayloadRegistry` — `Use(JsonSerializerContext)` registers every type of a source-generated context as strict JSON, `Use<TPayload>(serializer)`
+  registers a serializer for exactly one type (MessagePack, protocol buffers, a format of the application) — is set in the new
+  `LuiCatalogOptions.Payloads`. There is **no silent precedence and no catch-all**: `Use<T>` wins over the contexts, a type registered twice
+  with it, and two contexts that both know a type an index needs, are a `LuiConfigurationException` (the second one naming both contexts), and
+  a type that no registration knows is one too — thrown by `catalog.Create(definition)` and `catalog.Index(definition)`, with the name of the
+  definition, before anything is written. The registry is frozen when the catalog is opened. New: `ILuiPayloadSerializer<TPayload>`
+  (`Format`, `Serialize`, `Deserialize`; **a serializer that changes its wire format must change its `Format`**),
+  `LuiPayloadSerializer.Json<TPayload>(context)` (the format `json-strict-v1`), `LuiPayloadRegistry` and `LuiPayloadNameAttribute`.
+
+- **The fingerprint of an embedded payload index** (ADR-0072, #260): an embedded index with a payload stores the **name of its payload
+  type** and the **format** of its serializer (`payloadTypeName`, `payloadFormat` in `lui_meta`, part of LUI format 2) and compares both when it is
+  created or opened — another type, or the same type in another format, is a `LuiDefinitionMismatchException` that says what differs
+  (*stored 'recipe', declared 'MyApp.Other'*; *the payloads of 'recipes' were written in format 'json-strict-v1', the registered serializer writes
+  'msgpack-v1'*). The name is the value of **`[LuiPayloadName("recipe")]`**, or a stable name that LUI computes from the namespace and the class
+  — without assembly name or version (`MyApp.Envelope<MyApp.Tag>`, `Outer+Inner`, `MyApp.Tag[]`): **put the attribute on every payload type**,
+  because renaming the class or its namespace is otherwise a changed definition (drop and fill again). An index stored with a payload type opens
+  only with a `LuiIndexDefinition<TKey, TPayload>`, and one stored without only with a `LuiIndexDefinition<TKey>`. A linked index stores neither
+  field and needs no registry entry. Two different types with the same name look the same to LUI. A payload type is one concrete type:
+  `object`, an interface and an abstract class are a `LuiConfigurationException` (an index of one would be a catch-all).
 
 - **The key types `int`, `string` and `Guid`** ([ADR-0073](.agents/adr/0073-the-index-definition-and-the-typed-handles.md), #270): a definition
   takes `long`, `int`, `string` or `Guid` as its first type argument — `LuiIndexDefinition<Guid>`, `LuiLinkedIndexDefinition<int>` — and
@@ -46,6 +67,24 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   damaged file; it names the index and the key; there is no `CheckKeys()`, because a stored key always converts) and `LuiFormatException`.
 
 ### Changed
+
+- **A payload definition needs a payload registry** (#260, ADR-0072): `LuiIndexDefinition<TKey, TPayload>` is created and opened with the serializer
+  that `LuiCatalogOptions.Payloads` holds for `TPayload`. It no longer uses `LuiCatalogOptions.PayloadSerializer` — a typed definition on a catalog
+  that has only that is a `LuiConfigurationException` at `Create` or `Index`, which says where to set the registry —, and setting `Payloads`
+  **and** `PayloadSerializer` is one when the catalog is opened. `PayloadSerializer` and the non-generic `ILuiPayloadSerializer` stay for the
+  old calls until #268 removes them. With a registry set, an index that was created with the old `Create(name, …)` cannot carry a payload
+  (there is no untyped payload), and `hit.GetPayload<T>()` on `catalog.Index(name)` resolves `T` through the registry — a type it does not
+  know is a `LuiConfigurationException`, not a `LuiPayloadException`.
+
+  **Migration:**
+
+  ```csharp
+  // before
+  new LuiCatalogOptions { PayloadSerializer = LuiPayloadSerializer.Json(AppJsonContext.Default) }
+
+  // after — and put [LuiPayloadName("recipe")] on every payload type
+  new LuiCatalogOptions { Payloads = new LuiPayloadRegistry().Use(AppJsonContext.Default) }
+  ```
 
 - **LUI format version 2 — 0.4.0 does not read the files of 0.3.0** (#270, ADR-0073): the LUI format version (the `schema_version` of
   `lui_meta`, not SQLite's own schema counter) goes from 1 to 2, and `Open`, `OpenReadOnly` and `OpenOrCreate` of a file whose indexes

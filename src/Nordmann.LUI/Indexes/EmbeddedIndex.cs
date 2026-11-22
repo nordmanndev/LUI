@@ -25,7 +25,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     private static readonly LuiSyncOptions DefaultSyncOptions = new();
 
     private readonly Database _database;
-    private readonly ILuiPayloadSerializer? _payload;
+    private readonly PayloadSerialization _payload;
     private readonly QueryRunner _runner;
     /// <summary><c>SQLITE_CONSTRAINT_CHECK</c>.</summary>
     private const int SqliteCheckConstraintFailed = 275;
@@ -47,7 +47,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         Database database,
         TypoDictionaries typoDictionaries,
         EmbeddedSource source,
-        ILuiPayloadSerializer? payload,
+        PayloadSerialization payload,
         ILuiSimilarity similarity,
         LuiTypoDistance typoDistance,
         IndexGuard? guard = null)
@@ -210,11 +210,9 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
             return null;
         }
 
-        // the payload is written with the type it has (ADR-0035)
-        return _payload?.Serialize(payload)
-            ?? throw new InvalidOperationException(
-                $"The entry of the index '{Name}' has a payload, and the catalog has no serialiser: set "
-                + "LuiCatalogOptions.PayloadSerializer (LuiPayloadSerializer.Json(context)).");
+        // the payload is written by the serialisation of the index: the serializer of its declared payload type, or — on the old calls —
+        // the one of the catalog, with the type the payload has (ADR-0035, ADR-0072)
+        return _payload.Serialize(payload, Name);
     }
 
     private InvalidOperationException DocIdsExhausted(SqliteException exception) =>

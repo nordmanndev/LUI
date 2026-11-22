@@ -206,7 +206,64 @@ internal static class IndexStore
     /// <param name="declared">The definition the application declared.</param>
     /// <returns>The exception.</returns>
     internal static LuiDefinitionMismatchException Mismatch(string name, IndexDefinition stored, IndexDefinition declared) =>
-        new(name, stored.ToJson(), declared.ToJson(), linked: stored.Link is not null, fields: DifferingFields(stored, declared));
+        new(name, stored.ToJson(), declared.ToJson(), linked: stored.Link is not null, fields: DifferingFields(stored, declared), details: PayloadDetails(name, stored, declared));
+
+    /// <summary>
+    /// What differs in the payload, in words (ADR-0072): the stored and the declared type name — with the hint of the attribute when
+    /// only the namespace differs —, the stored and the registered format, and what it means when one side has no payload type at all.
+    /// </summary>
+    private static List<string> PayloadDetails(string name, IndexDefinition stored, IndexDefinition declared)
+    {
+        var details = new List<string>();
+        if (!string.Equals(stored.PayloadTypeName, declared.PayloadTypeName, StringComparison.Ordinal))
+        {
+            details.Add((stored.PayloadTypeName, declared.PayloadTypeName) switch
+            {
+                (null, { } declaredType) =>
+                    $"payload type: stored none, declared '{declaredType}' — the index was created without a payload type: open it with a LuiIndexDefinition<TKey>",
+                ({ } storedType, null) =>
+                    $"payload type: stored '{storedType}', declared none — the index was created with a payload type: open it with a LuiIndexDefinition<TKey, TPayload>",
+                ({ } storedType, { } declaredType) =>
+                    $"payload type: stored '{storedType}', declared '{declaredType}'"
+                    + (string.Equals(WithoutNamespaces(storedType), WithoutNamespaces(declaredType), StringComparison.Ordinal)
+                        ? " — the names differ only in the namespace: put [LuiPayloadName(\"…\")] on the payload type, so that moving or renaming the class does not change its name"
+                        : string.Empty),
+                _ => string.Empty,
+            });
+        }
+
+        if (stored.PayloadFormat is { } storedFormat
+            && declared.PayloadFormat is { } declaredFormat
+            && !string.Equals(storedFormat, declaredFormat, StringComparison.Ordinal))
+        {
+            details.Add($"payload format: the payloads of '{name}' were written in format '{storedFormat}', the registered serializer writes '{declaredFormat}'");
+        }
+
+        return details;
+    }
+
+    /// <summary>A type name without its namespaces — <c>MyApp.List&lt;MyApp.Tag&gt;</c> becomes <c>List&lt;Tag&gt;</c>.</summary>
+    private static string WithoutNamespaces(string typeName)
+    {
+        var builder = new System.Text.StringBuilder(typeName.Length);
+        var segment = 0;
+        foreach (var character in typeName)
+        {
+            if (character == '.')
+            {
+                builder.Length = segment;
+                continue;
+            }
+
+            _ = builder.Append(character);
+            if (character is '<' or '>' or ',' or '[' or ']' or '+')
+            {
+                segment = builder.Length;
+            }
+        }
+
+        return builder.ToString();
+    }
 
     /// <summary>Whether an index of that name is in <c>lui_meta</c>.</summary>
     /// <param name="database">The database.</param>
@@ -234,6 +291,8 @@ internal static class IndexStore
         Add(fields, "germanTransliteration", stored.GermanTransliteration, declared.GermanTransliteration);
         Add(fields, "foldTable", stored.FoldTable, declared.FoldTable);
         Add(fields, "typoDistance", stored.TypoDistance, declared.TypoDistance);
+        Add(fields, "payloadTypeName", stored.PayloadTypeName, declared.PayloadTypeName);
+        Add(fields, "payloadFormat", stored.PayloadFormat, declared.PayloadFormat);
 
         if (stored.Link is null || declared.Link is null)
         {

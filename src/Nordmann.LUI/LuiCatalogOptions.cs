@@ -24,11 +24,27 @@ public sealed record LuiCatalogOptions
     public LuiPragmas Pragmas { get; init; } = new();
 
     /// <summary>
-    /// The serialiser of the payloads of every embedded index of the catalog (ADR-0035): it writes a payload with the
-    /// type it has and reads it with the type the caller asks for (<see cref="LuiHit.GetPayload{T}"/>). Default:
-    /// <see langword="null"/> — the indexes store no payloads, and an entry that has one is refused.
-    /// <see cref="LuiPayloadSerializer.Json"/> with the JSON context of the application is the usual one. A
-    /// <c>Linked</c> index does not use it: it builds its payload from the columns of its table.
+    /// The serializers of the payloads of the embedded indexes of the catalog, by payload type (ADR-0072):
+    /// <c>new LuiPayloadRegistry().Use(AppJsonContext.Default)</c>. An index with a payload —
+    /// <c>LuiIndexDefinition&lt;TKey, TPayload&gt;</c> — needs its type registered, and a type that is not is refused with a
+    /// <see cref="LuiConfigurationException"/> when the index is created or opened. The registry is frozen when the catalog is
+    /// opened: a call on it afterwards changes nothing for that catalog. Default: <see langword="null"/> — the catalog has
+    /// no payload type registered, and an index with a payload cannot be created. A <c>Linked</c> index does not use it: it
+    /// builds its payload from the columns of its table.
+    /// <para>
+    /// <b>Not together with <see cref="PayloadSerializer"/></b>: both set is a <see cref="LuiConfigurationException"/> when the
+    /// catalog is opened.
+    /// </para>
+    /// </summary>
+    public LuiPayloadRegistry? Payloads { get; init; }
+
+    /// <summary>
+    /// The serialiser of the payloads of the <b>old calls</b> (ADR-0035) — one for every index of the catalog that was created with
+    /// <c>Create(name, …)</c>: it writes a payload with the type it has and reads it with the type the caller asks for
+    /// (<see cref="LuiHit.GetPayload{T}"/>). Default: <see langword="null"/> — the indexes store no payloads, and an entry that has
+    /// one is refused. <see cref="LuiPayloadSerializer.Json(System.Text.Json.Serialization.JsonSerializerContext)"/> with the JSON
+    /// context of the application is the usual one. <b>An index with a declared payload type does not use it</b> — it uses
+    /// <see cref="Payloads"/>; the issue #268 removes this property with the old calls. A <c>Linked</c> index does not use it either.
     /// </summary>
     public ILuiPayloadSerializer? PayloadSerializer { get; init; }
 
