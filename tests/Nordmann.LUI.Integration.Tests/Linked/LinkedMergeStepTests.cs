@@ -46,21 +46,22 @@ public sealed class LinkedMergeStepTests
     }
 
     [Fact]
-    public void When_the_steps_say_nothing_is_left_an_optimize_has_nothing_to_do_either()
+    public void When_the_steps_say_nothing_is_left_the_index_is_smaller_and_the_next_step_says_it_again()
     {
+        // "nothing left" is FTS5's own measure — segments of a level are merged while the level holds the number of segments of
+        // 'usermerge' (4 by default) —, not "one segment": optimize merges on from there, and the sync does not ask for it
         using var database = new TestDatabase();
         using var connection = database.Connect();
         Exec(connection, Fts);
         Exec(connection, "INSERT INTO f(f, rank) VALUES ('automerge', 0);");
         Load(connection, firstRowid: 1, batches: 30, rowsPerBatch: 400);
+        var blocks = Scalar(connection, "SELECT count(*) FROM f_data;");
 
         MergeUntilNothingIsLeft(connection, pages: 64);
 
-        Exec(connection, "BEGIN IMMEDIATE;");
-        var before = TotalChanges(connection);
-        Exec(connection, "INSERT INTO f(f, rank) VALUES ('optimize', 0);");
-        (TotalChanges(connection) - before).ShouldBe(1, "the merge in steps ends where optimize would end: the index is one merged structure");
-        Exec(connection, "COMMIT;");
+        Scalar(connection, "SELECT count(*) FROM f_data;").ShouldBeLessThan(blocks, "the merge wrote the segments into fewer pages");
+        Step(connection, pages: 64).Delta.ShouldBe(1, "a step on an index with nothing left to merge changes only the INSERT");
+        Step(connection, pages: 1).Delta.ShouldBe(1, "whatever the number of pages of the step");
     }
 
     [Fact]
@@ -136,6 +137,13 @@ public sealed class LinkedMergeStepTests
         var reported = (long)changes.ExecuteScalar()!;
         Exec(connection, "COMMIT;");
         return (delta, reported);
+    }
+
+    private static long Scalar(SqliteConnection connection, string sql)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        return (long)command.ExecuteScalar()!;
     }
 
     private static long TotalChanges(SqliteConnection connection)

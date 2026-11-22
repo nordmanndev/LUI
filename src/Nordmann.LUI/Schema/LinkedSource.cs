@@ -126,6 +126,24 @@ internal sealed class LinkedSource : ContentSource
     /// <summary>Indexes the rows with a key in <c>($from, $to]</c> — the search index in the order of the rowid.</summary>
     internal string SyncChunkSql => Insert($"{_key} > $from AND {_key} <= $to", "s.doc_id > $from AND s.doc_id <= $to");
 
+    // ---- the merge in steps (ADR-0077): FTS5 'merge', N pages at a time ---------------------------------------------------------
+
+    /// <summary>
+    /// What a step of the merge reports with: SQLite's <c>total_changes()</c>, read before and after <see cref="MergeSql"/> on the
+    /// connection of the step. A step that merged something wrote into the shadow tables of FTS5, and the count moves by more than
+    /// the one change of the <c>INSERT</c> itself; a step that found nothing left moves it by exactly that one. <c>changes()</c>
+    /// says 1 after every step and is not the signal (<c>LinkedMergeStepTests</c>).
+    /// </summary>
+    internal const string TotalChangesSql = "SELECT total_changes();";
+
+    /// <summary>The step of the incremental merge of a search index: at most <c>$pages</c> pages of FTS5's segments are merged.</summary>
+    /// <param name="ftsTable">The (quoted) search index.</param>
+    /// <returns>The statement, with the parameter <c>$pages</c>.</returns>
+    internal static string MergeSql(string ftsTable) => $"INSERT INTO {ftsTable}({ftsTable}, rank) VALUES ('merge', $pages);";
+
+    /// <summary><see cref="MergeSql(string)"/> of this index.</summary>
+    internal string MergeStepSql => MergeSql(FtsTable);
+
     // ---- the check (ADR-0016, ADR-0016, ADR-0046): the entries against the table -------------------------------------
 
     /// <summary>The rows of the table the index should hold and does not: their count, or their first <c>$n</c> keys.</summary>
