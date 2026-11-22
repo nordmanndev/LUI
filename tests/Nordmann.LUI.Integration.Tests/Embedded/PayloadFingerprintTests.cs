@@ -417,6 +417,76 @@ public sealed class PayloadFingerprintTests
         Should.NotThrow(() => tags.Upsert(2, "ohne"), "an entry without a payload needs no serializer");
     }
 
+    // ---- no catch-all: a payload type is one single type ---------------------------------------------------------------
+
+    [Fact]
+    public void A_definition_whose_payload_type_is_object_an_interface_or_abstract_is_refused_on_create_and_on_index()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open(With(Json()));
+        var broken = new (string Name, Func<object> Create, Func<object> Index)[]
+        {
+            ("anything", () => catalog.Create(new LuiIndexDefinition<long, object>("anything", index => index.SingleWord())), () => catalog.Index(new LuiIndexDefinition<long, object>("anything", index => index.SingleWord()))),
+            ("markers", () => catalog.Create(new LuiIndexDefinition<long, IMarker>("markers", index => index.SingleWord())), () => catalog.Index(new LuiIndexDefinition<long, IMarker>("markers", index => index.SingleWord()))),
+            ("bases", () => catalog.Create(new LuiIndexDefinition<long, BaseOfPayloads>("bases", index => index.SingleWord())), () => catalog.Index(new LuiIndexDefinition<long, BaseOfPayloads>("bases", index => index.SingleWord()))),
+        };
+
+        foreach (var (name, create, open) in broken)
+        {
+            foreach (var action in new[] { create, open })
+            {
+                var exception = Should.Throw<LuiConfigurationException>(() => action());
+
+                exception.Message.ShouldContain($"'{name}'", Case.Sensitive);
+                exception.Message.ShouldContain("single");
+            }
+        }
+
+        database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(0, "a catch-all creates no index");
+    }
+
+    [Fact]
+    public void A_linked_definition_whose_payload_type_is_object_is_refused_naming_the_definition()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = LuiCatalog.OpenOrCreate(database.FilePath);
+        var linked = new LuiLinkedIndexDefinition<long, object>(
+            "linked_anything",
+            index => index.SingleWord().LinkTo("tag", "id", "name").WithPayload(["slug"], row => (object)row.GetString("slug")));
+
+        Should.Throw<LuiConfigurationException>(() => catalog.Create(linked)).Message.ShouldContain("'linked_anything'", Case.Sensitive);
+        database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(0);
+    }
+
+    // ---- the old write path by name never writes into an index that has a fingerprint -------------------------------
+
+    [Fact]
+    public void The_old_write_path_by_name_refuses_a_payload_for_an_index_that_stores_a_format()
+    {
+        using var database = new TestDatabase();
+        using (var typed = database.Open(With(Json().Use(new LinesChipSerializer()))))
+        {
+            typed.Create(Chips).Upsert(1, "vegan", new Chip("one"));
+        }
+
+        using var legacy = LuiCatalog.OpenOrCreate(database.FilePath, new LuiCatalogOptions { PayloadSerializer = LuiPayloadSerializer.Json(ChipJsonContext.Default) });
+        using var registry = database.Open(With(Json().Use(new LinesChipSerializer())));
+
+        foreach (var catalog in new[] { legacy, registry })
+        {
+            var chips = catalog.Index("chips");
+            var exception = Should.Throw<LuiConfigurationException>(() => chips.Upsert(new LuiEntry(2, "vegane") { Payload = new Chip("two") }));
+
+            exception.Message.ShouldContain("'chips'", Case.Sensitive);
+            exception.Message.ShouldContain("Index(definition)");
+            exception.Message.ShouldContain("lines-v1");
+            exception.Message.ShouldNotContain("no declared payload type");
+            chips.Count().ShouldBe(1, "nothing was written");
+            Should.NotThrow(() => chips.Upsert(3, "ohne"), "an entry without a payload needs no serializer");
+        }
+    }
+
     // ---- the lookup happens once --------------------------------------------------------------------------------------------
 
     [Fact]
@@ -454,4 +524,8 @@ public sealed class PayloadFingerprintTests
         command.Parameters.AddWithValue("$name", index);
         return (string)command.ExecuteScalar()!;
     }
+
+    private interface IMarker;
+
+    private abstract class BaseOfPayloads;
 }

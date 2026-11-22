@@ -997,7 +997,7 @@ public sealed class PublicApiShapeTests
         // ADR-0035: the placeholder of "no payload" and the typed JSON serialiser are gone with the type parameters.
         // `ILuiPayloadSerializer`1` is not in this list any more: ADR-0072 brings the generic serializer back on purpose — one per
         // payload type, with a `Format`, in the registry of the catalog — and its own guard is
-        // `The_payload_registry_has_exactly_the_members_of_the_release`.
+        // `The_typed_handles_have_exactly_the_members_of_the_release` (the members) and `The_payload_registry_has_no_catch_all_and_binds_the_serializer_to_the_type`.
         PackageAssemblies
             .SelectMany(assembly => assembly.GetExportedTypes())
             .Where(type => type.Name is "LuiNoPayload" or "LuiJsonPayloadSerializer`1" or "LuiEmbeddedIndexBuilderExtensions")

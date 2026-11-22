@@ -190,6 +190,86 @@ public sealed class LuiPayloadRegistryTests
         registry.Freeze().Resolve<long>("numbers").Format.ShouldStartWith("number-v");
     }
 
+    [Fact]
+    public void A_payload_type_that_is_no_single_type_is_refused_also_when_a_context_answers_for_it()
+    {
+        // a source-generated context answers for System.Object whatever it lists: the registry must not turn it into a catch-all
+        var frozen = new LuiPayloadRegistry().Use(PayloadJsonContext.Default).Freeze();
+
+        foreach (var action in new Action[] { () => frozen.Resolve<object>("anything"), () => frozen.Resolve<IShape>("shapes"), () => frozen.Resolve<ShapeBase>("bases") })
+        {
+            var exception = Should.Throw<LuiConfigurationException>(action);
+
+            exception.Message.ShouldContain("Use<");
+            exception.Message.ShouldContain("single");
+        }
+
+        Should.Throw<LuiConfigurationException>(() => frozen.Resolve<object>("anything")).Message.ShouldContain("'anything'", Case.Sensitive);
+        Should.Throw<LuiConfigurationException>(() => frozen.Resolve<object>("anything")).Message.ShouldContain("System.Object");
+    }
+
+    [Fact]
+    public void Use_of_a_serializer_for_object_or_an_abstract_type_is_refused_at_the_registration()
+    {
+        var registry = new LuiPayloadRegistry();
+
+        Should.Throw<LuiConfigurationException>(() => registry.Use<object>(new AnySerializer())).Message.ShouldContain("System.Object");
+        Should.Throw<LuiConfigurationException>(() => registry.Use<IShape>(new ShapeSerializer())).Message.ShouldContain("IShape");
+    }
+
+    [Fact]
+    public void A_context_that_fails_is_kept_as_a_failure_and_thrown_anew_naming_the_definition()
+    {
+        var frozen = new LuiPayloadRegistry().Use(new FailingContext()).Freeze();
+
+        var first = Should.Throw<LuiConfigurationException>(() => frozen.Resolve<Chip>("chips"));
+        var second = Should.Throw<LuiConfigurationException>(() => frozen.Resolve<Chip>("chips"));
+
+        first.Message.ShouldContain("'chips'", Case.Sensitive);
+        first.Message.ShouldContain(nameof(FailingContext));
+        first.Message.ShouldContain("boom");
+        second.ShouldNotBeSameAs(first);
+        Should.Throw<LuiConfigurationException>(() => frozen.Resolve<Chip>("other")).Message.ShouldContain("'other'", Case.Sensitive);
+        frozen.Lookups.ShouldBe(1);
+    }
+
+    /// <summary>A payload that is an interface: no single type.</summary>
+    private interface IShape;
+
+    /// <summary>A payload that is an abstract class: no single type.</summary>
+    private abstract class ShapeBase;
+
+    private sealed class AnySerializer : ILuiPayloadSerializer<object>
+    {
+        public string Format => "any-v1";
+
+        public byte[] Serialize(object payload) => [];
+
+        public object Deserialize(ReadOnlySpan<byte> bytes) => new();
+    }
+
+    private sealed class ShapeSerializer : ILuiPayloadSerializer<IShape>
+    {
+        public string Format => "shape-v1";
+
+        public byte[] Serialize(IShape payload) => [];
+
+        public IShape Deserialize(ReadOnlySpan<byte> bytes) => throw new NotSupportedException();
+    }
+
+    /// <summary>A context whose description of a type fails, as invalid generated metadata does.</summary>
+    private sealed class FailingContext : System.Text.Json.Serialization.JsonSerializerContext
+    {
+        public FailingContext()
+            : base(null)
+        {
+        }
+
+        protected override System.Text.Json.JsonSerializerOptions? GeneratedSerializerOptions => null;
+
+        public override System.Text.Json.Serialization.Metadata.JsonTypeInfo? GetTypeInfo(Type type) => throw new InvalidOperationException("boom");
+    }
+
     private sealed class LinesSerializer(string format = "lines-v1") : ILuiPayloadSerializer<Chip>
     {
         public string Format { get; } = format;
