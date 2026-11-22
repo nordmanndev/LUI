@@ -861,6 +861,48 @@ expect_caught "an-unreadable-row-thrown-without-a-look-at-the-file" "${INTEGRATI
   "FullyQualifiedName~OpenCallTests.A_stale_snapshot_whose_row_is_of_another_fold_is_looked_at_against_the_file_and_does_not_fail_for_ever" \
   "sed -i 's|            if (!StoredIndexes.Refresh(snapshot))|            if (unreadable is not null \|\| !StoredIndexes.Refresh(snapshot))|' src/Nordmann.LUI/LuiCatalog.cs"
 
+# 35q. The registry gets a catch-all (issue #260, ADR-0072): a method that takes the serializer of the old calls registers one serializer for
+#       every type — the owner's rule is that there is none. It builds; only the guard of the shape can react.
+expect_caught "the-registry-gets-a-catch-all" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_payload_registry_has_no_catch_all_and_binds_the_serializer_to_the_type" \
+  "sed -i 's|    /// <summary>The copy the catalog works on: what is registered now, and nothing that is registered later.</summary>|    /// <summary>x</summary>\n    public LuiPayloadRegistry Use(ILuiPayloadSerializer serializer) => this;\n\n    /// <summary>The copy the catalog works on: what is registered now, and nothing that is registered later.</summary>|' src/Nordmann.LUI/LuiPayloadRegistry.cs"
+
+# 35r. Two contexts that know a type: the first one wins (issue #260, ADR-0072): the order of the Use calls decides — the silent precedence the
+#       registry refuses.
+expect_caught "two-contexts-that-know-a-type-the-first-wins" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~LuiPayloadRegistryTests.Two_contexts_that_know_a_type_throw_naming_both" \
+  "sed -i 's|        switch (known.Count)|        switch (Math.Min(known.Count, 1))|' src/Nordmann.LUI/Querying/FrozenPayloadRegistry.cs"
+
+# 35s. An explicit registration loses to a context (issue #260, ADR-0072): the lookup skips the registrations of Use<T>.
+expect_caught "an-explicit-registration-loses-to-a-context" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~LuiPayloadRegistryTests.Use_of_T_wins_over_a_context" \
+  "sed -i 's|if (_serializers.TryGetValue(type, out var registered))|if (_serializers.TryGetValue(typeof(void), out var registered))|' src/Nordmann.LUI/Querying/FrozenPayloadRegistry.cs"
+
+# 35t. The registry is not frozen (issue #260, ADR-0072): the catalog works on the dictionary the application can still change.
+expect_caught "the-registry-is-not-frozen" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~LuiPayloadRegistryTests.A_change_after_the_catalog_was_opened_has_no_effect" \
+  "sed -i 's|new FrozenPayloadRegistry(new Dictionary<Type, PayloadCodec>(_serializers), _contexts)|new FrozenPayloadRegistry(_serializers, _contexts)|' src/Nordmann.LUI/LuiPayloadRegistry.cs"
+
+# 35u. The format is not part of the stored definition (issue #260, ADR-0072): the same type in another format is read silently.
+expect_caught "the-format-is-not-part-of-the-fingerprint" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~PayloadFingerprintTests.The_same_type_in_another_format_throws_a_mismatch_naming_both_formats" \
+  "sed -i 's|PayloadFormat: payload?.Format)|PayloadFormat: null)|' src/Nordmann.LUI/Schema/IndexDescription.cs"
+
+# 35v. The registry and the serializer of the old calls are both accepted (issue #260, ADR-0072): a catalog has one way to serialize.
+expect_caught "the-registry-and-the-old-serializer-are-both-accepted" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~PayloadFingerprintTests.Setting_Payloads_and_PayloadSerializer_throws" \
+  "sed -i 's|if (options.Payloads is not null \&\& options.PayloadSerializer is not null)|if (options.Payloads is not null \&\& options.PayloadSerializer is null)|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35w. A type the registry does not know is made a payload error on the read path (issue #260, ADR-0072): a configuration error is not a payload error.
+expect_caught "a-configuration-error-is-wrapped-as-a-payload-error" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~PayloadFingerprintTests.The_old_read_path_asks_the_registry_for_the_type_and_a_missing_one_is_a_configuration_error_not_a_payload_error" \
+  "sed -i 's|when (exception is not (OperationCanceledException or LuiConfigurationException))|when (exception is not OperationCanceledException)|' src/Nordmann.LUI/Querying/PayloadSource.cs"
+
+# 35x. The name of a payload type carries the assembly version (issue #260, ADR-0072): a rebuild with another version is a changed definition.
+expect_caught "the-name-of-a-payload-type-carries-the-assembly-version" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~PayloadTypeNameTests" \
+  "sed -i 's|_ = builder.Append(arity < 0 ? name : name\[..arity\]);|_ = builder.Append(arity < 0 ? name : name[..arity]).Append(type.Assembly.GetName().Version);|' src/Nordmann.LUI/Schema/PayloadTypeName.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

@@ -1,5 +1,9 @@
 # 0035 — The index knows no types: the serialiser belongs to the catalog, the type stands where the payload is used
 
+> **Superseded in part by [ADR-0072](./0072-the-serializer-is-bound-to-the-payload-type-through-a-registry.md) (2026-11-22):** the serialiser is
+> bound to the payload type through a registry, not to the catalog (§1), and an embedded index with a declared payload type stores the name of
+> the type and the format of its serializer (§6: "no type name in the file" holds for everything else). The old calls keep §1 until #268.
+
 - **Status:** Accepted
 - **Date:** 2026-11-06
 - **Builds on:** [0033](./0033-the-read-path-opens-an-index-without-writing.md) (the catalog is the entry point, the file
