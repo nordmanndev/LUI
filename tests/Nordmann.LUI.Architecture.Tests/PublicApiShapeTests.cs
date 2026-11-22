@@ -745,7 +745,7 @@ public sealed class PublicApiShapeTests
         };
     }
 
-    /// <summary>The entry, the query, the result and the hit of the handles with a payload (ADR-0073, issue #269). <c>Payload</c> of the hit arrives with #262.</summary>
+    /// <summary>The entry, the query, the result and the hit of the handles with a payload (ADR-0073, issue #269); the hit carries its payload (ADR-0074, issue #262).</summary>
     private static Dictionary<string, string[]> ExpectedPayloadValues()
     {
         return new Dictionary<string, string[]>(StringComparer.Ordinal)
@@ -800,6 +800,7 @@ public sealed class PublicApiShapeTests
                 ".ctor()",
                 "LuiPriority Priority { get; init; }",
                 "TKey Key { get; init; }",
+                "TPayload Payload { get; init; }",
                 "bool AtWordStart { get; init; }",
                 "double Similarity { get; init; }",
                 "int Weight { get; init; }",
@@ -929,6 +930,14 @@ public sealed class PublicApiShapeTests
         // the payload is read with the type the caller asks for, on the hit
         typeof(LuiHit).GetMethod(nameof(LuiHit.GetPayload))!.IsGenericMethodDefinition.ShouldBeTrue();
         typeof(LuiHit).GetProperty("Payload").ShouldBeNull("the payload is a method that deserialises, not a property");
+
+        // ADR-0074: a hit that knows its payload type carries the payload as a plain value, set when the query returns — and a hit
+        // that does not know one has none
+        typeof(LuiHit<>).GetProperty("Payload").ShouldBeNull("a hit without a payload type has no payload (ADR-0074)");
+        var payload = typeof(LuiHit<,>).GetProperty("Payload").ShouldNotBeNull("the hit of an index with a payload carries it (ADR-0074)");
+        payload.PropertyType.ShouldBe(typeof(LuiHit<,>).GetGenericArguments()[1]);
+        payload.GetMethod!.IsPublic.ShouldBeTrue();
+        payload.SetMethod!.ReturnParameter.GetRequiredCustomModifiers().ShouldContain(typeof(System.Runtime.CompilerServices.IsExternalInit), "init only: the payload never changes");
         typeof(LuiTypedHit<object>).GetProperty("Payload")
             .ShouldBeNull("the typed hit reads the payload as the hit does: a method that deserialises, not a property (ADR-0044)");
 
