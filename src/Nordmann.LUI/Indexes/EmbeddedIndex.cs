@@ -50,7 +50,8 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         PayloadSerialization payload,
         ILuiSimilarity similarity,
         LuiTypoDistance typoDistance,
-        IndexGuard? guard = null)
+        IndexGuard? guard = null,
+        PayloadReader? hitPayload = null)
     {
         _database = database;
         _guard = guard;
@@ -62,7 +63,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         KeyKind = KeyCodec.KindOf(_keyType);
         _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance, source.Definition.ToJson());
         _runner = new QueryRunner(
-            database, source, new SerializedPayload(Name, payload), similarity, _typos, typoDistance, guard);
+            database, source, hitPayload ?? new SerializedPayload(Name, payload), similarity, _typos, typoDistance, guard);
         _sync = new EmbeddedSync(database, source, KeyText, PayloadBytes, _typos, guard);
         _check = new EmbeddedCheck(database, source, KeyText, PayloadBytes, guard);
     }
