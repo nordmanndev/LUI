@@ -113,4 +113,59 @@ public sealed class LuiPayloadSerializerTests
 
         exception.Message.ShouldContain("null");
     }
+
+    [Fact]
+    public void The_typed_json_serializer_has_the_format_json_strict_v1()
+    {
+        var serializer = LuiPayloadSerializer.Json<Chip>(PayloadJsonContext.Default);
+
+        serializer.Format.ShouldBe("json-strict-v1");
+        serializer.ShouldBeAssignableTo<ILuiPayloadSerializer<Chip>>();
+    }
+
+    [Fact]
+    public void A_typed_payload_survives_the_round_trip_and_is_the_same_json_as_the_untyped_serializer_writes()
+    {
+        var typed = LuiPayloadSerializer.Json<Chip>(PayloadJsonContext.Default);
+
+        var bytes = typed.Serialize(new Chip("vegan", "green"));
+
+        typed.Deserialize(bytes).ShouldBe(new Chip("vegan", "green"));
+        bytes.ShouldBe(Serializer.Serialize(new Chip("vegan", "green")), "one wire format: the bytes of a typed and of an untyped catalog are the same");
+        typed.Deserialize(Serializer.Serialize(new Chip("vegan"))).ShouldBe(new Chip("vegan"));
+    }
+
+    [Fact]
+    public void The_typed_serializer_reads_strictly()
+    {
+        var bytes = LuiPayloadSerializer.Json<Chip>(PayloadJsonContext.Default).Serialize(new Chip("vegan", "green"));
+
+        Should.Throw<JsonException>(() => LuiPayloadSerializer.Json<Recipe>(PayloadJsonContext.Default).Deserialize(bytes)).Message.ShouldContain("Slug");
+        var named = LuiPayloadSerializer.Json<Named>(PayloadJsonContext.Default).Serialize(new Named("vegan"));
+        Should.Throw<JsonException>(() => LuiPayloadSerializer.Json<Ranked>(PayloadJsonContext.Default).Deserialize(named)).Message.ShouldContain("Rank");
+        LuiPayloadSerializer.Json<Chip>(PayloadJsonContext.Default).Deserialize(named).ShouldBe(new Chip("vegan"));
+    }
+
+    [Fact]
+    public void The_typed_serializer_refuses_the_json_value_null()
+    {
+        var serializer = LuiPayloadSerializer.Json<Chip>(PayloadJsonContext.Default);
+
+        Should.Throw<JsonException>(() => serializer.Deserialize("null"u8)).Message.ShouldContain("null");
+    }
+
+    [Fact]
+    public void The_typed_serializer_of_a_type_that_is_not_in_the_context_is_a_configuration_error_and_names_both()
+    {
+        var exception = Should.Throw<LuiConfigurationException>(() => LuiPayloadSerializer.Json<Uri>(PayloadJsonContext.Default));
+
+        exception.Message.ShouldContain("System.Uri");
+        exception.Message.ShouldContain(nameof(PayloadJsonContext));
+    }
+
+    [Fact]
+    public void The_context_is_required_for_the_typed_serializer()
+    {
+        Should.Throw<ArgumentNullException>(() => LuiPayloadSerializer.Json<Chip>(null!));
+    }
 }
