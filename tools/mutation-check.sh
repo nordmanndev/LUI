@@ -1107,6 +1107,17 @@ expect_caught "the-sync-does-not-give-the-log-back" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~LinkedBatchSyncTests.The_write_ahead_log_stays_a_batch_in_size_when_another_writer_commits_between_the_batches" \
   "sed -i '/^            ResetTheLog(writer);/d' src/Nordmann.LUI/Indexes/LinkedSync.cs"
 
+# 35zzb. The sync leaves the busy timeout of its connection at 0 after its checkpoint (issue #271, ADR-0077 decision 13, review of pull request 291, round 2): the connection goes back to the pool
+#        configured, and every later write of LUI on it fails at once under contention for the life of the pool.
+expect_caught "the-sync-leaves-the-busy-timeout-at-zero" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.The_connection_of_a_sync_goes_back_to_the_pool_with_the_busy_timeout_of_the_catalog" \
+  "sed -i 's/PRAGMA busy_timeout = {_database.BusyTimeoutMilliseconds};/PRAGMA busy_timeout = {_database.BusyTimeoutMilliseconds * 0};/' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zzc. The same mutation, seen from a write: a write of LUI after the sync fails after the retry of the provider instead of waiting for a lock that is held for a while.
+expect_caught "a-write-after-the-sync-does-not-wait-for-the-lock" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.A_write_of_LUI_after_a_sync_waits_for_a_lock_that_is_held_for_a_while_and_does_not_fail_at_once" \
+  "sed -i 's/PRAGMA busy_timeout = {_database.BusyTimeoutMilliseconds};/PRAGMA busy_timeout = {_database.BusyTimeoutMilliseconds * 0};/' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

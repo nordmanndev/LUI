@@ -927,6 +927,66 @@ public sealed class LinkedBatchSyncTests
         ((double)peak).ShouldBeLessThan(size, "the log is smaller than the database — a batch and a little (a third of it, measured); without the checkpoint it is three and a third times the database: every batch went through it");
     }
 
+    [Fact]
+    public void The_connection_of_a_sync_goes_back_to_the_pool_with_the_busy_timeout_of_the_catalog()
+    {
+        // review of #291, round 2, B1: the sync sets the busy timeout to 0 for its checkpoint and puts it back; the pool does not give a connection that it
+        // configured before its pragmas again (issue #237), so a timeout that stayed 0 would be the timeout of every later write of LUI for the life of the pool
+        using var database = new TestDatabase();
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(3) } });
+        Run(database, Table);
+        Fill(database, 40);
+        var tags = catalog.Create(LinkedTags);
+
+        // a sync that completes, one that is cancelled, one that throws
+        tags.Sync(new LuiSyncOptions { BatchSize = 10 });
+        BusyTimeoutsOfThePool(catalog).ShouldAllBe(timeout => timeout == 3_000, "after a complete sync");
+
+        using var cancellation = new CancellationTokenSource();
+        Should.Throw<OperationCanceledException>(() => tags.Sync(
+            new LuiSyncOptions { BatchSize = 10, Progress = Hear(report => { if (report.Batches == 1) { cancellation.Cancel(); } }) },
+            cancellation.Token));
+        BusyTimeoutsOfThePool(catalog).ShouldAllBe(timeout => timeout == 3_000, "after a cancelled sync");
+
+        Run(database, "ALTER TABLE tag RENAME COLUMN name TO title;");
+        Should.Throw<LuiLinkedTableException>(() => tags.Sync(new LuiSyncOptions { BatchSize = 10 }));
+        BusyTimeoutsOfThePool(catalog).ShouldAllBe(timeout => timeout == 3_000, "after a sync that threw");
+    }
+
+    [Fact]
+    [Trait("Category", "Timing")]
+    public async Task A_write_of_LUI_after_a_sync_waits_for_a_lock_that_is_held_for_a_while_and_does_not_fail_at_once()
+    {
+        // the busy timeout of the catalog is 4 s; the lock is held for 2.5 s — longer than the one second that the provider retries on its own (ADR-0046), shorter than
+        // the timeout: a connection that came back from the sync with a timeout of 0 fails after that second, one that came back right waits and writes
+        using var database = new TestDatabase();
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(4) } });
+        Run(database, Table);
+        Fill(database, 20);
+        var tags = catalog.Create(LinkedTags);
+        var embedded = catalog.Create(new LuiIndexDefinition<long>("other", index => index.SingleWord()));
+        tags.Sync(new LuiSyncOptions { BatchSize = 10 });
+
+        using var holder = database.Connect();
+        using (var begin = holder.CreateCommand())
+        {
+            begin.CommandText = "BEGIN IMMEDIATE;";
+            begin.ExecuteNonQuery();
+        }
+
+        var write = Task.Run(() => embedded.Upsert(1, "vegan"));
+        await Task.Delay(TimeSpan.FromMilliseconds(2_500));
+        write.IsCompleted.ShouldBeFalse("the write waits for the lock — it did not fail after the retry of the provider");
+        using (var commit = holder.CreateCommand())
+        {
+            commit.CommandText = "COMMIT;";
+            commit.ExecuteNonQuery();
+        }
+
+        await write.WaitAsync(Deadline);
+        embedded.Search("veg").Hits.ShouldHaveSingleItem();
+    }
+
     // ---- the catalog and the sync ------------------------------------------------------------------------------------
 
     [Fact]
@@ -1032,6 +1092,33 @@ public sealed class LinkedBatchSyncTests
             database,
             $"WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < {count}) "
             + $"INSERT INTO tag(id, name, usage_count) SELECT i, '{prefix}' || i, i % 7 FROM n;");
+
+    /// <summary>The <c>busy_timeout</c> of write connections of the pool, as they are handed out — three at once, so that the one the sync used is among them.</summary>
+    private static List<long> BusyTimeoutsOfThePool(LuiCatalog catalog)
+    {
+        var connections = new List<SqliteConnection>();
+        try
+        {
+            for (var i = 0; i < 3; i++)
+            {
+                connections.Add(catalog.Database.OpenConnection());
+            }
+
+            return [.. connections.Select(connection =>
+            {
+                using var command = connection.CreateCommand();
+                command.CommandText = "PRAGMA busy_timeout;";
+                return (long)command.ExecuteScalar()!;
+            })];
+        }
+        finally
+        {
+            foreach (var connection in connections)
+            {
+                connection.Dispose();
+            }
+        }
+    }
 
     private static long Generation(TestDatabase database) =>
         database.Scalar<long>("SELECT sync_generation FROM lui_meta WHERE index_name = 'tags'");
