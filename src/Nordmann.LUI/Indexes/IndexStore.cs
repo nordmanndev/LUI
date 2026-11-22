@@ -79,14 +79,53 @@ internal static class IndexStore
             throw new LuiFormatException(database.Path, (int)Math.Clamp(found, int.MinValue, int.MaxValue), Meta.SchemaVersion);
         }
 
-        // format 2 gained the column of the state of a linked index (ADR-0077) before any release had it: a file that an early build
-        // wrote without it cannot be used — it is refused here, with its own words, and not at the first read or write of the state
-        using var columns = connection.CreateCommand();
-        columns.CommandText = "SELECT count(*) FROM pragma_table_info('lui_meta') WHERE name = 'needs_initial_sync';";
-        if ((long)columns.ExecuteScalar()! == 0)
+        // format 2 gained the column of the state of a linked index (ADR-0077) before any release had it: a file with indexes that an
+        // early build wrote without it cannot be used — it is refused here, with its own words, and not at the first read or write of
+        // the state. A lui_meta without a row has no format to reject — it may be the table of 0.3.0, whose last index was dropped —
+        // and the first Create adds the column in its transaction (AddStateColumn)
+        if (!HasStateColumn(connection) && HasAnyIndex(connection))
         {
             throw new LuiFormatException(database.Path, "needs_initial_sync", Meta.SchemaVersion);
         }
+    }
+
+    private static bool HasStateColumn(SqliteConnection connection, SqliteTransaction? transaction = null)
+    {
+        using var columns = connection.CreateCommand();
+        columns.Transaction = transaction;
+        columns.CommandText = "SELECT count(*) FROM pragma_table_info('lui_meta') WHERE name = 'needs_initial_sync';";
+        return (long)columns.ExecuteScalar()! != 0;
+    }
+
+    private static bool HasAnyIndex(SqliteConnection connection, SqliteTransaction? transaction = null)
+    {
+        using var any = connection.CreateCommand();
+        any.Transaction = transaction;
+        any.CommandText = "SELECT count(*) FROM lui_meta;";
+        return (long)any.ExecuteScalar()! != 0;
+    }
+
+    /// <summary>
+    /// The first <c>Create</c> in the file adds the column of the state to a <c>lui_meta</c> that has none and no row (the empty
+    /// table of 0.3.0), in the transaction that creates the index. A table with rows and no column is refused when the catalog is
+    /// opened; one that became so since is refused here.
+    /// </summary>
+    private static void EnsureStateColumn(Database database, SqliteConnection connection, SqliteTransaction transaction)
+    {
+        if (HasStateColumn(connection, transaction))
+        {
+            return;
+        }
+
+        if (HasAnyIndex(connection, transaction))
+        {
+            throw new LuiFormatException(database.Path, "needs_initial_sync", Meta.SchemaVersion);
+        }
+
+        using var add = connection.CreateCommand();
+        add.Transaction = transaction;
+        add.CommandText = "ALTER TABLE lui_meta ADD COLUMN needs_initial_sync INTEGER NOT NULL DEFAULT 0;";
+        add.ExecuteNonQuery();
     }
 
     private static bool HasMetaTable(SqliteConnection connection)
@@ -164,6 +203,7 @@ internal static class IndexStore
         using var scope = database.Begin();
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
+        EnsureStateColumn(database, connection, transaction);
 
         foreach (var (source, verify) in indexes)
         {
