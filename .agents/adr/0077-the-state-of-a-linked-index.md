@@ -71,11 +71,16 @@ creation, and LUI does nothing on its own. An application — or the host of #26
 
 ## Consequences
 
-- **Format 2 gains a column; no release had format 2.** A file that an early build of 0.4.0 wrote without the column fails on the first
-  `Create` that writes a row — it is recreated like a file of 0.3.0 (the CHANGELOG says so). Files of 0.3.0 are rejected as before.
+- **Format 2 gains a column; no release had format 2.** `EnsureFormat` checks the column when the catalog opens: a file that an early build
+  of 0.4.0 wrote without it is refused with a `LuiFormatException` that names the column (`FoundFormat` = `SupportedFormat` = 2), and is
+  recreated like a file of 0.3.0 (the CHANGELOG says so). Files of 0.3.0 are rejected as before.
 - **`CreateTriggers()` no longer rewrites current triggers.** Before, every call dropped and created them. The CHANGELOG has a migration note;
   no existing test asserted the old behaviour as a promise (a second call never threw).
 - **One read connection and one small read per access** of `NeedsInitialSync` — the cost of reading from the file. Performance is looked
   at once at the end of the release (#275).
+- **Triggers first, then the first sync.** The order of a setup is `CreateTriggers()`, then `Sync()` when `NeedsInitialSync`: a row that is
+  written between the two lands in the outbox and `ApplyPending()` or the sync brings it in. With the sync first, a row written before the
+  triggers exist is in neither — the sync did not see it, no trigger noted it — and since the flag is already `false`, no later start
+  would sync again. This is also the order of #266. The docs say it wherever they name both calls.
 - **The application decides.** `NeedsInitialSync`, `Triggers()` and the two calls are the whole setup; `catalog.Initialize()` (#266) is
   a loop over them, not a new mechanism.

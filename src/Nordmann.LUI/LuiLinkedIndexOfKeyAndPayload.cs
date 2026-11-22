@@ -120,6 +120,8 @@ public sealed class LuiLinkedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     /// read and acted on in one transaction.
     /// </summary>
     /// <exception cref="LuiIndexNotFoundException">The index was dropped.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index was created again with another definition.</exception>
+    /// <exception cref="LuiReadOnlyException">The catalog is read-only and the triggers would have to be written (<c>None</c> or <c>Stale</c>).</exception>
     public void CreateTriggers()
     {
         try

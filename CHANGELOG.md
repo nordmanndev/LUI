@@ -201,8 +201,11 @@ a lookup now — instead of holding it across a recreate.
 
 **`CreateTriggers()` and the state of a linked index** (#272): a call on triggers that are current no longer rewrites them — the triggers an application
 installed itself with its own white space stay as they are — and no code needs to guard the call with `Triggers()` any more. A start that wants a
-working linked index reads the state instead of remembering an event: `if (index.NeedsInitialSync) index.Sync(); if (index.Triggers() != LuiTriggerState.Current) index.CreateTriggers();`.
-The new column of `lui_meta` belongs to LUI format 2, which no release has had: a file that an early build of 0.4.0 wrote without it is created again like the files of 0.3.0.
+working linked index reads the state instead of remembering an event: `index.CreateTriggers(); if (index.NeedsInitialSync) index.Sync();`. **The triggers come first**: a
+row that the application writes between the two calls then lands in the outbox (`ApplyPending()` or the sync takes it), whereas a sync that came first would miss it —
+and the flag, already `false`, would never ask for another one.
+The new column of `lui_meta` belongs to LUI format 2, which no release has had: a file that an early build of 0.4.0 wrote without it is refused when the catalog is
+opened, with a `LuiFormatException` that names the column — recreate its indexes like the files of 0.3.0.
 
 ## [0.3.0] — 2026-11-19
 
