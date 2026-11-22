@@ -41,17 +41,18 @@ need no per-PR A/B measurement (owner, 2026-11-21: performance is looked at at t
 **Decision (owner, 2026-11-21, #261):** after three rounds with a blocker left, the owner allowed a fourth, narrow review of
 the last two commits (option B); it was LGTM and #282 was merged. Rounds: 1 three blockers, 2 one, 3 one, 4 none.
 
-**Stopped (2026-11-22, #265 / PR #286):** three review rounds are used and round 3 still had one blocker (a handle opened
-during this catalog's own `DropIndex` escaped it). It is fixed on the branch (commits `44ca5c7`, `0d05db5`, with the round-3
-suggestions; format, build, Unit 307, Architecture 142, Integration 675 twice, Sample 47 green locally; the mutations of
-the touched files caught one by one), but no reviewer has seen that state and the rules forbid a fourth round. Options:
-**A** the owner merges #286 as is; **B** a fourth, narrow review of the last two commits (an exception to the round rule,
-as granted for #261); **C** rework. The rounds found, in turn: round 1 two blockers (check and write not atomic, unbounded
-runtime cache), round 2 two (false exceptions from a stale snapshot, several handles per definition), round 3 one (the
-handle escaping `DropIndex`) — each narrower than the last. Recommendation: **B**. #260 and everything after build on
-#265, so nothing else can proceed.
+**Stopped again (2026-11-22, #265 / PR #286):** the narrow fourth review the owner allowed was not clean either: it
+confirmed the round-3 fix and found a new blocker outside the last two commits (a permanent false
+`LuiDefinitionMismatchException` from a stale snapshot; a regression against `0.4.0`). It is fixed on the branch (commits
+`dd1fe9f` red, `bcf40a9`; Unit 307, Architecture 142, Integration 677 twice, Sample 47; 16 mutations caught one by one), but
+no reviewer has seen that state. Rounds: 1 two blockers, 2 two, 3 one, 4 one — a concurrency design (stored-definition
+snapshot, per-operation schema-counter check, weak handle tracking, typo-dictionary keying) whose corner cases keep
+surfacing one per round. Options: **A** merge #286 as is; **B** a fifth narrow review of the last two commits; **C** reduce
+the scope of #265 to what the issue requires and move the rest (typo-dictionary keying, weak guard tracking) to a follow-up
+issue — a rework with its own review cycle; **D** merge #286 and put a stress/soak concurrency test into the performance
+analysis (#275). Recommendation: **B** once more, then merge on LGTM; if it finds another blocker, **C**.
 
-Risks of the whole run:
+Risks of the whole run:Risks of the whole run:
 
 - **The SDK.** `global.json` pins SDK `10.0.403` (`rollForward: latestPatch`); the image ships only `10.0.114`. The
   environment now allows `builds.dotnet.microsoft.com` and its setup script installs `10.0.403` into `/usr/lib/dotnet`
