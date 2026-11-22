@@ -216,7 +216,11 @@ public sealed class OpenCallTests
             var race = new OpenRace(catalog);
             race.Start(4);
 
-            Thread.Sleep(5);
+            for (var spin = 0; spin < 200; spin++)
+            {
+                Thread.Yield();
+            }
+
             catalog.DropIndex("tags");
             race.DropReturned();
             catalog.Create(Tags);

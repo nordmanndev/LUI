@@ -49,6 +49,11 @@ public sealed class LuiCatalog : IDisposable
     private readonly ConditionalWeakTable<LuiIndexDefinitionBase, HandleOfDefinition> _handles = [];
     private readonly Lock _handleGate = new();
 
+    // The guards of the handles that are alive — held weakly, so that a handle which outlives its definition object is still found
+    // by DropIndex (the table above lets go of a definition that is collected).
+    private readonly List<WeakReference<IndexGuard>> _guards = [];
+    private int _pruneAt = 64;
+
     private LuiCatalog(string path, SqliteOpenMode mode, bool createdTheFile, LuiCatalogOptions options)
     {
         _options = options;
@@ -963,74 +968,89 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>A seam of the tests (ADR-0075): runs when a call has entered the slow path of the open call, before it judges anything.</summary>
     internal Action? AfterSlowPathStarted { get; set; }
 
+    /// <summary>A seam of the tests (ADR-0075): runs when a call has judged the stored definition and has not yet taken the lock of the handles.</summary>
+    internal Action? BeforeHandleLock { get; set; }
+
     /// <summary>
     /// The first call of a definition, and the call after its handle failed: the stored definition is found in memory, compared
     /// with the declared one, and the runtime is built. The handles are made and replaced under one lock, and a handle that failed
     /// is removed only there, and only when it is still the one in the table: a definition object has <b>one</b> handle, and no
-    /// handle that was handed out escapes <c>DropIndex</c>.
+    /// handle that was handed out escapes <c>DropIndex</c>. <c>DropIndex</c> marks the handles and reads the definitions again under
+    /// the same lock, so a call that judged a snapshot from before it — the snapshot is not the current one any more when the call
+    /// has the lock — judges again instead of building on it.
     /// </summary>
     private THandle OpenFirst<THandle>(LuiIndexDefinitionBase definition, Func<IndexRuntime, LuiCatalog, THandle> make)
         where THandle : class
     {
         AfterSlowPathStarted?.Invoke();
 
-        IndexStoreEntry entry;
-        ResolvedIndex resolved;
-        long counter;
-        try
+        while (true)
         {
-            resolved = definition.Resolve();
-            entry = FindStored(resolved.Name, resolved.Description.ToStored(resolved.KeyType), out counter);
-        }
-        catch
-        {
-            // a handle that failed is not kept — whether the definition finds its index again or not
+            ResolvedIndex resolved;
+            IndexStoreEntry entry;
+            StoredIndexes.Snapshot snapshot;
+            try
+            {
+                resolved = definition.Resolve();
+                entry = FindStored(resolved.Name, resolved.Description.ToStored(resolved.KeyType), out snapshot);
+            }
+            catch
+            {
+                // a handle that failed is not kept — whether the definition finds its index again or not
+                lock (_handleGate)
+                {
+                    if (_handles.TryGetValue(definition, out var failed) && failed.Guard.HasFailed)
+                    {
+                        _ = _handles.Remove(definition);
+                    }
+                }
+
+                throw;
+            }
+
+            BeforeHandleLock?.Invoke();
             lock (_handleGate)
             {
-                if (_handles.TryGetValue(definition, out var failed) && failed.Guard.HasFailed)
+                if (_handles.TryGetValue(definition, out var handed) && !handed.Guard.HasFailed)
                 {
-                    _ = _handles.Remove(definition);
+                    return (THandle)handed.Handle;
                 }
+
+                if (!ReferenceEquals(StoredIndexes.Current, snapshot))
+                {
+                    continue;
+                }
+
+                var runtime = Runtimes.Build(resolved, entry, snapshot.Counter);
+                var handle = make(runtime, this);
+                _handles.AddOrUpdate(definition, new HandleOfDefinition(handle, runtime.Guard));
+                Track(runtime.Guard);
+                return handle;
             }
-
-            throw;
-        }
-
-        lock (_handleGate)
-        {
-            if (_handles.TryGetValue(definition, out var handed) && !handed.Guard.HasFailed)
-            {
-                return (THandle)handed.Handle;
-            }
-
-            var runtime = Runtimes.Build(resolved, entry, counter);
-            var handle = make(runtime, this);
-            _handles.AddOrUpdate(definition, new HandleOfDefinition(handle, runtime.Guard));
-            return handle;
         }
     }
 
     /// <summary>
     /// The stored index of a name, from the definitions in memory, after the comparison with the declared one. The definitions in
     /// memory may be old — another process may have created, dropped or created the index again — so an answer that is "not
-    /// found" or a mismatch is thrown only from a snapshot that is the newest one and at the counter of the file: when another
-    /// thread has replaced the snapshot in the meantime, or the file has moved, the decision is made again from the current one.
+    /// found" or a mismatch is thrown only when the file has been looked at for the snapshot it was judged on: while
+    /// <see cref="StoredIndexes.Refresh"/> says that the snapshot was replaced or the file moved, the decision is made again from the
+    /// current snapshot, and the call throws only from one that nobody has replaced since the counter of the file was compared.
     /// </summary>
     /// <param name="name">The validated name of the index.</param>
     /// <param name="declared">The definition the application declared.</param>
-    /// <param name="counter">The schema counter the definitions were read at.</param>
+    /// <param name="snapshot">The definitions the answer was read from.</param>
     /// <returns>What <c>lui_meta</c> holds about the index.</returns>
     /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
     /// <exception cref="LuiDefinitionMismatchException">The stored definition is another one; the message names the fields.</exception>
-    private IndexStoreEntry FindStored(string name, IndexDefinition declared, out long counter)
+    private IndexStoreEntry FindStored(string name, IndexDefinition declared, out StoredIndexes.Snapshot snapshot)
     {
-        var entry = StoredIndexes.Find(name, out var snapshot);
-        if (entry is not null)
+        while (true)
         {
+            var entry = StoredIndexes.Find(name, out snapshot) ?? throw new LuiIndexNotFoundException(name);
             entry.EnsureReadable(name);
             if (entry.Definition == declared)
             {
-                counter = snapshot.Counter;
                 return entry;
             }
 
@@ -1038,18 +1058,7 @@ public sealed class LuiCatalog : IDisposable
             {
                 throw IndexStore.Mismatch(name, entry.Definition, declared);
             }
-
-            entry = StoredIndexes.Find(name, out snapshot);
         }
-
-        counter = snapshot.Counter;
-        if (entry is null)
-        {
-            throw new LuiIndexNotFoundException(name);
-        }
-
-        entry.EnsureReadable(name);
-        return entry.Definition == declared ? entry : throw IndexStore.Mismatch(name, entry.Definition, declared);
     }
 
     /// <summary>The stored index of a name, with the two checks every index has to pass: the LUI format version it was written
@@ -1135,12 +1144,18 @@ public sealed class LuiCatalog : IDisposable
         Identifier.ValidateIndexName(name, nameof(name));
         var existed = IndexStore.Drop(Database, name, dropTriggers);
 
-        // the words of the dropped index are not the words of the next one
-        TypoDictionaries.Forget(name);
+        // under the lock of the handles: a call that makes a handle takes it, too, and finds either its handle marked or the snapshot
+        // of the definitions replaced
+        lock (_handleGate)
+        {
+            // the words of the dropped index are not the words of the next one
+            TypoDictionaries.Forget(name);
 
-        // the handles that were handed out for it are stale from now on, and the definitions in memory are the file's
-        StaleHandlesOf(name);
-        _ = StoredIndexes.Reload();
+            // the handles that were handed out for it are stale from now on, and the definitions in memory are the file's
+            StaleHandlesOf(name);
+            _ = StoredIndexes.Reload();
+        }
+
         return existed;
     }
 
@@ -1186,10 +1201,26 @@ public sealed class LuiCatalog : IDisposable
     /// <param name="name">The name of the index.</param>
     private void StaleHandlesOf(string name)
     {
-        foreach (var (_, handed) in _handles.Where(pair => string.Equals(pair.Value.Guard.Name, name, StringComparison.Ordinal)))
+        foreach (var reference in _guards)
         {
-            handed.Guard.Dropped();
+            if (reference.TryGetTarget(out var guard) && string.Equals(guard.Name, name, StringComparison.Ordinal))
+            {
+                guard.Dropped();
+            }
         }
+    }
+
+    /// <summary>Remembers the guard of a handle that was made, weakly; the list is cleaned of the dead ones when it has doubled.</summary>
+    /// <param name="guard">The guard of the runtime of the handle.</param>
+    private void Track(IndexGuard guard)
+    {
+        if (_guards.Count >= _pruneAt)
+        {
+            _ = _guards.RemoveAll(reference => !reference.TryGetTarget(out _));
+            _pruneAt = Math.Max(64, _guards.Count * 2);
+        }
+
+        _guards.Add(new WeakReference<IndexGuard>(guard));
     }
 
     /// <summary>A handle that was handed out for a definition, and the guard of the runtime it is a view of.</summary>

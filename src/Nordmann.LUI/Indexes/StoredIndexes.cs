@@ -89,31 +89,32 @@ internal sealed class StoredIndexes(Database database)
     internal IndexStoreEntry? Find(string name, out Snapshot snapshot)
     {
         snapshot = Current;
-        if (!snapshot.Entries.ContainsKey(name))
+        var looked = false;
+        while (!snapshot.Entries.ContainsKey(name))
         {
-            if (snapshot.Missing.ContainsKey(name))
+            if (looked || snapshot.Missing.ContainsKey(name))
             {
+                // remembered as missing, or a snapshot that was just read again: it says "missing" only when the counter of the file is
+                // still its counter and nobody has replaced it — otherwise the decision is made again on the current one
                 if (!Refresh(snapshot))
                 {
+                    _ = snapshot.Missing.TryAdd(name, 0);
                     return null;
                 }
 
                 snapshot = Current;
+                looked = true;
             }
             else
             {
+                // not known: the file is read, and what it says is the answer
                 snapshot = Reload();
+                looked = true;
             }
         }
 
-        if (!snapshot.Entries.TryGetValue(name, out var entry))
-        {
-            _ = snapshot.Missing.TryAdd(name, 0);
-            return null;
-        }
-
         // a row this version cannot read says what is wrong with it when it is read again
-        return entry ?? IndexStore.ReadIndex(Database, name);
+        return snapshot.Entries[name] ?? IndexStore.ReadIndex(Database, name);
     }
 
     /// <summary>

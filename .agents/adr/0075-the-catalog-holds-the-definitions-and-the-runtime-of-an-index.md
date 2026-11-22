@@ -75,8 +75,8 @@ handle of an index that was dropped and created again under the same name worked
    that it surfaces as the proper exception and not as a bare SQLite error. When the counter differs, the guard judges **the row as
    the snapshot of the operation sees it** (it reads `lui_meta` on the connection and in the transaction of the operation), not the
    newest definitions: a read that pinned its snapshot between a drop and a create ends in the exception of that snapshot. The guard of the runtime (`IndexGuard`) compares it with the
-   counter it validated at. Equal: go on. Different: the guard looks at the definitions of the catalog — reloaded once from
-   `lui_meta`, by whoever comes first — and
+   counter it validated at. Equal: go on. Different: the guard looks at the definitions of the catalog — reloaded from
+   `lui_meta` — by each guard whose counter differs from the one of the snapshot, which costs a read and nothing else — and
    - the index is gone: the operation throws `LuiIndexNotFoundException`;
    - the stored definition is another one: `LuiDefinitionMismatchException`, naming the fields;
    - the index was written in another LUI format, with another key type or another folding: `LuiDefinitionMismatchException`;
@@ -84,8 +84,9 @@ handle of an index that was dropped and created again under the same name worked
      (its typo dictionary is that of the process, `RebuildTypoDictionary()` brings the words of the new content).
 
    The guard **keeps the failure**: every later operation of that handle throws again, and the next open call builds a new runtime
-   and a new handle (the failure is kept as a record, the exception is made anew every time). An operation that does not open a
-   connection at its start — a sync, a check, a rebuild, the typo dictionary — takes a read connection for the one statement. A change
+   and a new handle (the failure is kept as a record, the exception is made anew every time). The operations that write or check inside
+   transactions of their own check inside each of them; only the typo dictionary, which reads on a connection of its own, takes a read
+   connection for the check. A change
    of the application's own tables only causes a harmless reload. A counter that was read inside a
    transaction of the application is that transaction's — it may have changed the schema itself, and may be rolled back — and is
    **never published** to the other handles; the guard remembers it apart, **keyed by that transaction object**, for that transaction's operations only (another transaction that
@@ -101,8 +102,8 @@ handle of an index that was dropped and created again under the same name worked
    advise the application to drop an index that is right. A reload never replaces a newer snapshot with an older one. The handles are
    made, and a failed one is replaced, under one lock: a definition object has one handle, whatever the number of threads, and no
    handle that was handed out escapes `DropIndex`.
-7. **`DropIndex` and `Create` write the file and the memory.** `DropIndex` forgets the typo dictionary, marks every handle of the
-   index that was handed out as dropped — the handles that were handed out are stale from now on ("index objects that were created before do not survive
+7. **`DropIndex` and `Create` write the file and the memory.** `DropIndex` — under the lock of the handles, which a call that makes a handle takes, too, so that no handle escapes it, and through the guards of the handles that are alive, which the catalog holds weakly, so that a handle whose definition object is gone is found too — forgets
+   the typo dictionary, marks every handle of the index that was handed out as dropped — the handles that were handed out are stale from now on ("index objects that were created before do not survive
    it", as the page says) — and reads the definitions again. `Create` already took the write lock (`BEGIN IMMEDIATE`) and read
    `lui_meta` inside the transaction: of two processes that create the same index at startup one creates it and the other finds it
    and compares — same definition: both succeed and one index is left; another definition: the second throws. The definitions are
@@ -132,8 +133,8 @@ handle of an index that was dropped and created again under the same name worked
   its own writes; the writes of other processes reach it with `RebuildTypoDictionary()` — unchanged and documented.
 - A handle that failed is replaced at the next open call, so a held handle of a dropped index stays dropped: the application takes a
   fresh handle from `Create` or `Index` after it recreated the index (0073 §7).
-- The typed handles still wrap `EmbeddedIndex` and `LinkedIndex`, which are the runtime; `IndexRuntime` is what the catalog caches —
-  the index and its guard — and `IndexRuntimes` the cache.
+- The typed handles still wrap `EmbeddedIndex` and `LinkedIndex`, which are the runtime; `IndexRuntime` is what the catalog keeps
+  with each handle — the index and its guard — and `IndexRuntimes` only builds it.
 - The seams of the tests are internal: `Database.CommandCounter` (counts the commands the connections of LUI create),
   `Database.AfterSchemaCheck` (runs between the check and the work — the tests swap the index there), `StoredIndexes.Reloads`
   (counts the reads of `lui_meta`) and `LuiCatalog.CachedHandles` (the handles that are alive).

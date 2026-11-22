@@ -90,7 +90,10 @@ internal sealed class IndexGuard : IConnectionGuard
 
         using var scope = _stored.Database.Begin();
         using var connection = _stored.Database.OpenReadConnection();
-        Check(connection);
+
+        // the counter and the row in one snapshot: the counter that is published is the one of the row that was judged
+        using var snapshot = connection.BeginTransaction(deferred: true);
+        Check(connection, snapshot);
     }
 
     /// <summary>

@@ -277,7 +277,18 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         // the words of the table as they are now: a built dictionary is built anew
         if (_typos.IsBuilt)
         {
-            _typos.Rebuild(cancellationToken);
+            _guard?.Check();
+            try
+            {
+                _typos.Rebuild(cancellationToken);
+                CheckAfterTheWork();
+            }
+            catch (SqliteException exception) when (_guard is not null)
+            {
+                // the texts are read on a connection of their own: a table that is missing under the check is the check's answer
+                _guard.Explain(exception);
+                throw;
+            }
         }
 
         return result!;
@@ -513,10 +524,6 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         }
     }
 
-    /// <summary>
-    /// A table that changed under the index — a column renamed, the table dropped — answers with a statement that names
-    /// what is missing, not with a bare SQLite error (review of pull request 16, S4).
-    /// </summary>
     /// <summary>The check after the texts were read on a connection of their own: a dictionary of an index that was created again under it is let go.</summary>
     private void CheckAfterTheWork()
     {
@@ -531,6 +538,10 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         }
     }
 
+    /// <summary>
+    /// A table that changed under the index — a column renamed, the table dropped — answers with a statement that names
+    /// what is missing, not with a bare SQLite error (review of pull request 16, S4).
+    /// </summary>
     private T Guarded<T>(Func<T> run)
     {
         try

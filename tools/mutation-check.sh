@@ -825,6 +825,18 @@ expect_caught "a-dictionary-that-is-not-checked-after-its-build" "${INTEGRATION_
   "FullyQualifiedName~AtomicCheckTests.The_typo_dictionary_of_a_handle_does_not_take_in_the_texts_of_an_index_that_was_created_again_under_it" \
   "sed -i 's|            CheckAfterTheWork();|            _ = _guard;|' src/Nordmann.LUI/Indexes/EmbeddedIndex.cs"
 
+# 35k. The distance of the stored definition does not reach the index that the typed way opens (issue #265, ADR-0054, review of
+#       pull request 286): the old mutation 26x bites on the old path only.
+expect_caught "the-typed-path-forgets-the-distance-of-the-index" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~An_index_opened_through_its_definition_keeps_its_distance_and_corrects_without_the_query_asking_for_it" \
+  "sed -i 's|typoDistance: entry.Definition.TypoDistance,|typoDistance: LuiTypoDistance.None,|' src/Nordmann.LUI/Indexes/IndexRuntimes.cs"
+
+# 35l. A call that builds its handle on a snapshot that DropIndex has replaced (issue #265, ADR-0075, review of pull request 286):
+#       the handle escapes the drop and works on the index that is created again.
+expect_caught "a-handle-built-on-a-snapshot-that-a-drop-replaced" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OpenCallTests.A_handle_that_was_judged_before_a_drop_and_made_after_it_is_not_returned_on_the_old_snapshot" \
+  "sed -i 's|                if (!ReferenceEquals(StoredIndexes.Current, snapshot))|                if (snapshot is null)|' src/Nordmann.LUI/LuiCatalog.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

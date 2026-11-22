@@ -178,10 +178,12 @@ public sealed class AtomicCheckTests
     public void A_linked_sync_that_rebuilds_the_dictionary_after_its_commit_says_so_when_the_index_was_created_again_by_then()
     {
         using var database = new TestDatabase();
-        Run(database, Table);
-        Insert(database, (1, "vegan", 1));
+
+        // the catalog makes the file first, so that it is in write-ahead logging: a reader does not stop the swap that the seam makes
         using var first = database.Open();
         using var second = database.Open();
+        Run(database, Table);
+        Insert(database, (1, "vegan", 1));
         first.Create(LinkedCorrected).Sync();
         var linked = second.Index(LinkedCorrected);
         linked.WarmUpTypoDictionary();

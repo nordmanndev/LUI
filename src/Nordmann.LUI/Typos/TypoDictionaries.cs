@@ -50,15 +50,17 @@ internal sealed class TypoDictionaries
         Func<IEnumerable<(string Text, int Weight)>> texts,
         LuiTypoDistance distance)
     {
+        BeforeReplace?.Invoke();
         lock (_replace)
         {
-            var known = _byIndex[indexName];
-            if (string.Equals(known.Fingerprint, fingerprint, StringComparison.Ordinal))
+            // the entry that was there may have been forgotten since (the index was dropped): then it is a new one
+            var found = _byIndex.TryGetValue(indexName, out var known);
+            if (found && string.Equals(known!.Fingerprint, fingerprint, StringComparison.Ordinal))
             {
                 return known.Dictionary;
             }
 
-            var dictionary = known.Fingerprint.Length == 0 ? known.Dictionary : new TypoDictionary(normalization, texts, distance);
+            var dictionary = found && known!.Fingerprint.Length == 0 ? known.Dictionary : new TypoDictionary(normalization, texts, distance);
             _byIndex[indexName] = new Entry(fingerprint, dictionary);
             return dictionary;
         }
@@ -69,6 +71,9 @@ internal sealed class TypoDictionaries
 
     /// <summary>Forgets the typo dictionary of an index that was dropped: the next index of that name starts empty.</summary>
     internal void Forget(string indexName) => _byIndex.TryRemove(indexName, out _);
+
+    /// <summary>A seam of the tests (ADR-0075): runs between the registry's answer and the replacement — where <c>Forget</c> may come in.</summary>
+    internal Action? BeforeReplace { get; set; }
 
     private sealed record Entry(string Fingerprint, TypoDictionary Dictionary);
 }
