@@ -441,7 +441,7 @@ public sealed class PublicApiShapeTests
         var expected = ExpectedMembers();
 
         var actual = LibraryAssembly.GetExportedTypes()
-            .Where(type => type.IsGenericTypeDefinition || string.Equals(type.Name, nameof(LuiIndexDefinitionBase), StringComparison.Ordinal))
+            .Where(type => type.IsGenericTypeDefinition || type.Name is nameof(LuiIndexDefinitionBase) or nameof(LuiPayloadRegistry) or nameof(LuiPayloadNameAttribute) or nameof(LuiPayloadSerializer))
             .Where(type => expected.ContainsKey(TypeText(type)))
             .ToDictionary(TypeText, type => MemberSignatures(type).Order(StringComparer.Ordinal).ToArray(), StringComparer.Ordinal);
 
@@ -598,7 +598,42 @@ public sealed class PublicApiShapeTests
         .Concat(ExpectedPayloadVariants())
         .Concat(ExpectedValues())
         .Concat(ExpectedPayloadValues())
+        .Concat(ExpectedPayloadRegistry())
         .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+    }
+
+    /// <summary>
+    /// The payload registry, the generic serializer and the attribute of the payload name (ADR-0072, issue #260): the serializer is
+    /// bound to the payload type, there is no catch-all — no member takes the non-generic <c>ILuiPayloadSerializer</c> — and the
+    /// registry has exactly the two ways to register.
+    /// </summary>
+    private static Dictionary<string, string[]> ExpectedPayloadRegistry()
+    {
+        return new Dictionary<string, string[]>(StringComparer.Ordinal)
+        {
+            ["LuiPayloadRegistry"] =
+            [
+                ".ctor()",
+                "LuiPayloadRegistry Use(JsonSerializerContext context)",
+                "LuiPayloadRegistry Use(ILuiPayloadSerializer<TPayload> serializer)",
+            ],
+            ["ILuiPayloadSerializer<TPayload>"] =
+            [
+                "Byte[] Serialize(TPayload payload)",
+                "TPayload Deserialize(ReadOnlySpan<Byte> bytes)",
+                "string Format { get; }",
+            ],
+            ["LuiPayloadNameAttribute"] =
+            [
+                ".ctor(string name)",
+                "string Name { get; }",
+            ],
+            ["LuiPayloadSerializer"] =
+            [
+                "ILuiPayloadSerializer Json(JsonSerializerContext context)",
+                "ILuiPayloadSerializer<TPayload> Json(JsonSerializerContext context)",
+            ],
+        };
     }
 
     /// <summary>The entry, the query, the result and the hit of the typed handles (ADR-0073).</summary>
@@ -897,9 +932,43 @@ public sealed class PublicApiShapeTests
         typeof(LuiTypedHit<object>).GetProperty("Payload")
             .ShouldBeNull("the typed hit reads the payload as the hit does: a method that deserialises, not a property (ADR-0044)");
 
-        // one serialiser per catalog
+        // the serialiser of the old path stays one per catalog until #268 removes it; the typed path binds the serializer to the
+        // payload type through the registry (ADR-0072)
         typeof(LuiCatalogOptions).GetProperty(nameof(LuiCatalogOptions.PayloadSerializer))!.PropertyType
             .ShouldBe(typeof(ILuiPayloadSerializer));
+        typeof(LuiCatalogOptions).GetProperty(nameof(LuiCatalogOptions.Payloads))!.PropertyType
+            .ShouldBe(typeof(LuiPayloadRegistry));
+    }
+
+    [Fact]
+    public void The_payload_registry_has_no_catch_all_and_binds_the_serializer_to_the_type()
+    {
+        // ADR-0072: a serializer is bound to ONE payload type; the registry has no way to register one for every type. The members are
+        // in `The_typed_handles_have_exactly_the_members_of_the_release`; here is what a list of signatures cannot say.
+        typeof(ILuiPayloadSerializer<>).IsInterface.ShouldBeTrue();
+        typeof(ILuiPayloadSerializer<>).GetInterfaces().ShouldBeEmpty("the typed serializer is no ILuiPayloadSerializer: there is no catch-all");
+        typeof(ILuiPayloadSerializer).IsAssignableFrom(typeof(ILuiPayloadSerializer<>)).ShouldBeFalse();
+        typeof(LuiPayloadRegistry).IsSealed.ShouldBeTrue();
+        typeof(LuiPayloadRegistry).GetConstructors().ShouldHaveSingleItem().GetParameters().ShouldBeEmpty();
+
+        var registrations = typeof(LuiPayloadRegistry).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.DeclaredOnly)
+            .Where(method => string.Equals(method.Name, nameof(LuiPayloadRegistry.Use), StringComparison.Ordinal))
+            .ToArray();
+        registrations.Length.ShouldBe(2, "a context, or a serializer for one type");
+        registrations.ShouldAllBe(method => method.ReturnType == typeof(LuiPayloadRegistry), "the registry is filled by chaining");
+        registrations.Where(method => method.IsGenericMethodDefinition).ShouldHaveSingleItem()
+            .GetParameters().Single().ParameterType.GetGenericTypeDefinition().ShouldBe(typeof(ILuiPayloadSerializer<>));
+        HasNotNullConstraint(registrations.Single(method => method.IsGenericMethodDefinition).GetGenericArguments().Single()).ShouldBeTrue("where TPayload : notnull");
+
+        var typedJson = typeof(LuiPayloadSerializer).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Single(method => method.IsGenericMethodDefinition && string.Equals(method.Name, nameof(LuiPayloadSerializer.Json), StringComparison.Ordinal));
+        typedJson.ReturnType.GetGenericTypeDefinition().ShouldBe(typeof(ILuiPayloadSerializer<>));
+        HasNotNullConstraint(typedJson.GetGenericArguments().Single()).ShouldBeTrue("where TPayload : notnull");
+
+        var usage = typeof(LuiPayloadNameAttribute).GetCustomAttribute<AttributeUsageAttribute>()!;
+        usage.ValidOn.ShouldBe(AttributeTargets.Class | AttributeTargets.Struct | AttributeTargets.Interface | AttributeTargets.Enum);
+        usage.AllowMultiple.ShouldBeFalse();
+        usage.Inherited.ShouldBeFalse("a derived payload class is another type with its own name");
     }
 
     [Fact]
@@ -925,12 +994,15 @@ public sealed class PublicApiShapeTests
             .ToArray();
         facade.ShouldBeEmpty("the untyped facade is gone");
 
-        // ADR-0035: the placeholder of "no payload" and the typed serialiser are gone with the type parameters
+        // ADR-0035: the placeholder of "no payload" and the typed JSON serialiser are gone with the type parameters.
+        // `ILuiPayloadSerializer`1` is not in this list any more: ADR-0072 brings the generic serializer back on purpose — one per
+        // payload type, with a `Format`, in the registry of the catalog — and its own guard is
+        // `The_payload_registry_has_exactly_the_members_of_the_release`.
         PackageAssemblies
             .SelectMany(assembly => assembly.GetExportedTypes())
-            .Where(type => type.Name is "LuiNoPayload" or "LuiJsonPayloadSerializer`1" or "ILuiPayloadSerializer`1" or "LuiEmbeddedIndexBuilderExtensions")
+            .Where(type => type.Name is "LuiNoPayload" or "LuiJsonPayloadSerializer`1" or "LuiEmbeddedIndexBuilderExtensions")
             .Select(type => type.Name)
-            .ShouldBeEmpty("the placeholder and the typed serialiser are gone");
+            .ShouldBeEmpty("the placeholder and the typed JSON serialiser are gone");
     }
 
     [Fact]
