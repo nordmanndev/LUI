@@ -6,7 +6,7 @@ namespace Nordmann.LUI.Schema;
 /// The content source <c>Linked</c> (ADR-0014, ADR-0015, ADR-0015, ADR-0015): the content lives in a table of the
 /// application, and LUI never changes that table on its own — no column, no index, no trigger unless the
 /// application asks for one. LUI keeps two tables of its own: <c>lui_&lt;name&gt;</c> without text (the document
-/// id, the packed rowid and the two prefix keys) and a <b>contentless</b> FTS5 table over the search form. The text
+/// id, the packed rowid, the two prefix keys and the generation of the sync that wrote the row) and a <b>contentless</b> FTS5 table over the search form. The text
 /// and the payload are read from the application's table by its primary key, so the text is not stored twice.
 /// <para>
 /// The forms are computed by the same SQL expressions that generate the columns of <c>Embedded</c>, inside the
@@ -82,7 +82,11 @@ internal sealed class LinkedSource : ContentSource
 
     internal override string FtsTable { get; }
 
-    /// <summary>The table of LUI: <c>(doc_id, s_rowid, s_p1, s_p2)</c>, no text.</summary>
+    /// <summary>
+    /// The table of LUI: <c>(doc_id, s_rowid, s_p1, s_p2, gen)</c>, no text. <c>gen</c> is the generation of the sync that wrote the
+    /// row (ADR-0077): a sync takes the next number, every batch writes it, and what still carries an older one when the batches are
+    /// done is not in the table of the application any more.
+    /// </summary>
     internal string EntryTable { get; }
 
     /// <summary>
@@ -191,11 +195,13 @@ internal sealed class LinkedSource : ContentSource
             doc_id  INTEGER PRIMARY KEY CHECK (doc_id BETWEEN 0 AND {RowId.MaxDocId}),
             s_rowid INTEGER NOT NULL UNIQUE,
             s_p1    TEXT    NOT NULL,
-            s_p2    TEXT    NOT NULL
+            s_p2    TEXT    NOT NULL,
+            gen     INTEGER NOT NULL
         );
         """,
         $"CREATE INDEX {EntryTable}_p1 ON {EntryTable}(s_p1, s_rowid);",
         $"CREATE INDEX {EntryTable}_p2 ON {EntryTable}(s_p2, s_rowid);",
+        $"CREATE INDEX {EntryTable}_gen ON {EntryTable}(gen);",
         $"CREATE TABLE {PendingTable} (doc_id INTEGER PRIMARY KEY);",
         $"""
         CREATE VIRTUAL TABLE {FtsTable} USING fts5(
@@ -297,6 +303,12 @@ internal sealed class LinkedSource : ContentSource
     /// </summary>
     private string Indexable => $"{HasText} AND {KeyInRange}";
 
+    /// <summary>
+    /// The generation a single row is written with — the one the last sync took (<c>lui_meta.sync_generation</c>, ADR-0077). A refresh
+    /// that runs beside a sync therefore writes the generation of that sync, and the removal at its end leaves the row.
+    /// </summary>
+    private string CurrentGeneration => $"(SELECT sync_generation FROM lui_meta WHERE index_name = '{IndexName}')";
+
     /// <summary>The packed rowid of a row (ADR-0006) — the same expression as the generated column of <c>Embedded</c>.</summary>
     private string RowIdValue => $"({_priority} << 61) | (({RowId.MaxWeight} - {_weight}) << 32) | {_key}";
 
@@ -305,9 +317,9 @@ internal sealed class LinkedSource : ContentSource
     {
         var prefix = $"lower({Rules.PrefixValue(_norm)})";
         return
-            $"INSERT INTO {EntryTable}(doc_id, s_rowid, s_p1, s_p2) "
+            $"INSERT INTO {EntryTable}(doc_id, s_rowid, s_p1, s_p2, gen) "
             + $"SELECT {_key}, {RowIdValue}, "
-            + $"substr({prefix}, 1, 1), substr({prefix}, 1, 2) "
+            + $"substr({prefix}, 1, 1), substr({prefix}, 1, 2), {CurrentGeneration} "
             + $"FROM {ContentTable} h WHERE {rows} AND {Indexable}; "
             + $"INSERT INTO {FtsTable}(rowid, {Rules.IndexedColumn}) "
             + $"SELECT s.s_rowid, {Rules.IndexedValue(_norm)} FROM {EntryTable} s JOIN {ContentTable} h ON {_key} = s.doc_id "
