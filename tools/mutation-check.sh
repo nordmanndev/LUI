@@ -967,16 +967,16 @@ expect_caught "a-failing-context-is-cached-as-its-own-exception" "${UNIT_PROJECT
   "FullyQualifiedName~LuiPayloadRegistryTests.A_context_that_fails_is_kept_as_a_failure_and_thrown_anew_naming_the_definition" \
   "sed -i 's|catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException or ThreadAbortException))|catch (LuiConfigurationException exception)|' src/Nordmann.LUI/Querying/FrozenPayloadRegistry.cs"
 
-# 35zb. The first sync clears the flag before it has run (issue #272, ADR-0077): a sync that is cancelled would leave the index
-#       reporting that it is synced — an empty index that the application believes it need not fill.
+# 35zb. The first sync clears the flag before it has run (issue #272, ADR-0077; the sync of #271 in LinkedSync): a sync that is cancelled after some batches would leave the
+#       index reporting that it is synced — an index that is half filled, which the application believes it need not fill.
 expect_caught "a-cancelled-sync-clears-the-initial-sync-flag" "${INTEGRATION_PROJECT}" \
-  "FullyQualifiedName~LinkedStateTests.It_stays_true_after_a_cancelled_sync" \
-  "perl -0pi -e 's|        LuiLinkedSyncReport\\? result = null;\\n|        LuiLinkedSyncReport? result = null;\\n        Write(null, (connection, transaction) => IndexStore.MarkSynced(connection, transaction, Name));\\n|' src/Nordmann.LUI/Indexes/LinkedIndex.cs"
+  "FullyQualifiedName~LinkedBatchSyncTests.A_cancelled_sync_keeps_its_batches_leaves_NeedsInitialSync_true_and_releases_the_lease" \
+  "sed -i 's|            _taken = true;|            _taken = true;\n            IndexStore.MarkSynced(connection, transaction, _name);|' src/Nordmann.LUI/Indexes/LinkedSync.cs"
 
 # 35zc. A complete sync does not clear the flag (issue #272, ADR-0077): the application would sync at every start.
 expect_caught "a-complete-sync-leaves-the-initial-sync-flag" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~LinkedStateTests.It_becomes_false_after_a_complete_sync" \
-  "sed -i 's|            IndexStore.MarkSynced(connection, transaction, Name);||' src/Nordmann.LUI/Indexes/LinkedIndex.cs"
+  "sed -i 's|        IndexStore.MarkSynced(connection, transaction, _name);||' src/Nordmann.LUI/Indexes/LinkedSync.cs"
 
 # 35zd. The state is read without the check of the guard (issue #272, ADR-0075, ADR-0077): an index that was created again with
 #       another definition would answer as if nothing had happened.
@@ -1012,6 +1012,83 @@ expect_caught "an-empty-catalog-of-0-3-0-is-refused-as-an-early-build" "${INTEGR
 expect_caught "the-first-create-does-not-add-the-state-column" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~FormatVersionTests.A_catalog_of_0_3_0_without_an_index_still_opens_and_its_first_create_adds_the_state_column" \
   "sed -i 's#        EnsureStateColumns(database, connection, transaction);##' src/Nordmann.LUI/Indexes/IndexStore.cs"
+
+# 35zj. The sync does not look at its lease (issue #271, ADR-0077): a sync that was stopped for longer than the lease and whose lease another sync took over would
+#       write its next batch beside the new owner — two syncs of one index, and the removal of the first would delete what the second wrote.
+expect_caught "a-batch-does-not-check-the-lease" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.A_lease_that_was_taken_over_stops_the_old_owner_and_the_old_owner_leaves_the_lease_of_the_new_one_alone" \
+  "sed -i '/Renew(writer, transaction, throwWhenLost: true);/d' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zk. A sync takes a lease that another sync still holds (issue #271, ADR-0077): two syncs of one index at once.
+expect_caught "a-sync-takes-a-lease-that-is-still-valid" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.A_second_concurrent_sync_throws_sync_in_progress_naming_the_owner_and_the_expiry" \
+  "sed -i 's/ AND (sync_lease_owner IS NULL OR sync_lease_expires IS NULL OR sync_lease_expires <= \$now)//' src/Nordmann.LUI/Indexes/SyncLease.cs"
+
+# 35zl. A sync releases a lease that is not its own (issue #271, ADR-0077): the old owner that was taken over would free the lease of the new one in its finally.
+expect_caught "a-release-frees-a-lease-of-another-owner" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.A_lease_that_was_taken_over_stops_the_old_owner_and_the_old_owner_leaves_the_lease_of_the_new_one_alone" \
+  "sed -i 's/ WHERE index_name = \$name AND sync_lease_owner = \$owner;\";/ WHERE index_name = \$name;\";/' src/Nordmann.LUI/Indexes/SyncLease.cs"
+
+# 35zm. The removal of the old generation runs before the batches (issue #271, ADR-0077): a sync that is cancelled would have deleted the previous state
+#       before the new one is complete.
+expect_caught "the-old-generation-is-removed-before-the-batches-are-done" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.A_cancelled_sync_deletes_no_row_of_the_previous_generation" \
+  "perl -0pi -e 's|(                WriteBatches\\(writer, options, cancellationToken\\);\\n)(                RemoveWhatIsOld\\(writer, options, cancellationToken\\);\\n)|\$2\$1|' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zn. The removal takes the current generation with the old ones (issue #271, ADR-0077): everything the batches wrote is removed again.
+expect_caught "the-removal-takes-the-current-generation-too" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.After_the_sync_the_index_holds_exactly_the_rows_of_the_table" \
+  "sed -i 's/WHERE gen < \$gen ORDER BY gen, doc_id/WHERE gen <= \$gen ORDER BY gen, doc_id/' src/Nordmann.LUI/Schema/LinkedSource.cs"
+
+# 35zo. A batch does not set FTS5's automerge back (issue #271, ADR-0077, ADR-0016): the index would not merge on its own after the sync.
+expect_caught "a-batch-leaves-the-automerge-off" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.The_automatic_merge_of_FTS5_is_back_on_after_every_batch_and_every_step_of_the_removal" \
+  "sed -i '0,/        Execute(connection, transaction, _source.AutomergeSql(DefaultAutomerge));/{//d}' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zp. A step of the removal does not set automerge back (issue #271, ADR-0077).
+expect_caught "a-removal-step-leaves-the-automerge-off" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.The_automatic_merge_of_FTS5_is_back_on_after_every_batch_and_every_step_of_the_removal" \
+  "perl -0pi -e 's|        Execute\\(connection, transaction, _source.AutomergeSql\\(DefaultAutomerge\\)\\);\\n        return stale.Count;|        return stale.Count;|' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zq. A batch is not guarded (issue #271, ADR-0075, ADR-0077): the index that another process created again between two batches would be written with the old definition's statements.
+expect_caught "a-batch-of-the-sync-is-not-guarded" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.An_index_created_again_with_another_definition_between_two_batches_is_a_definition_mismatch" \
+  "sed -i '/            _guard?.Check(writer, transaction);/d' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zr. The merge ends after its first step (issue #271, ADR-0077): an index that was written in a hundred segments stays in a hundred segments, and the flag is cleared by a step that was not the last.
+expect_caught "the-merge-stops-after-one-step" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.The_merge_is_done_when_the_sync_returns_and_the_flag_is_cleared_by_its_last_step" \
+  "sed -i 's/if (Total(connection, transaction) - before > 1)/if (Total(connection, transaction) - before > 1_000_000_000)/' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zs. A single refresh writes generation 0 (issue #271, ADR-0077): the row that a refresh wrote beside a sync is removed with the old generation at its end.
+expect_caught "a-refresh-writes-the-wrong-generation" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.A_row_that_a_refresh_wrote_beside_the_sync_stays_when_the_old_generation_is_removed" \
+  "sed -i 's|substr({prefix}, 1, 2), {CurrentGeneration} \"|substr({prefix}, 1, 2), 0 \"|' src/Nordmann.LUI/Schema/LinkedSource.cs"
+
+# 35zt. The lease reads the system clock and not the one of the catalog (issue #271, ADR-0077): a test — and an application that fakes its time — cannot say when a lease expires.
+expect_caught "the-lease-ignores-the-clock-of-the-catalog" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.A_lease_is_a_row_of_lui_meta_in_utc_and_it_is_renewed_with_every_batch" \
+  "sed -i 's/private long Now() => _database.TimeProvider.GetUtcNow().ToUnixTimeMilliseconds();/private long Now() => _database.TimeProvider is null ? 0 : DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();/' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zu. The keys a batch brought in step stay in the outbox (issue #271, ADR-0077): ApplyPending would do the work of the sync again.
+expect_caught "a-batch-leaves-its-keys-in-the-outbox" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedTriggerTests.A_refresh_and_a_sync_take_their_rows_out_of_the_outbox" \
+  "sed -i 's/, _source.BatchForgetPendingSql//' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zv. The generation column has no index (issue #271, ADR-0077): every step of the removal would read the whole table of the index.
+expect_caught "the-generation-column-has-no-index" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.The_table_of_LUI_has_a_generation_column_that_cannot_be_null_and_an_index_on_it" \
+  "sed -i '/CREATE INDEX {EntryTable}_gen ON {EntryTable}(gen);/d' src/Nordmann.LUI/Schema/LinkedSource.cs"
+
+# 35zw. The open check forgets a column of the sync (issue #271, ADR-0077): a file of the build of #272 would fail later, with a SQLite error, at the first sync.
+expect_caught "an-early-file-without-the-lease-column-is-opened" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~FormatVersionTests.A_format_2_file_of_an_early_build_without_a_column_of_the_sync_is_rejected_on_open" \
+  "sed -i '/(\"sync_lease_expires\", \"INTEGER\"),/d' src/Nordmann.LUI/Schema/Meta.cs"
+
+# 35zx. The linked sync clears the table before it fills it (issue #271, ADR-0077): a search during the sync would see an empty index.
+expect_caught "the-linked-sync-clears-the-index-first" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.A_search_during_the_sync_never_sees_an_empty_index" \
+  "perl -0pi -e 's|            _taken = true;\\n|            _taken = true;\\n            Execute(connection, transaction, \\x22DELETE FROM lui_\\x22 + _name + \\x22; INSERT INTO lui_\\x22 + _name + \\x22_fts(lui_\\x22 + _name + \\x22_fts) VALUES (\\x27delete-all\\x27);\\x22);\\n|' src/Nordmann.LUI/Indexes/LinkedSync.cs"
 
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
