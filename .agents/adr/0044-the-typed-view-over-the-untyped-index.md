@@ -1,5 +1,9 @@
 # 0044 — The typed view over the untyped index
 
+> **Superseded in part by [ADR-0074](./0074-the-hit-carries-its-payload.md) (2026-11-22):** for the hits of a handle with a payload type the payload is a
+> property, loaded with the query — *it is not cached* and *it is read by a method* no longer hold there. The typed view of an index that was opened
+> by name keeps them until #268.
+
 - **Status:** Accepted
 - **Date:** 2026-11-07
 - **Builds on:** [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (the API grows only additively),

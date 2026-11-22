@@ -350,8 +350,8 @@ with a payload is another type than one without, and no payload-less write reach
 **The payload is written with the serializer that the registry of the catalog holds for `TPayload`**
 ([the payload registry](#luipayloadregistry)): it is looked up when the index is created or opened — a type that is not registered is
 a `LuiConfigurationException` at `Create` or `Index`, naming the definition — and the handle holds it, so a write never looks it up.
-**`hit.Payload` arrives with #262**; until then a written payload is read through the old path, `catalog.Index(name)` and
-`hit.GetPayload<T>()`, which resolves `T` through the registry when `Payloads` is set.
+**The payload comes back with the hits** ([ADR-0074](../.agents/adr/0074-the-hit-carries-its-payload.md)): `hit.Payload` is a plain value
+that is set when `Search` or `Execute` returns — see [the payload of a hit](#the-payload-of-a-hit).
 
 #### `LuiIndex<TKey, TPayload>` — the read side
 
@@ -381,6 +381,7 @@ weight. The payload comes **right after the text**, the order of the entry.
 | `bool UpdatePriority(TKey key, LuiPriority priority, SqliteTransaction? transaction = null)` | changes the priority |
 | `LuiIntegrityReport Check(IEnumerable<LuiEntry<TKey, TPayload>> entries, CancellationToken cancellationToken = default)` | compares the index with a set of entries |
 | `void Rebuild()` | rebuilds the search index from the content table |
+| `LuiPayloadCheck<TKey> CheckPayloads(CancellationToken cancellationToken = default)` | **a full read of the index**: lists the entries whose payload cannot be read, by key — see [finding the payloads that cannot be read](#finding-the-payloads-that-cannot-be-read); `Check()` reads no payload |
 
 #### `LuiLinkedIndex<TKey, TPayload>` — the handle of a linked index with a payload
 
@@ -393,7 +394,57 @@ from the map of the definition.
 | `LuiEntry<TKey, TPayload>` | a sealed record: `LuiEntry(TKey key, string text, TPayload payload)` — a `null` payload throws an `ArgumentNullException`; `Key`, `Text` and **`Payload` (read-only, no `init`: `entry with { … }` cannot set it to `null`)**, `Weight` and `Priority` (`init`) — value equality, the payload's included |
 | `LuiQuery<TKey, TPayload>` | a sealed class with the settings of `LuiQuery` and `Execute(ct)`, which returns a `LuiResult<TKey, TPayload>` |
 | `LuiResult<TKey, TPayload>` | a sealed class (reference equality) as `LuiResult<TKey>`, with `IReadOnlyList<LuiHit<TKey, TPayload>> Hits` |
-| `LuiHit<TKey, TPayload>` | a sealed record as `LuiHit<TKey>` — named, initialised properties, no constructor with parameters; **`Payload` arrives with #262**. It does not derive from `LuiHit<TKey>`. |
+| `LuiHit<TKey, TPayload>` | a sealed record as `LuiHit<TKey>` — named, initialised properties, no constructor with parameters — with **`TPayload Payload { get; init; }`**, the payload of the entry, set when the query returns. It does not derive from `LuiHit<TKey>`; a hit **without** a payload type has no payload. |
+| `LuiPayloadCheck<TKey>` | a sealed class (reference equality — it holds a list), what `CheckPayloads()` returns: `IReadOnlyList<LuiUnreadablePayload<TKey>> Unreadable` and `bool IsHealthy` |
+| `LuiUnreadablePayload<TKey>` | a sealed record: the `Key` of an entry whose payload cannot be read, and the `Message` — what a query that met the entry would say |
+
+#### The payload of a hit
+
+`hit.Payload` is **a plain value**: no I/O, no serializer call, no map call, no exception, no cache — it is set when the result is built and
+never changes. **A query loads the payloads of its hits with the query**; there is no lazy mode.
+
+- **Embedded index:** the stored bytes of the hits are read with the hit rows, in the one snapshot of the query, and deserialized with the
+  serializer of the payload type before `Search` / `Execute` returns — **one call per hit**.
+- **Linked index:** the map of the definition runs once per hit, before `Search` / `Execute` returns.
+- **The cost is bounded by `MaxResults`** (20 by default, at most 1,000): at most that many payloads per query. The guarantee of
+  ADR-0035 that *a payload that is never read costs nothing* is gone: a query on an index with a payload reads every payload of its
+  result; a query on an index **without** one has none and selects no payload column.
+- **The hit outlives the catalog:** reading `hit.Payload` works after the catalog was disposed.
+- **A payload that cannot be read fails the query**, not the access to the hit: a serializer that throws, a stored payload that is
+  missing, a map that throws and a map that returns `null` each throw a `LuiPayloadException` naming the **index, the key and the type**
+  (the serializer's or the map's own exception is the inner one). One broken payload fails the whole query — fail fast — instead of
+  returning a partial result. **What "cannot be read" means is the serializer's business, not LUI's:** the strict JSON of
+  `LuiPayloadSerializer.Json` (`UnmappedMemberHandling.Disallow`, `RespectRequiredConstructorParameters`) refuses a payload of an old
+  shape; a tolerant serializer registered with `Use<T>(…)` may read the same bytes with default values, and then nothing fails. Every
+  statement below about old payloads is about `LuiPayloadSerializer.Json`.
+
+| before | after |
+|---|---|
+| `hit.GetPayload()` of a typed hit | `hit.Payload` |
+| `hit.TryGetPayload(out var payload)` of a typed hit | `hit.Payload` — an unreadable payload now fails the query; find it with `CheckPayloads()` |
+| `hit.GetPayload<RecipePayload>()` of an untyped hit | declare the index as `LuiIndexDefinition<long, RecipePayload>`, open it with `catalog.Index(SearchIndexes.Recipes)` and read `hit.Payload` |
+| `hit.HasPayload` | nothing — `LuiHit<TKey, TPayload>` always has a payload, `LuiHit<TKey>` never has one |
+
+#### Finding the payloads that cannot be read
+
+`LuiEmbeddedIndex<TKey, TPayload>.CheckPayloads(ct)` reads **every stored payload** with the serializer of the payload type and lists the
+entries that do not read — keyed by `TKey`, with the reason — in the order of the rows of the index. It is a full read of the index, for
+maintenance and not for every probe: one read connection, one snapshot, the check of the handle inside it as for any operation (a
+dropped index is a `LuiIndexNotFoundException`, another definition a `LuiDefinitionMismatchException`), cancellable between the entries,
+and a catalog that was opened read-only may call it. `Check()` stays the **structural** check — a report without keys that reads **no
+payload** and calls **no map**, cheap enough for a health endpoint. A linked index has no `CheckPayloads()`: its payload is not stored.
+
+```csharp
+var check = recipes.CheckPayloads(cancellationToken);
+if (!check.IsHealthy)
+{
+    foreach (var entry in check.Unreadable)
+    {
+        logger.LogWarning("Recipe {Key} has a payload that cannot be read: {Message}", entry.Key, entry.Message);
+        recipes.Upsert(entry.Key, TextOf(entry.Key), PayloadOf(entry.Key));   // rewrite it
+    }
+}
+```
 
 ---
 
@@ -836,7 +887,8 @@ name of its element type with `[]` (`[,]` for two dimensions). The name is the s
   index stored without one only with a `LuiIndexDefinition<TKey>` — otherwise a mismatch that says which to use.
 - A **linked** index stores neither field and needs no registry entry: the map of its definition builds the payload from the columns.
 - Only the **name** of the format is stored — not the settings of the serializer. The fingerprint checks **identity, not shape**: adding,
-  renaming or removing a field of the payload is the business of the serializer and the application (the migration topic, #262).
+  renaming or removing a field of the payload is the business of the serializer and the application — see
+  [changing a payload type](#changing-a-payload-type).
 
 **Errors.** A configuration that is wrong is a `LuiConfigurationException`, never a `LuiPayloadException`: a payload type that no
 registration knows, that two contexts know, a catalog without a registry — thrown by `Create` and `Index`, with the name of the
@@ -845,6 +897,31 @@ twice. `LuiPayloadException` stays for a payload that cannot be read. On the old
 `hit.GetPayload<T>()`) `T` is resolved through the registry when `Payloads` is set; with a registry there is no untyped payload — an
 entry of an index without a declared payload type cannot carry one, and an index that was opened by name and stores a payload type and
 a format refuses every payload write (write through `Index(definition)`).
+
+### Changing a payload type
+
+**In 0.4.0 an unreadable payload fails the query** — upgrading payloads (tolerant reading by LUI, skipping unreadable payloads, upgrade
+functions, versioned payloads) belongs to the migration topic of a later release. With `LuiPayloadSerializer.Json`:
+
+- **Removing or renaming a field** of the payload type makes the stored payloads of the old shape unreadable, and **every query whose result
+  contains such an entry fails — the search of that index is effectively down until the entries are rewritten.** The index opens (the
+  fingerprint is the same name and format), `CheckPayloads()` lists the entries still missing.
+- **Adding a field with a default value** keeps the old payloads readable (`record Dish(string Title, int Minutes, double Rating = 0)`); a
+  field without a default is a required constructor parameter, and the old payloads do not read.
+
+**How long the window is** — the rewrite runs at the rate of `UpsertMany`, 26,052 entries per second on the reference machine
+([the batch](benchmarks.md#the-batch)), so **duration ≈ entries ÷ 26,052/s: about 40 seconds per million entries**. Loading a whole large
+index is slower (1,000,000 entries took 87 s in [the build](benchmarks.md#the-build)), and a payload adds to every write; plan with
+the slower figure — **about 1½ minutes per million entries** — and measure on your own file.
+
+The two ways:
+
+1. **Without a window — a new index.** Declare the new payload type in a new definition (`recipes_v2`, another name), fill it from the
+   source with `Sync`, switch the application to it, drop the old one (`catalog.DropIndex("recipes")`) — the recipe for a changed
+   definition (see [changing a definition](#changing-a-definition)). The old index answers until the switch; no query fails.
+2. **In place.** Deploy the new payload type and rewrite every entry with `Upsert`, `UpsertMany` or `Sync` — `CheckPayloads()` lists the
+   ones still missing, and is healthy when the last one is written. Until then every query that meets an old entry throws a
+   `LuiPayloadException`.
 
 ### `LuiPayloadRow`
 
@@ -917,7 +994,7 @@ library.
 | `LuiLinkedTableException` | the table of the application is missing, or a column of it, or its key is not the `INTEGER PRIMARY KEY` |
 | `LuiFormatException` | the file was written in another LUI format than this version reads — thrown when the catalog is **opened** (Open, OpenReadOnly and OpenOrCreate of a file that has indexes). Format 2 is the format of 0.4.0; a file of 0.3.0 has format 1 and is not read (no migration): "The file 'app.db' was written by LUI 0.3.0 (format 1); this version reads format 2. Recreate the indexes." A newer format is rejected the same way. It carries `Path`, `FoundFormat` and `SupportedFormat`. |
 | `LuiKeyException` | a stored key does not convert to the key type of its definition — a damaged file, not an expected state (LUI only writes keys that convert, so there is no check to run). The message names the index and the stored key. It carries `IndexName`, `StoredKey` and `KeyType`. |
-| `LuiPayloadException` | a payload cannot be read in the type asked for. It carries `IndexName`, `Key` and `RequestedType`. |
+| `LuiPayloadException` | a payload cannot be read in the type asked for — and, for a handle with a payload, a query meets a payload that is missing, that the serializer cannot read, or that a map did not build (it threw, or it returned null): the query fails and the message names the index, the key and the type. It carries `IndexName`, `Key` and `RequestedType`; the exception of the serializer or the map is the inner one. |
 | `LuiReadOnlyException` | SQLite refused a write because the file may not be written. The message names the reason — the catalog was opened read-only, or the file and its directory may not be written — the operation and the index; the error of SQLite is the inner exception. It carries `Operation`. |
 
 ---
@@ -968,7 +1045,7 @@ The warm-up is a service of the host, not a thread of the library: the host star
 
 ## The whole surface
 
-Fifty-seven public type names in `Nordmann.LUI` (seventy-one types: a generic type counts once for each number of type parameters), two in `Nordmann.LUI.Hosting`. Nothing else is public.
+Fifty-nine public type names in `Nordmann.LUI` (seventy-three types: a generic type counts once for each number of type parameters), two in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|
@@ -1010,6 +1087,8 @@ Fifty-seven public type names in `Nordmann.LUI` (seventy-one types: a generic ty
 | `LuiSyncReport` | record | [the bulk path](#the-bulk-path--loading-many-entries) |
 | `LuiLinkedSyncReport` | record | [the bulk path](#the-bulk-path--loading-many-entries) |
 | `LuiIntegrityReport` | record | [the bulk path](#the-bulk-path--loading-many-entries) |
+| `LuiPayloadCheck` | class | [finding the payloads that cannot be read](#finding-the-payloads-that-cannot-be-read) |
+| `LuiUnreadablePayload` | record | [finding the payloads that cannot be read](#finding-the-payloads-that-cannot-be-read) |
 | `LuiPayloadSerializer` | class | [the payload](#the-payload) |
 | `ILuiPayloadSerializer` | interface | [the payload](#the-payload) |
 | `LuiPayloadRegistry` | class | [the payload](#the-payload) |

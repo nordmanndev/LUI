@@ -102,6 +102,14 @@ public readonly record struct LuiHit
         return true;
     }
 
+    /// <summary>The payload for the hit of a handle with a payload type: set when the query returns, and a failure fails the query (ADR-0074).</summary>
+    /// <typeparam name="T">The payload type of the handle.</typeparam>
+    /// <returns>The payload.</returns>
+    /// <exception cref="LuiPayloadException">The payload is missing or cannot be read.</exception>
+    internal T RequirePayload<T>() =>
+        (PayloadSource ?? throw new InvalidOperationException("The hit does not come from a query."))
+            .Require<T>(StoredPayload, Key);
+
     private static bool SamePayload(object? one, object? other) =>
         one is byte[] bytes && other is byte[] otherBytes
             ? bytes.AsSpan().SequenceEqual(otherBytes)

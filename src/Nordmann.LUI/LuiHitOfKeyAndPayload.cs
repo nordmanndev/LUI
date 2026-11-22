@@ -4,8 +4,7 @@ namespace Nordmann.LUI;
 /// <summary>
 /// One hit of a search through a handle with a payload (ADR-0073). It is a record — two hits with the same values are equal —
 /// with named, initialised properties and no constructor with parameters: a property that comes later breaks no caller. It does
-/// not derive from <see cref="LuiHit{TKey}"/>. The <c>Payload</c> of the hit arrives with issue #262; until then the payload
-/// is read through the old untyped path (<c>catalog.Index(name)</c> and <c>hit.GetPayload&lt;T&gt;()</c>).
+/// not derive from <see cref="LuiHit{TKey}"/>. The hit carries its <see cref="Payload"/> (ADR-0074).
 /// </summary>
 /// <typeparam name="TKey">The type of the keys of the index.</typeparam>
 /// <typeparam name="TPayload">The type of the payload of the index.</typeparam>
@@ -18,6 +17,14 @@ public sealed record LuiHit<TKey, TPayload>
 
     /// <summary>The text of the entry — for a linked index, read from the table of the application.</summary>
     public required string Text { get; init; }
+
+    /// <summary>
+    /// The payload of the entry, in the type of the application. It is set when the query returns and never changes: the payloads
+    /// of all the hits are read with the hits (an embedded index) or built by the map (a linked one) before <c>Search</c> or
+    /// <c>Execute</c> returns, so reading it does no I/O, calls no serializer and no map, throws nothing, and works after the catalog
+    /// is disposed. A payload that cannot be read fails the query with a <see cref="LuiPayloadException"/>, not the access to the hit.
+    /// </summary>
+    public required TPayload Payload { get; init; }
 
     /// <summary>The weight of the entry.</summary>
     public int Weight { get; init; }
@@ -41,6 +48,7 @@ public sealed record LuiHit<TKey, TPayload>
             Priority = hit.Priority,
             Similarity = hit.Similarity,
             AtWordStart = hit.AtWordStart,
+            Payload = hit.RequirePayload<TPayload>(),
         };
 }
 #pragma warning restore MA0048

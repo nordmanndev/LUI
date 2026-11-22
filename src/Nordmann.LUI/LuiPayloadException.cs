@@ -2,8 +2,9 @@ namespace Nordmann.LUI;
 
 /// <summary>
 /// The payload of a hit cannot be read as the type that was asked for (ADR-0035): the stored bytes are not that type, the
-/// catalog has no serialiser, or a <c>Linked</c> index built another type. The type of a payload is the application's to
-/// keep; the message names the index, the key and the type.
+/// catalog has no serialiser, or a <c>Linked</c> index built another type. On a handle with a payload type (ADR-0074) it is what
+/// fails the <b>query</b>: a serializer that throws, a payload that is not stored, a map that throws or returns null. The type of a
+/// payload is the application's to keep; the message names the index, the key and the type.
 /// </summary>
 public sealed class LuiPayloadException : LuiException
 {

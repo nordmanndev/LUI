@@ -41,13 +41,17 @@ internal sealed class IndexRuntimes(Database database, TypoDictionaries typos, P
                     codec ?? payload,
                     description.Options.Similarity ?? source.Rules.DefaultSimilarity,
                     typoDistance: entry.Definition.TypoDistance,
-                    guard),
+                    guard,
+
+                    // a handle without a payload type has no payload (ADR-0074): the statement of its hits has no payload column,
+                    // and the bytes that the old calls may have stored are never copied
+                    hitPayload: codec is null ? new NoPayload(name) : null),
                 guard);
         }
 
         var linked = new LinkedSource(name, entry.Definition);
         PayloadReader reader = description.PayloadMap is { } map
-            ? new ColumnPayload(name, entry.Definition.Link?.PayloadColumns ?? [], map)
+            ? new ColumnPayload(name, entry.Definition.Link?.PayloadColumns ?? [], map, entry.Definition.KeyType, description.PayloadType)
             : new NoPayload(name);
         return new IndexRuntime(
             new LinkedIndex(

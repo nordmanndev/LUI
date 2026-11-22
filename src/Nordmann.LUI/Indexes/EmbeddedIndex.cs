@@ -50,7 +50,8 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         PayloadSerialization payload,
         ILuiSimilarity similarity,
         LuiTypoDistance typoDistance,
-        IndexGuard? guard = null)
+        IndexGuard? guard = null,
+        PayloadReader? hitPayload = null)
     {
         _database = database;
         _guard = guard;
@@ -62,7 +63,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         KeyKind = KeyCodec.KindOf(_keyType);
         _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance, source.Definition.ToJson());
         _runner = new QueryRunner(
-            database, source, new SerializedPayload(Name, payload), similarity, _typos, typoDistance, guard);
+            database, source, hitPayload ?? new SerializedPayload(Name, payload), similarity, _typos, typoDistance, guard);
         _sync = new EmbeddedSync(database, source, KeyText, PayloadBytes, _typos, guard);
         _check = new EmbeddedCheck(database, source, KeyText, PayloadBytes, guard);
     }
@@ -280,6 +281,13 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
             throw _database.ReadOnlyRefusal("checking an index", Name, exception);
         }
     }
+
+    /// <summary>The entries whose payload cannot be read as <typeparamref name="TPayload"/>, by key (ADR-0074).</summary>
+    /// <typeparam name="TPayload">The payload type of the handle.</typeparam>
+    /// <param name="cancellationToken">Checked between the entries.</param>
+    /// <returns>The key of each unreadable entry and why.</returns>
+    internal List<(LuiKey Key, string Message)> UnreadablePayloads<TPayload>(CancellationToken cancellationToken) =>
+        _check.UnreadablePayloads<TPayload>(PayloadSource.Serialized(Name, _payload), _keyType, cancellationToken);
 
     public void Rebuild()
     {

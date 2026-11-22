@@ -14,13 +14,15 @@ namespace Nordmann.LUI.Schema;
 /// <param name="Link">The link, with the payload columns; <see langword="null"/> for an embedded index.</param>
 /// <param name="KeyKind">The kind of the key the old <c>WithKey</c> chose; <see langword="null"/> when nothing chose one.</param>
 /// <param name="PayloadMap">The map of the old <c>WithPayload</c>; <see langword="null"/> for none.</param>
+/// <param name="PayloadType">The type the map builds, for the message of a payload that cannot be built (ADR-0074); <see langword="null"/> for none.</param>
 internal sealed record IndexDescription(
     LuiIndexSource Source,
     LuiIndexKind Kind,
     IndexOptions Options,
     LinkDefinition? Link,
     LuiKeyKind? KeyKind = null,
-    Func<LuiPayloadRow, object?>? PayloadMap = null)
+    Func<LuiPayloadRow, object?>? PayloadMap = null,
+    Type? PayloadType = null)
 {
     /// <summary>The definition as <c>lui_meta</c> stores it — and as the declared one is compared with the stored one.</summary>
     /// <param name="keyType">The stored name of the key type.</param>
