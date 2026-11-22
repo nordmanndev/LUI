@@ -23,7 +23,7 @@ file into `0.4.0`.
 | 7 | #260 Payload registry, type and format fingerprint (ADR-0072) | needs definitions and the handle cache | #265 | merged | #288 — the registry; an object, an interface or an abstract class is no payload type (no catch-all) |
 | 8 | #262 `hit.Payload` loaded with the query, `CheckPayloads()` (ADR-0074) | needs the registry; its own budget | #260 | merged | #289 — the hit carries its payload, CheckPayloads; a typed handle without a payload type selects no payload column |
 | 9 | #272 State of a linked index: `NeedsInitialSync`, idempotent `CreateTriggers()` (ADR-0077) | precondition of #271 and #266 | #262 | merged | #290 — NeedsInitialSync stored in lui_meta; triggers first, then the first sync |
-| 10 | #271 Linked `Sync()` in batches, generation, merge, lease (ADR-0077) | needs `NeedsInitialSync`; `Initialize()` needs the lease | #272 | open | — |
+| 10 | #271 Linked `Sync()` in batches, generation, merge, lease (ADR-0077) | needs `NeedsInitialSync`; `Initialize()` needs the lease | #272 | stopped — owner decision (writer starvation) | branch `feat/271-linked-sync-in-batches`, no PR |
 | 11 | #273 Maintenance by name (ADR-0076) | needs `LuiKeyType` and the fingerprint; #266 adds to `LuiIndexInfo` | #271 | open | — |
 | 12 | #266 `catalog.Initialize()`, `AddLuiOutbox`, host pattern (ADR-0076) | puts every step before it together | #273 | open | — |
 | 13 | #268 Remove every replaced member, move every caller (ADR-0073) | only when every replacement exists | #266 | open | — |
@@ -45,6 +45,21 @@ the last two commits (option B); it was LGTM and #282 was merged. Rounds: 1 thre
 review of the last two commits (option B, again); it was LGTM and #286 was merged. Rounds: 1 two blockers, 2 two, 3 one,
 4 one, 5 none. Its suggestions went to the follow-up issue (a handle can escape `DropIndex` when the drop moves no schema
 counter — an index whose tables an application removed by hand).
+
+**Stopped (2026-11-22, #271):** the plan's stop condition holds. Everything of the issue is implemented on the branch
+`feat/271-linked-sync-in-batches` (10 commits; Unit 348, Architecture 145, Integration 792 twice, Sample 47; 28 mutations
+caught), but the one run of the performance-layer test with 1,000,000 rows (`A_writer_beside_a_linked_sync_of_a_million_rows_never_gets_busy`)
+failed: beside a sync of 33.8 s a writer with a busy timeout of 2 s (twice the longest batch, 0.5 s) got 34 writes through
+and **4 SQLITE_BUSY**, longest wait 1.99 s; and the first removal step held the lock 3.14 s (median 0.16 s) — probably FTS5's
+own merge at the commit of the removal; the automerge is now also off there (`cdcad18`), **unmeasured**. Cause of the
+busy errors: SQLite has no lock queue — a waiting writer polls with pauses of at most 100 ms and the sync takes the lock
+again within microseconds of a commit (starvation). A probe at 400,000 rows: no pause → 16 writes, longest wait 1.81 s;
+a 120 ms pause after every transaction → 83 writes, longest wait 0.90 s, sync 56 % longer. Options: **A** a deliberate
+pause between the transactions of the sync, as an option `LuiSyncOptions.PauseBetweenTransactions` (new public member, default
+about 100 ms — the polling interval of SQLite's busy handler; costs sync time, which #275 weighs); **B** one more
+million-row run first, to see whether the removal fix alone brings the 3.14 s step down, then decide on A; **C** change the
+criterion (the writer's busy timeout must exceed the longest lock plus the polling) and ship without a pause, documenting
+the starvation. Recommendation: **B**, then **A**. #273 and everything after depend on #271 in this plan.
 
 Risks of the whole run:Risks of the whole run:
 
