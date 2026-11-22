@@ -1170,6 +1170,12 @@ expect_caught "indexes-reports-the-dictionary-of-another-definition" "${INTEGRAT
   "FullyQualifiedName~MaintenanceByNameTests.The_dictionary_of_another_definition_is_not_the_dictionary_of_the_stored_one" \
   "sed -i 's|_byIndex.TryGetValue(indexName, out var entry) \&\& string.Equals(entry.Fingerprint, fingerprint, StringComparison.Ordinal)|_byIndex.TryGetValue(indexName, out var entry)|' src/Nordmann.LUI/Typos/TypoDictionaries.cs"
 
+# 35zzm. The runtime by name knows no payload columns (issue #273, review of pull request 292, B1): Check(name) of a linked index says healthy after the application dropped a column the payload is
+#        built from.
+expect_caught "check-by-name-ignores-the-payload-columns" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.Check_by_name_finds_a_payload_column_that_is_gone_from_the_table_without_a_map" \
+  "sed -i 's|entry, counter, byName: true);|entry, counter);|' src/Nordmann.LUI/Indexes/IndexRuntimes.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
