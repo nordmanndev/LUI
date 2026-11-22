@@ -14,6 +14,23 @@ namespace Nordmann.LUI.Indexes;
 /// </summary>
 internal sealed class IndexRuntimes(Database database, TypoDictionaries typos, PayloadSerialization payload, StoredIndexes stored)
 {
+    /// <summary>
+    /// The runtime of an index by its stored definition alone (ADR-0076): no definition object of the application, no payload type and no
+    /// map. It is the runtime of <see cref="Build"/> with nothing of the application in it — the index has no payload reader, so it reads
+    /// no payload and calls no map — and the same guard, so every operation of it meets the checks of ADR-0075. It is built for one call
+    /// and let go: nothing of it is kept.
+    /// </summary>
+    /// <param name="name">The name of the index.</param>
+    /// <param name="entry">What <c>lui_meta</c> holds about the index.</param>
+    /// <param name="counter">The schema counter the entry was read at.</param>
+    /// <returns>The runtime.</returns>
+    internal IndexRuntime BuildStored(string name, IndexStoreEntry entry, long counter)
+    {
+        var source = string.Equals(entry.Source, EmbeddedSource.SourceName, StringComparison.Ordinal) ? LuiIndexSource.Embedded : LuiIndexSource.Linked;
+        var description = new IndexDescription(source, entry.Kind, IndexOptions.Default, entry.Definition.Link);
+        return Build(new ResolvedIndex(name, description, entry.Definition.KeyType), entry, counter);
+    }
+
     /// <summary>The runtime of an index that is stored.</summary>
     /// <param name="resolved">The definition after its first use.</param>
     /// <param name="entry">What <c>lui_meta</c> holds about the index.</param>

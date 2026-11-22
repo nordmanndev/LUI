@@ -63,6 +63,10 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 | `ILuiEmbeddedIndex Index(string name)` | opens an embedded index that exists, and **writes nothing**: the definition is read out of the file, no table, no write lock. |
 | `ILuiLinkedIndex LinkedIndex(string name)` | opens a linked index without payload columns. |
 | `ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)` | opens a linked index with payload columns; the map builds the payload from the row of the table. |
+| `IReadOnlyList<LuiIndexInfo> Indexes()` | describes **every** index of the catalog by what is stored, in the order of the names — without a definition and without a payload type ([maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type), ADR-0076). The definition fields come from the memory of the catalog, with no statement that reads them; the typo dictionary state is read when it is called. |
+| `long Count(string name)` | the number of the entries of the index, embedded or linked; the check of the schema counter and the count are one step. A name that is not there is a `LuiIndexNotFoundException` that names it. |
+| `LuiIntegrityReport Check(string name)` | compares the index with itself (embedded) or with its table (linked); the report has no keys. **Structure only: it reads no payload and calls no map** — cheap enough for a health endpoint. Needs a connection that may write, like `Check()` of a handle (FTS5's integrity check is an insert that is rolled back). |
+| `void Optimize(string name)` | lets SQLite optimize the search index of the index, embedded or linked. A catalog opened with `OpenReadOnly` refuses it with a `LuiReadOnlyException` that names the index. |
 | `void WarmUpTypoDictionaries(CancellationToken cancellationToken = default)` | builds the typo dictionary of **every** index of the catalog — the warm-up of a host in one call (ADR-0043). The dictionary belongs to the index of the catalog: an index you open later sees it and reports it as built. |
 | `void WarmUpTypoDictionaries(IEnumerable<string> names, CancellationToken cancellationToken = default)` | the same for the **named** indexes — a dictionary costs memory (194 MB for 685,739 words), and an index whose queries correct no typos needs none. Every name is checked before the first build: an unknown one is a `LuiIndexNotFoundException`. |
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the outbox of **every** linked index: the rows the triggers noted come into the index. The table of the application is not touched. Returns the number of rows brought in. |
@@ -80,6 +84,47 @@ silent change.
 
 `Index` and `LinkedIndex` are the read path. They never write, whatever the file allows afterwards: the file decides
 what may happen.
+
+### Maintenance by name — without a definition or a payload type
+
+A tool, an admin endpoint or a health check inspects and maintains every index of a catalog **without knowing the definitions of the
+application and without its payload types** (ADR-0076): `Indexes()`, `Count(name)`, `Check(name)`, `Optimize(name)` — and `Rebuild(name)` for
+an embedded index. None of them returns a handle or can write an entry, so one index still has one kind of definition (ADR-0073). They open
+the internal runtime from the **stored** definition: they read no payload and call no map, and they meet the same guards as a handle (ADR-0075) —
+the schema counter is read inside the snapshot or the transaction of the work, so the check and the work are one step; an index that is gone
+is a `LuiIndexNotFoundException` that names it. A call by name declares no definition, so an index that another process created again with
+another definition is **used as it is stored** — there is nothing to mismatch.
+
+- **A name that is not known** reloads the stored definitions once and is remembered as missing until the SQLite schema counter changes, so
+  the names a user types on an admin endpoint cause no reload per request.
+- **`Indexes()`** asks whether the schema counter moved — one statement — and reads the definitions again only then, so an index that another
+  process created or dropped is in the list. It reads **no** definition from the file otherwise. `TypoDictionaryState` is the state of the
+  dictionary in **this** catalog, read at the call; `NotBuilt` says that this catalog has not built it.
+- **A read-only catalog** lists and counts; what writes — `Optimize`, `Rebuild`, and `Check`, whose integrity check is an insert that is rolled
+  back — is a `LuiReadOnlyException` that names the index.
+
+Which check for what:
+
+| check | cost | use |
+|---|---|---|
+| `Check()` of a handle, `catalog.Check(name)` | cheap: structure only (definition, triggers, FTS5's integrity check, the counts against the table) | health endpoints, every probe |
+| `catalog.Indexes()` → `NeedsInitialization` (#266) | cheap: state only | readiness, every probe |
+| `CheckPayloads()` of a typed handle with a payload (ADR-0074) | reads every stored payload | maintenance, after a change of the payload type |
+
+### `LuiIndexInfo` — an index described by name
+
+What `Indexes()` returns: a sealed record, one per index, a snapshot with named properties. It is no handle.
+
+| Member | What it is |
+|---|---|
+| `string Name { get; }` | the name of the index |
+| `LuiIndexSource Source { get; }` | `Embedded` or `Linked`. It is called `Source` because `Kind` already means single word or multi word |
+| `LuiIndexKind Kind { get; }` | `SingleWord` or `MultiWord` |
+| `string? PayloadType { get; }` | the stored name of the payload type of an embedded index that was created with one (ADR-0072); `null` otherwise, and for every linked index |
+| `string? PayloadFormat { get; }` | the format of the serializer that wrote the payloads; `null` exactly when `PayloadType` is |
+| `LuiKeyType KeyType { get; }` | the stored key type: `Long`, `Int`, `String` or `Guid` |
+| `LuiTypoDistance TypoDistance { get; }` | how many errors the index forgives |
+| `LuiTypoDictionaryState TypoDictionaryState { get; }` | `NotBuilt`, `Building` or `Current`, in this catalog, when `Indexes()` was called |
 
 ### `LuiCatalogOptions`
 
@@ -1101,6 +1146,7 @@ Fifty-nine public type names in `Nordmann.LUI` (seventy-three types: a generic t
 | `LuiIndexDefinition` | class | [the definition](#defining-an-index--the-definition) |
 | `LuiLinkedIndexDefinition` | class | [the definition](#defining-an-index--the-definition) |
 | `LuiIndexSource` | enum | [the definition](#defining-an-index--the-definition) |
+| `LuiIndexInfo` | record | [maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type) |
 | `LuiIndex` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
 | `LuiEmbeddedIndex` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
 | `LuiLinkedIndex` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
