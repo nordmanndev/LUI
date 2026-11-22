@@ -1000,7 +1000,18 @@ expect_caught "create-installs-the-triggers-of-a-linked-index" "${INTEGRATION_PR
 #       would fail later, at the first read or write of the state, with a SQLite error.
 expect_caught "an-early-build-file-without-the-state-column-is-opened" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~FormatVersionTests.A_format_2_file_of_an_early_build_without_the_state_column_is_rejected_on_open" \
-  "sed -i 's#if ((long)columns.ExecuteScalar()! == 0)#if ((long)columns.ExecuteScalar()! < 0)#' src/Nordmann.LUI/Indexes/IndexStore.cs"
+  "sed -i 's#if (!HasStateColumn(connection) \&\& HasAnyIndex(connection))#if (!HasStateColumn(connection) \&\& !HasAnyIndex(connection))#' src/Nordmann.LUI/Indexes/IndexStore.cs"
+
+# 35zh. The open refuses a lui_meta of 0.3.0 that has no row (issue #272, review of pull request 290, round 2): a catalog without an
+#       index has no format to reject, and its first Create adds the column of the state.
+expect_caught "an-empty-catalog-of-0-3-0-is-refused-as-an-early-build" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~FormatVersionTests.A_catalog_of_0_3_0_without_an_index_still_opens_and_its_first_create_adds_the_state_column" \
+  "sed -i 's#if (!HasStateColumn(connection) \\&\\& HasAnyIndex(connection))#if (!HasStateColumn(connection))#' src/Nordmann.LUI/Indexes/IndexStore.cs"
+
+# 35zi. The first Create does not add the column to an empty lui_meta (issue #272, ADR-0077): a linked index could not write its flag.
+expect_caught "the-first-create-does-not-add-the-state-column" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~FormatVersionTests.A_catalog_of_0_3_0_without_an_index_still_opens_and_its_first_create_adds_the_state_column" \
+  "sed -i 's#        EnsureStateColumn(database, connection, transaction);##' src/Nordmann.LUI/Indexes/IndexStore.cs"
 
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"

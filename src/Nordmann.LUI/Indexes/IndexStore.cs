@@ -405,7 +405,7 @@ internal static class IndexStore
             throw new InvalidOperationException(
                 $"The linked index '{name}' has triggers on the table '{link.Table}'. They write into the tables of the index "
                 + "and go with it: call DropIndex(name, dropTriggers: true), and take them out of the application's migration "
-                + "too. After a new Create() the index is empty and has no triggers — Sync() it and create them again.");
+                + "too. After a new Create() the index is empty and has no triggers — create them again, then Sync() it (the triggers first, so that no row written in between is lost).");
         }
 
         foreach (var statement in ContentSources.DropStatements(name, stored))
