@@ -429,4 +429,132 @@ public sealed class MaintenanceByNameTests
         catalog.Count("recipes").ShouldBe(50);
         recipes.Search("kuchen7").Hits.ShouldNotBeEmpty();
     }
+
+    // ---- Rebuild: embedded indexes only ---------------------------------------------------------------------------
+
+    [Theory]
+    [InlineData("recipes")]
+    [InlineData("chips")]
+    public void Rebuild_works_for_an_embedded_index(string name)
+    {
+        using var database = new TestDatabase();
+        WriteAllKinds(database);
+
+        // a trigger that is gone and a row it did not carry: the search index and the content table differ
+        Run(database, $"DROP TRIGGER lui_{name}_ai;");
+        using (var writer = database.Open(Lines(new LinesChipSerializer())))
+        {
+            if (string.Equals(name, "recipes", StringComparison.Ordinal))
+            {
+                writer.Index(Recipes).Upsert(3, "strudel");
+            }
+            else
+            {
+                writer.Index(Chips).Upsert("delta", "vegetarier", new Chip("four"));
+            }
+        }
+
+        using var tool = LuiCatalog.Open(database.FilePath);
+        var broken = tool.Check(name);
+        broken.IsHealthy.ShouldBeFalse();
+        broken.Problems.ShouldContain(problem => problem.Contains($"lui_{name}_ai", StringComparison.Ordinal) && problem.Contains("Rebuild()", StringComparison.Ordinal));
+        var count = tool.Count(name);
+
+        tool.Rebuild(name);
+
+        tool.Check(name).IsHealthy.ShouldBeTrue("the triggers and the search index are built anew from the content table");
+        tool.Count(name).ShouldBe(count, "the entries, and their payloads, are what they were");
+        using var reader = database.Open(Lines(new LinesChipSerializer()));
+        if (string.Equals(name, "recipes", StringComparison.Ordinal))
+        {
+            reader.Index(Recipes).Search("strudel").Hits.ShouldHaveSingleItem();
+        }
+        else
+        {
+            reader.Index(Chips).Search("vegetarier").Hits.ShouldHaveSingleItem().Payload.ShouldBe(new Chip("four"));
+        }
+    }
+
+    [Theory]
+    [InlineData("linked_tags")]
+    [InlineData("slugs")]
+    public void Rebuild_of_a_linked_index_throws_with_the_message(string name)
+    {
+        using var database = new TestDatabase();
+        WriteAllKinds(database);
+        using var tool = LuiCatalog.Open(database.FilePath);
+        var count = tool.Count(name);
+
+        var exception = Record.Exception(() => tool.Rebuild(name));
+
+        exception.ShouldBeOfType<InvalidOperationException>("not a LuiException: nothing is wrong with the index, the call is not for it");
+        exception.Message.ShouldBe($"'{name}' is a linked index; rebuild it from its table with Sync() on its handle.");
+        tool.Count(name).ShouldBe(count, "nothing was touched");
+        tool.Check(name).IsHealthy.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Rebuild_by_name_meets_the_guards_of_every_operation()
+    {
+        using var database = new TestDatabase();
+        using var first = database.Open();
+        using var second = database.Open();
+        first.Create(Recipes).Upsert(1, "kuchen");
+        var reloads = second.StoredIndexes.Reloads;
+
+        Should.Throw<LuiIndexNotFoundException>(() => second.Rebuild("ghost")).IndexName.ShouldBe("ghost");
+        Should.Throw<LuiIndexNotFoundException>(() => second.Rebuild("ghost"));
+        second.StoredIndexes.Reloads.ShouldBe(reloads + 1, "a missing name asked twice reloads once");
+        Should.Throw<ArgumentException>(() => second.Rebuild("Not A Name")).ParamName.ShouldBe("name");
+
+        second.Rebuild("recipes");
+        first.DropIndex("recipes");
+        Should.Throw<LuiIndexNotFoundException>(() => second.Rebuild("recipes")).IndexName.ShouldBe("recipes");
+    }
+
+    [Fact]
+    public void A_read_only_catalog_refuses_Rebuild_naming_the_index()
+    {
+        using var database = new TestDatabase();
+        WriteAllKinds(database);
+        using var reader = LuiCatalog.OpenReadOnly(database.FilePath);
+
+        Should.Throw<LuiReadOnlyException>(() => reader.Rebuild("recipes")).Message.ShouldContain("'recipes'");
+        reader.Count("recipes").ShouldBe(2);
+    }
+
+    [Fact]
+    public void A_linked_name_that_another_catalog_created_again_as_an_embedded_index_is_rebuilt_and_not_refused()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var first = database.Open();
+        using var second = database.Open();
+        _ = first.Create(LinkedTags);
+        second.Indexes().Single().Source.ShouldBe(LuiIndexSource.Linked);
+
+        // the same name, created again by another process as an embedded index: the memory of `second` says "linked"
+        first.DropIndex("linked_tags");
+        first.Create(new LuiIndexDefinition<long>("linked_tags", index => index.SingleWord())).Upsert(1, "kuchen");
+
+        Should.NotThrow(() => second.Rebuild("linked_tags"));
+        second.Count("linked_tags").ShouldBe(1);
+    }
+
+    [Fact]
+    public void An_embedded_name_that_another_catalog_created_again_as_a_linked_index_is_refused_with_the_message()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var first = database.Open();
+        using var second = database.Open();
+        first.Create(new LuiIndexDefinition<long>("linked_tags", index => index.SingleWord())).Upsert(1, "kuchen");
+        second.Indexes().Single().Source.ShouldBe(LuiIndexSource.Embedded);
+
+        first.DropIndex("linked_tags");
+        _ = first.Create(LinkedTags);
+
+        var exception = Should.Throw<InvalidOperationException>(() => second.Rebuild("linked_tags"));
+        exception.Message.ShouldBe("'linked_tags' is a linked index; rebuild it from its table with Sync() on its handle.");
+    }
 }

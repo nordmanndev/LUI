@@ -237,12 +237,13 @@ public sealed class PublicApiShapeTests
                 .Select(method => $"{TypeText(method.ReturnType)} {method.Name}({Parameters(method)})")
                 .Order(StringComparer.Ordinal)];
 
-        Members(typeof(LuiCatalog), "Indexes", "Count", "Check", "Optimize").ShouldBe(
+        Members(typeof(LuiCatalog), "Indexes", "Count", "Check", "Optimize", "Rebuild").ShouldBe(
             [
                 "IReadOnlyList<LuiIndexInfo> Indexes()",
                 "LuiIntegrityReport Check(string name)",
                 "long Count(string name)",
                 "void Optimize(string name)",
+                "void Rebuild(string name)",
             ],
             "the members of the issue, by name, and nothing that returns a handle");
 
