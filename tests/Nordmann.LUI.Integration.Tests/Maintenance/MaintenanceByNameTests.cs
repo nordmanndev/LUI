@@ -263,6 +263,23 @@ public sealed class MaintenanceByNameTests
         chips.CheckPayloads().Unreadable.ShouldHaveSingleItem().Key.ShouldBe("beta", "the payload is damaged — the check by name just does not look");
     }
 
+    [Fact]
+    public void Check_by_name_finds_a_payload_column_that_is_gone_from_the_table_without_a_map()
+    {
+        using var database = new TestDatabase();
+        WriteAllKinds(database);
+        using var tool = LuiCatalog.Open(database.FilePath);
+        tool.Check("slugs").IsHealthy.ShouldBeTrue();
+
+        // the application dropped a column the payload of the index is built from: a query through the typed handle would fail
+        Run(database, "ALTER TABLE tag DROP COLUMN slug;");
+
+        var report = tool.Check("slugs");
+
+        report.IsHealthy.ShouldBeFalse("the structure check looks at the payload COLUMNS, which are stored — it needs no map and reads no payload");
+        report.Problems.ShouldContain(problem => problem.Contains("'slug'", StringComparison.Ordinal) && problem.Contains("'tag'", StringComparison.Ordinal));
+    }
+
     // ---- a missing name -------------------------------------------------------------------------------------------
 
     [Fact]
