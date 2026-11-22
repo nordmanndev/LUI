@@ -386,6 +386,6 @@ public sealed class LinkedTriggerTests
 
         Run(database, "DROP TRIGGER lui_tags_ad;");
         tags.Triggers().ShouldBe(LuiTriggerState.Stale);
-        Should.Throw<LuiReadOnlyException>(() => tags.CreateTriggers());
+        Should.Throw<LuiReadOnlyException>(() => tags.CreateTriggers()).Message.ShouldContain("'tags'");
     }
 }

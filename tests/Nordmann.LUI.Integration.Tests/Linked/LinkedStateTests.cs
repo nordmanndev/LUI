@@ -205,6 +205,7 @@ public sealed class LinkedStateTests
         other.DropIndex("tags").ShouldBeTrue();
         _ = other.Create(LinkedTags);
         catalog.Index(LinkedTags).NeedsInitialSync.ShouldBeTrue();
+        tags.NeedsInitialSync.ShouldBeTrue("the old handle of the same definition reads the new row, not a cached answer");
 
         other.DropIndex("tags").ShouldBeTrue();
         Should.Throw<LuiIndexNotFoundException>(() => tags.NeedsInitialSync).IndexName.ShouldBe("tags");

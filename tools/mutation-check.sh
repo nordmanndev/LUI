@@ -996,6 +996,12 @@ expect_caught "create-installs-the-triggers-of-a-linked-index" "${INTEGRATION_PR
   "FullyQualifiedName~LinkedTriggerTests.Create_of_a_linked_index_installs_no_triggers" \
   "perl -0pi -e 's|(                WriteDefinition\\(connection, transaction, name, definition, createdAt\\);\\n)|\$1                if (source is LinkedSource linked)\\n                {\\n                    Execute(connection, transaction, linked.TriggerScript());\\n                }\\n|' src/Nordmann.LUI/Indexes/IndexStore.cs"
 
+# 35zg. The open does not look for the column of the state (issue #272, ADR-0077, review of pull request 290): a file of an early build
+#       would fail later, at the first read or write of the state, with a SQLite error.
+expect_caught "an-early-build-file-without-the-state-column-is-opened" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~FormatVersionTests.A_format_2_file_of_an_early_build_without_the_state_column_is_rejected_on_open" \
+  "sed -i 's#if ((long)columns.ExecuteScalar()! == 0)#if ((long)columns.ExecuteScalar()! < 0)#' src/Nordmann.LUI/Indexes/IndexStore.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
