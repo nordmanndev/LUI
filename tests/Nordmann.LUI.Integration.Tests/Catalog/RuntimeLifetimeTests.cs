@@ -62,11 +62,11 @@ public sealed class RuntimeLifetimeTests
         using var second = database.Open();
         first.Create(Tags).Upsert(1, "vegan");
         var old = WeakHandleOf(second);
-        _ = second.Index(Tags).Count();
+        CountThrough(second);
 
         first.DropIndex("tags");
         first.Create(TagsOfWords);
-        Should.Throw<LuiDefinitionMismatchException>(() => second.Index(Tags).Count());
+        Should.Throw<LuiDefinitionMismatchException>(() => CountThrough(second));
 
         // the next open call finds the failed handle and does not keep it
         Should.Throw<LuiDefinitionMismatchException>(() => second.Index(Tags));
@@ -91,6 +91,10 @@ public sealed class RuntimeLifetimeTests
         scored.Hits.ShouldAllBe(hit => hit.Similarity == 0.25, "the similarity of the definition takes effect");
         plain.Search("veg", new LuiQueryOptions { Rank = LuiRankingOrder.SimilarityOnly }).Hits.ShouldAllBe(hit => hit.Similarity != 0.25);
     }
+
+    /// <summary>A call through the handle in a method of its own: a debug build keeps the temporaries of a method alive until it ends.</summary>
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    private static long CountThrough(LuiCatalog catalog) => catalog.Index(Tags).Count();
 
     /// <summary>The handle, held weakly — in a method of its own, so that no local of the test keeps it alive.</summary>
     [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]

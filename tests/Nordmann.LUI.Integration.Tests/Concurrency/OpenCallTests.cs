@@ -1,3 +1,4 @@
+using Microsoft.Data.Sqlite;
 using Nordmann.LUI.Integration.Tests.Catalog;
 using Shouldly;
 
@@ -13,6 +14,8 @@ namespace Nordmann.LUI.Integration.Tests.Concurrency;
 public sealed class OpenCallTests
 {
     private const int Threads = 16;
+
+    private static readonly TimeSpan Deadline = TimeSpan.FromSeconds(30);
 
     private static readonly LuiIndexDefinition<long> Tags = new("tags", index => index.SingleWord());
 
@@ -229,6 +232,80 @@ public sealed class OpenCallTests
             {
                 Should.Throw<LuiIndexNotFoundException>(() => handle.Count(), $"round {round}: a handle that was returned before DropIndex returned works on the new index");
             }
+        }
+    }
+
+    [Fact]
+    public void A_stale_snapshot_whose_row_is_of_another_fold_is_looked_at_against_the_file_and_does_not_fail_for_ever()
+    {
+        using var database = new TestDatabase();
+        using var first = database.Open();
+        first.Create(Tags);
+
+        // an index that an older version wrote: the open checks only the LUI format, so the catalog opens
+        using (var connection = database.Connect())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "UPDATE lui_meta SET definition = replace(definition, $fold, 'fold-0') WHERE index_name = 'tags';";
+            command.Parameters.AddWithValue("$fold", Nordmann.LUI.Normalization.TokenizerFold.Version);
+            command.ExecuteNonQuery();
+        }
+
+        using var second = database.Open();
+        Should.Throw<LuiDefinitionMismatchException>(() => second.Index(Tags)).Message.ShouldContain("fold-0");
+
+        // a migrator does what the message says
+        first.DropIndex("tags");
+        first.Create(Tags);
+
+        for (var call = 0; call < 5; call++)
+        {
+            second.Index(Tags).Count().ShouldBe(0, $"call {call}: the file holds the declared index now");
+        }
+    }
+
+    [Fact]
+    public void A_call_that_waits_for_the_lock_while_DropIndex_marks_and_reads_the_definitions_does_not_escape_it()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        catalog.Create(Tags);
+        using var judged = new ManualResetEventSlim();
+        using var go = new ManualResetEventSlim();
+        var fresh = new LuiIndexDefinition<long>("tags", index => index.SingleWord());
+        LuiEmbeddedIndex<long>? handle = null;
+        Exception? failure = null;
+
+        // the call has judged the stored definition and waits in front of the lock of the handles
+        catalog.BeforeHandleLock = () =>
+        {
+            catalog.BeforeHandleLock = null;
+            judged.Set();
+            go.Wait(Deadline).ShouldBeTrue("the drop lets the call go");
+        };
+        var opener = new Thread(() => failure = Record.Exception(() => handle = catalog.Index(fresh))) { IsBackground = true };
+        opener.Start();
+        judged.Wait(Deadline).ShouldBeTrue("the call judged the definition");
+
+        // in the middle of DropIndex — its handles are marked, its definitions not read again — the call is let go: it comes to the lock,
+        // and has to find it taken
+        catalog.AfterHandlesMarked = () =>
+        {
+            catalog.AfterHandlesMarked = null;
+            go.Set();
+            _ = opener.Join(TimeSpan.FromMilliseconds(500));
+        };
+        catalog.DropIndex("tags");
+        opener.Join(Deadline).ShouldBeTrue("the call ended");
+        catalog.Create(Tags);
+
+        if (handle is null)
+        {
+            failure.ShouldBeOfType<LuiIndexNotFoundException>();
+        }
+        else
+        {
+            Should.Throw<LuiIndexNotFoundException>(() => handle.Count(), "the handle was built between the marking and the new definitions: it escaped DropIndex");
         }
     }
 
