@@ -112,7 +112,7 @@ creation, and LUI does nothing on its own. An application — or the host of #26
     after the last step.
 11. **The report.** `LuiLinkedSyncReport` gets `Batches` (the batches of rows written — an empty table has none), `Removed` (the entries of an older generation that
     were removed) and `LongestLock` — the longest time the sync held the write lock of the file in one transaction (a batch, a step of the removal or of the merge, the
-    lease), measured from the checkpoint that precedes the transaction (decision 13 — it holds SQLite's writer lock while it backfills) to its commit. It is the time that one transaction keeps
+    lease), the checkpoint that precedes the transaction (decision 13 — it holds SQLite's writer lock while it backfills) plus the time from the return of its begin to its commit — **not** the time the begin waited for a lock that the application held (review of #291, round 3, B2; the test `LongestLock_does_not_count_the_time_the_sync_waited_for_the_lock_of_the_application`). It is the time that one transaction keeps
     another writer out; a writer that is unlucky waits for several of them in a row (the starvation below).
 12. **Every transaction of the sync is guarded** (0075): the guard is checked inside each transaction — the lease, every batch, every step of the removal and of
     the merge — together with the lease, in the same transaction that does the work, so an index that another process drops and creates again between two
@@ -126,7 +126,7 @@ creation, and LUI does nothing on its own. An application — or the host of #26
     only grows (it keeps its high-water mark; it is not truncated by a checkpoint). A probe at 400,000 rows without writers showed the log at 20 MB, one batch, in every
     phase; with two polling writers it reached 44 MB, and the probe's `wal_checkpoint(PASSIVE)` showed the log growing by a transaction each time the restart was missed.
     The run therefore executes `PRAGMA wal_checkpoint(TRUNCATE)` on its own connection **right before the begin** of each transaction, in the same hold of the writer gate, with
-    the busy timeout set to **0 for that one statement** and put back after it (in invariant culture; a restore that fails clears the pool, so that a connection that was left at 0 is not given out as a configured one): best effort and never a wait — a reader or a writer in the way leaves the log as it is, and a long
+    the busy timeout set to **0 for that one statement** and put back after it (in invariant culture; a restore that fails clears the pool (every idle connection of it, which are opened again; the cost of a failure that does not happen), so that a connection that was left at 0 is not given out as a configured one): best effort and never a wait — a reader or a writer in the way leaves the log as it is, and a long
     reader of the application does not hold the sync up by five seconds a batch. It changes no setting of the file and no pragma that the application can see (ADR-0066:
     the connection's busy timeout is restored, and the test `The_connection_of_a_sync_goes_back_to_the_pool_with_the_busy_timeout_of_the_catalog` and the mutation `the-sync-leaves-the-busy-timeout-at-zero` hold it); a file that is not in write-ahead logging has nothing to do. After it the log is the biggest single transaction of the sync plus
     what the application's writers committed in between; the biggest transaction is a batch, or a step of the removal (10,000 deletes write into the tombstones of every segment:

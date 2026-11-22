@@ -145,10 +145,14 @@ internal sealed class LinkedSync
         T result;
         lock (_database.WriterGate)
         {
-            // the checkpoint takes the writer lock of SQLite while it backfills, so the time of another writer starts with it
-            var held = Stopwatch.StartNew();
+            // the checkpoint takes the writer lock of SQLite while it backfills: its time is time that the sync keeps another writer out
+            var checkpoint = Stopwatch.StartNew();
             ResetTheLog(writer);
+            var checkpointed = checkpoint.Elapsed;
             using var transaction = writer.BeginTransaction(deferred: false);
+
+            // the begin may have waited for a lock that the application held — that is not time that the sync held it: the lock of the sync is from here
+            var held = Stopwatch.StartNew();
 
             _guard?.Check(writer, transaction);
             if (ownsTheLease)
@@ -163,9 +167,10 @@ internal sealed class LinkedSync
             }
 
             transaction.Commit();
-            if (held.Elapsed > _longestLock)
+            var lockTime = checkpointed + held.Elapsed;
+            if (lockTime > _longestLock)
             {
-                _longestLock = held.Elapsed;
+                _longestLock = lockTime;
             }
         }
 

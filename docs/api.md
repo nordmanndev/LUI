@@ -786,7 +786,7 @@ The report of a `Sync` of a linked index:
 | `long KeyOutOfRange` | the rows whose key cannot be the key of the index: outside `0 … 4,294,967,295`, and for an `int` index outside `0 … 2,147,483,647` |
 | `int Batches` | how many batches of rows of the table were written, each in a transaction of its own (an empty table has none) |
 | `long Removed` | how many entries were removed at the end because their row is not in the table any more |
-| `TimeSpan LongestLock` | the longest time the sync held the write lock of the file in one transaction — a batch, a step of the removal or of the merge, the lease. Another writer waits for the lock at most this long per transaction — plus the batches that follow each other: a writer can starve (see below) |
+| `TimeSpan LongestLock` | the longest time the sync held the write lock of the file in one transaction — a batch, a step of the removal or of the merge, the lease — the checkpoint before it plus the time from its begin to its commit; the time the sync waited for the lock of the application to begin is not counted. Another writer waits for the lock at most this long per transaction — plus the batches that follow each other: a writer can starve (see below) |
 
 ### The sync of a linked index
 
@@ -807,7 +807,7 @@ The report of a `Sync` of a linked index:
   `NeedsInitialSync`. A built typo dictionary is rebuilt once, after it.
 - **One sync at a time.** A sync takes a **lease** on its index — the owner and the time it expires (60 seconds, in UTC, from the clock of
   the catalog) in `lui_meta` — and renews it in every transaction. A second `Sync()` of the same index — in this process or another —
-  while the lease is valid throws a `LuiSyncInProgressException` that names the owner and the expiry; it does not wait. The lease of a
+  while the lease is valid throws a `LuiSyncInProgressException` that names the owner and the expiry; it does not wait for the lease. (A sync that cannot get the **write lock of the file** within the busy timeout — a writer of the application that holds it — fails like any write of LUI with the `SqliteException` `SQLITE_BUSY` of ADR-0046; run it again.) The lease of a
   process that stopped expires, and the next sync takes it over; a sync that finds at its next batch that it lost its lease stops with the
   same exception and writes nothing more.
 - **Cancellation and failure.** A sync that is cancelled or fails keeps the batches it committed, removes nothing that was not removed yet,

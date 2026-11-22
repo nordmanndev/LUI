@@ -26,7 +26,7 @@ public sealed record LuiLinkedSyncReport
 
     /// <summary>
     /// The longest time the sync held the write lock of the file in one transaction — a batch, a step of the removal or of the merge, the
-    /// lease — from the checkpoint that precedes it to its commit. One transaction keeps another writer out at most this long; a writer can
+    /// lease — the checkpoint that precedes it plus the time from the begin of the transaction to its commit. The time the sync waited for the lock of the application to begin is not counted: it did not hold it. One transaction keeps another writer out at most this long; a writer can
     /// wait for several in a row, for SQLite has no queue.
     /// </summary>
     public TimeSpan LongestLock { get; init; }

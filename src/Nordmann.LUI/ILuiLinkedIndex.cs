@@ -27,6 +27,7 @@ public interface ILuiLinkedIndex : ILuiIndex
     /// <param name="cancellationToken">Checked between the batches and the steps; a cancelled sync keeps the batches it committed, leaves <c>NeedsInitialSync</c> as it was and releases its lease.</param>
     /// <returns>What was indexed, what was left out, and how the sync worked.</returns>
     /// <exception cref="LuiSyncInProgressException">Another sync of this index is running.</exception>
+    /// <exception cref="Microsoft.Data.Sqlite.SqliteException">The write lock of the file stayed with another writer for the whole busy timeout (<c>SQLITE_BUSY</c>, ADR-0046): run the sync again.</exception>
     LuiLinkedSyncReport Sync(CancellationToken cancellationToken = default);
 
     /// <summary>

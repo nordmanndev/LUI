@@ -27,7 +27,7 @@ public sealed record LuiSyncOptions
     /// <summary>
     /// Told after every batch what the sync has done so far; <see langword="null"/> for no reports. A linked sync tells <c>Read</c>,
     /// <c>Batches</c> and <c>Removed</c> — it does not compare, so there is no <c>Added</c>, <c>Changed</c> or <c>Unchanged</c> — and, when it
-    /// is through, <c>Merged</c>. It is called on the thread of the sync, outside of every lock.
+    /// is through, <c>Merged</c>. It is called on the thread of the sync, outside of every lock. An exception of the callback ends the call: of a linked sync with a built typo dictionary it leaves the dictionary as it was — <c>RebuildTypoDictionary()</c> brings it up to date.
     /// </summary>
     public IProgress<LuiSyncReport>? Progress { get; init; }
 }
