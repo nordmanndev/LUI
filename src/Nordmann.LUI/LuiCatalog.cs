@@ -897,7 +897,7 @@ public sealed class LuiCatalog : IDisposable
             throw Mismatch(name, "no payload columns", "the columns of the payload");
         }
 
-        return OpenLinked(name, definition, new ColumnPayload(name, columns, row => map(row)));
+        return OpenLinked(name, definition, new ColumnPayload(name, definition.KeyType, typeof(TPayload), columns, row => map(row)));
     }
 
     /// <summary>The first step of the description of an index: the kind of it.</summary>
@@ -989,7 +989,7 @@ public sealed class LuiCatalog : IDisposable
         var columns = description.Link?.PayloadColumns ?? [];
         PayloadReader payload = description.PayloadMap is null
             ? new NoPayload(name)
-            : new ColumnPayload(name, columns, description.PayloadMap);
+            : new ColumnPayload(name, declared.KeyType, description.PayloadType ?? typeof(object), columns, description.PayloadMap);
 
         return new LinkedIndex(Database, TypoDictionaries, (LinkedSource)source, payload, similarity, description.Options.TypoDistance);
     }

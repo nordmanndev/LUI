@@ -51,7 +51,7 @@ internal sealed class IndexRuntimes(Database database, TypoDictionaries typos, P
 
         var linked = new LinkedSource(name, entry.Definition);
         PayloadReader reader = description.PayloadMap is { } map
-            ? new ColumnPayload(name, entry.Definition.Link?.PayloadColumns ?? [], map)
+            ? new ColumnPayload(name, entry.Definition.KeyType, description.PayloadType ?? typeof(object), entry.Definition.Link?.PayloadColumns ?? [], map)
             : new NoPayload(name);
         return new IndexRuntime(
             new LinkedIndex(

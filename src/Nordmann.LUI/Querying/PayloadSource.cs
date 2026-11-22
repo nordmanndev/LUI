@@ -16,6 +16,19 @@ internal sealed class PayloadSource(string indexName, PayloadSerialization? seri
     /// <summary>The payloads of a linked index: built by its map.</summary>
     internal static PayloadSource Built(string indexName) => new(indexName, serialization: null, serialized: false);
 
+    /// <summary>
+    /// The payload of a hit of an index with a payload type (ADR-0074): it has to be there, and it has to be readable. An entry whose
+    /// payload is not stored, and a map that returned <see langword="null"/>, are as much a failure as bytes that cannot be read.
+    /// </summary>
+    internal T Require<T>(object? stored, LuiKey key) =>
+        stored is null
+            ? throw new LuiPayloadException(
+                indexName,
+                key,
+                typeof(T),
+                serialized ? "the entry has no stored payload." : "the map of the linked index returned null.")
+            : Read<T>(stored, key);
+
     /// <summary>Reads a stored payload as <typeparamref name="T"/>.</summary>
     internal T Read<T>(object stored, LuiKey key)
     {
