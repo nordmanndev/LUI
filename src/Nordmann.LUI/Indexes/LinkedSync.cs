@@ -145,6 +145,7 @@ internal sealed class LinkedSync
         T result;
         lock (_database.WriterGate)
         {
+            ResetTheLog(writer);
             using var transaction = writer.BeginTransaction(deferred: false);
 
             // the lock of the file is held from here: this is the time another writer waits for
@@ -178,6 +179,42 @@ internal sealed class LinkedSync
             work(connection, transaction);
             return true;
         });
+
+    /// <summary>
+    /// Gives the write-ahead log back before a transaction of the sync begins (ADR-0077): a checkpoint that backfills the log and truncates it.
+    /// SQLite starts a log over only when the connection that begins to write has read nothing from it — every frame is backfilled — and no
+    /// reader holds it; the checkpoint at the commit of the transaction before is not enough once another writer has committed between that
+    /// checkpoint and this begin, or a reader met it: then the log is not started over, the transaction appends to it, and beside a busy
+    /// application the file grows by a batch at a time. Done right before the begin, in the same hold of the gate, the window is a few
+    /// microseconds. <b>Best effort and never a wait</b>: the busy timeout is 0 for this one statement — a reader, or a writer, that is in the way
+    /// leaves the log as it is and the sync goes on; a long reader of the application is not made to hold up a sync by five seconds a batch.
+    /// A file that is not in write-ahead logging has nothing to do.
+    /// </summary>
+    private void ResetTheLog(SqliteConnection writer)
+    {
+        try
+        {
+            Execute(writer, null, "PRAGMA busy_timeout = 0;");
+            try
+            {
+                using var checkpoint = writer.CreateCommand();
+                checkpoint.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+                using var result = checkpoint.ExecuteReader();
+                while (result.Read())
+                {
+                    // (busy, frames in the log, frames backfilled): a busy 1 is the answer "not now" — nothing else is asked of it
+                }
+            }
+            finally
+            {
+                Execute(writer, null, $"PRAGMA busy_timeout = {_database.BusyTimeoutMilliseconds};");
+            }
+        }
+        catch (SqliteException)
+        {
+            // the log is somebody else's business this time: a transaction that begins and finds the lock busy says so itself
+        }
+    }
 
     /// <summary>
     /// Sets the expiry of the lease to a lease duration from now, if the run still owns it — one statement that checks and renews. The first
@@ -463,7 +500,7 @@ internal sealed class LinkedSync
         LongestLock = _longestLock,
     };
 
-    private static SqliteCommand Command(SqliteConnection connection, SqliteTransaction transaction, string sql)
+    private static SqliteCommand Command(SqliteConnection connection, SqliteTransaction? transaction, string sql)
     {
         var command = connection.CreateCommand();
         command.Transaction = transaction;
@@ -471,7 +508,7 @@ internal sealed class LinkedSync
         return command;
     }
 
-    private static void Execute(SqliteConnection connection, SqliteTransaction transaction, string sql)
+    private static void Execute(SqliteConnection connection, SqliteTransaction? transaction, string sql)
     {
         using var command = Command(connection, transaction, sql);
         command.ExecuteNonQuery();

@@ -1090,6 +1090,23 @@ expect_caught "the-linked-sync-clears-the-index-first" "${INTEGRATION_PROJECT}" 
   "FullyQualifiedName~LinkedBatchSyncTests.A_search_during_the_sync_never_sees_an_empty_index" \
   "perl -0pi -e 's|            _taken = true;\\n|            _taken = true;\\n            Execute(connection, transaction, \\x22DELETE FROM lui_\\x22 + _name + \\x22; INSERT INTO lui_\\x22 + _name + \\x22_fts(lui_\\x22 + _name + \\x22_fts) VALUES (\\x27delete-all\\x27);\\x22);\\n|' src/Nordmann.LUI/Indexes/LinkedSync.cs"
 
+# 35zy. A batch does not remove the entry that a refresh wrote for a row that is gone before its batch (issue #271, review of pull request 291, B1): the row stays in the
+#       index, and the removal at the end leaves it too.
+expect_caught "a-batch-keeps-the-entry-of-a-row-that-is-gone" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.A_row_that_a_refresh_wrote_beside_the_sync_and_that_is_deleted_before_its_batch_is_gone_after_the_sync" \
+  "sed -i 's/new\\[\\] { _source.BatchDropUnreachedFtsSql, _source.BatchDropUnreachedEntriesSql, /new[] { /' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zz. The removal takes the entries that a refresh wrote beside the sync (issue #271, ADR-0077): a row refreshed in a range that is done would go with the old generation.
+expect_caught "the-removal-takes-the-entries-a-refresh-wrote" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.A_row_that_a_refresh_wrote_beside_the_sync_stays_when_the_old_generation_is_removed" \
+  "sed -i 's/WHERE gen < \\$gen AND gen <> -\\$gen ORDER BY/WHERE gen < \\$gen ORDER BY/' src/Nordmann.LUI/Schema/LinkedSource.cs"
+
+# 35zza. The sync does not give the write-ahead log back before a transaction (issue #271, review of pull request 291, B2): with another writer committing between the batches the log
+#        is not started over and grows to the size of the whole index.
+expect_caught "the-sync-does-not-give-the-log-back" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~LinkedBatchSyncTests.The_write_ahead_log_stays_a_batch_in_size_when_another_writer_commits_between_the_batches" \
+  "sed -i '/^            ResetTheLog(writer);/d' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

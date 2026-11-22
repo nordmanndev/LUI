@@ -364,7 +364,7 @@ What the sync does, and what it does not:
 - Do the **first sync before the application accepts writes** — at startup, as above. A sync of a table of hundreds of thousands of rows
   or more, beside an application that writes all the time, **can make the application's writes wait**: SQLite has no queue for its one
   write lock, a waiting writer polls (at most every 100 ms), and the sync takes the lock again right after each commit, so a writer can
-  starve for a long time. Give the application a **generous busy timeout** (30 seconds, not the default five) and **retry** a write that
+  starve for a long time. Give the application a **generous busy timeout** (30 seconds: the `Default Timeout` of a `Microsoft.Data.Sqlite` connection is that already; `LuiPragmas.BusyTimeout` of LUI's own connections is five) and **retry** a write that
   fails with `SQLITE_BUSY`; open the application's own write transactions with **`BEGIN IMMEDIATE`** (in `Microsoft.Data.Sqlite`:
   `connection.BeginTransaction(deferred: false)`), so that a busy file is found at the start and not in the middle of a transaction.
 

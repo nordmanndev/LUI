@@ -166,7 +166,8 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     /// releases its lease, and the sync that follows completes;</item>
     /// <item>a search or a count <b>never sees an empty or a short index</b> while a sync replaces every entry;</item>
     /// <item>the <b>write-ahead log stays small</b> — the owner's main concern, the reason for the batches: the peak size of the <c>-wal</c> file
-    /// stays under sixteen batches' share of the database file (a hundredth of it each, at a million rows), where a sync in one transaction would put the whole index into it;</item>
+    /// of each measured sync — the log truncated before it — stays under half of the database file, where a sync in one transaction would put the
+    /// whole index into it;</item>
     /// <item>no transaction of the sync holds the lock for an absurd time, and the sync is complete at its end.</item>
     /// </list>
     /// <para>
@@ -175,10 +176,13 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     /// writer finds a gap long before; a writer that is still refused after 30 s is starved for a whole sync, which is the defect this test
     /// looks for — and the provider takes the timeout of SQLite from the command, in seconds, and may retry once more. <b>The lock bound is
     /// 10 s</b>, three times the longest lock ever logged: a step that long is a step that holds the file for a third of the sync. <b>The WAL
-    /// bound is sixteen batches' share of the database file</b> (16 % at a million rows): one batch is one percent of the table, the autocheckpoint
-    /// truncates nothing but reuses the file, so the size of the <c>-wal</c> file is its high-water mark — a sync in one transaction reaches the size
-    /// of the whole index. A batch writes more than its share of the final file (it deletes before it writes, and the merge writes pages again): at
-    /// 100,000 rows the peak was 15 MB for a file of 38 MB, about four shares; sixteen leaves room for that and stays far from the whole.
+    /// bound is half of the database file</b>: the log is the biggest transaction of the sync plus what the application's writers commit in between,
+    /// and the biggest transaction is a batch, a step of the removal (10,000 deletes write into the tombstones of every segment: about 40 MB at
+    /// 400,000 rows) or of the merge — a few percent of the index each; a sync in one transaction puts the whole index into the log. The first version
+    /// of this bound (sixteen batches' share) was argued from a 100,000-row run where it was 160 % of the file, and failed at a million rows
+    /// (341 MB of log for a database of 322 MB): the log did not shrink, because the sync's own checkpoint at a commit cannot start the log over
+    /// when another writer has committed since or a reader meets it — the sync now truncates the log right before each transaction (ADR-0077),
+    /// and the test measures each sync from a log that was truncated first, for the -wal file keeps its high-water mark.
     /// </para>
     /// <para>
     /// The starvation itself is a <b>log line</b>, not an assertion: a second writer, beside the first one, has the timeout of twice the longest
@@ -198,15 +202,14 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         CreateTable(database, [.. Enumerable.Range(1, rows).Select(i => (Id: (long)i, Text: corpus.Texts[i - 1], Weight: corpus.Weights[i - 1]))]);
         var linked = catalog.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count")));
-        var wal = database.FilePath + "-wal";
 
         ACancelledFirstSyncKeepsItsBatches(database, linked);
 
-        var first = TimedSync(catalog, linked, "first sync (after the cancelled one), into the index", wal);
+        var first = TimedSync(catalog, linked, "first sync (after the cancelled one), into the index", database);
         first.Report.Indexed.ShouldBe(rows);
         linked.NeedsInitialSync.ShouldBeFalse();
 
-        var second = ASyncThatReplacesEveryEntryNeverShowsAShortIndex(catalog, linked, wal, rows);
+        var second = ASyncThatReplacesEveryEntryNeverShowsAShortIndex(catalog, linked, database, rows);
         var batch = second.Longest("batch");
         var tightSeconds = Math.Max(1, (int)Math.Ceiling(2 * batch.TotalSeconds));
         Report($"one batch: the longest {batch.TotalSeconds:F2} s; the tight writer's busy timeout = 2 x that, rounded up: {tightSeconds} s; the generous one: {GenerousSeconds} s");
@@ -227,7 +230,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
             Task.Run(() => WriteWhileTheSyncRuns(database, TimeSpan.FromSeconds(GenerousSeconds), generous.Waits, () => generous.Failures++, stop.Token)),
             Task.Run(() => WriteWhileTheSyncRuns(database, TimeSpan.FromSeconds(tightSeconds), tight.Waits, () => tight.Failures++, stop.Token)),
         };
-        var third = TimedSync(catalog, linked, "third sync, beside the writers, 100,000 rows removed", wal);
+        var third = TimedSync(catalog, linked, "third sync, beside the writers, 100,000 rows removed", database);
         await stop.CancelAsync();
         await Task.WhenAll(writers);
 
@@ -266,8 +269,8 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         generous.Waits.Count.ShouldBeGreaterThan(0, "the writer wrote while the sync ran: the test has seen the batches, the removal and the merge");
         third.Report.LongestLock.TotalSeconds.ShouldBeLessThan(10, "no transaction of the sync holds the lock for an absurd time");
         ((double)_peakWalBytes).ShouldBeLessThan(
-            16 * (sizeBytes / (rows / (double)DefaultBatchRows)),
-            "the batches keep the write-ahead log small — sixteen batches' share of the index at most: a sync in one transaction would put the whole index into it");
+            sizeBytes / 2.0,
+            "the batches keep the write-ahead log small — under half of the database at most: a sync in one transaction would put the whole index into it");
         _peakWalBytes.ShouldBeGreaterThan(0, "the log was looked at");
         third.Report.Removed.ShouldBe(rows / 10);
         third.Report.Indexed.ShouldBe(rows - (rows / 10));
@@ -277,7 +280,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         database.Scalar<long>("SELECT count(*) FROM lui_meta WHERE sync_lease_owner IS NOT NULL").ShouldBe(0, "the lease is released");
     }
 
-    private SyncRun ASyncThatReplacesEveryEntryNeverShowsAShortIndex(LuiCatalog catalog, LuiLinkedIndex<long> linked, string wal, int rows)
+    private SyncRun ASyncThatReplacesEveryEntryNeverShowsAShortIndex(LuiCatalog catalog, LuiLinkedIndex<long> linked, TestDatabase database, int rows)
     {
         // never empty, never short: every entry is replaced, and the index holds every row at every tenth batch
         var shortCounts = new List<long>();
@@ -285,7 +288,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
             catalog,
             linked,
             "second sync, every entry replaced (no writer)",
-            wal,
+            database,
             report =>
             {
                 if (!report.Merged && report.Batches % 10 == 0 && linked.Count() != rows)
@@ -324,9 +327,20 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     }
 
     /// <summary>One sync of the index, with the seconds of every transaction of it that the seam of the database told.</summary>
-    private SyncRun TimedSync(LuiCatalog catalog, LuiLinkedIndex<long> linked, string what, string walPath, Action<LuiSyncReport>? onProgress = null)
+    private SyncRun TimedSync(LuiCatalog catalog, LuiLinkedIndex<long> linked, string what, TestDatabase database, Action<LuiSyncReport>? onProgress = null)
     {
         var phases = new List<(string Name, TimeSpan Duration)>();
+        var walPath = database.FilePath + "-wal";
+        var peaks = new Dictionary<string, long>(StringComparer.Ordinal);
+
+        // the baseline: the -wal file keeps its high-water mark, so what the load of the table or an earlier sync left in it is truncated first
+        using (var connection = database.Connect())
+        using (var truncate = connection.CreateCommand())
+        {
+            truncate.CommandText = "PRAGMA wal_checkpoint(TRUNCATE);";
+            truncate.ExecuteNonQuery();
+        }
+
         var clock = Stopwatch.StartNew();
         var previous = TimeSpan.Zero;
         catalog.Database.AfterSyncTransaction = phase =>
@@ -341,21 +355,25 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
             if (log.Exists)
             {
                 _peakWalBytes = Math.Max(_peakWalBytes, log.Length);
+                peaks[phase] = Math.Max(peaks.GetValueOrDefault(phase), log.Length);
             }
         };
 
         var report = linked.Sync(onProgress is null ? null : new LuiSyncOptions { Progress = new Inline(onProgress) });
         catalog.Database.AfterSyncTransaction = null;
-        var run = new SyncRun(report, phases, clock.Elapsed);
-        Report($"{what}: {run.Total.TotalSeconds:F1} s, {report.Batches} batches, {report.Removed:N0} removed, longest lock {report.LongestLock.TotalSeconds:F2} s; {run.Summary()}");
+        var run = new SyncRun(report, phases, clock.Elapsed, peaks);
+        Report($"{what}: {run.Total.TotalSeconds:F1} s, {report.Batches} batches, {report.Removed:N0} removed, longest lock {report.LongestLock.TotalSeconds:F2} s; {run.Summary()}; peak of the -wal file after each phase: {run.WalSummary()}");
         return run;
     }
 
     /// <summary>What one sync did: its report, the transactions it ran by phase, and how long it took.</summary>
-    private sealed record SyncRun(LuiLinkedSyncReport Report, List<(string Name, TimeSpan Duration)> Phases, TimeSpan Total)
+    private sealed record SyncRun(LuiLinkedSyncReport Report, List<(string Name, TimeSpan Duration)> Phases, TimeSpan Total, Dictionary<string, long> WalPeaks)
     {
         public TimeSpan Longest(string phase) =>
             Phases.Where(entry => string.Equals(entry.Name, phase, StringComparison.Ordinal)).Select(entry => entry.Duration).DefaultIfEmpty().Max();
+
+        public string WalSummary() =>
+            string.Join(", ", WalPeaks.Select(peak => string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{peak.Key} {peak.Value / 1_048_576.0:F0} MB")));
 
         public string Summary() =>
             string.Join(

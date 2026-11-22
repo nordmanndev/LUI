@@ -63,6 +63,9 @@ internal sealed class Database : IDisposable
     /// <summary>The full path of the file of the catalog.</summary>
     internal string Path { get; }
 
+    /// <summary>The busy timeout of the connections of the catalog in milliseconds (<see cref="LuiPragmas.BusyTimeout"/>, ADR-0046).</summary>
+    internal long BusyTimeoutMilliseconds => (long)_options.Pragmas.BusyTimeout.TotalMilliseconds;
+
     /// <summary>The clock of the catalog (<see cref="LuiCatalogOptions.TimeProvider"/>): <c>created_at</c> and the lease of a sync (ADR-0077).</summary>
     internal TimeProvider TimeProvider => _options.TimeProvider;
 

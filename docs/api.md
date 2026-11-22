@@ -786,7 +786,7 @@ The report of a `Sync` of a linked index:
 | `long KeyOutOfRange` | the rows whose key cannot be the key of the index: outside `0 … 4,294,967,295`, and for an `int` index outside `0 … 2,147,483,647` |
 | `int Batches` | how many batches of rows of the table were written, each in a transaction of its own (an empty table has none) |
 | `long Removed` | how many entries were removed at the end because their row is not in the table any more |
-| `TimeSpan LongestLock` | the longest time the sync held the write lock of the file in one transaction — a batch, a step of the removal or of the merge, the lease. Another writer waits for the lock for about this long |
+| `TimeSpan LongestLock` | the longest time the sync held the write lock of the file in one transaction — a batch, a step of the removal or of the merge, the lease. Another writer waits for the lock at most this long per transaction — plus the batches that follow each other: a writer can starve (see below) |
 
 ### The sync of a linked index
 
@@ -818,8 +818,8 @@ The report of a `Sync` of a linked index:
   within microseconds of a commit, so beside a very large sync (hundreds of thousands of rows or more) and a busy application a write can wait
   a long time — in a million-row run a writer with a busy timeout of twice a batch (2 s) had 4 of 38 writes fail with `SQLITE_BUSY`, and the
   longest wait of a write that succeeded was 1.99 s. LUI adds **no pause between the transactions** (ADR-0077 records why). What to do: run the
-  **first sync before the application accepts writes**; give the application's writers a **generous busy timeout** (30 seconds, not the default
-  five) and **retry** a write that fails with `SQLITE_BUSY`; open the application's own write transactions with `BEGIN IMMEDIATE`
+  **first sync before the application accepts writes**; give the application's writers a **generous busy timeout** (30 seconds — `LuiPragmas.BusyTimeout` is five, `Default Timeout` of a `Microsoft.Data.Sqlite` connection of the application
+  is already 30) and **retry** a write that fails with `SQLITE_BUSY`; open the application's own write transactions with `BEGIN IMMEDIATE`
   (`connection.BeginTransaction(deferred: false)`), so that a busy file is found at their start. The README has the same advice, with the code.
 
 ### `LuiIntegrityReport`

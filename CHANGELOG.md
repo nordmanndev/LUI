@@ -102,7 +102,7 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   LUI's table of the index —, in batches of `BatchSize`, each in a transaction of its own, and only when every batch is written; then FTS5's index is merged in **steps** (FTS5
   `merge`, 4,096 pages a step, each in a transaction of its own) instead of one `optimize`, and the transaction of the last step clears `NeedsInitialSync`. FTS5's automatic
   merge is off while a batch loads and back on before its commit. A sync that is cancelled or fails keeps the batches it committed, removes nothing that was not removed yet,
-  does not finish the merge, leaves `NeedsInitialSync` as it was and releases its lease; running it again is always correct. A built typo dictionary is rebuilt once, at the end.
+  does not finish the merge, leaves `NeedsInitialSync` as it was and releases its lease; running it again is always correct. The sync truncates the write-ahead log (a best-effort checkpoint that never waits) right before each of its transactions, so the log stays a batch in size beside writers of the application. A built typo dictionary is rebuilt once, at the end.
   `LuiLinkedSyncReport` gets `Batches`, `Removed` and `LongestLock` (the longest time the sync held the write lock of the file in one transaction).
 
 - **One sync of a linked index at a time — `LuiSyncInProgressException`** (ADR-0077, #271): a sync takes a **lease** on its index — the owner and the expiry (60 seconds, UTC, from

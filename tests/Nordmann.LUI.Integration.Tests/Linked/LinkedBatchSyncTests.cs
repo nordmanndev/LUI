@@ -899,6 +899,34 @@ public sealed class LinkedBatchSyncTests
         database.Scalar<long>("SELECT v FROM lui_tags_fts_config WHERE k = 'automerge'").ShouldBe(4);
     }
 
+    [Fact]
+    public void The_write_ahead_log_stays_a_batch_in_size_when_another_writer_commits_between_the_batches()
+    {
+        // review of #291, B2: SQLite starts the log over only when the connection that begins to write has read nothing from it. A writer of the
+        // application that commits between two batches leaves frames that are not backfilled, the log is not started over, and without the sync's
+        // own checkpoint right before its transaction it grows by every batch: to the size of the whole index
+        using var database = new TestDatabase();
+
+        // the catalog makes the file first: a file that LUI creates is in write-ahead logging, one that the application made keeps its mode
+        using var catalog = database.Open();
+        Run(database, Table);
+        Fill(database, 6_000);
+        var tags = catalog.Create(LinkedTags);
+        var peak = 0L;
+        catalog.Database.AfterSyncTransaction = _ =>
+        {
+            Run(database, "UPDATE tag SET usage_count = usage_count + 1 WHERE id = 1;");
+            var log = new FileInfo(database.FilePath + "-wal");
+            peak = Math.Max(peak, log.Exists ? log.Length : 0);
+        };
+
+        tags.Sync(new LuiSyncOptions { BatchSize = 100 });
+
+        var size = (long)(database.FileMegabytes() * 1_048_576);
+        peak.ShouldBeGreaterThan(0);
+        ((double)peak).ShouldBeLessThan(size, "the log is smaller than the database — a batch and a little (a third of it, measured); without the checkpoint it is three and a third times the database: every batch went through it");
+    }
+
     // ---- the catalog and the sync ------------------------------------------------------------------------------------
 
     [Fact]
