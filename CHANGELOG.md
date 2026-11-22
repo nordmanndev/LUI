@@ -205,7 +205,8 @@ working linked index reads the state instead of remembering an event: `index.Cre
 row that the application writes between the two calls then lands in the outbox (`ApplyPending()` or the sync takes it), whereas a sync that came first would miss it —
 and the flag, already `false`, would never ask for another one.
 The new column of `lui_meta` belongs to LUI format 2, which no release has had: a file that an early build of 0.4.0 wrote without it is refused when the catalog is
-opened, with a `LuiFormatException` that names the column — recreate its indexes like the files of 0.3.0.
+opened, with a `LuiFormatException` that names the column — recreate its indexes like the files of 0.3.0. A catalog of 0.3.0 that holds no index opens as before; its first
+`Create` adds the column.
 
 ## [0.3.0] — 2026-11-19
 

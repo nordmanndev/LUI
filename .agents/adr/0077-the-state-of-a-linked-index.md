@@ -71,8 +71,9 @@ creation, and LUI does nothing on its own. An application — or the host of #26
 
 ## Consequences
 
-- **Format 2 gains a column; no release had format 2.** `EnsureFormat` checks the column when the catalog opens: a file that an early build
-  of 0.4.0 wrote without it is refused with a `LuiFormatException` that names the column (`FoundFormat` = `SupportedFormat` = 2), and is
+- **Format 2 gains a column; no release had format 2.** `EnsureFormat` checks the column when the catalog opens, **for a `lui_meta` that has rows**: a table without a row has no
+  format to reject (#270) — the empty `lui_meta` of 0.3.0 opens as before, and the first `Create` adds the column in its own transaction. A file with
+  indexes that an early build of 0.4.0 wrote without the column is refused with a `LuiFormatException` that names the column (`FoundFormat` = `SupportedFormat` = 2), and is
   recreated like a file of 0.3.0 (the CHANGELOG says so). Files of 0.3.0 are rejected as before.
 - **`CreateTriggers()` no longer rewrites current triggers.** Before, every call dropped and created them. The CHANGELOG has a migration note;
   no existing test asserted the old behaviour as a promise (a second call never threw).
