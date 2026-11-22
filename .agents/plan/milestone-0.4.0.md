@@ -21,7 +21,7 @@ file into `0.4.0`.
 | 5 | #270 Key types `int`/`string`/`Guid`, LUI format 2 (ADR-0073) | the file format #260/#272/#271 add to | #269 | merged | #284 — key types and LUI format 2; the sample test no longer counts the outbox rows the host loop may have applied first |
 | 6 | #265 Runtime in the catalog, 0 B open, several processes (ADR-0075) | the query path; its budget risk shows early | #270 | merged | #286 — the catalog holds definitions and runtimes; five review rounds, the last two allowed by the owner |
 | 7 | #260 Payload registry, type and format fingerprint (ADR-0072) | needs definitions and the handle cache | #265 | merged | #288 — the registry; an object, an interface or an abstract class is no payload type (no catch-all) |
-| 8 | #262 `hit.Payload` loaded with the query, `CheckPayloads()` (ADR-0074) | needs the registry; its own budget | #260 | in review | #289 |
+| 8 | #262 `hit.Payload` loaded with the query, `CheckPayloads()` (ADR-0074) | needs the registry; its own budget | #260 | merged | #289 — the hit carries its payload, CheckPayloads; a typed handle without a payload type selects no payload column |
 | 9 | #272 State of a linked index: `NeedsInitialSync`, idempotent `CreateTriggers()` (ADR-0077) | precondition of #271 and #266 | #262 | open | — |
 | 10 | #271 Linked `Sync()` in batches, generation, merge, lease (ADR-0077) | needs `NeedsInitialSync`; `Initialize()` needs the lease | #272 | open | — |
 | 11 | #273 Maintenance by name (ADR-0076) | needs `LuiKeyType` and the fingerprint; #266 adds to `LuiIndexInfo` | #271 | open | — |
