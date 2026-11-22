@@ -24,8 +24,9 @@ internal sealed record IndexDescription(
 {
     /// <summary>The definition as <c>lui_meta</c> stores it — and as the declared one is compared with the stored one.</summary>
     /// <param name="keyType">The stored name of the key type.</param>
+    /// <param name="payload">The type name and the format of the payloads of an embedded index; <see langword="null"/> for none, and for a linked index.</param>
     /// <returns>The definition.</returns>
-    internal IndexDefinition ToStored(string keyType) =>
+    internal IndexDefinition ToStored(string keyType, PayloadFingerprint? payload = null) =>
         Source == LuiIndexSource.Embedded
             ? new IndexDefinition(
                 Kind,
@@ -33,7 +34,9 @@ internal sealed record IndexDescription(
                 keyType,
                 Options.GermanTransliteration,
                 TokenizerFold.Version,
-                TypoDistance: Options.TypoDistance)
+                TypoDistance: Options.TypoDistance,
+                PayloadTypeName: payload?.TypeName,
+                PayloadFormat: payload?.Format)
             : new IndexDefinition(
                 Kind,
                 LinkedSource.SourceName,

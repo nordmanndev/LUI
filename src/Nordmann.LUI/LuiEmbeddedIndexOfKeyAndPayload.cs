@@ -14,8 +14,8 @@ namespace Nordmann.LUI;
 /// <b>Every write carries a payload</b>: there is no <c>Upsert(key, text, weight)</c>, no <see cref="LuiEntry{TKey}"/> and no
 /// payload-less <c>Sync</c> on this handle, so an entry without a payload cannot reach the index — and with
 /// <c>TPayload = int</c>, <c>Upsert(1, "x", 5)</c> means the payload <c>5</c>, never a weight. The payload is serialized with the
-/// <see cref="LuiCatalogOptions.PayloadSerializer"/> of the catalog (until issue #260); a write on a catalog without one throws a
-/// <see cref="LuiConfigurationException"/> that names the index.
+/// serializer that the <see cref="LuiCatalogOptions.Payloads"/> registry of the catalog holds for <typeparamref name="TPayload"/> — found
+/// once, when the index is created or opened (ADR-0072), so a write never looks it up and never fails for want of one.
 /// </para>
 /// </summary>
 /// <typeparam name="TKey">The type of the keys — <see cref="long"/>, <see cref="int"/>, <see cref="string"/> or <see cref="Guid"/> (ADR-0073).</typeparam>
@@ -25,24 +25,21 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     where TPayload : notnull
 {
     private readonly EmbeddedIndex _index;
-    private readonly ILuiPayloadSerializer? _serializer;
 
-    internal LuiEmbeddedIndex(Database database, EmbeddedIndex index, ILuiPayloadSerializer? serializer)
+    internal LuiEmbeddedIndex(Database database, EmbeddedIndex index)
         : base(database, index)
     {
         _index = index;
-        _serializer = serializer;
     }
 
     /// <summary>Writes one entry: a new one, or the new text, payload, weight and priority of the entry with that key.</summary>
     /// <param name="key">The key of the entry.</param>
     /// <param name="text">The text — what the search finds.</param>
-    /// <param name="payload">The payload, written with the serializer of the catalog; never <see langword="null"/>.</param>
+    /// <param name="payload">The payload, written with the serializer of its type; never <see langword="null"/>.</param>
     /// <param name="weight">The weight, 0 to 536,870,911.</param>
     /// <param name="priority">The priority.</param>
     /// <param name="transaction">A transaction of the application, or <see langword="null"/> for the own one of the call.</param>
     /// <exception cref="ArgumentNullException"><paramref name="payload"/> is <see langword="null"/>.</exception>
-    /// <exception cref="LuiConfigurationException">The catalog has no payload serializer.</exception>
     /// <exception cref="LuiIndexNotFoundException">The index was dropped.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     public void Upsert(
@@ -57,13 +54,11 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     /// <summary>Writes one entry.</summary>
     /// <param name="entry">The entry.</param>
     /// <param name="transaction">A transaction of the application, or <see langword="null"/> for the own one of the call.</param>
-    /// <exception cref="LuiConfigurationException">The catalog has no payload serializer.</exception>
     /// <exception cref="LuiIndexNotFoundException">The index was dropped.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     public void Upsert(LuiEntry<TKey, TPayload> entry, SqliteTransaction? transaction = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
-        RequireSerializer();
         try
         {
             _index.Upsert(entry.ToEntry(), transaction);
@@ -79,7 +74,6 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     /// <param name="transaction">A transaction of the application, or <see langword="null"/> for the own one of the call.</param>
     /// <param name="cancellationToken">Checked between the entries.</param>
     /// <returns>How many were written.</returns>
-    /// <exception cref="LuiConfigurationException">The catalog has no payload serializer.</exception>
     /// <exception cref="LuiIndexNotFoundException">The index was dropped.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     public int UpsertMany(
@@ -88,7 +82,6 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        RequireSerializer();
         try
         {
             return _index.UpsertMany(Convert(entries), transaction, cancellationToken);
@@ -107,7 +100,6 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     /// <param name="options">The options of the sync; <see langword="null"/> for the defaults.</param>
     /// <param name="cancellationToken">Checked between the batches.</param>
     /// <returns>What was read, added, changed, unchanged and removed.</returns>
-    /// <exception cref="LuiConfigurationException">The catalog has no payload serializer.</exception>
     /// <exception cref="LuiIndexNotFoundException">The index was dropped.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     public LuiSyncReport Sync(
@@ -116,7 +108,6 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(entries);
-        RequireSerializer();
         try
         {
             return _index.Sync(Convert(entries), options, cancellationToken);
@@ -135,7 +126,6 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     /// <param name="options">The options of the sync; <see langword="null"/> for the defaults.</param>
     /// <param name="cancellationToken">Checked between the entries.</param>
     /// <returns>The same report as <c>Sync(IEnumerable&lt;…&gt;)</c> gives for the same entries.</returns>
-    /// <exception cref="LuiConfigurationException">The catalog has no payload serializer.</exception>
     /// <exception cref="LuiIndexNotFoundException">The index was dropped.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     public LuiSyncReport Sync(
@@ -235,17 +225,6 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
         catch (Exception exception) when (IsDropped(exception))
         {
             throw Dropped();
-        }
-    }
-
-    /// <summary>A payload is written with the serializer of the catalog (until issue #260): without one, no write can succeed — the failure names the index, before anything is written.</summary>
-    private void RequireSerializer()
-    {
-        if (_serializer is null)
-        {
-            throw new LuiConfigurationException(
-                $"The index definition '{Name}' has a payload of type {typeof(TPayload).Name}, and the catalog has no payload serializer: "
-                + "set LuiCatalogOptions.PayloadSerializer (LuiPayloadSerializer.Json(context)).");
         }
     }
 

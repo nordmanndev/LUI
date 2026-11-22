@@ -168,10 +168,10 @@ public sealed class PayloadFingerprintTests
         catalog.Create(PlainOther);
 
         var chips = Definition(database, "chips");
-        chips.ShouldContain("\"payloadType\":\"Nordmann.LUI.Testing.Chip\"");
+        chips.ShouldContain("\"payloadTypeName\":\"Nordmann.LUI.Testing.Chip\"");
         chips.ShouldContain("\"payloadFormat\":\"json-strict-v1\"");
         var plain = Definition(database, "plain_other");
-        plain.ShouldNotContain("payloadType");
+        plain.ShouldNotContain("payloadTypeName");
         plain.ShouldNotContain("payloadFormat");
     }
 
@@ -208,7 +208,7 @@ public sealed class PayloadFingerprintTests
         foreach (var exception in new[] { created, opened })
         {
             exception.IndexName.ShouldBe("chips");
-            exception.ShouldDifferIn("payloadType");
+            exception.ShouldDifferIn("payloadTypeName");
             exception.Message.ShouldContain("stored 'Nordmann.LUI.Testing.Chip', declared 'Nordmann.LUI.Testing.RecipeCard'");
             exception.Message.ShouldNotContain("LuiPayloadName", Case.Sensitive, "the namespaces are not the only difference");
         }
@@ -241,7 +241,7 @@ public sealed class PayloadFingerprintTests
         var renamed = catalog.Create(new LuiIndexDefinition<long, NewRecipe>("recipes", index => index.SingleWord()));
 
         renamed.Count().ShouldBe(1);
-        Definition(database, "recipes").ShouldContain("\"payloadType\":\"recipe\"");
+        Definition(database, "recipes").ShouldContain("\"payloadTypeName\":\"recipe\"");
         catalog.Index("recipes").Search("kuchen").Hits.ShouldHaveSingleItem().GetPayload<NewRecipe>().ShouldBe(new NewRecipe("cake"));
     }
 
@@ -288,14 +288,14 @@ public sealed class PayloadFingerprintTests
         foreach (var exception in new[] { withoutPayload, createdWithout })
         {
             exception.IndexName.ShouldBe("chips");
-            exception.ShouldDifferIn("payloadType");
+            exception.ShouldDifferIn("payloadTypeName");
             exception.Message.ShouldContain("LuiIndexDefinition<TKey, TPayload>");
         }
 
         foreach (var exception in new[] { withPayload, createdWith })
         {
             exception.IndexName.ShouldBe("plain_other");
-            exception.ShouldDifferIn("payloadType");
+            exception.ShouldDifferIn("payloadTypeName");
             exception.Message.ShouldContain("LuiIndexDefinition<TKey>");
         }
     }
@@ -335,7 +335,7 @@ public sealed class PayloadFingerprintTests
         var handle = catalog.Create(linked);
         handle.Sync().Indexed.ShouldBe(1);
 
-        Definition(database, "linked_chips").ShouldNotContain("payloadType");
+        Definition(database, "linked_chips").ShouldNotContain("payloadTypeName");
         Definition(database, "linked_chips").ShouldNotContain("payloadFormat");
         catalog.LinkedIndex("linked_chips", row => new Chip(row.GetString("slug"))).Search("vegan").Hits
             .ShouldHaveSingleItem().GetPayload<Chip>().ShouldBe(new Chip("v"));

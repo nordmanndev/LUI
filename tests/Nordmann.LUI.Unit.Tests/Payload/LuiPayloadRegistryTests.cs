@@ -139,11 +139,11 @@ public sealed class LuiPayloadRegistryTests
 
         _ = registry.Use(new LinesSerializer());
         _ = registry.Use(ChipJsonContext.Default);
-        _ = registry.Use<int>(new IntSerializer());
+        _ = registry.Use(new UnlistedSerializer());
 
         frozen.Resolve<Chip>("chips").Format.ShouldBe("json-strict-v1", "the explicit registration after the freeze is not seen");
-        Should.Throw<LuiConfigurationException>(() => frozen.Resolve<int>("numbers"), "a type registered after the freeze is not known to it");
-        registry.Freeze().Resolve<int>("numbers").Format.ShouldBe("int-v1", "a registry that is frozen again is another copy");
+        Should.Throw<LuiConfigurationException>(() => frozen.Resolve<Unlisted>("unlisted"), "a type registered after the freeze is not known to it");
+        registry.Freeze().Resolve<Unlisted>("unlisted").Format.ShouldBe("unlisted-v1", "a registry that is frozen again is another copy");
     }
 
     [Fact]
@@ -203,13 +203,16 @@ public sealed class LuiPayloadRegistryTests
         }
     }
 
-    private sealed class IntSerializer : ILuiPayloadSerializer<int>
+    /// <summary>A payload that no context of the tests lists (a context also knows the types its listed types are made of).</summary>
+    private sealed record Unlisted(int Value);
+
+    private sealed class UnlistedSerializer : ILuiPayloadSerializer<Unlisted>
     {
-        public string Format => "int-v1";
+        public string Format => "unlisted-v1";
 
-        public byte[] Serialize(int payload) => BitConverter.GetBytes(payload);
+        public byte[] Serialize(Unlisted payload) => BitConverter.GetBytes(payload.Value);
 
-        public int Deserialize(ReadOnlySpan<byte> bytes) => BitConverter.ToInt32(bytes);
+        public Unlisted Deserialize(ReadOnlySpan<byte> bytes) => new(BitConverter.ToInt32(bytes));
     }
 
     private sealed class NumberSerializer(int version) : ILuiPayloadSerializer<long>

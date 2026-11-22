@@ -182,8 +182,8 @@ public sealed class TypedPayloadHandleTests
         using var catalog = database.Open(Registered());
         catalog.Create(Chips);
 
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(PlainChips)).ShouldDifferIn("payloadType");
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(PlainChips)).ShouldDifferIn("payloadType");
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(PlainChips)).ShouldDifferIn("payloadTypeName");
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(PlainChips)).ShouldDifferIn("payloadTypeName");
         catalog.Index(Chips).Name.ShouldBe("chips");
     }
 

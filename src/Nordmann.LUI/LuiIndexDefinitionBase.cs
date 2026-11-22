@@ -1,3 +1,4 @@
+using Nordmann.LUI.Querying;
 using Nordmann.LUI.Schema;
 
 namespace Nordmann.LUI;
@@ -65,6 +66,17 @@ public abstract class LuiIndexDefinitionBase
         PayloadType is null
             ? $"{Name} ({SourceText(Source)}, {KeyTypes.Display(KeyType)})"
             : $"{Name} ({SourceText(Source)}, {KeyTypes.Display(KeyType)}, {PayloadType.Name})";
+
+    /// <summary>
+    /// The serializer that the registry of a catalog holds for the payload type of an <b>embedded</b> definition with a payload
+    /// (ADR-0072) — the one place that knows the type argument, so the catalog can ask a definition typed as the base class. Nothing for
+    /// every other definition: an index without a payload has no serializer, and a linked one builds its payload by its map.
+    /// </summary>
+    /// <param name="registry">The registry of the catalog, frozen when it was opened.</param>
+    /// <param name="indexName">The validated name of the index, for the message of an error.</param>
+    /// <returns>The codec; <see langword="null"/> when the definition has no payload that a registry serializes.</returns>
+    /// <exception cref="LuiConfigurationException">The registry does not know the type, or two contexts do.</exception>
+    internal virtual PayloadCodec? ResolveCodec(FrozenPayloadRegistry registry, string indexName) => null;
 
     /// <summary>The definition after its first use: the validated name, the description and the key type. Runs once.</summary>
     /// <returns>What the catalog creates from.</returns>

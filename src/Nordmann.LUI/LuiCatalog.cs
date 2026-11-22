@@ -38,6 +38,10 @@ public sealed class LuiCatalog : IDisposable
 
     private readonly LuiCatalogOptions _options;
 
+    // The registry of the payload types, as it was when the catalog was opened (ADR-0072): a copy, so that a later call on the registry
+    // the application holds changes nothing; null when the catalog has none
+    private readonly FrozenPayloadRegistry? _payloads;
+
     /// <summary>The primary result code of SQLite for a file that cannot be opened (<c>SQLITE_CANTOPEN</c>).</summary>
     private const int SqliteCannotOpen = 14;
 
@@ -54,12 +58,19 @@ public sealed class LuiCatalog : IDisposable
     private readonly List<WeakReference<IndexGuard>> _guards = [];
     private int _pruneAt = 64;
 
-    private LuiCatalog(string path, SqliteOpenMode mode, bool createdTheFile, LuiCatalogOptions options)
+    private LuiCatalog(string path, SqliteOpenMode mode, bool createdTheFile, LuiCatalogOptions options, FrozenPayloadRegistry? payloads)
     {
         _options = options;
+        _payloads = payloads;
+
+        // the serialisation of the indexes that have no declared payload type — the old calls, and the read path by name: the
+        // registry resolves the type the caller asks for, or the serialiser of the old calls does (ADR-0072, until #268)
+        PayloadSerialization = payloads is not null
+            ? new RegistryPayloadSerialization(payloads)
+            : options.PayloadSerializer is { } serializer ? new LegacyPayloadSerialization(serializer) : PayloadSerialization.None;
         Database = new Database(this, path, mode, createdTheFile, options);
         StoredIndexes = new StoredIndexes(Database);
-        Runtimes = new IndexRuntimes(Database, TypoDictionaries, options.PayloadSerializer, StoredIndexes);
+        Runtimes = new IndexRuntimes(Database, TypoDictionaries, PayloadSerialization, StoredIndexes);
     }
 
     /// <summary>The path of the file the catalog was opened with (ADR-0066).</summary>
@@ -67,8 +78,14 @@ public sealed class LuiCatalog : IDisposable
 
     internal TimeProvider TimeProvider => _options.TimeProvider;
 
-    /// <summary>The serialiser of the payloads (ADR-0035); <see langword="null"/> when the indexes store none.</summary>
-    internal ILuiPayloadSerializer? PayloadSerializer => _options.PayloadSerializer;
+    /// <summary>
+    /// How the payloads of the indexes that have no declared payload type become bytes and back (ADR-0035, ADR-0072): the registry of
+    /// the catalog, or the serialiser of the old calls, or none.
+    /// </summary>
+    internal PayloadSerialization PayloadSerialization { get; }
+
+    /// <summary>How many payload types were looked up in the registry — the seam of the tests: once per type, however often it is used (ADR-0072).</summary>
+    internal int PayloadLookups => _payloads?.Lookups ?? 0;
 
     /// <summary>The database: the connections it hands out, the lock of the writes, the operations that are running.</summary>
     internal Database Database { get; }
@@ -173,13 +190,14 @@ public sealed class LuiCatalog : IDisposable
         var fullPath = ValidatePath(path);
         options ??= new LuiCatalogOptions();
         ValidatePragmas(options.Pragmas);
+        var payloads = FreezePayloads(options);
 
         EnsureSqliteVersion(LoadedSqliteVersion());
         FoldProbe.EnsureVerified();
 
         var createdTheFile = create && CreateTheFile(fullPath);
 
-        var catalog = new LuiCatalog(fullPath, mode, createdTheFile, options);
+        var catalog = new LuiCatalog(fullPath, mode, createdTheFile, options, payloads);
         try
         {
             if (create)
@@ -371,6 +389,26 @@ public sealed class LuiCatalog : IDisposable
     }
 
     /// <summary>
+    /// The registry of the payload types is frozen when the catalog is opened (ADR-0072): the catalog works on a copy. Both ways to
+    /// serialize — the registry and the serialiser of the old calls — set at once are refused <b>before</b> a file is touched.
+    /// </summary>
+    /// <param name="options">The options of the catalog.</param>
+    /// <returns>The copy of the registry; <see langword="null"/> when there is none.</returns>
+    /// <exception cref="LuiConfigurationException">Both <see cref="LuiCatalogOptions.Payloads"/> and <see cref="LuiCatalogOptions.PayloadSerializer"/> are set.</exception>
+    private static FrozenPayloadRegistry? FreezePayloads(LuiCatalogOptions options)
+    {
+        if (options.Payloads is not null && options.PayloadSerializer is not null)
+        {
+            throw new LuiConfigurationException(
+                $"LuiCatalogOptions.{nameof(LuiCatalogOptions.Payloads)} and LuiCatalogOptions.{nameof(LuiCatalogOptions.PayloadSerializer)} are both set: "
+                + "a catalog has one way to serialize payloads. Register the payload types in the registry — "
+                + "Payloads = new LuiPayloadRegistry().Use(context) — and remove PayloadSerializer (the issue #268 removes it).");
+        }
+
+        return options.Payloads?.Freeze();
+    }
+
+    /// <summary>
     /// The bounds of the settings of the connections (ADR-0066): the busy timeout is one second to ten minutes, the
     /// synchronous is one of the two values of <see cref="LuiSynchronous"/>, and the cache size is 1 to 1024 megabytes.
     /// </summary>
@@ -511,14 +549,16 @@ public sealed class LuiCatalog : IDisposable
 
     /// <summary>
     /// Creates the index of a definition with a payload, or opens it if it exists with the same definition (ADR-0073). The
-    /// handle writes typed payloads, which the <see cref="LuiCatalogOptions.PayloadSerializer"/> of the catalog serializes;
-    /// everything else is as for <see cref="Create{TKey}(LuiIndexDefinition{TKey})"/>.
+    /// handle writes typed payloads, which the serializer that the <see cref="LuiCatalogOptions.Payloads"/> registry of the catalog
+    /// holds for <typeparamref name="TPayload"/> serializes; the type is looked up <b>before</b> anything is written, and the index
+    /// stores the name of the payload type and the format of that serializer (ADR-0072). Everything else is as for
+    /// <see cref="Create{TKey}(LuiIndexDefinition{TKey})"/>.
     /// </summary>
     /// <typeparam name="TKey">The type of the keys.</typeparam>
     /// <typeparam name="TPayload">The type of the payload.</typeparam>
     /// <param name="definition">The declaration of the index.</param>
     /// <returns>The handle of the index; it reads and writes.</returns>
-    /// <exception cref="LuiConfigurationException">The definition is not valid.</exception>
+    /// <exception cref="LuiConfigurationException">The definition is not valid, the catalog has no registry, or the registry does not know the payload type — or two contexts do.</exception>
     /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     public LuiEmbeddedIndex<TKey, TPayload> Create<TKey, TPayload>(LuiIndexDefinition<TKey, TPayload> definition)
@@ -568,15 +608,18 @@ public sealed class LuiCatalog : IDisposable
         ArgumentNullException.ThrowIfNull(definitions);
         Database.ThrowIfDisposed();
 
-        var resolved = new List<ResolvedIndex>(definitions.Length);
+        // every definition is resolved, and its serializer is found in the registry, before the first write: a definition that is not
+        // valid, or whose payload type is not registered, fails here with its name and nothing is created
+        var resolved = new List<(ResolvedIndex Index, IndexDefinition Declared)>(definitions.Length);
         foreach (var definition in definitions)
         {
             ArgumentNullException.ThrowIfNull(definition, nameof(definitions));
-            resolved.Add(definition.Resolve());
+            var index = definition.Resolve();
+            resolved.Add((index, DeclaredOf(definition, index, out _)));
         }
 
         var names = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var name in resolved.Select(index => index.Name).Where(name => !names.Add(name)))
+        foreach (var name in resolved.Select(index => index.Index.Name).Where(name => !names.Add(name)))
         {
             throw new ArgumentException($"The index '{name}' is declared twice: a name occurs once in a call of Create.", nameof(definitions));
         }
@@ -586,7 +629,7 @@ public sealed class LuiCatalog : IDisposable
             return;
         }
 
-        var sources = resolved.Select(index => PrepareCreate(index.Name, index.Description, index.KeyType)).ToArray();
+        var sources = resolved.Select(index => PrepareCreate(index.Index.Name, index.Index.Description, index.Declared)).ToArray();
         IndexStore.CreateAll(Database, [.. sources.Select(source => (source.Source, source.Verify))], TimeProvider.GetUtcNow());
         _ = StoredIndexes.Reload();
     }
@@ -623,13 +666,13 @@ public sealed class LuiCatalog : IDisposable
 
     /// <summary>
     /// Opens the index of a definition with a payload that exists, and writes nothing (ADR-0073); the stored definition is
-    /// compared with the declared one, as for a definition without payload.
+    /// compared with the declared one, as for a definition without payload — and the name of the payload type and the format of its serializer are two of the compared fields (ADR-0072).
     /// </summary>
     /// <typeparam name="TKey">The type of the keys.</typeparam>
     /// <typeparam name="TPayload">The type of the payload.</typeparam>
     /// <param name="definition">The declaration of the index.</param>
     /// <returns>The handle of the index; it reads, and it writes if the file allows it.</returns>
-    /// <exception cref="LuiConfigurationException">The definition is not valid.</exception>
+    /// <exception cref="LuiConfigurationException">The definition is not valid, the catalog has no registry, or the registry does not know the payload type — or two contexts do.</exception>
     /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
     /// <exception cref="LuiDefinitionMismatchException">The stored definition is another one; the message names the fields.</exception>
     public LuiEmbeddedIndex<TKey, TPayload> Index<TKey, TPayload>(LuiIndexDefinition<TKey, TPayload> definition)
@@ -637,7 +680,7 @@ public sealed class LuiCatalog : IDisposable
         where TPayload : notnull =>
         HandleOf(
             definition,
-            static (runtime, catalog) => new LuiEmbeddedIndex<TKey, TPayload>(catalog.Database, (EmbeddedIndex)runtime.Index, catalog.PayloadSerializer));
+            static (runtime, catalog) => new LuiEmbeddedIndex<TKey, TPayload>(catalog.Database, (EmbeddedIndex)runtime.Index));
 
     /// <summary>
     /// Opens the index of a linked definition with a payload that exists, and writes nothing (ADR-0073). The columns of the
@@ -797,7 +840,7 @@ public sealed class LuiCatalog : IDisposable
             Database,
             TypoDictionaries,
             source,
-            PayloadSerializer,
+            PayloadSerialization,
             similarity ?? source.Rules.DefaultSimilarity,
             typoDistance: entry.Definition.TypoDistance);
     }
@@ -875,7 +918,7 @@ public sealed class LuiCatalog : IDisposable
     {
         Database.ThrowIfDisposed();
         var resolved = definition.Resolve();
-        _ = CreateInFile(resolved.Name, resolved.Description, resolved.KeyType);
+        _ = CreateInFile(resolved.Name, resolved.Description, DeclaredOf(definition, resolved, out _));
     }
 
     /// <summary>Creates the index of a definition — every way of creating goes through here (ADR-0073).</summary>
@@ -885,7 +928,42 @@ public sealed class LuiCatalog : IDisposable
     {
         Database.ThrowIfDisposed();
         var resolved = definition.Resolve();
-        return CreateCore(resolved.Name, resolved.Description, resolved.KeyType);
+        return CreateCore(resolved.Name, resolved.Description, DeclaredOf(definition, resolved, out _));
+    }
+
+    /// <summary>
+    /// The definition as it is declared, in the form <c>lui_meta</c> stores it (ADR-0072): the description, the key type — and, for an
+    /// embedded definition with a payload, the <b>name of the payload type and the format</b> of the serializer that the registry of the
+    /// catalog holds for it. The serializer is looked up here, <b>before</b> anything is written or opened: a type that the registry does
+    /// not know (or that two contexts know) is a <see cref="LuiConfigurationException"/> that names the definition, and no index is
+    /// created for it. A linked definition, and an embedded one without a payload, store neither field and need no registry.
+    /// </summary>
+    /// <param name="definition">The declaration of the index.</param>
+    /// <param name="resolved">The definition after its first use.</param>
+    /// <param name="codec">The serializer of the payload type; <see langword="null"/> when the definition has none to find.</param>
+    /// <returns>The definition as it would be stored.</returns>
+    /// <exception cref="LuiConfigurationException">The catalog has no registry, the registry does not know the payload type, or two contexts do.</exception>
+    private IndexDefinition DeclaredOf(LuiIndexDefinitionBase definition, ResolvedIndex resolved, out PayloadCodec? codec)
+    {
+        codec = null;
+        if (definition.PayloadType is null || definition.Source != LuiIndexSource.Embedded)
+        {
+            return resolved.Description.ToStored(resolved.KeyType);
+        }
+
+        if (_payloads is null)
+        {
+            throw new LuiConfigurationException(
+                $"The index definition '{resolved.Name}' has the payload type '{definition.PayloadType.FullName}', and the catalog has no payload "
+                + "registry: set LuiCatalogOptions.Payloads = new LuiPayloadRegistry().Use(context), with the type listed in the JSON context "
+                + "([JsonSerializable]) or registered with Use<T>(serializer)."
+                + (_options.PayloadSerializer is null
+                    ? string.Empty
+                    : " LuiCatalogOptions.PayloadSerializer serves the old calls only (until #268): a payload type of a definition has no catch-all serializer."));
+        }
+
+        codec = definition.ResolveCodec(_payloads, resolved.Name);
+        return resolved.Description.ToStored(resolved.KeyType, codec is null ? null : new PayloadFingerprint(codec.TypeName, codec.Format));
     }
 
     /// <summary>
@@ -894,16 +972,16 @@ public sealed class LuiCatalog : IDisposable
     /// </summary>
     /// <param name="name">The validated name.</param>
     /// <param name="description">What the builder chain described.</param>
-    /// <param name="keyType">The stored name of the key type.</param>
+    /// <param name="declared">The definition as it is declared, in the form it is stored.</param>
     /// <returns>The index.</returns>
-    private IMaintainedIndex CreateCore(string name, IndexDescription description, string keyType)
+    private IMaintainedIndex CreateCore(string name, IndexDescription description, IndexDefinition declared)
     {
-        var source = CreateInFile(name, description, keyType);
+        var source = CreateInFile(name, description, declared);
 
         var similarity = description.Options.Similarity ?? source.Rules.DefaultSimilarity;
         if (source is EmbeddedSource embedded)
         {
-            return new EmbeddedIndex(Database, TypoDictionaries, embedded, PayloadSerializer, similarity, description.Options.TypoDistance);
+            return new EmbeddedIndex(Database, TypoDictionaries, embedded, PayloadSerialization, similarity, description.Options.TypoDistance);
         }
 
         var columns = description.Link?.PayloadColumns ?? [];
@@ -920,9 +998,9 @@ public sealed class LuiCatalog : IDisposable
     /// into memory.
     /// </summary>
     /// <returns>The source of the index.</returns>
-    private ContentSource CreateInFile(string name, IndexDescription description, string keyType)
+    private ContentSource CreateInFile(string name, IndexDescription description, IndexDefinition declared)
     {
-        var (source, verify) = PrepareCreate(name, description, keyType);
+        var (source, verify) = PrepareCreate(name, description, declared);
         IndexStore.Create(Database, source, TimeProvider.GetUtcNow(), verify);
         _ = StoredIndexes.Reload();
         return source;
@@ -932,9 +1010,8 @@ public sealed class LuiCatalog : IDisposable
     private static (ContentSource Source, Action<SqliteConnection, SqliteTransaction>? Verify) PrepareCreate(
         string name,
         IndexDescription description,
-        string keyType)
+        IndexDefinition definition)
     {
-        var definition = description.ToStored(keyType);
         if (description.Source == LuiIndexSource.Embedded)
         {
             return (new EmbeddedSource(name, definition), null);
@@ -992,10 +1069,14 @@ public sealed class LuiCatalog : IDisposable
             ResolvedIndex resolved;
             IndexStoreEntry entry;
             StoredIndexes.Snapshot snapshot;
+            PayloadCodec? codec;
             try
             {
                 resolved = definition.Resolve();
-                entry = FindStored(resolved.Name, resolved.Description.ToStored(resolved.KeyType), out snapshot);
+
+                // the serializer of the payload type is looked up here, once for the runtime that is built below (ADR-0072): an unregistered
+                // type is refused at this call, and the name and the format it stands for are compared with the stored ones
+                entry = FindStored(resolved.Name, DeclaredOf(definition, resolved, out codec), out snapshot);
             }
             catch
             {
@@ -1025,7 +1106,7 @@ public sealed class LuiCatalog : IDisposable
                     continue;
                 }
 
-                var runtime = Runtimes.Build(resolved, entry, snapshot.Counter);
+                var runtime = Runtimes.Build(resolved, entry, snapshot.Counter, codec);
                 var handle = make(runtime, this);
                 _handles.AddOrUpdate(definition, new HandleOfDefinition(handle, runtime.Guard));
                 Track(runtime.Guard);

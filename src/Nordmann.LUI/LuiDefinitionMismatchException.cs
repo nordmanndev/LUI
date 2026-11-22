@@ -42,12 +42,19 @@ public sealed class LuiDefinitionMismatchException : LuiException
     /// The stored definition and the declared one differ (ADR-0073): the message names the fields, and the way to change a
     /// definition — <c>DropIndex</c>, <c>Create</c>, refill — or a new name next to the old index.
     /// </summary>
-    internal LuiDefinitionMismatchException(string indexName, string stored, string requested, bool linked, IReadOnlyList<string> fields)
+    internal LuiDefinitionMismatchException(
+        string indexName,
+        string stored,
+        string requested,
+        bool linked,
+        IReadOnlyList<string> fields,
+        IReadOnlyList<string>? details = null)
         : base(
             $"The index '{indexName}' exists with another definition.{Environment.NewLine}"
             + $"  stored:    {stored}{Environment.NewLine}"
             + $"  requested: {requested}{Environment.NewLine}"
             + $"  differs in: {string.Join(", ", fields)}{Environment.NewLine}"
+            + string.Concat((details ?? []).Select(detail => $"    {detail}{Environment.NewLine}"))
             + "An index is never rebuilt silently, and LUI does not migrate a definition. To change it: "
             + (linked
                 ? "LuiCatalog.DropIndex(name, dropTriggers: true) — its triggers on the table go with it —, "

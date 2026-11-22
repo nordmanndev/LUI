@@ -30,10 +30,13 @@ public sealed class ThinHandleTests
     private static readonly LuiLinkedIndexDefinition<long, string> Slugs =
         new("slugs", index => index.SingleWord().LinkTo("tag", "id", "name").WithPayload(["slug"], row => row.GetString("slug")));
 
+    /// <summary>A payload type is registered (ADR-0072): the chips of the definition above, as JSON.</summary>
+    private static LuiCatalogOptions Registered() => new() { Payloads = new LuiPayloadRegistry().Use(ChipJsonContext.Default) };
+
     private static LuiCatalog CreateAll(TestDatabase database)
     {
         Run(database, Table);
-        var catalog = database.Open(new LuiCatalogOptions { Payloads = new LuiPayloadRegistry().Use(ChipJsonContext.Default) });
+        var catalog = database.Open(Registered());
         catalog.Create(Recipes, Chips, LinkedTags, Slugs);
         return catalog;
     }
@@ -94,7 +97,7 @@ public sealed class ThinHandleTests
             first.Index(Recipes).Upsert(1, "kuchen");
         }
 
-        using var catalog = LuiCatalog.Open(database.FilePath);
+        using var catalog = LuiCatalog.Open(database.FilePath, Registered());
         var commands = new CommandCounter();
         catalog.Database.CommandCounter = commands;
         var reads = catalog.StoredIndexes.Reloads;

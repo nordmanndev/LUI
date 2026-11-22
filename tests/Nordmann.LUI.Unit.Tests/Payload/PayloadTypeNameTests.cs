@@ -84,7 +84,7 @@ public sealed class PayloadTypeNameTests
         var second = Build(new Version(2, 5, 0, 0));
 
         first.Payload.Assembly.GetName().Version.ShouldNotBe(second.Payload.Assembly.GetName().Version);
-        first.Payload.AssemblyQualifiedName.ShouldNotBe(second.Payload.AssemblyQualifiedName, "the assembly-qualified names do differ");
+        string.Equals(first.Payload.AssemblyQualifiedName, second.Payload.AssemblyQualifiedName, StringComparison.Ordinal).ShouldBeFalse("the assembly-qualified names do differ");
 
         PayloadTypeName.Of(first.Payload).ShouldBe("Dyn.Recipes.Payload");
         PayloadTypeName.Of(second.Payload).ShouldBe(PayloadTypeName.Of(first.Payload));

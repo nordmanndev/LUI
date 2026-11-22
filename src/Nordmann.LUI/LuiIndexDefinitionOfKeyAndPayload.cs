@@ -1,4 +1,6 @@
 #pragma warning disable MA0048 // the generic form of a name that has a non-generic file: <Name>OfKeyAndPayload.cs (ADR-0073)
+using Nordmann.LUI.Querying;
+
 namespace Nordmann.LUI;
 
 /// <summary>
@@ -9,9 +11,13 @@ namespace Nordmann.LUI;
 ///     new("recipes", index =&gt; index.MultiWord().TypoTolerance());
 /// </code>
 /// <c>catalog.Create(SearchIndexes.Recipes)</c> and <c>catalog.Index(SearchIndexes.Recipes)</c> give a
-/// <see cref="LuiEmbeddedIndex{TKey, TPayload}"/>, both types inferred. The payload is written with the
-/// <see cref="LuiCatalogOptions.PayloadSerializer"/> of the catalog; a write on a catalog without one throws a
-/// <see cref="LuiConfigurationException"/>. The type of the payload is not part of the stored definition yet.
+/// <see cref="LuiEmbeddedIndex{TKey, TPayload}"/>, both types inferred. The payload is written with the serializer that the
+/// <see cref="LuiCatalogOptions.Payloads"/> registry of the catalog holds for <typeparamref name="TPayload"/> — a type that is not
+/// registered is a <see cref="LuiConfigurationException"/> when the index is created or opened — and the index stores the
+/// <b>name of the payload type</b> and the <b>format</b> of that serializer as compared fields (ADR-0072): another type, or the
+/// same type in another format, is a <see cref="LuiDefinitionMismatchException"/>. <b>Put <see cref="LuiPayloadNameAttribute"/> on
+/// the payload type</b>: without it the name is computed from the namespace and the class, and renaming either is a changed
+/// definition. An index stored with a payload type opens only with a definition that has one, and the other way round.
 /// </summary>
 /// <typeparam name="TKey">The type of the keys — <see cref="long"/>, <see cref="int"/>, <see cref="string"/> or <see cref="Guid"/> (ADR-0073).</typeparam>
 /// <typeparam name="TPayload">The type of the payload: what every entry of the index carries.</typeparam>
@@ -34,5 +40,7 @@ public sealed class LuiIndexDefinition<TKey, TPayload> : LuiIndexDefinitionBase
             typeof(TPayload))
     {
     }
+
+    internal override PayloadCodec? ResolveCodec(FrozenPayloadRegistry registry, string indexName) => registry.Resolve<TPayload>(indexName);
 }
 #pragma warning restore MA0048
