@@ -368,4 +368,24 @@ public sealed class LinkedTriggerTests
         Should.Throw<LuiDefinitionMismatchException>(() => tags.CreateTriggers()).IndexName.ShouldBe("tags");
         StoredTriggers(database).ShouldBeEmpty();
     }
+
+    [Fact]
+    public void CreateTriggers_on_a_read_only_catalog_does_nothing_when_current_and_is_refused_when_it_would_write()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using (var writer = database.Open())
+        {
+            writer.Create(LinkedTags).CreateTriggers();
+        }
+
+        using var reader = LuiCatalog.OpenReadOnly(database.FilePath);
+        var tags = reader.Index(LinkedTags);
+        tags.Triggers().ShouldBe(LuiTriggerState.Current);
+        Should.NotThrow(() => tags.CreateTriggers());   // there is nothing to write
+
+        Run(database, "DROP TRIGGER lui_tags_ad;");
+        tags.Triggers().ShouldBe(LuiTriggerState.Stale);
+        Should.Throw<LuiReadOnlyException>(() => tags.CreateTriggers());
+    }
 }
