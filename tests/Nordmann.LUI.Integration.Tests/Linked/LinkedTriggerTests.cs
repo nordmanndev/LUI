@@ -35,7 +35,7 @@ public sealed class LinkedTriggerTests
         var tags = Tags(catalog);
 
         tags.CreateTriggers();
-        tags.CreateTriggers();   // a second call replaces them
+        tags.CreateTriggers();   // a second call finds them current and leaves them (#272)
 
         Run(database, "INSERT INTO tag(id, name, usage_count) VALUES (1, 'vegan', 5), (2, 'kuchen', 3);");
         tags.Pending().ShouldBe(2);
@@ -204,5 +204,168 @@ public sealed class LinkedTriggerTests
         tags.Pending().ShouldBe(2);
         tags.ApplyPending().ShouldBe(2);
         tags.Search("vegan").Hits.ShouldHaveSingleItem();
+    }
+
+    // ---- the triggers are a state, and CreateTriggers() brings it about (#272, ADR-0077) -----------------------------
+
+    private static readonly LuiLinkedIndexDefinition<long> LinkedTags =
+        new("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
+
+    private const string TriggerSql = "SELECT name, sql FROM sqlite_master WHERE type = 'trigger' ORDER BY name;";
+
+    private static List<(string Name, string Sql)> StoredTriggers(TestDatabase database)
+    {
+        using var connection = database.Connect();
+        using var command = connection.CreateCommand();
+        command.CommandText = TriggerSql;
+        using var reader = command.ExecuteReader();
+        var triggers = new List<(string, string)>();
+        while (reader.Read())
+        {
+            triggers.Add((reader.GetString(0), reader.GetString(1)));
+        }
+
+        return triggers;
+    }
+
+    [Fact]
+    public void CreateTriggers_creates_on_None()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = catalog.Create(LinkedTags);
+        tags.Triggers().ShouldBe(LuiTriggerState.None);
+
+        tags.CreateTriggers();
+
+        tags.Triggers().ShouldBe(LuiTriggerState.Current);
+        StoredTriggers(database).Select(trigger => trigger.Name).ShouldBe(["lui_tags_ad", "lui_tags_ai", "lui_tags_au"]);
+    }
+
+    [Fact]
+    public void CreateTriggers_replaces_on_Stale()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = catalog.Create(LinkedTags);
+        tags.CreateTriggers();
+
+        // two ways to be stale: one trigger missing, and one trigger with a body the index no longer writes
+        Run(database, "DROP TRIGGER lui_tags_ad;");
+        tags.Triggers().ShouldBe(LuiTriggerState.Stale);
+        tags.CreateTriggers();
+        tags.Triggers().ShouldBe(LuiTriggerState.Current);
+        StoredTriggers(database).Count.ShouldBe(3);
+
+        Run(database, "DROP TRIGGER lui_tags_ai; CREATE TRIGGER lui_tags_ai AFTER INSERT ON tag BEGIN SELECT 1; END;");
+        tags.Triggers().ShouldBe(LuiTriggerState.Stale);
+        tags.CreateTriggers();
+        tags.Triggers().ShouldBe(LuiTriggerState.Current);
+        StoredTriggers(database).Single(trigger => string.Equals(trigger.Name, "lui_tags_ai", StringComparison.Ordinal)).Sql.ShouldContain("lui_tags_pending");
+    }
+
+    [Fact]
+    public void CreateTriggers_does_nothing_on_Current()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = catalog.Create(LinkedTags);
+
+        // triggers that the application installed with its own white space are current (SqlText.Same): a second creation must leave
+        // exactly them in place — it neither throws nor drops and creates them anew
+        Run(database, tags.TriggerScript().Replace(" ", "  ", StringComparison.Ordinal));
+        tags.Triggers().ShouldBe(LuiTriggerState.Current);
+        var before = StoredTriggers(database);
+        var counter = database.Scalar<long>("PRAGMA schema_version");
+
+        tags.CreateTriggers();
+        tags.CreateTriggers();
+
+        StoredTriggers(database).ShouldBe(before, "the triggers are the ones of the application, byte for byte");
+        database.Scalar<long>("PRAGMA schema_version").ShouldBe(counter, "no DDL ran: the schema counter did not move");
+        tags.Triggers().ShouldBe(LuiTriggerState.Current);
+    }
+
+    [Fact]
+    public void CreateTriggers_never_throws_because_the_triggers_exist()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        var tags = catalog.Create(LinkedTags);
+
+        for (var call = 0; call < 3; call++)
+        {
+            tags.CreateTriggers();
+        }
+
+        tags.Triggers().ShouldBe(LuiTriggerState.Current);
+        StoredTriggers(database).Count.ShouldBe(3);
+    }
+
+    [Fact]
+    public void Create_of_a_linked_index_installs_no_triggers()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "vegan", 5), (2, "kuchen", 3));
+        using var catalog = database.Open();
+
+        var tags = catalog.Create(LinkedTags);
+        _ = catalog.Create(LinkedTags);   // and opening it again installs none either
+
+        StoredTriggers(database).ShouldBeEmpty();
+        tags.Triggers().ShouldBe(LuiTriggerState.None);
+        tags.Count().ShouldBe(0, "Create syncs nothing");
+        tags.Pending().ShouldBe(0);
+    }
+
+    [Fact]
+    public void Create_of_a_linked_index_over_a_missing_table_names_the_index_and_creates_nothing()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+
+        var exception = Should.Throw<LuiLinkedTableException>(() => catalog.Create(LinkedTags));
+
+        exception.Message.ShouldContain("'tags'");
+        exception.Message.ShouldContain("tag");
+        database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(0);
+        database.Scalar<long>("SELECT count(*) FROM sqlite_master WHERE name = 'lui_tags'").ShouldBe(0);
+    }
+
+    [Fact]
+    public void CreateTriggers_goes_through_the_guard_of_the_handle()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        using var other = database.Open();
+        var tags = catalog.Create(LinkedTags);
+
+        // another process drops the index: the handle fails with the exception of the guard, and installs nothing
+        other.DropIndex("tags").ShouldBeTrue();
+
+        Should.Throw<LuiIndexNotFoundException>(() => tags.CreateTriggers()).IndexName.ShouldBe("tags");
+        StoredTriggers(database).ShouldBeEmpty();
+    }
+
+    [Fact]
+    public void CreateTriggers_of_an_index_that_was_created_again_with_another_definition_is_a_mismatch()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        using var catalog = database.Open();
+        using var other = database.Open();
+        var tags = catalog.Create(LinkedTags);
+        other.DropIndex("tags").ShouldBeTrue();
+        _ = other.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", "slug")));
+
+        // the drop and the create happened before the handle's next operation: it sees another definition, not a quiet success
+        Should.Throw<LuiDefinitionMismatchException>(() => tags.CreateTriggers()).IndexName.ShouldBe("tags");
+        StoredTriggers(database).ShouldBeEmpty();
     }
 }
