@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using Nordmann.LUI.Schema;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Text.Json.Serialization.Metadata;
@@ -56,6 +57,11 @@ internal sealed class FrozenPayloadRegistry
     {
         _ = Interlocked.Increment(ref _lookups);
         var type = typeof(TPayload);
+        if (PayloadTypeName.NotASingleType(type) is { } reason)
+        {
+            return new Resolution(null, reason);
+        }
+
         if (_serializers.TryGetValue(type, out var registered))
         {
             return new Resolution(registered, null);
@@ -64,9 +70,17 @@ internal sealed class FrozenPayloadRegistry
         List<(JsonSerializerContext Context, JsonTypeInfo<TPayload> Info)> known = [];
         foreach (var (context, options) in _contexts)
         {
-            if (LuiPayloadSerializer.TypeInfoOf<TPayload>(options) is { } info)
+            try
             {
-                known.Add((context, info));
+                if (LuiPayloadSerializer.TypeInfoOf<TPayload>(options) is { } info)
+                {
+                    known.Add((context, info));
+                }
+            }
+            catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException or ThreadAbortException))
+            {
+                // metadata that cannot be built is a failure of the configuration, kept like every other: a new exception on every use
+                return new Resolution(null, $"the JSON context '{context.GetType().FullName}' failed to describe the payload type '{type.FullName}': {exception.Message}");
             }
         }
 

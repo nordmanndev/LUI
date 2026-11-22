@@ -52,7 +52,8 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   — without assembly name or version (`MyApp.Envelope<MyApp.Tag>`, `Outer+Inner`, `MyApp.Tag[]`): **put the attribute on every payload type**,
   because renaming the class or its namespace is otherwise a changed definition (drop and fill again). An index stored with a payload type opens
   only with a `LuiIndexDefinition<TKey, TPayload>`, and one stored without only with a `LuiIndexDefinition<TKey>`. A linked index stores neither
-  field and needs no registry entry. Two different types with the same name look the same to LUI.
+  field and needs no registry entry. Two different types with the same name look the same to LUI. A payload type is one concrete type:
+  `object`, an interface and an abstract class are a `LuiConfigurationException` (an index of one would be a catch-all).
 
 - **The key types `int`, `string` and `Guid`** ([ADR-0073](.agents/adr/0073-the-index-definition-and-the-typed-handles.md), #270): a definition
   takes `long`, `int`, `string` or `Guid` as its first type argument — `LuiIndexDefinition<Guid>`, `LuiLinkedIndexDefinition<int>` — and

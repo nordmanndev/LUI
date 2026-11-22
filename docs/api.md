@@ -766,7 +766,10 @@ var options = new LuiCatalogOptions
   both contexts — the order of the `Use` calls never decides;
 - there is no way to register one serializer for every type.
 
-A context also knows the types its listed types are made of (`int`, `string`): they need no entry of their own.
+A context also knows the types its listed types are made of (`int`, `string`): they need no entry of their own. **A payload type is
+one concrete type**: `object`, an interface and an abstract class are refused — a `LuiConfigurationException` naming the definition at
+`Create`/`Index` (embedded and linked), and at `Use<TPayload>` — because an index of one would hold the payloads of any type. Declare a
+sealed class or record, or a sealed envelope that holds the variants.
 
 ### `LuiPayloadSerializer`
 
@@ -840,7 +843,8 @@ registration knows, that two contexts know, a catalog without a registry — thr
 definition, before anything is written —, both `Payloads` and `PayloadSerializer` set (when the catalog is opened), a type registered
 twice. `LuiPayloadException` stays for a payload that cannot be read. On the old read path (`catalog.Index(name)` and
 `hit.GetPayload<T>()`) `T` is resolved through the registry when `Payloads` is set; with a registry there is no untyped payload — an
-entry of an index without a declared payload type cannot carry one.
+entry of an index without a declared payload type cannot carry one, and an index that was opened by name and stores a payload type and
+a format refuses every payload write (write through `Index(definition)`).
 
 ### `LuiPayloadRow`
 

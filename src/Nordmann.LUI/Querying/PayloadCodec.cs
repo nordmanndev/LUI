@@ -25,6 +25,11 @@ internal sealed class PayloadCodec<TPayload> : PayloadCodec
     /// <exception cref="LuiConfigurationException">The serializer has no format, or the attribute of the type gives no name.</exception>
     internal PayloadCodec(ILuiPayloadSerializer<TPayload> serializer)
     {
+        if (PayloadTypeName.NotASingleType(typeof(TPayload)) is { } reason)
+        {
+            throw new LuiConfigurationException($"A serializer cannot be registered: {reason}");
+        }
+
         var format = serializer.Format;
         if (string.IsNullOrWhiteSpace(format))
         {

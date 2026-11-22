@@ -840,7 +840,9 @@ public sealed class LuiCatalog : IDisposable
             Database,
             TypoDictionaries,
             source,
-            PayloadSerialization,
+            entry.Definition is { PayloadTypeName: { } storedType, PayloadFormat: { } storedFormat }
+                ? new StoredFormatPayloadSerialization(PayloadSerialization, storedType, storedFormat)
+                : PayloadSerialization,
             similarity ?? source.Rules.DefaultSimilarity,
             typoDistance: entry.Definition.TypoDistance);
     }

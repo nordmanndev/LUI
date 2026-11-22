@@ -12,7 +12,7 @@
   - `src/Nordmann.LUI/LuiPayloadRegistry.cs`, `src/Nordmann.LUI/ILuiPayloadSerializerOfPayload.cs`, `src/Nordmann.LUI/LuiPayloadNameAttribute.cs` — the registry, the generic serializer, the attribute
   - `src/Nordmann.LUI/LuiPayloadSerializer.cs`, `src/Nordmann.LUI/LuiCatalogOptions.cs` — `Json<TPayload>(context)` with the format `json-strict-v1`; `Payloads`
   - `src/Nordmann.LUI/Schema/PayloadTypeName.cs`, `src/Nordmann.LUI/Schema/PayloadFingerprint.cs`, `src/Nordmann.LUI/Schema/IndexDefinition.cs`, `src/Nordmann.LUI/Schema/IndexDescription.cs` — the stable name, the two stored fields
-  - `src/Nordmann.LUI/Querying/FrozenPayloadRegistry.cs`, `PayloadCodec.cs`, `PayloadSerialization.cs`, `LegacyPayloadSerialization.cs`, `RegistryPayloadSerialization.cs`, `PayloadSource.cs`, `SerializedPayload.cs` — the frozen copy, the codec of a type, the three ways to serialize
+  - `src/Nordmann.LUI/Querying/FrozenPayloadRegistry.cs`, `PayloadCodec.cs`, `PayloadSerialization.cs`, `LegacyPayloadSerialization.cs`, `RegistryPayloadSerialization.cs`, `StoredFormatPayloadSerialization.cs`, `PayloadSource.cs`, `SerializedPayload.cs` — the frozen copy, the codec of a type, the three ways to serialize
   - `src/Nordmann.LUI/LuiCatalog.cs`, `src/Nordmann.LUI/LuiIndexDefinitionBase.cs`, `src/Nordmann.LUI/LuiIndexDefinitionOfKeyAndPayload.cs`, `src/Nordmann.LUI/LuiEmbeddedIndexOfKeyAndPayload.cs` — the lookup at `Create` and `Index`, once per runtime
   - `src/Nordmann.LUI/Indexes/IndexStore.cs`, `src/Nordmann.LUI/LuiDefinitionMismatchException.cs`, `src/Nordmann.LUI/Indexes/IndexRuntimes.cs`, `src/Nordmann.LUI/Indexes/EmbeddedIndex.cs` — the comparison and the message, the codec in the runtime
   - `docs/api.md`, `docs/testing.md`, `CHANGELOG.md`, `.agents/adr/README.md`, `.agents/adr/0035-the-index-knows-no-types.md`
@@ -89,6 +89,19 @@ payload, there is no untyped payload, and a configuration error is not a payload
     through `PayloadSerializer` otherwise. With a registry there is **no untyped payload**: an entry of an index without a declared payload
     type cannot carry one (`LuiConfigurationException`). The read path by name does not compare the fingerprint — it names no type; the
     format of the registry's serializer for `T` is what reads the bytes.
+
+11. **A payload type is one concrete type.** `object`, an interface and an abstract class stand for many types, so an index of one would hold
+    the payloads of any type — the untyped payload under another name (a source-generated context answers for `System.Object` whatever it
+    lists, so the registry alone would let it through). `LuiIndexDefinition<TKey, TPayload>` and `LuiLinkedIndexDefinition<TKey, TPayload>`
+    with such a `TPayload` are a `LuiConfigurationException` naming the definition at the first `Create`/`Index`, and `Use<TPayload>` with one
+    is refused at the registration — also an explicit serializer for `object`: it would be the catch-all registered by hand. The rule is
+    about the declared type, not about what a value is: a sealed envelope that holds the variants is a concrete type and is fine. Arrays,
+    structs, enums and sealed or open (non-abstract) classes are allowed.
+12. **An index that stores a fingerprint is written only through its definition.** An index opened by name (`catalog.Index(name)`) whose stored
+    definition holds a payload type name and a format reads as the catalog reads, and **refuses every write of a payload** with a
+    `LuiConfigurationException` that says to write through `catalog.Index(definition)` — neither the serializer of the old calls nor the
+    registry by runtime type puts bytes of another format into it (§9). A failure of a context to describe a type is kept as a record like
+    every other and thrown anew, naming the definition.
 
 ## Alternatives
 

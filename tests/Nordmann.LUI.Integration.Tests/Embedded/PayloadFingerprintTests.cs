@@ -476,13 +476,14 @@ public sealed class PayloadFingerprintTests
         foreach (var catalog in new[] { legacy, registry })
         {
             var chips = catalog.Index("chips");
+            var before = chips.Count();
             var exception = Should.Throw<LuiConfigurationException>(() => chips.Upsert(new LuiEntry(2, "vegane") { Payload = new Chip("two") }));
 
             exception.Message.ShouldContain("'chips'", Case.Sensitive);
             exception.Message.ShouldContain("Index(definition)");
             exception.Message.ShouldContain("lines-v1");
             exception.Message.ShouldNotContain("no declared payload type");
-            chips.Count().ShouldBe(1, "nothing was written");
+            chips.Count().ShouldBe(before, "nothing was written");
             Should.NotThrow(() => chips.Upsert(3, "ohne"), "an entry without a payload needs no serializer");
         }
     }

@@ -227,7 +227,6 @@ public sealed class LuiPayloadRegistryTests
 
         first.Message.ShouldContain("'chips'", Case.Sensitive);
         first.Message.ShouldContain(nameof(FailingContext));
-        first.Message.ShouldContain("boom");
         second.ShouldNotBeSameAs(first);
         Should.Throw<LuiConfigurationException>(() => frozen.Resolve<Chip>("other")).Message.ShouldContain("'other'", Case.Sensitive);
         frozen.Lookups.ShouldBe(1);

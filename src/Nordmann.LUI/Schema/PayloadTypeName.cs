@@ -31,6 +31,23 @@ internal static class PayloadTypeName
         return builder.ToString();
     }
 
+    /// <summary>
+    /// Why a type cannot be the payload type of an index (ADR-0072): <see cref="object"/>, an interface and an abstract class stand for
+    /// <b>many</b> types, so an index of one would hold the payloads of any type — the untyped payload that has no place. A source-generated
+    /// context answers for <see cref="object"/> whatever it lists, so the registry cannot be left to refuse it.
+    /// </summary>
+    /// <param name="type">The type.</param>
+    /// <returns>The reason, or <see langword="null"/> when the type is one concrete type.</returns>
+    internal static string? NotASingleType(Type type)
+    {
+        var kind = type == typeof(object) ? "object" : type.IsInterface ? "an interface" : type.IsAbstract && !type.IsArray ? "an abstract class" : null;
+        return kind is null
+            ? null
+            : $"the payload type '{type.FullName}' is {kind}, not one single type: an index stores the payloads of exactly one concrete type, "
+              + "and a type that stands for many is a catch-all serializer under another name. Declare the concrete type (a sealed class or record, "
+              + "or a sealed envelope that holds the variants) and register it with LuiPayloadRegistry.Use(context) or Use<TConcrete>(serializer).";
+    }
+
     private static void Append(StringBuilder builder, Type type)
     {
         if (type.IsArray)

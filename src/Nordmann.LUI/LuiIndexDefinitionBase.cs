@@ -38,7 +38,10 @@ public abstract class LuiIndexDefinitionBase
             {
                 try
                 {
-                    return (resolve(), null);
+                    var resolved = resolve();
+                    return payloadType is not null && PayloadTypeName.NotASingleType(payloadType) is { } reason
+                        ? throw new LuiConfigurationException($"The index definition '{name}' is not valid: {reason}")
+                        : (resolved, null);
                 }
                 catch (LuiConfigurationException exception)
                 {

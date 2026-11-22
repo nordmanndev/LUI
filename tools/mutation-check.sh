@@ -903,6 +903,24 @@ expect_caught "the-name-of-a-payload-type-carries-the-assembly-version" "${UNIT_
   "FullyQualifiedName~PayloadTypeNameTests" \
   "sed -i 's|_ = builder.Append(arity < 0 ? name : name\[..arity\]);|_ = builder.Append(arity < 0 ? name : name[..arity]).Append(type.Assembly.GetName().Version);|' src/Nordmann.LUI/Schema/PayloadTypeName.cs"
 
+# 35y. Object is a payload type (issue #260, review of pull request 288): a source-generated context answers for System.Object, and an index of
+#       object holds the payloads of any type — the catch-all that the registry refuses.
+expect_caught "object-is-a-payload-type" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~LuiPayloadRegistryTests.A_payload_type_that_is_no_single_type_is_refused_also_when_a_context_answers_for_it" \
+  "sed -i 's|type == typeof(object) ? \"object\"|type == typeof(void) ? \"object\"|' src/Nordmann.LUI/Schema/PayloadTypeName.cs"
+
+# 35z. The old write path by name ignores the fingerprint (issue #260, ADR-0072, review of pull request 288): the serializer of the old
+#       calls writes bytes of its own format into an index that stores another one.
+expect_caught "the-old-write-path-ignores-the-fingerprint" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~PayloadFingerprintTests.The_old_write_path_by_name_refuses_a_payload_for_an_index_that_stores_a_format" \
+  "sed -i 's|? new StoredFormatPayloadSerialization(PayloadSerialization, storedType, storedFormat)|? PayloadSerialization|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35za. A context that fails is cached as the exception it threw (issue #260, review of pull request 288): the same instance on every use, without
+#       the name of the definition.
+expect_caught "a-failing-context-is-cached-as-its-own-exception" "${UNIT_PROJECT}" \
+  "FullyQualifiedName~LuiPayloadRegistryTests.A_context_that_fails_is_kept_as_a_failure_and_thrown_anew_naming_the_definition" \
+  "sed -i 's|catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException or ThreadAbortException))|catch (LuiConfigurationException exception)|' src/Nordmann.LUI/Querying/FrozenPayloadRegistry.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
