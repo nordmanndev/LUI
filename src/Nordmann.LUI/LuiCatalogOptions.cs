@@ -48,7 +48,10 @@ public sealed record LuiCatalogOptions
     /// </summary>
     public ILuiPayloadSerializer? PayloadSerializer { get; init; }
 
-    /// <summary>The clock of the catalog (<c>created_at</c> in <c>lui_meta</c>). Default: <see cref="TimeProvider.System"/>.</summary>
+    /// <summary>
+    /// The clock of the catalog: <c>created_at</c> in <c>lui_meta</c>, and the lease of a linked sync (ADR-0077) — its expiry is a point in
+    /// time in UTC, read from this clock. Default: <see cref="TimeProvider.System"/>.
+    /// </summary>
     public TimeProvider TimeProvider
     {
         get;

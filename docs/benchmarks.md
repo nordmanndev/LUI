@@ -771,7 +771,11 @@ have to reproduce — and the reason the decision could be made with numbers and
 
 ## The write lock of a linked sync (issue #31)
 
-The sync of a linked index is **one transaction**: it holds the write lock of the file for as long as it runs, and every
+> **Since 0.4.0 the sync of a linked index works in batches** ([ADR-0077](../.agents/adr/0077-the-state-of-a-linked-index.md), issue #271):
+> a transaction at a time, not one for the whole sync. This section is the measurement of **0.3.0** — the "before"; the numbers of the batched sync
+> (the total, `LongestLock`, the step of the merge) are measured once, in the session of #275, against `v0.3.0`.
+
+The sync of a linked index is **one transaction** (0.3.0): it holds the write lock of the file for as long as it runs, and every
 other writer of the file waits for it ([ADR-0016](../.agents/adr/0016-sync-check-rebuild.md)). The question of ADR-0016 is
 whether that wait is a problem worth a second write path — the shadow build. An application answers it, not a document: a
 writer of the application's table writes while the index syncs, and reports how long it waits.

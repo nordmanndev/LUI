@@ -21,20 +21,22 @@ public sealed class LuiLinkedIndex<TKey> : LuiIndex<TKey>
         : base(database, index) => _index = index;
 
     /// <summary>
-    /// Takes the whole table into the index. The options are accepted: the batches of a sync come with issue #271, and the
-    /// options take effect then.
+    /// Takes the whole table into the index, in batches (ADR-0077): <see cref="LuiSyncOptions.BatchSize"/> rows at a time, each in a transaction
+    /// of its own, with no clear at the start — <b>a linked sync is not atomic</b>, while it runs the index is partly old and partly new. What
+    /// the table no longer has is removed at the end by the generation of the sync, the search index is merged in steps, and the last step
+    /// clears <c>NeedsInitialSync</c>. One sync of an index runs at a time: a second one throws a <see cref="LuiSyncInProgressException"/>.
     /// </summary>
     /// <param name="options">The options of the sync; <see langword="null"/> for the defaults.</param>
-    /// <param name="cancellationToken">Checked while the table is read.</param>
-    /// <returns>How many rows were indexed, and how many were left out.</returns>
+    /// <param name="cancellationToken">Checked between the batches and the steps; a cancelled sync keeps the batches it committed.</param>
+    /// <returns>What was indexed, what was left out, and how the sync worked.</returns>
     /// <exception cref="LuiIndexNotFoundException">The index was dropped.</exception>
     /// <exception cref="LuiLinkedTableException">The table of the application is not what the link says.</exception>
+    /// <exception cref="LuiSyncInProgressException">Another sync of this index is running, or this one lost its lease.</exception>
     public LuiLinkedSyncReport Sync(LuiSyncOptions? options = null, CancellationToken cancellationToken = default)
     {
-        _ = options;
         try
         {
-            return _index.Sync(cancellationToken);
+            return _index.Sync(options, cancellationToken);
         }
         catch (Exception exception) when (IsDropped(exception))
         {

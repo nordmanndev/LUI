@@ -1,4 +1,4 @@
-# 0077 — The state of a linked index is a fact of the file: `NeedsInitialSync` is stored and read from the file, and `CreateTriggers()` is idempotent
+# 0077 — The state of a linked index is a fact of the file: `NeedsInitialSync` is stored and read from the file, `CreateTriggers()` is idempotent, and the linked sync works in batches under a lease
 
 - **Status:** Accepted (owner, 2026-11-20)
 - **Date:** 2026-11-22
@@ -9,14 +9,17 @@
   [0046](./0046-the-busy-timeout-is-the-wait-for-a-lock.md) (one writer at a time),
   [0071](./0071-the-freeze-comes-with-1-0-0.md) (a break before 1.0.0 needs a reason, a migration note and a record)
 - **Affects:**
-  - `src/Nordmann.LUI/Schema/Meta.cs` — the column `needs_initial_sync` of `lui_meta`
+  - `src/Nordmann.LUI/Schema/Meta.cs` — the columns `needs_initial_sync`, `sync_generation`, `sync_lease_owner` and `sync_lease_expires` of `lui_meta`
+  - `src/Nordmann.LUI/Indexes/LinkedSync.cs`, `src/Nordmann.LUI/Indexes/SyncLease.cs` (new, #271) — the sync in batches, the generation, the lease, the removal, the merge in steps
+  - `src/Nordmann.LUI/Schema/LinkedSource.cs` — `gen INTEGER NOT NULL` and its index on LUI's table of a linked index, the statements of a batch, of the removal and of a merge step
+  - `src/Nordmann.LUI/LuiSyncInProgressException.cs` (new, #271), `src/Nordmann.LUI/LuiLinkedSyncReport.cs` — `Batches`, `Removed`, `LongestLock`
   - `src/Nordmann.LUI/Indexes/IndexStore.cs` — the flag is written with a new row (1 for a linked index, 0 for an embedded one), read in a given snapshot and cleared in a given transaction
   - `src/Nordmann.LUI/Indexes/LinkedIndex.cs` — `NeedsInitialSync`, the flag cleared in the transaction of `Sync`, `CreateTriggers` as a state
   - `src/Nordmann.LUI/LuiLinkedIndexOfKey.cs`, `src/Nordmann.LUI/LuiLinkedIndexOfKeyAndPayload.cs`, `src/Nordmann.LUI/ILuiLinkedIndex.cs`, `src/Nordmann.LUI/LuiCatalog.cs` — the property and the words of the documentation
   - `tests/TestData/golden/embedded-schema.txt` — the golden DDL of `lui_meta`
   - `docs/api.md`, `docs/testing.md`, `CHANGELOG.md`, `.agents/adr/README.md`
   - `tests/Nordmann.LUI.Integration.Tests/Linked/LinkedStateTests.cs`, `tests/Nordmann.LUI.Integration.Tests/Linked/LinkedTriggerTests.cs`, `tests/Nordmann.LUI.Architecture.Tests/PublicApiShapeTests.cs`, `tools/mutation-check.sh` — the rules and the guards
-- **Issue:** [#272](https://github.com/nordmanndev/LUI/issues/272), part of the epic of 0.4.0 ([#258](https://github.com/nordmanndev/LUI/issues/258)); #271 adds the batched sync to this record
+- **Issues:** [#272](https://github.com/nordmanndev/LUI/issues/272) (the state), [#271](https://github.com/nordmanndev/LUI/issues/271) (the sync in batches, generation, merge, lease), part of the epic of 0.4.0 ([#258](https://github.com/nordmanndev/LUI/issues/258))
 
 ## Context
 
@@ -46,9 +49,9 @@ creation, and LUI does nothing on its own. An application — or the host of #26
 4. **A complete `Sync()` clears it, in the transaction that commits the sync.** The statement runs on the connection and in the transaction
    of the sync, after its last statement and inside the check of the guard that opened the write: the content and the flag commit together
    or not at all. A sync that is cancelled or fails rolls the transaction back and leaves the flag `true`. A sync of an empty table is
-   complete. Nothing else clears it — not a refresh, not the outbox, not `Check()`. Until #271 lands, "complete" means the single
-   transaction of today committed.
-   **The edge:** `Sync()` rebuilds a typo dictionary that is built *after* the commit of the index. A cancellation during that rebuild
+   complete. Nothing else clears it — not a refresh, not the outbox, not `Check()`. Since #271 "complete" means: every batch written, the
+   removal done and the merge finished — the flag is cleared **in the transaction of the last step of the merge** (decision 10).
+   **The edge:** `Sync()` rebuilds a typo dictionary that is built *after* the commit of its last step. A cancellation during that rebuild
    throws out of `Sync()` with the flag already `false` — the index itself is complete; the dictionary stays as it was until the next
    `Sync()` or `RebuildTypoDictionary()`. The flag says that the index was filled, not that the process of the caller ended without an exception.
 5. **`CreateTriggers()` is idempotent.** In one guarded write transaction it reads the state of the triggers and acts: `None` creates them,
@@ -60,6 +63,57 @@ creation, and LUI does nothing on its own. An application — or the host of #26
    `Sync()` clears the flag and its `CreateTriggers()` is idempotent — but a new abstract member of an interface is a break, and the
    interface goes away.
 
+7. **The linked sync works in batches, like the embedded sync (#271).** `Sync(options, ct)` reads the rows of the application's table **in the order of their
+   key, `BatchSize` rows at a time** (`LuiSyncOptions.BatchSize`, 10,000 by default), and indexes each batch — added or replaced by key — in a transaction of its
+   own. There is **no clear at the start**: a search during the sync sees the old state plus the batches committed so far, never an empty index, except on
+   the very first sync. The docs say it plainly: **a linked sync is not atomic** — while it runs the index is partly old and partly new. This extends
+   [0016](./0016-sync-check-rebuild.md): the linked sync follows the rules of the embedded one — batches in transactions of their own, FTS5's `automerge` off
+   while a batch loads and **back on before its commit**, a merge at the end, a cancelled sync keeps its batches. What it does not do is compare: the
+   contentless search index holds no text to compare with, so a batch writes every row, and `LuiSyncOptions.Progress` of a linked sync tells `Read`,
+   `Batches`, `Removed` and, at the very end, `Merged`.
+8. **Removal by generation.** LUI's table of a linked index gets a column `gen INTEGER NOT NULL` with an index on it (format 2). Every sync takes the next
+   generation — `lui_meta.sync_generation` plus one, in the transaction that takes the lease —, and every row a batch writes carries it. A single
+   `Refresh` / `ApplyPending` writes the **current** generation (`sync_generation`), so a row written beside a sync survives its removal. When the last batch
+   is written, the entries that carry **an older generation** are removed, `BatchSize` at a time, each batch in a transaction of its own — no anti-join over the
+   application's table. The statement says `gen < current`, not `gen <> current`: generations only grow and the lease holds that no other sync runs, so the two
+   mean the same, and the first is a range of the index on `gen`, where `<>` would read the whole table for every batch. **Nothing of the previous state is
+   removed before the new one is complete** — a sync that is cancelled leaves the index as it was plus the batches it wrote. A row the application deletes
+   *during* the sync, in a range that is done, is noted by the triggers (the outbox: `ApplyPending()`) or found by the next sync — which is why the triggers come
+   **before** the first sync (decision "Triggers first" below). A batch takes the keys it brought in step out of the outbox; a key whose row is gone stays there.
+   The report counts the rows of a batch as it reads them (`WithoutText`, `KeyOutOfRange`), so no second pass over the table is made for the report.
+9. **One sync at a time: the lease.** A sync takes a **lease** on its index — `sync_lease_owner` and `sync_lease_expires` in the row of the index in
+   `lui_meta`, the expiry in **UTC milliseconds** from the clock of the catalog (`LuiCatalogOptions.TimeProvider`), 60 seconds from now. It is taken in
+   a transaction of its own (`BEGIN IMMEDIATE`, the guard checked in it) by **one statement** that checks and takes: the lease is free or has expired. A
+   valid lease of another owner is a **`LuiSyncInProgressException`** that names the index, the owner and the expiry; the sync does not wait and has written
+   nothing, not even a generation. The owner is a string of the process id, a random id of the catalog instance and the number of the run — **per run**,
+   because two syncs of one catalog must not take each other for the holder. The lease is **renewed in every transaction** of the sync — one statement
+   `WHERE owner = me` at the start, which is also the check, and again before the commit, so that a long batch does not leave the expiry at the time the batch
+   began. A sync whose renewal changes no row **lost** its lease — it paused for longer than the lease and another sync took it over, or the index was
+   dropped and created again with the same definition (the guard says nothing about that: the handle of the same definition goes on) — and stops before
+   its first statement with the same exception (its owner and expiry are the holder's now, or not set when nobody holds the lease). It writes nothing after
+   it lost the lease. The lease is **released in `finally`** — also after a cancellation and a failure — and **only the lease of this run**: the release is
+   `WHERE owner = me`. A release that cannot be made (the file is busy) does not hide the exception that ended the sync: the lease expires on its own, which is the
+   whole point of an expiry — a process that crashed holds its index for a minute at most. `Dispose` of a catalog waits for a running sync, as it waits for
+   every operation, so the sync ends and releases before the connections are closed. The lease is a row that a short transaction writes; no other writer waits
+   for it longer than for any transaction of the sync.
+10. **The merge in steps.** After the removal the search index is merged by FTS5's `'merge', N` — `N` pages of its segments — in a **transaction of its own per step**, until a
+    step reports that nothing is left, instead of one `optimize`, which over a large index would be one write transaction of the length of the whole merge. A step
+    reports through SQLite's **`total_changes()`**, read before and after it on the connection: more than the one change of the `INSERT` itself means that FTS5
+    wrote, exactly one means nothing was left. **`changes()` says 1 after every step and is no signal** — the behaviour is pinned in `LinkedMergeStepTests`, because
+    the loop rests on it. "Nothing left" is FTS5's own measure (every level holds fewer segments than `usermerge`, 4), not "one segment" as `optimize` leaves. The step that finds
+    nothing left is the **last step of the sync**: in its transaction `needs_initial_sync` is cleared, the entries are counted for the report and the
+    lease is released — the content, the flag and the lease commit together or not at all (decision 4). `N` is **4,096 pages** (`LinkedSync.DefaultMergePages`):
+    a probe on a trigram index of 400,000 rows took 130–190 ms for a step of that size against about 700 ms for a batch of 10,000 rows, so a step stays below a batch
+    — the order the plan asks for; the million-row measurement of #275 looks at it again (it reports the longest step). A built typo dictionary is rebuilt once,
+    after the last step.
+11. **The report.** `LuiLinkedSyncReport` gets `Batches` (the batches of rows written — an empty table has none), `Removed` (the entries of an older generation that
+    were removed) and `LongestLock` — the longest time the sync held the write lock of the file in one transaction (a batch, a step of the removal or of the merge, the
+    lease), measured from the begin of the transaction to its commit. It is what another writer waits for.
+12. **Every transaction of the sync is guarded** (0075): the guard is checked inside each transaction — the lease, every batch, every step of the removal and of
+    the merge — together with the lease, in the same transaction that does the work, so an index that another process drops and creates again between two
+    batches is a `LuiIndexNotFoundException`, a `LuiDefinitionMismatchException` (another definition) or, for the same definition, the lost lease of decision 9 — and
+    nothing is written into the new index. The sync holds one connection for its whole length, as the sync of an embedded index does (0070).
+
 ## Alternatives
 
 | | For | Against |
@@ -68,6 +122,16 @@ creation, and LUI does nothing on its own. An application — or the host of #26
 | **B — a table of its own per linked index** | the golden stays | a second table per index to create and drop; the issue names `lui_meta` |
 | **C — a field of the definition JSON** | no new column | the flag would take part in the comparison of definitions and change every stored definition; it changes without the definition changing |
 | **D — a flag in memory (the map of 0075)** | no read | another process completes the sync without a change of the schema; the catalog would not see it |
+
+The batched sync (decisions 7–12) had alternatives too:
+
+| | For | Against |
+|---|---|---|
+| **A — batches, generation, lease** (this decision) | other writers get the file between the transactions; a cancelled sync keeps its work; one removal rule, no anti-join | a linked sync is not atomic; a column and three columns of `lui_meta` |
+| **B — a shadow build and a swap** (0016, "Open for the owner" 2) | atomic for the reader | a second write path for every refresh, which has to reach both tables; the owner decided against it on 2026-11-14 and again on 2026-11-20 |
+| **C — remove the rows that are not in the table by an anti-join at the end** | no new column | reads the application's table against the index in one statement — one long transaction again, or a temporary table of the keys |
+| **D — a lease without an expiry** | no clock | a process that crashed locks the index for ever |
+| **E — a lease per catalog instance, not per run** | the owner is the catalog | two syncs of one catalog take each other for the holder, and the second one writes beside the first |
 
 ## Consequences
 
@@ -84,4 +148,18 @@ creation, and LUI does nothing on its own. An application — or the host of #26
   triggers exist is in neither — the sync did not see it, no trigger noted it — and since the flag is already `false`, no later start
   would sync again. This is also the order of #266. The docs say it wherever they name both calls.
 - **The application decides.** `NeedsInitialSync`, `Triggers()` and the two calls are the whole setup; `catalog.Initialize()` (#266) is
-  a loop over them, not a new mechanism.
+  a loop over them, not a new mechanism. It treats a lease that is held as "running elsewhere" and skips (#266).
+- **A linked sync is not atomic and the write lock is shared, not queued (#271).** Another writer waits for one transaction of the sync at a time — `LongestLock` of the
+  report — instead of for the whole sync (26.7 s for a million rows in 0.3.0). SQLite has no queue: a waiting writer polls with a growing pause, and the sync
+  takes the lock again right after a commit, so the file is given to the others by chance and not by a bound (0016, "Consequences"). A probe at 400,000 rows
+  with a writer that has a busy timeout of 2 s: sixteen writes in the ten seconds of a sync, the longest wait 1.8 s; the same sync with a pause of 120 ms after every
+  transaction — longer than the longest pause of SQLite's busy handler, so that every polling writer lands in it — eighty-three writes, the longest wait 0.9 s, and
+  a sync that took half as long again. A pause is not part of this decision; the numbers are for the owner and for #275 (the criterion of #271, a writer with a busy
+  timeout of twice a batch that never gets `SQLITE_BUSY`, is the test `A_writer_beside_a_linked_sync_of_a_million_rows_never_gets_busy`).
+- **Format 2 gains more columns; no release had format 2.** `lui_meta` has `sync_generation`, `sync_lease_owner` and `sync_lease_expires` beside `needs_initial_sync`; the open
+  check refuses a file with indexes that misses any of them, naming the first one, and the first `Create` in the empty `lui_meta` of 0.3.0 adds them all. The table of a
+  linked index has `gen`. The golden schema of the file changes with the DDL of `lui_meta` (the entry table of a linked index is no part of it).
+- **A lease that is held for a crashed process delays the next sync by a minute at most**, and a sync that is stopped for longer than a minute (a progress handler that
+  blocks) is stopped by the next sync that takes the lease over — the price of an expiry; the exception says who holds the lease and until when.
+- **The cost of the batches** (the total time of a million-row sync against 0.3.0, the longest lock, the size of a step of the merge) is measured once, in the same session as
+  the baseline, by #275; the numbers go to `docs/benchmarks.md` there.

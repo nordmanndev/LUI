@@ -211,3 +211,14 @@ layer (`The_write_lock_of_a_linked_sync`), the numbers in `docs/benchmarks.md`.
 Nothing is built, and nothing changes: the public API, the schema and the dependency set stay as they are. The decision
 stands as it was written; this note says what it took.
 
+## Note (issue #271, 2026-11-22)
+
+The sync of a **linked** index follows the rules of this record since [0077](./0077-the-state-of-a-linked-index.md) (decisions 7–12): batches of rows of the
+application's table (`LuiSyncOptions.BatchSize`), each in a transaction of its own; `automerge` off while a batch loads and back on before its commit; the
+search index merged at the end — in steps of FTS5's `merge`, not by one `optimize`, which over a large index would be one long write transaction; a sync that is cancelled
+or fails keeps the batches it committed, removes nothing that was not removed yet, and is run again — the "Wiederaufsetzen" of this record. It differs where the source differs:
+it does not compare (the search index is contentless), it removes by the **generation** of the sync instead of by a table of keys, and one sync of an index runs at a time
+(a lease).
+
+The shadow build of "Open for the owner" 2 and the note of issue #31 stay as they were decided: the batched sync is the answer that does not need a second write path,
+and the write lock that a linked sync held for the whole sync (26.7 s for a million rows) is held for one transaction at a time.

@@ -210,16 +210,20 @@ public sealed class PublicApiShapeTests
         typeof(LuiSyncInProgressException).IsSealed.ShouldBeTrue();
         typeof(LuiSyncInProgressException).BaseType.ShouldBe(typeof(LuiException));
         Surface(typeof(LuiSyncInProgressException)).ShouldBe(
-            ["DateTimeOffset? ExpiresAt { get; }", "string IndexName { get; }", "string? Owner { get; }"],
+            ["Nullable<DateTimeOffset> ExpiresAt { get; }", "string IndexName { get; }", "string Owner { get; }"],
             "the index, and who holds the lease until when (nothing, when the lease was lost and nobody holds it)");
         typeof(LuiSyncInProgressException).GetConstructors().ShouldBeEmpty("only the library throws it");
 
-        Surface(typeof(LuiLinkedSyncReport)).ShouldBe(
-            [
-                "int Batches { get; }", "long Indexed { get; }", "long KeyOutOfRange { get; }", "TimeSpan LongestLock { get; }",
-                "long Removed { get; }", "long WithoutText { get; }",
-            ],
-            "what was indexed, what was left out and why, and how the sync worked: the batches, the removal and the longest lock");
+        // a record has members of its own beside its properties: the properties are the report
+        typeof(LuiLinkedSyncReport).GetProperties(declared).Select(property => $"{TypeText(property.PropertyType)} {property.Name} {{ get; }}")
+            .Order(StringComparer.Ordinal)
+            .ToArray()
+            .ShouldBe(
+                [
+                    "TimeSpan LongestLock { get; }", "int Batches { get; }", "long Indexed { get; }", "long KeyOutOfRange { get; }",
+                    "long Removed { get; }", "long WithoutText { get; }",
+                ],
+                "what was indexed, what was left out and why, and how the sync worked: the batches, the removal and the longest lock");
     }
 
     [Fact]

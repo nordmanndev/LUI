@@ -10,8 +10,8 @@ namespace Nordmann.LUI.Schema;
 /// and the payload are read from the application's table by its primary key, so the text is not stored twice.
 /// <para>
 /// The forms are computed by the same SQL expressions that generate the columns of <c>Embedded</c>, inside the
-/// statements that write the index: <see cref="RefreshSql"/> for one row, <see cref="SyncChunkSql"/> for a range of
-/// rows — and, if the application wants them, the same statements in three triggers (<see cref="TriggerScript"/>).
+/// statements that write the index: <see cref="RefreshSql"/> for one row, <see cref="BatchEntriesSql"/> and <see cref="BatchSearchSql"/>
+/// for a batch of rows — and, if the application wants them, the same statements in three triggers (<see cref="TriggerScript"/>).
 /// Every name of the application is checked against <see cref="Identifier.ApplicationPattern"/> and quoted.
 /// </para>
 /// </summary>
@@ -114,21 +114,74 @@ internal sealed class LinkedSource : ContentSource
     /// <summary>The text and the weight of one row, if it would be indexed: <c>(text, weight)</c> for <c>$id</c>.</summary>
     internal string ReadRowSql => $"SELECT {_text}, {_weight} FROM {ContentTable} h WHERE {_key} = $id AND {Indexable};";
 
-    /// <summary>The rows a sync leaves out: <c>(without text, key out of range)</c>.</summary>
-    internal string SkippedSql =>
-        $"SELECT coalesce(sum(CASE WHEN NOT ({HasText}) THEN 1 ELSE 0 END), 0), "
-        + $"coalesce(sum(CASE WHEN ({HasText}) AND NOT ({KeyInRange}) THEN 1 ELSE 0 END), 0) FROM {ContentTable} h;";
+    // ---- the sync in batches (ADR-0077) ----------------------------------------------------------------------------------------
 
-    /// <summary>Clears the index before a <see cref="SyncChunkSql"/> fills it anew.</summary>
-    internal string ClearSql =>
-        $"DELETE FROM {EntryTable}; INSERT INTO {FtsTable}({FtsTable}) VALUES ('delete-all'); DELETE FROM {PendingTable};";
-
-    /// <summary>The key that ends the next chunk of a sync: the <c>$size</c>-th key after <c>$from</c>, or none.</summary>
+    /// <summary>
+    /// The keys that end the next batch of a sync and begin the one after it: the <c>$size</c>-th key after <c>$from</c> and the one that
+    /// follows it — none, when the batch is the last one, and one, when the batch is exactly the rest of the table.
+    /// </summary>
     internal string ChunkEndSql =>
-        $"SELECT {_key} FROM {ContentTable} h WHERE {_key} > $from ORDER BY {_key} LIMIT 1 OFFSET $size - 1;";
+        $"SELECT {_key} FROM {ContentTable} h WHERE {_key} > $from ORDER BY {_key} LIMIT 2 OFFSET $size - 1;";
 
-    /// <summary>Indexes the rows with a key in <c>($from, $to]</c> — the search index in the order of the rowid.</summary>
-    internal string SyncChunkSql => Insert($"{_key} > $from AND {_key} <= $to", "s.doc_id > $from AND s.doc_id <= $to");
+    /// <summary>
+    /// What the rows of the batch <c>($from, $to]</c> are: <c>(rows read, rows without a text, rows with a text and a key out of range)</c>.
+    /// The rows that are left out are counted where they are read — the batches add up to what the table has, without a second pass over it.
+    /// </summary>
+    internal string BatchRowsSql =>
+        $"SELECT count(*), coalesce(sum(CASE WHEN NOT ({HasText}) THEN 1 ELSE 0 END), 0), "
+        + $"coalesce(sum(CASE WHEN ({HasText}) AND NOT ({KeyInRange}) THEN 1 ELSE 0 END), 0) FROM {ContentTable} h "
+        + $"WHERE {_key} > $from AND {_key} <= $to;";
+
+    /// <summary>
+    /// First statement of a batch: the search entries of the rows of the batch that exist already — and will be written again — leave the
+    /// search index. An entry whose row is not indexable any more stays until the removal at the end: nothing of the previous state goes
+    /// before the new one is complete.
+    /// </summary>
+    internal string BatchDropReplacedSql =>
+        $"DELETE FROM {FtsTable} WHERE rowid IN (SELECT s.s_rowid FROM {EntryTable} s JOIN {ContentTable} h ON {_key} = s.doc_id "
+        + $"WHERE s.doc_id > $from AND s.doc_id <= $to AND {Indexable});";
+
+    /// <summary>
+    /// Second statement of a batch: the entries of the indexable rows of <c>($from, $to]</c>, added or replaced by key, with the
+    /// generation <c>$gen</c> of the sync.
+    /// </summary>
+    internal string BatchEntriesSql
+    {
+        get
+        {
+            var prefix = $"lower({Rules.PrefixValue(_norm)})";
+            return
+                $"INSERT INTO {EntryTable}(doc_id, s_rowid, s_p1, s_p2, gen) "
+                + $"SELECT {_key}, {RowIdValue}, substr({prefix}, 1, 1), substr({prefix}, 1, 2), $gen "
+                + $"FROM {ContentTable} h WHERE {_key} > $from AND {_key} <= $to AND {Indexable} "
+                + "ON CONFLICT(doc_id) DO UPDATE SET s_rowid = excluded.s_rowid, s_p1 = excluded.s_p1, s_p2 = excluded.s_p2, gen = excluded.gen;";
+        }
+    }
+
+    /// <summary>Third statement of a batch: the search index, in the order of the rowid, for the entries the batch wrote.</summary>
+    internal string BatchSearchSql =>
+        $"INSERT INTO {FtsTable}(rowid, {Rules.IndexedColumn}) "
+        + $"SELECT s.s_rowid, {Rules.IndexedValue(_norm)} FROM {EntryTable} s JOIN {ContentTable} h ON {_key} = s.doc_id "
+        + $"WHERE s.doc_id > $from AND s.doc_id <= $to AND s.gen = $gen AND {Indexable} ORDER BY s.s_rowid;";
+
+    /// <summary>
+    /// Last statement of a batch: the keys of the outbox that the batch brought in step leave it — their rows are current now. A key whose
+    /// row is gone, or not indexable, stays for <c>ApplyPending</c>.
+    /// </summary>
+    internal string BatchForgetPendingSql =>
+        $"DELETE FROM {PendingTable} WHERE doc_id > $from AND doc_id <= $to "
+        + $"AND doc_id IN (SELECT doc_id FROM {EntryTable} WHERE doc_id > $from AND doc_id <= $to AND gen = $gen);";
+
+    /// <summary>
+    /// The entries of an earlier generation, the oldest first, at most <c>$n</c>: <c>(doc_id, s_rowid)</c>. Generations only grow, and the
+    /// lease holds that no other sync runs, so "another generation than the current one" is "an older one" — which the index on
+    /// <c>gen</c> reads as a range, where <c>&lt;&gt;</c> would read the whole table for every batch of the removal.
+    /// </summary>
+    internal string StaleEntriesSql =>
+        $"SELECT doc_id, s_rowid FROM {EntryTable} WHERE gen < $gen ORDER BY gen, doc_id LIMIT $n;";
+
+    /// <summary>Removes the entry of <c>$id</c> and its search entry — one entry of the previous generation.</summary>
+    internal string RemoveStaleSql => RemoveSql("$id");
 
     // ---- the merge in steps (ADR-0077): FTS5 'merge', N pages at a time ---------------------------------------------------------
 
@@ -299,7 +352,7 @@ internal sealed class LinkedSource : ContentSource
     /// <summary>
     /// A row is indexed when it has a text and a key in range — a row that is neither is left out, never refused: a
     /// refusal in a trigger would roll back the application's own write, and in a sync the whole index (review of
-    /// pull request 16, M2). <see cref="SkippedSql"/> counts what was left out.
+    /// pull request 16, M2). <see cref="BatchRowsSql"/> counts what was left out.
     /// </summary>
     private string Indexable => $"{HasText} AND {KeyInRange}";
 

@@ -298,8 +298,8 @@ public sealed class LinkedBatchSyncTests
             cancellation.Token));
 
         Entries(database, "SELECT count(*) FROM lui_tags").ShouldBe(40, "the five entries whose rows are gone are removed at the end of a complete sync — not before");
-        Entries(database, "SELECT count(*) FROM lui_tags WHERE gen = 2").ShouldBe(5, "the rows 6 … 10 of the first batch carry the new generation");
-        Entries(database, "SELECT count(*) FROM lui_tags WHERE gen = 1").ShouldBe(35);
+        Entries(database, "SELECT count(*) FROM lui_tags WHERE gen = 2").ShouldBe(10, "the first batch is ten rows of the table, 6 … 15: they carry the new generation");
+        Entries(database, "SELECT count(*) FROM lui_tags WHERE gen = 1").ShouldBe(30);
         Entries(database, "SELECT count(*) FROM lui_tags_fts_docsize").ShouldBe(40, "and neither does the search index lose an entry");
 
         tags.Sync();
@@ -525,7 +525,7 @@ public sealed class LinkedBatchSyncTests
             BatchSize = 10,
             Progress = Hear(report =>
             {
-                if (report.Batches is >= 1 and <= 3)
+                if (report.Batches is >= 1 and <= 3 && !report.Merged)
                 {
                     clock.Advance(TimeSpan.FromSeconds(10));
                     starts.Add(clock.GetUtcNow().ToUnixTimeMilliseconds());
@@ -713,7 +713,19 @@ public sealed class LinkedBatchSyncTests
             _ = swap.Wait(TimeSpan.FromMilliseconds(400));
         };
 
-        var failure = Record.Exception(() => tags.Sync(new LuiSyncOptions { BatchSize = 10 }));
+        // the other writer gets the file when the batch has committed — and the next batch, started right after it, would take the lock before
+        // the swap could (SQLite has no queue): the sync is held between the batches until the swap is through
+        var failure = Record.Exception(() => tags.Sync(new LuiSyncOptions
+        {
+            BatchSize = 10,
+            Progress = Hear(report =>
+            {
+                if (report.Batches == 2 && swap is not null)
+                {
+                    swap.Wait(Deadline).ShouldBeTrue();
+                }
+            }),
+        }));
         catalog.Database.AfterSchemaCheck = null;
 
         await (swap ?? throw new InvalidOperationException("the seam did not run")).WaitAsync(Deadline);
