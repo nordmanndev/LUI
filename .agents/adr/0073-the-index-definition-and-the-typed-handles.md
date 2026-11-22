@@ -155,12 +155,15 @@ chain ended in a `Create()` that the catalog called — the description and the 
 - `CHANGELOG.md` carries the migration note: additive here, the removal comes with #268.
 - `PublicApiShapeTests` gets the list of the members of every typed handle — the target each later pull request extends (#269 added the
   payload variants, #262 `Payload` and `CheckPayloads()`, #272 `NeedsInitialSync`, #273 and #266 the catalog operations).
-- The typed handles wrap the internal index of 0.3.0 and convert `TKey` ↔ `LuiKey` at the edge (an `int` is a number, a `Guid` a text in the form `"D"`); #265 moves the runtime into the
-  catalog. A handle detects a dropped index by the missing table (a catalog read only on that path), so the check on the success path costs nothing. Known limitation: a handle of an index that was dropped and **created again under
-  the same name** is not told apart from the new index (a check would cost a read on every operation); it works on the new index.
-  #265, which moves the runtime into the catalog, is where a generation per index can invalidate old handles.
+- The typed handles wrap the internal index of 0.3.0 and convert `TKey` ↔ `LuiKey` at the edge (an `int` is a number, a `Guid` a text in the form `"D"`).
+  **#265 moved the runtime into the catalog, and with it removed the limitation this record first had** — a handle of an index that was
+  dropped and **created again under the same name** was not told apart from the new index and worked on it: since
+  [0075](./0075-the-catalog-holds-the-definitions-and-the-runtime-of-an-index.md) every operation of a handle reads SQLite's schema counter on its
+  own connection, and a handle whose definition is gone throws `LuiIndexNotFoundException`, one whose definition is another
+  `LuiDefinitionMismatchException`; the failure is kept, and the next open call builds a new handle. A dropped index is no longer detected by the
+  missing table alone, and an index created again with the **same** definition is not stale — the handle goes on with it.
 - `LuiIndex<TKey>.Search` converts the result twice: the internal `LuiResult` (struct hits), then `LuiResult<TKey>` with a `LuiHit<TKey>` per
-  hit. Avoiding it needs the query path to build the typed result itself — #265. Recorded in #280.
+  hit. Avoiding it needs the query path to build the typed result itself — it is not part of #265 (the thin handle); recorded in #280.
 - `TriggerScript()` is pure (built from the definition, no database read), so it also answers on a handle of a dropped index.
 - An invalid definition keeps its failure, not its exception object: every use throws a new `LuiConfigurationException` with the same message and cause.
 - A `LuiLinkedIndex<TKey>.Sync(LuiSyncOptions?, …)` accepts the options and does not use them yet: the batches come with #271.

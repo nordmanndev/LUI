@@ -22,6 +22,7 @@ internal sealed class QueryRunner
     private readonly CandidateReader _candidates;
     private readonly TypoCorrection _correction;
     private readonly HitReader _hits;
+    private readonly IConnectionGuard? _guard;
 
     internal QueryRunner(
         Database database,
@@ -29,9 +30,11 @@ internal sealed class QueryRunner
         PayloadReader payload,
         ILuiSimilarity defaultSimilarity,
         TypoDictionary typos,
-        LuiTypoDistance typoDefault)
+        LuiTypoDistance typoDefault,
+        IConnectionGuard? guard = null)
     {
         _database = database;
+        _guard = guard;
         _source = source;
         _defaultSimilarity = defaultSimilarity;
         _typoDefault = typoDefault;
@@ -65,12 +68,12 @@ internal sealed class QueryRunner
         // payload of the new one (review B2).
         using var snapshot = connection.BeginTransaction(deferred: true);
 
+        // the definition of the index is still the one in the file (ADR-0075): one statement, in the snapshot of the query
+        _guard?.Check(connection, snapshot);
         var similarity = options.Similarity ?? _defaultSimilarity;
 
-        // the buffers of the candidates are reused between the queries of a thread (issue #30)
-        // A word start costs a search form for each candidate. The weight alone, with no typo correction that may ask for it, needs
-        // none (issue #174): the hits make it — for the twenty that are left, from the one search form they make anyway for
-        // their similarity. Every other ranking measures its similarity from the word start.
+        // the buffers of the candidates are reused between the queries of a thread (issue #30); which candidates get a word
+        // start is NeedsWordStarts' business (issue #174)
         var order = query.IsPrefixPath ? LuiRankingOrder.WeightOnly : options.Rank;
         var wordStarts = NeedsWordStarts(query, options, order);
         var candidates = _candidates.Read(connection, snapshot, query, options, variant: 0, wordStarts, cancellationToken, out var count, out var truncated);

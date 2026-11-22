@@ -1,0 +1,60 @@
+using Nordmann.LUI.Querying;
+using Nordmann.LUI.Schema;
+using Nordmann.LUI.Storage;
+using Nordmann.LUI.Typos;
+
+namespace Nordmann.LUI.Indexes;
+
+/// <summary>
+/// Builds the runtime of an index (ADR-0075): the index with its source, its rules, its query runner and its guard. The catalog
+/// keeps a runtime <b>with the definition object it was built for</b> — the handle table is a <see cref="System.Runtime.CompilerServices.ConditionalWeakTable{TKey, TValue}"/> —
+/// so it lives as long as the definition and not a call longer: a definition holds code (its similarity, the map of its payload)
+/// that the runtime uses, a host may build a definition per request, and a runtime that outlived its definition would be one
+/// per request for as long as the catalog lives. A runtime whose guard failed is built anew at the next open call.
+/// </summary>
+internal sealed class IndexRuntimes(Database database, TypoDictionaries typos, ILuiPayloadSerializer? payload, StoredIndexes stored)
+{
+    /// <summary>The runtime of an index that is stored.</summary>
+    /// <param name="resolved">The definition after its first use.</param>
+    /// <param name="entry">What <c>lui_meta</c> holds about the index.</param>
+    /// <param name="counter">The schema counter the entry was read at.</param>
+    /// <returns>The runtime.</returns>
+    internal IndexRuntime Build(ResolvedIndex resolved, IndexStoreEntry entry, long counter)
+    {
+        var name = resolved.Name;
+        var description = resolved.Description;
+        var guard = new IndexGuard(stored, name, entry.Definition, counter);
+
+        // the stored definition is what the index is built from, the similarity and the map are the code of the definition; an
+        // opened index takes the distance of its stored definition (ADR-0054)
+        if (description.Source == LuiIndexSource.Embedded)
+        {
+            var source = new EmbeddedSource(name, entry.Definition);
+            return new IndexRuntime(
+                new EmbeddedIndex(
+                    database,
+                    typos,
+                    source,
+                    payload,
+                    description.Options.Similarity ?? source.Rules.DefaultSimilarity,
+                    typoDistance: entry.Definition.TypoDistance,
+                    guard),
+                guard);
+        }
+
+        var linked = new LinkedSource(name, entry.Definition);
+        PayloadReader reader = description.PayloadMap is { } map
+            ? new ColumnPayload(name, entry.Definition.Link?.PayloadColumns ?? [], map)
+            : new NoPayload(name);
+        return new IndexRuntime(
+            new LinkedIndex(
+                database,
+                typos,
+                linked,
+                reader,
+                description.Options.Similarity ?? linked.Rules.DefaultSimilarity,
+                typoDistance: entry.Definition.TypoDistance,
+                guard),
+            guard);
+    }
+}

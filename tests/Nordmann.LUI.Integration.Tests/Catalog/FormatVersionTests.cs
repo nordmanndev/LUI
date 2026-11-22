@@ -117,13 +117,16 @@ public sealed class FormatVersionTests
     [Fact]
     public void An_index_of_another_format_that_appears_after_the_open_is_still_a_mismatch_of_that_index()
     {
-        // the check at open is the front door; an index that is read from a file that changed under an open catalog keeps its own check
+        // the check at open is the front door; an index that is read from a file that changed under an open catalog keeps its own check.
+        // A change of a definition comes with a change of the schema of the file — here the table of another version, created
+        // beside — and the catalog notices it at the schema counter (ADR-0075): the handle's first operation throws
         using var database = new TestDatabase();
         using var catalog = database.Open();
         catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
-        Run(database, "UPDATE lui_meta SET schema_version = 1 WHERE index_name = 'tags';");
+        Run(database, "UPDATE lui_meta SET schema_version = 1 WHERE index_name = 'tags'; CREATE TABLE written_by_another_version(id INTEGER PRIMARY KEY);");
 
-        var exception = Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())));
+        var exception = Should.Throw<LuiDefinitionMismatchException>(
+            () => catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Count());
 
         exception.IndexName.ShouldBe("tags");
         exception.Message.ShouldContain("format 1");

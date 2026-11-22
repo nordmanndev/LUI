@@ -72,6 +72,20 @@ minor version, a migration note and its own record, and no member is marked `[Ob
 - The message of a `LuiLinkedTableException` from the old `CreateLinked` path now starts with `Index '<name>': `, and the original
   exception is its inner exception (ADR-0073: every creation names the index that failed). The type is unchanged.
 
+- **The catalog holds the definitions and the runtime of each index; a handle is thin** ([ADR-0075](.agents/adr/0075-the-catalog-holds-the-definitions-and-the-runtime-of-an-index.md), #265).
+  `LuiCatalog.Open`, `OpenOrCreate` and `OpenReadOnly` read every stored definition once, and the runtime of an index — its source,
+  its statements, its query runner — is built once and kept. `catalog.Index(definition)` (and `Create(definition)`) returns **the same
+  handle instance for the same definition object**: after the first call it allocates nothing and executes no SQL, so a request can
+  take its handle where it needs it (0.3.0: 23 µs and 20 KB per open call). The definitions are the catalog's memory, the **content is
+  never cached** — what another process writes is visible at once. Every operation of a handle reads SQLite's schema counter
+  (`PRAGMA schema_version`) on the connection it uses, before its first statement: when another process dropped the index, the
+  operation throws a `LuiIndexNotFoundException`, when it created the index again with another definition, a
+  `LuiDefinitionMismatchException` — **a handle of an index that was dropped and created again under the same name no longer works on the new
+  index** (0.3.0 and the first versions of 0.4.0 did; take a new handle from `Create` or `Index`). An index created again with the same
+  definition is not stale. An unknown name reloads the definitions once. `Create` is atomic across processes: two that create the same
+  index at once leave one index. A section on several processes on one file is on `docs/api.md`. The SQLite schema counter is not the LUI
+  format version of `lui_meta.schema_version`.
+
 ### Migration
 
 **A break the compiler does not see — read it first: files of 0.3.0 are not read.** A catalog file that holds an index written by 0.3.0
@@ -103,6 +117,10 @@ var tags = catalog.Create(Tags);          // at the start; or catalog.Index(Tags
 
 A changed definition is still not migrated: `DropIndex(name)`, `Create(definition)`, fill it again — or a new name next to the
 old index (`docs/api.md`, "Changing a definition").
+
+A handle that was taken before the index was dropped and created again (by your code or another process) used to work on the new
+index; it throws now, and the open call gives a new handle. Take the handle from `catalog.Index(definition)` where you use it — it is
+a lookup now — instead of holding it across a recreate.
 
 ## [0.3.0] — 2026-11-19
 

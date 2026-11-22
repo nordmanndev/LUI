@@ -88,6 +88,23 @@ internal sealed class TypoDictionary
         : !IsBuilt ? LuiTypoDictionaryState.NotBuilt
         : LuiTypoDictionaryState.Current;
 
+    /// <summary>
+    /// Lets the dictionary go: it was built from the texts of an index that is not the one of its definition any more (an index that
+    /// was created again under it). It is <c>NotBuilt</c> afterwards and builds again when it is asked for.
+    /// </summary>
+    internal void Discard()
+    {
+        _lock.EnterWriteLock();
+        try
+        {
+            Volatile.Write(ref _symSpell, null);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
     /// <summary>Builds the dictionary from the content table, once; later calls return at once.</summary>
     /// <param name="cancellationToken">Ends the build, and the wait for a build that runs.</param>
     internal void EnsureBuilt(CancellationToken cancellationToken)

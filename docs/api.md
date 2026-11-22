@@ -48,12 +48,12 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 | `static LuiCatalog Open(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, and **writes nothing**: a file that is missing or is no catalog (no SQLite database, no `lui_meta`) is a `LuiCatalogNotFoundException`. It never creates a file, never creates `lui_meta` and never sets the journal mode. It probes the SQLite it found (version, folding) and refuses a database it cannot search correctly. A file written in **another LUI format** — a file of 0.3.0 is format 1, 0.4.0 reads format 2 — is a `LuiFormatException` when it is opened (so are `OpenReadOnly` and `OpenOrCreate` of such a file): no migration, recreate the indexes. |
 | `static LuiCatalog OpenOrCreate(string path, LuiCatalogOptions? options = null)` | opens the catalog and sets the file up: the file is created when it is missing, `lui_meta` is created when the file has none (the database of an application), and a catalog that is there is not written. **LUI sets the write-ahead logging only in a file it creates itself**; a file that is there keeps its journal mode, empty or not (ADR-0066, ADR-0068). |
 | `static LuiCatalog OpenReadOnly(string path, LuiCatalogOptions? options = null)` | opens the catalog of a file that is there, **to read only**: every connection of it is read-only, and SQLite refuses every write, which LUI turns into a `LuiReadOnlyException`. A file that is missing or is no catalog is a `LuiCatalogNotFoundException`. |
-| `LuiEmbeddedIndex<TKey> Create<TKey>(LuiIndexDefinition<TKey> definition)` | creates the index of an **embedded definition**, or opens it if it exists with the same definition — safe on every start — and returns its typed handle. It creates only: it never syncs and never installs triggers. A different stored definition is a `LuiDefinitionMismatchException` that names the fields. |
+| `LuiEmbeddedIndex<TKey> Create<TKey>(LuiIndexDefinition<TKey> definition)` | creates the index of an **embedded definition**, or opens it if it exists with the same definition — safe on every start — and returns its typed handle. It creates only: it never syncs and never installs triggers. A different stored definition is a `LuiDefinitionMismatchException` that names the fields. The handle is the one `Index(definition)` gives for the same definition object. When two processes create the same index at once, one creates it and the other opens it — see [several processes on one file](#several-processes-on-one-file). |
 | `LuiLinkedIndex<TKey> Create<TKey>(LuiLinkedIndexDefinition<TKey> definition)` | the same for a **linked definition**: LUI's tables are created and the table of the application is checked, every time. |
 | `LuiEmbeddedIndex<TKey, TPayload> Create<TKey,TPayload>(LuiIndexDefinition<TKey, TPayload> definition)` | the same for an **embedded definition with a payload**: the handle writes typed payloads, which the `PayloadSerializer` of the catalog serializes. |
 | `LuiLinkedIndex<TKey, TPayload> Create<TKey,TPayload>(LuiLinkedIndexDefinition<TKey, TPayload> definition)` | the same for a **linked definition with a payload**: the map of the definition builds the payload from the row. |
 | `void Create(params LuiIndexDefinitionBase[] definitions)` | creates or opens **several** definitions in **one transaction**: all or none. The exception names the definition that failed — a mismatch and a missing index by their `IndexName`, a broken table of a linked index as a `LuiLinkedTableException` whose message starts `Index 'name': …` and whose inner exception is the original, a refused write on a read-only catalog by the index whose write was refused; a name that occurs twice is an `ArgumentException` before anything is written. It **returns nothing**: a variable typed `LuiIndexDefinitionBase` binds here, and the handles come from `Index(definition)`. |
-| `LuiEmbeddedIndex<TKey> Index<TKey>(LuiIndexDefinition<TKey> definition)` | opens the index of an embedded definition that exists, and **writes nothing**. The stored definition is compared with the declared one: another one is a `LuiDefinitionMismatchException` naming the fields, a missing index a `LuiIndexNotFoundException`. |
+| `LuiEmbeddedIndex<TKey> Index<TKey>(LuiIndexDefinition<TKey> definition)` | opens the index of an embedded definition that exists, and **writes nothing**. The stored definition is compared with the declared one: another one is a `LuiDefinitionMismatchException` naming the fields, a missing index a `LuiIndexNotFoundException`. **The catalog holds the stored definitions and the runtime of the index in memory** (read once, when it was opened): the call is a lookup — it returns **the same handle instance for the same definition object**, and after the first call it allocates nothing and executes no SQL, so a request can take its handle where it needs it. The comparison of the stored with the declared definition is done once, at the first call. |
 | `LuiLinkedIndex<TKey> Index<TKey>(LuiLinkedIndexDefinition<TKey> definition)` | the same for a linked definition. **One name for both sources** — there is no `LinkedIndex(definition)` and no `CreateLinked(definition)`. |
 | `LuiEmbeddedIndex<TKey, TPayload> Index<TKey,TPayload>(LuiIndexDefinition<TKey, TPayload> definition)` | opens the index of an embedded definition with a payload that exists, and **writes nothing**; compared like a definition without payload. |
 | `LuiLinkedIndex<TKey, TPayload> Index<TKey,TPayload>(LuiLinkedIndexDefinition<TKey, TPayload> definition)` | the same for a linked definition with a payload: the stored payload columns are compared, the map of the definition is code and takes effect. |
@@ -66,7 +66,7 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 | `void WarmUpTypoDictionaries(CancellationToken cancellationToken = default)` | builds the typo dictionary of **every** index of the catalog — the warm-up of a host in one call (ADR-0043). The dictionary belongs to the index of the catalog: an index you open later sees it and reports it as built. |
 | `void WarmUpTypoDictionaries(IEnumerable<string> names, CancellationToken cancellationToken = default)` | the same for the **named** indexes — a dictionary costs memory (194 MB for 685,739 words), and an index whose queries correct no typos needs none. Every name is checked before the first build: an unknown one is a `LuiIndexNotFoundException`. |
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the outbox of **every** linked index: the rows the triggers noted come into the index. The table of the application is not touched. Returns the number of rows brought in. |
-| `bool DropIndex(string name, bool dropTriggers = false)` | drops the index. The triggers of a linked index are dropped with it only if you say so. |
+| `bool DropIndex(string name, bool dropTriggers = false)` | drops the index. The triggers of a linked index are dropped with it only if you say so. The handles that were handed out for it are stale from now on: an operation on one throws a `LuiIndexNotFoundException`, also after the index was created again — take a new handle from `Create` or `Index`. |
 | `string Path { get; }` | the full path of the file the catalog was opened with. |
 | `void Dispose()` | closes the catalog: it waits for the operations that are running and clears the pools of the provider (the read connections first). The catalog holds no connection (ADR-0070); the indexes hold no resource of their own. |
 
@@ -263,9 +263,11 @@ one — there is no window without a search.
 
 The handles are **concrete classes, not interfaces**: an application tests its search against a real catalog, not a mock.
 They are views — no connection, not disposable, thread-safe like the catalog, reference equality. An operation on a handle
-whose index was dropped throws a `LuiIndexNotFoundException` — **known limit:** a handle of an index that was dropped and then
-**created again under the same name** is not told apart from the new index and works on it (take a fresh handle from `Create` or
-`Index` after the recipe for a changed definition; #265 may invalidate old handles); on a disposed catalog an `ObjectDisposedException`; on a catalog
+whose index was dropped throws a `LuiIndexNotFoundException`, and one whose index was dropped and **created again with another
+definition** throws a `LuiDefinitionMismatchException` — also when another process did it, see
+[several processes on one file](#several-processes-on-one-file); a handle never reads or writes through a stale definition. The failure is kept: take a
+fresh handle from `Create` or `Index` after the recipe for a changed definition. An index created again with the **same**
+definition is not stale — the handle goes on with it; but a handle that an operation met **between** the drop and the create is dead for good, so take a handle per request (a lookup) rather than holding one across someone else's recreate. On a disposed catalog an `ObjectDisposedException`; on a catalog
 opened with `OpenReadOnly`, a write is a `LuiReadOnlyException`. **Use `LuiIndex<TKey>` where a method only reads,
 `LuiEmbeddedIndex<TKey>` / `LuiLinkedIndex<TKey>` where it writes or syncs.** All of them are `where TKey : notnull`; `TKey` is
 the key type of the definition — see [the key types](#the-key-types) — so `hit.Key` and every key parameter have that type and a key
@@ -388,6 +390,38 @@ from the map of the definition.
 | `LuiQuery<TKey, TPayload>` | a sealed class with the settings of `LuiQuery` and `Execute(ct)`, which returns a `LuiResult<TKey, TPayload>` |
 | `LuiResult<TKey, TPayload>` | a sealed class (reference equality) as `LuiResult<TKey>`, with `IReadOnlyList<LuiHit<TKey, TPayload>> Hits` |
 | `LuiHit<TKey, TPayload>` | a sealed record as `LuiHit<TKey>` — named, initialised properties, no constructor with parameters; **`Payload` arrives with #262**. It does not derive from `LuiHit<TKey>`. |
+
+---
+
+## Several processes on one file
+
+A catalog is meant to be a singleton of one process, and the file may be open in several processes — a web application and a
+worker, an application and a tool of its operator. The catalogs of the processes share the file and nothing else. What each of
+them holds in memory is **definitions and runtimes only** ([ADR-0075](../.agents/adr/0075-the-catalog-holds-the-definitions-and-the-runtime-of-an-index.md)):
+the stored definitions of the indexes, read from `lui_meta` when the catalog was opened, and the runtime of each index — its
+statements, its query runner — built once. **Content and state are never cached**: what another process writes is visible at once.
+
+- **An index that another process created** is found when the catalog meets a name it does not know: it reads `lui_meta` again, once.
+  A name that is still missing is remembered until the file's schema changes, so asking for it again is cheap.
+- **An index that another process dropped, or created again.** Every operation of a handle asks the file whether its definition is
+  still the one it was built from — one statement, `PRAGMA schema_version`, on the connection the operation uses, before its first
+  statement. That is **SQLite's schema counter**: a number in the header of the file that changes whenever a table, an index or a
+  trigger is created or dropped, and not when content is written. (It is not the *LUI format version* of `lui_meta.schema_version`,
+  which says in which format an index was written.) When the counter changed, the catalog reads the definitions again and the handle
+  - throws a `LuiIndexNotFoundException` when its index is gone,
+  - throws a `LuiDefinitionMismatchException` — naming the fields — when the index is there with another definition,
+  - goes on when it is the same definition. A change of the application's own tables only costs a harmless reload.
+
+  The check and the work are one step: a write holds the write lock from the check to its commit, a read checks in its own
+  snapshot — so an index that another process drops and creates again at that very moment is never written through the old
+  definition. A handle that threw keeps throwing; a new `Create(definition)` or `Index(definition)` call gives a new one.
+- **Two processes that create the same index at startup.** `Create` takes the write lock, reads `lui_meta` inside the transaction
+  and then creates the index, or opens the one the other process just created: the same definition succeeds in both and leaves one
+  index, another definition is a `LuiDefinitionMismatchException` in the one that comes second.
+- **Writes from several processes** work as they do from several threads: one writer at a time, and LUI waits for the lock for the
+  busy timeout of the catalog ([`LuiPragmas.BusyTimeout`](#luipragmas)).
+- **The typo dictionary of a process learns only its own writes.** The writes of other processes reach it with
+  `RebuildTypoDictionary()`.
 
 ---
 

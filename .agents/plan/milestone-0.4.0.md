@@ -19,7 +19,7 @@ file into `0.4.0`.
 | 3 | #261 Definitions and typed handles, `long` keys (ADR-0073) | the contract everything builds on — riskiest, first | #274 | merged | #282 — definitions and typed handles; a fourth narrow review was allowed by the owner |
 | 4 | #269 Payload variants, typed linked builder (ADR-0073) | extends the types of #261 | #261 | merged | #283 — payload variants over the #261 handles; the typed builder has no Create() |
 | 5 | #270 Key types `int`/`string`/`Guid`, LUI format 2 (ADR-0073) | the file format #260/#272/#271 add to | #269 | merged | #284 — key types and LUI format 2; the sample test no longer counts the outbox rows the host loop may have applied first |
-| 6 | #265 Runtime in the catalog, 0 B open, several processes (ADR-0075) | the query path; its budget risk shows early | #270 | open | — |
+| 6 | #265 Runtime in the catalog, 0 B open, several processes (ADR-0075) | the query path; its budget risk shows early | #270 | merged | #286 — the catalog holds definitions and runtimes; five review rounds, the last two allowed by the owner |
 | 7 | #260 Payload registry, type and format fingerprint (ADR-0072) | needs definitions and the handle cache | #265 | open | — |
 | 8 | #262 `hit.Payload` loaded with the query, `CheckPayloads()` (ADR-0074) | needs the registry; its own budget | #260 | open | — |
 | 9 | #272 State of a linked index: `NeedsInitialSync`, idempotent `CreateTriggers()` (ADR-0077) | precondition of #271 and #266 | #262 | open | — |
@@ -41,7 +41,12 @@ need no per-PR A/B measurement (owner, 2026-11-21: performance is looked at at t
 **Decision (owner, 2026-11-21, #261):** after three rounds with a blocker left, the owner allowed a fourth, narrow review of
 the last two commits (option B); it was LGTM and #282 was merged. Rounds: 1 three blockers, 2 one, 3 one, 4 none.
 
-Risks of the whole run:
+**Decision (owner, 2026-11-22, #265):** after four rounds with a blocker left each time, the owner allowed a fifth, narrow
+review of the last two commits (option B, again); it was LGTM and #286 was merged. Rounds: 1 two blockers, 2 two, 3 one,
+4 one, 5 none. Its suggestions went to the follow-up issue (a handle can escape `DropIndex` when the drop moves no schema
+counter — an index whose tables an application removed by hand).
+
+Risks of the whole run:Risks of the whole run:
 
 - **The SDK.** `global.json` pins SDK `10.0.403` (`rollForward: latestPatch`); the image ships only `10.0.114`. The
   environment now allows `builds.dotnet.microsoft.com` and its setup script installs `10.0.403` into `/usr/lib/dotnet`
@@ -577,7 +582,7 @@ the issue says so, in `docs/benchmarks.md`.
 ### 16. #275 Performance analysis of 0.4.0
 
 - **Approach:** one session, the A/B rule: `QueryBenchmarks` `v0.3.0` vs `0.4.0` head alternating (≥ 2 runs each), the
-  payload benchmark of #262, `OpenBenchmarks` of #265, and the linked sync of 1,000,000 rows (#271) before/after. Write
+  payload benchmark of #262, `OpenBenchmarks` of #265 (reverted from PR #286 because its report belongs to this run: restore `benchmarks/Nordmann.LUI.Benchmarks/OpenBenchmarks.cs` from commit `33a3129`), and the linked sync of 1,000,000 rows (#271) before/after. Write
   "The budget of 0.4.0" in `docs/benchmarks.md` with the four budgets, the numbers, the limits, met/missed.
 - **Where:** `docs/benchmarks.md`; if the README tables are refreshed, `tools/benchmarks.sh` for all five reports in one
   run.

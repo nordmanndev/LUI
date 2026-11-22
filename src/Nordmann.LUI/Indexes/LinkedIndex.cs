@@ -35,20 +35,26 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     private readonly QueryRunner _runner;
     private readonly IReadOnlyList<string> _payloadColumns;
 
+    // asks, on the connection of every operation, whether the definition of the index is still the one in the file
+    // (ADR-0075); null for an index of the old path, which holds no definition
+    private readonly IndexGuard? _guard;
+
     internal LinkedIndex(
         Database database,
         TypoDictionaries typoDictionaries,
         LinkedSource source,
         PayloadReader payload,
         ILuiSimilarity similarity,
-        LuiTypoDistance typoDistance)
+        LuiTypoDistance typoDistance,
+        IndexGuard? guard = null)
     {
         _database = database;
+        _guard = guard;
         _source = source;
         Name = source.IndexName;
         Kind = source.Rules.Kind;
-        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance);
-        _runner = new QueryRunner(database, source, payload, similarity, _typos, typoDistance);
+        _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance, source.Definition.ToJson());
+        _runner = new QueryRunner(database, source, payload, similarity, _typos, typoDistance, guard);
         _payloadColumns = payload.Columns;
     }
 
@@ -66,14 +72,20 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     {
         using var scope = _database.Begin();
         using var connection = _database.OpenReadConnection();
-        return Scalar(connection, null, _source.CountSql);
+
+        // the check and the count in one snapshot (ADR-0075)
+        using var snapshot = _guard is null ? null : connection.BeginTransaction(deferred: true);
+        _guard?.Check(connection, snapshot);
+        return Scalar(connection, snapshot, _source.CountSql);
     }
 
     public LuiTriggerState Triggers()
     {
         using var scope = _database.Begin();
         using var connection = _database.OpenReadConnection();
-        return TriggerState(connection, null);
+        using var snapshot = _guard is null ? null : connection.BeginTransaction(deferred: true);
+        _guard?.Check(connection, snapshot);
+        return TriggerState(connection, snapshot);
     }
 
     private LuiTriggerState TriggerState(SqliteConnection connection, SqliteTransaction? transaction)
@@ -114,13 +126,38 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     public void WarmUpTypoDictionary(CancellationToken cancellationToken = default)
     {
         using var scope = _database.Begin();
-        _typos.EnsureBuilt(cancellationToken);
+        _guard?.Check();
+        try
+        {
+            _typos.EnsureBuilt(cancellationToken);
+
+            // the index may have been created again while the texts were read: the dictionary is of another definition then
+            CheckAfterTheWork();
+        }
+        catch (SqliteException exception) when (_guard is not null)
+        {
+            // the texts are read on a connection of their own: a table that is missing under the check is the check's answer
+            _guard.Explain(exception);
+            throw;
+        }
     }
 
     public void RebuildTypoDictionary(CancellationToken cancellationToken = default)
     {
         using var scope = _database.Begin();
-        _typos.Rebuild(cancellationToken);
+        _guard?.Check();
+        try
+        {
+            _typos.Rebuild(cancellationToken);
+
+            // the index may have been created again while the texts were read: the dictionary is of another definition then
+            CheckAfterTheWork();
+        }
+        catch (SqliteException exception) when (_guard is not null)
+        {
+            _guard.Explain(exception);
+            throw;
+        }
     }
 
     public bool Refresh(long key, SqliteTransaction? transaction = null) =>
@@ -189,7 +226,9 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     {
         using var scope = _database.Begin();
         using var connection = _database.OpenReadConnection();
-        return Guarded(() => Scalar(connection, null, _source.PendingCountSql));
+        using var snapshot = _guard is null ? null : connection.BeginTransaction(deferred: true);
+        _guard?.Check(connection, snapshot);
+        return Guarded(() => Scalar(connection, snapshot, _source.PendingCountSql));
     }
 
     /// <summary>Brings up to <see cref="PendingBatch"/> keys of the outbox in step, the smallest first, and takes them out.</summary>
@@ -238,7 +277,18 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         // the words of the table as they are now: a built dictionary is built anew
         if (_typos.IsBuilt)
         {
-            _typos.Rebuild(cancellationToken);
+            _guard?.Check();
+            try
+            {
+                _typos.Rebuild(cancellationToken);
+                CheckAfterTheWork();
+            }
+            catch (SqliteException exception) when (_guard is not null)
+            {
+                // the texts are read on a connection of their own: a table that is missing under the check is the check's answer
+                _guard.Explain(exception);
+                throw;
+            }
         }
 
         return result!;
@@ -307,6 +357,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
                 // the integrity check of FTS5 is an insert: it runs on a connection that may write, and the transaction is rolled back
                 using var writer = _database.OpenConnection();
                 using var transaction = writer.BeginTransaction(deferred: false);
+                _guard?.Check(writer, transaction);
                 fits = IndexCheck.Definition(writer, transaction, _source, problems) && TableFits(writer, transaction, problems);
                 if (fits)
                 {
@@ -336,6 +387,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         // the comparison with the table only reads: a snapshot of its own, beside the writers (review of pull request 18, S3)
         using var connection = _database.OpenReadConnection();
         using var snapshot = connection.BeginTransaction(deferred: true);
+        _guard?.Check(connection, snapshot);
         return CompareWithTable(connection, snapshot, problems);
     }
 
@@ -434,7 +486,9 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
             {
                 var connection = transaction.Connection
                     ?? throw new ArgumentException("The transaction is complete.", nameof(transaction));
+                _guard?.ThrowIfFailed();
                 EnsureSameDatabase(connection, transaction);
+                _guard?.Check(connection, transaction, application: true);
                 write(connection, transaction);
                 return;
             }
@@ -443,6 +497,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
             {
                 using var connection = _database.OpenConnection();
                 using var own = connection.BeginTransaction(deferred: false);
+                _guard?.Check(connection, own);
                 write(connection, own);
                 own.Commit();
             }
@@ -466,6 +521,20 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
             throw new ArgumentException(
                 $"The transaction belongs to another database: the table '{_source.EntryTable}' of the index '{Name}' is not there.",
                 nameof(transaction));
+        }
+    }
+
+    /// <summary>The check after the texts were read on a connection of their own: a dictionary of an index that was created again under it is let go.</summary>
+    private void CheckAfterTheWork()
+    {
+        try
+        {
+            _guard?.Check();
+        }
+        catch (Exception exception) when (exception is LuiIndexNotFoundException or LuiDefinitionMismatchException)
+        {
+            _typos.Discard();
+            throw;
         }
     }
 

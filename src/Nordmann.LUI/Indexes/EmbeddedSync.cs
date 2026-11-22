@@ -22,7 +22,8 @@ internal sealed class EmbeddedSync(
     EmbeddedSource source,
     Func<LuiKey, string> keyText,
     Func<object?, byte[]?> payloadBytes,
-    TypoDictionary typos)
+    TypoDictionary typos,
+    IConnectionGuard? guard = null)
 {
     /// <summary>FTS5's default for <c>automerge</c>: the merge a sync turns off is turned on again with it.</summary>
     private const int DefaultAutomerge = 4;
@@ -80,6 +81,7 @@ internal sealed class EmbeddedSync(
         lock (database.WriterGate)
         {
             using var transaction = writer.BeginTransaction(deferred: false);
+            guard?.Check(writer, transaction);
             using var statements = new Statements(writer, transaction, source, start);
             Execute(writer, transaction, source.AutomergeSql(0));
 
@@ -155,6 +157,7 @@ internal sealed class EmbeddedSync(
             lock (database.WriterGate)
             {
                 using var transaction = writer.BeginTransaction(deferred: false);
+                guard?.Check(writer, transaction);
                 var keys = new List<(long Row, string Key)>(batchSize);
                 using (var notFound = Command(writer, transaction, EmbeddedSource.NotFoundSql(start)))
                 {
@@ -221,6 +224,7 @@ internal sealed class EmbeddedSync(
         lock (database.WriterGate)
         {
             using var transaction = writer.BeginTransaction(deferred: false);
+            guard?.Check(writer, transaction);
             foreach (var sql in statements)
             {
                 Execute(writer, transaction, sql);

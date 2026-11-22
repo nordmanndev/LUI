@@ -761,6 +761,106 @@ expect_caught "a-claim-of-a-round-that-does-not-stay-true" "${INTEGRATION_PROJEC
   "FullyQualifiedName~The_claim_of_a_round_that_has_begun_stays_true_when_the_round_is_over" \
   "sed -i 's|            Volatile.Write(ref _running, 0);|            Interlocked.Exchange(ref _roundsBegun, 0);\n            Volatile.Write(ref _running, 0);|' src/Nordmann.LUI.Hosting/Hosting/LuiWarmupService.cs"
 
+# 35a. A handle that never looks at the SQLite schema counter (issue #265, ADR-0075): the index that another process dropped
+#       and created again with another definition is read and written through the stale definition. The test with the two
+#       catalogs has to see the old handle go on.
+expect_caught "a-handle-that-never-looks-at-the-schema-counter" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~TwoCatalogsTests.After_a_drop_and_a_recreate_by_one_catalog_the_old_handle_of_the_other_throws" \
+  "sed -i 's#        if (counter == Volatile.Read(ref _validatedAt)#        if (true || counter == Volatile.Read(ref _validatedAt)#' src/Nordmann.LUI/Indexes/IndexGuard.cs"
+
+# 35b. An open call that forgets the handle it handed out (issue #265, ADR-0075): every call builds a handle, and the thin
+#       handle — the same instance for the same definition, nothing allocated — is gone.
+expect_caught "an-open-call-that-forgets-its-handle" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~ThinHandleTests.Index_returns_the_same_instance_for_the_same_definition" \
+  "sed -i 's|            _handles.AddOrUpdate(definition, new HandleOfDefinition(handle, runtime.Guard));|            _ = new HandleOfDefinition(handle, runtime.Guard);|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35c. A name that is not remembered as missing (issue #265, ADR-0075): the unknown name reloads the definitions at every
+#       call, and a request for an index that is not there is a read of the whole of lui_meta.
+expect_caught "a-missing-name-that-is-not-remembered" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~ThinHandleTests.An_unknown_name_reloads_once_then_throws_and_does_not_reload_again_while_the_counter_is_unchanged" \
+  "sed -i 's|            _ = snapshot.Missing.TryAdd(name, 0);|            _ = snapshot.Missing.Count;|' src/Nordmann.LUI/Indexes/StoredIndexes.cs"
+
+# 35d. A drop that leaves the runtime of the index alive (issue #265, ADR-0075): the handle of the dropped index is not
+#       stale, and the next index of that name gets the typo dictionary and the handle of the old one.
+expect_caught "a-drop-that-leaves-the-runtime-alive" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~ThinHandleTests.A_handle_of_an_index_that_this_catalog_dropped_stays_dropped_and_the_open_call_gives_a_new_one" \
+  "sed -i 's|        StaleHandlesOf(name);|        _ = name;|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35e. A query that does not ask the guard (issue #265, ADR-0075): the search of a handle reads through the definition it was
+#       built from, whatever the file says now.
+expect_caught "a-query-that-does-not-ask-the-guard" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~TwoCatalogsTests.After_a_drop_and_a_recreate_by_one_catalog_the_old_handle_of_the_other_throws" \
+  "sed -i 's|        _guard?.Check(connection, snapshot);|        _ = _guard;|' src/Nordmann.LUI/Querying/QueryRunner.cs"
+
+# 35f. A write whose transaction does not hold the write lock (issue #265, review of pull request 286): the check of the schema
+#       counter and the statement are two steps again, and another process can drop the index and create it again in between —
+#       the write lands in the new index, or fails with a bare SQLite error. The test that swaps the index between the two has
+#       to see it.
+expect_caught "a-write-that-does-not-hold-the-lock-between-check-and-statement" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~AtomicCheckTests.Upsert_never_lands_in_an_index_that_was_created_again_between_the_check_and_the_write" \
+  "sed -i 's|^            var transaction = connection.BeginTransaction(deferred: false);|            var transaction = connection.BeginTransaction(deferred: true);|' src/Nordmann.LUI/Indexes/EmbeddedIndex.cs"
+
+# 35g. A count that checks outside its snapshot (issue #265, review of pull request 286): the check and the read are two
+#       snapshots, and the count can be the one of the index that was created again.
+expect_caught "a-count-that-checks-outside-its-snapshot" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~AtomicCheckTests.Count_answers_for_the_index_it_checked_or_throws_and_never_reads_the_new_one" \
+  "sed -i 's|        _guard?.Check(connection, snapshot);|        _guard?.Check(connection);|' src/Nordmann.LUI/Indexes/EmbeddedIndex.cs"
+
+# 35h. A decision that is made on a snapshot another thread has replaced (issue #265, review of pull request 286): the open
+#       call throws a mismatch from the stale entry — and the message advises a drop. The test in which another thread
+#       reloads first has to see the false exception.
+expect_caught "an-open-call-that-throws-from-a-replaced-snapshot" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OpenCallTests.A_mismatch_that_was_judged_on_a_snapshot_another_thread_has_replaced_is_decided_again" \
+  "sed -i 's#        return ReloadIfChanged() || Current.Counter != judged.Counter;#        return ReloadIfChanged();#' src/Nordmann.LUI/Indexes/StoredIndexes.cs"
+
+# 35i. A guard that judges the newest definitions and not the snapshot of its operation (issue #265, review of pull request 286):
+#       a read that pinned its snapshot between a drop and a create runs on tables that are not there.
+expect_caught "a-guard-that-judges-another-snapshot-than-the-operation" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~GuardTests.A_read_that_pinned_its_snapshot_between_a_drop_and_a_create_ends_in_the_proper_exception" \
+  "sed -i 's|IndexStore.ReadIndex(connection, transaction, Name);|IndexStore.ReadIndex(_stored.Database, Name);|' src/Nordmann.LUI/Indexes/IndexGuard.cs"
+
+# 35j. A dictionary that is not looked at after it was built (issue #265, review of pull request 286): the texts of an index that
+#       was created again under the handle are the dictionary of the old one.
+expect_caught "a-dictionary-that-is-not-checked-after-its-build" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~AtomicCheckTests.The_typo_dictionary_of_a_handle_does_not_take_in_the_texts_of_an_index_that_was_created_again_under_it" \
+  "sed -i 's|            CheckAfterTheWork();|            _ = _guard;|' src/Nordmann.LUI/Indexes/EmbeddedIndex.cs"
+
+# 35k. The distance of the stored definition does not reach the embedded index that the typed way opens (issue #265, ADR-0054, review of
+#       pull request 286): the old mutation 26x bites on the old path only.
+expect_caught "the-typed-path-forgets-the-distance-of-the-index" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~An_index_opened_through_its_definition_keeps_its_distance_and_corrects_without_the_query_asking_for_it" \
+  "sed -i 's|^                    typoDistance: entry.Definition.TypoDistance,|                    typoDistance: LuiTypoDistance.None,|' src/Nordmann.LUI/Indexes/IndexRuntimes.cs"
+
+# 35l. A call that builds its handle on a snapshot that DropIndex has replaced (issue #265, ADR-0075, review of pull request 286):
+#       the handle escapes the drop and works on the index that is created again.
+expect_caught "a-handle-built-on-a-snapshot-that-a-drop-replaced" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OpenCallTests.A_handle_that_was_judged_before_a_drop_and_made_after_it_is_not_returned_on_the_old_snapshot" \
+  "sed -i 's|                if (StoredIndexes.Current.Counter != snapshot.Counter)|                if (snapshot is null)|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35m. A DropIndex that does not hold the lock of the handles (issue #265, ADR-0075, review of pull request 286): a call that has
+#       judged the stored definition comes to the lock while the handles are marked, and builds an unmarked handle that works on
+#       the index that is created again.
+expect_caught "a-drop-without-the-lock-of-the-handles" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OpenCallTests.A_call_that_waits_for_the_lock_while_DropIndex_marks_and_reads_the_definitions_does_not_escape_it" \
+  "perl -0pi -e 's|lock \(_handleGate\)\n        \{\n            // the words of the dropped|if (name is not null)\n        {\n            // the words of the dropped|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35n. A DropIndex that reads the definitions again after it let go of the lock (issue #265, ADR-0075, review of pull request 286):
+#       a call that waits for the lock sees the old snapshot and builds on it.
+expect_caught "a-drop-that-reads-the-definitions-after-the-lock" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OpenCallTests.A_call_that_waits_for_the_lock_while_DropIndex_marks_and_reads_the_definitions_does_not_escape_it" \
+  "perl -0pi -e 's|            _ = StoredIndexes.Reload\(\);\n        \}\n\n        return existed;|        }\n\n        _ = StoredIndexes.Reload();\n        return existed;|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35o. The distance of the stored definition does not reach the linked index that the typed way opens (the twin of 35k).
+expect_caught "the-typed-path-forgets-the-distance-of-the-linked-index" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~TypedLinkedPayloadTests.WithPayload_and_options_in_any_order" \
+  "sed -i 's|^                typoDistance: entry.Definition.TypoDistance,|                typoDistance: LuiTypoDistance.None,|' src/Nordmann.LUI/Indexes/IndexRuntimes.cs"
+
+# 35p. An entry that cannot be read is thrown without a look at the file (issue #265, review of pull request 286): the host that
+#       opened a file with an index of an older fold keeps throwing the mismatch after a migrator dropped and created the index.
+expect_caught "an-unreadable-row-thrown-without-a-look-at-the-file" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OpenCallTests.A_stale_snapshot_whose_row_is_of_another_fold_is_looked_at_against_the_file_and_does_not_fail_for_ever" \
+  "sed -i 's|            if (!StoredIndexes.Refresh(snapshot))|            if (unreadable is not null \|\| !StoredIndexes.Refresh(snapshot))|' src/Nordmann.LUI/LuiCatalog.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

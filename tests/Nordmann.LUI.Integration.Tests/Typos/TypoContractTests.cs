@@ -21,6 +21,7 @@ namespace Nordmann.LUI.Integration.Tests.Typos;
 /// implementation of the dictionary would have to reproduce; the numbers are what a decision about it is made with.
 /// </para>
 /// </summary>
+[Collection("Heap measurement")]
 public sealed class TypoContractTests(ITestOutputHelper output)
 {
     /// <summary>
