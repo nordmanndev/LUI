@@ -1024,7 +1024,7 @@ public sealed class LinkedBatchSyncTests
         // review of #291, round 3, B2: the application holds the write lock for 1.5 s while the sync starts. The sync waits — that is the application's lock, not
         // the sync's: no transaction of the sync held the file for more than a few milliseconds, and the report says so (bound: one second, headroom for a slow runner)
         using var database = new TestDatabase();
-        using var catalog = database.Open();
+        using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(15) } });
         Run(database, Table);
         Fill(database, 30);
         var tags = catalog.Create(LinkedTags);
