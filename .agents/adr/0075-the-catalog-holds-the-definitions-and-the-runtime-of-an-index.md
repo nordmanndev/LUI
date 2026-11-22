@@ -99,7 +99,7 @@ handle of an index that was dropped and created again under the same name worked
    it is a mismatch: the definitions in memory may be old, and a new open call after a recreate by another process sees the new
    definition. **A decision is thrown only from a snapshot that is still the newest and at the counter of the file**: when another thread
    has replaced the snapshot meanwhile (it reloaded first), the call decides again from the current one — a false mismatch would
-   advise the application to drop an index that is right. A reload never replaces a newer snapshot with an older one. The handles are
+   advise the application to drop an index that is right. A reload never replaces a newer snapshot with an older one. **An entry that cannot be read** (another fold table, another key type) is a mismatch like another definition: it is thrown only from a snapshot that has been compared with the file — the host that opened a file with an index of an older fold, and whose migrator dropped and created it, must see the new index and not throw the old message for ever. A decision is made again only when the **counter** of the file moved from the one of the snapshot (a reload that read the same counter holds the same definitions), so the loops end when the file stops changing. The handles are
    made, and a failed one is replaced, under one lock: a definition object has one handle, whatever the number of threads, and no
    handle that was handed out escapes `DropIndex`.
 7. **`DropIndex` and `Create` write the file and the memory.** `DropIndex` — under the lock of the handles, which a call that makes a handle takes, too, so that no handle escapes it, and through the guards of the handles that are alive, which the catalog holds weakly, so that a handle whose definition object is gone is found too — forgets
@@ -137,7 +137,9 @@ handle of an index that was dropped and created again under the same name worked
   with each handle — the index and its guard — and `IndexRuntimes` only builds it.
 - The seams of the tests are internal: `Database.CommandCounter` (counts the commands the connections of LUI create),
   `Database.AfterSchemaCheck` (runs between the check and the work — the tests swap the index there), `StoredIndexes.Reloads`
-  (counts the reads of `lui_meta`) and `LuiCatalog.CachedHandles` (the handles that are alive).
+  (counts the reads of `lui_meta`), `LuiCatalog.CachedHandles` (the handles that are alive), `StoredIndexes.BeforeCounterCheck`,
+  `LuiCatalog.AfterSlowPathStarted`, `LuiCatalog.BeforeHandleLock`, `LuiCatalog.AfterHandlesMarked` and `TypoDictionaries.BeforeReplace`
+  (each runs at the place where another thread can come in, so that a test makes the interleaving and does not hope for it).
 
 ## Alternatives rejected
 

@@ -971,6 +971,9 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>A seam of the tests (ADR-0075): runs when a call has judged the stored definition and has not yet taken the lock of the handles.</summary>
     internal Action? BeforeHandleLock { get; set; }
 
+    /// <summary>A seam of the tests (ADR-0075): runs in <c>DropIndex</c>, under the lock of the handles, after the handles are marked and before the definitions are read again.</summary>
+    internal Action? AfterHandlesMarked { get; set; }
+
     /// <summary>
     /// The first call of a definition, and the call after its handle failed: the stored definition is found in memory, compared
     /// with the declared one, and the runtime is built. The handles are made and replaced under one lock, and a handle that failed
@@ -1016,7 +1019,8 @@ public sealed class LuiCatalog : IDisposable
                     return (THandle)handed.Handle;
                 }
 
-                if (!ReferenceEquals(StoredIndexes.Current, snapshot))
+                // DropIndex changes the counter, and replaces the snapshot under this lock: a reload that read the same counter is no reason to judge again
+                if (StoredIndexes.Current.Counter != snapshot.Counter)
                 {
                     continue;
                 }
@@ -1048,15 +1052,28 @@ public sealed class LuiCatalog : IDisposable
         while (true)
         {
             var entry = StoredIndexes.Find(name, out snapshot) ?? throw new LuiIndexNotFoundException(name);
-            entry.EnsureReadable(name);
-            if (entry.Definition == declared)
+
+            // an entry that cannot be read — another fold table, another key type, another LUI format — is a mismatch like another
+            // definition: it is thrown only from a snapshot that has been compared with the file, because the migrator who drops the
+            // index and creates it again is seen only there
+            LuiDefinitionMismatchException? unreadable = null;
+            try
+            {
+                entry.EnsureReadable(name);
+            }
+            catch (LuiDefinitionMismatchException exception)
+            {
+                unreadable = exception;
+            }
+
+            if (unreadable is null && entry.Definition == declared)
             {
                 return entry;
             }
 
             if (!StoredIndexes.Refresh(snapshot))
             {
-                throw IndexStore.Mismatch(name, entry.Definition, declared);
+                throw unreadable ?? IndexStore.Mismatch(name, entry.Definition, declared);
             }
         }
     }
@@ -1153,6 +1170,7 @@ public sealed class LuiCatalog : IDisposable
 
             // the handles that were handed out for it are stale from now on, and the definitions in memory are the file's
             StaleHandlesOf(name);
+            AfterHandlesMarked?.Invoke();
             _ = StoredIndexes.Reload();
         }
 
@@ -1201,13 +1219,22 @@ public sealed class LuiCatalog : IDisposable
     /// <param name="name">The name of the index.</param>
     private void StaleHandlesOf(string name)
     {
-        foreach (var reference in _guards)
+        // the guards that were marked or are dead are let go: a failed guard fails for ever, and its handle is replaced
+        _ = _guards.RemoveAll(reference =>
         {
-            if (reference.TryGetTarget(out var guard) && string.Equals(guard.Name, name, StringComparison.Ordinal))
+            if (!reference.TryGetTarget(out var guard))
             {
-                guard.Dropped();
+                return true;
             }
-        }
+
+            if (!string.Equals(guard.Name, name, StringComparison.Ordinal))
+            {
+                return false;
+            }
+
+            guard.Dropped();
+            return true;
+        });
     }
 
     /// <summary>Remembers the guard of a handle that was made, weakly; the list is cleaned of the dead ones when it has doubled.</summary>

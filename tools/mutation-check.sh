@@ -811,7 +811,7 @@ expect_caught "a-count-that-checks-outside-its-snapshot" "${INTEGRATION_PROJECT}
 #       reloads first has to see the false exception.
 expect_caught "an-open-call-that-throws-from-a-replaced-snapshot" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~OpenCallTests.A_mismatch_that_was_judged_on_a_snapshot_another_thread_has_replaced_is_decided_again" \
-  "sed -i 's#        return ReloadIfChanged() || !ReferenceEquals(Current, judged);#        return ReloadIfChanged();#' src/Nordmann.LUI/Indexes/StoredIndexes.cs"
+  "sed -i 's#        return ReloadIfChanged() || Current.Counter != judged.Counter;#        return ReloadIfChanged();#' src/Nordmann.LUI/Indexes/StoredIndexes.cs"
 
 # 35i. A guard that judges the newest definitions and not the snapshot of its operation (issue #265, review of pull request 286):
 #       a read that pinned its snapshot between a drop and a create runs on tables that are not there.
@@ -825,17 +825,41 @@ expect_caught "a-dictionary-that-is-not-checked-after-its-build" "${INTEGRATION_
   "FullyQualifiedName~AtomicCheckTests.The_typo_dictionary_of_a_handle_does_not_take_in_the_texts_of_an_index_that_was_created_again_under_it" \
   "sed -i 's|            CheckAfterTheWork();|            _ = _guard;|' src/Nordmann.LUI/Indexes/EmbeddedIndex.cs"
 
-# 35k. The distance of the stored definition does not reach the index that the typed way opens (issue #265, ADR-0054, review of
+# 35k. The distance of the stored definition does not reach the embedded index that the typed way opens (issue #265, ADR-0054, review of
 #       pull request 286): the old mutation 26x bites on the old path only.
 expect_caught "the-typed-path-forgets-the-distance-of-the-index" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~An_index_opened_through_its_definition_keeps_its_distance_and_corrects_without_the_query_asking_for_it" \
-  "sed -i 's|typoDistance: entry.Definition.TypoDistance,|typoDistance: LuiTypoDistance.None,|' src/Nordmann.LUI/Indexes/IndexRuntimes.cs"
+  "sed -i 's|^                    typoDistance: entry.Definition.TypoDistance,|                    typoDistance: LuiTypoDistance.None,|' src/Nordmann.LUI/Indexes/IndexRuntimes.cs"
 
 # 35l. A call that builds its handle on a snapshot that DropIndex has replaced (issue #265, ADR-0075, review of pull request 286):
 #       the handle escapes the drop and works on the index that is created again.
 expect_caught "a-handle-built-on-a-snapshot-that-a-drop-replaced" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~OpenCallTests.A_handle_that_was_judged_before_a_drop_and_made_after_it_is_not_returned_on_the_old_snapshot" \
-  "sed -i 's|                if (!ReferenceEquals(StoredIndexes.Current, snapshot))|                if (snapshot is null)|' src/Nordmann.LUI/LuiCatalog.cs"
+  "sed -i 's|                if (StoredIndexes.Current.Counter != snapshot.Counter)|                if (snapshot is null)|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35m. A DropIndex that does not hold the lock of the handles (issue #265, ADR-0075, review of pull request 286): a call that has
+#       judged the stored definition comes to the lock while the handles are marked, and builds an unmarked handle that works on
+#       the index that is created again.
+expect_caught "a-drop-without-the-lock-of-the-handles" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OpenCallTests.A_call_that_waits_for_the_lock_while_DropIndex_marks_and_reads_the_definitions_does_not_escape_it" \
+  "perl -0pi -e 's|lock \(_handleGate\)\n        \{\n            // the words of the dropped|if (name is not null)\n        {\n            // the words of the dropped|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35n. A DropIndex that reads the definitions again after it let go of the lock (issue #265, ADR-0075, review of pull request 286):
+#       a call that waits for the lock sees the old snapshot and builds on it.
+expect_caught "a-drop-that-reads-the-definitions-after-the-lock" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OpenCallTests.A_call_that_waits_for_the_lock_while_DropIndex_marks_and_reads_the_definitions_does_not_escape_it" \
+  "perl -0pi -e 's|            _ = StoredIndexes.Reload\(\);\n        \}\n\n        return existed;|        }\n\n        _ = StoredIndexes.Reload();\n        return existed;|' src/Nordmann.LUI/LuiCatalog.cs"
+
+# 35o. The distance of the stored definition does not reach the linked index that the typed way opens (the twin of 35k).
+expect_caught "the-typed-path-forgets-the-distance-of-the-linked-index" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~TypedLinkedPayloadTests.WithPayload_and_options_in_any_order" \
+  "sed -i 's|^                typoDistance: entry.Definition.TypoDistance,|                typoDistance: LuiTypoDistance.None,|' src/Nordmann.LUI/Indexes/IndexRuntimes.cs"
+
+# 35p. An entry that cannot be read is thrown without a look at the file (issue #265, review of pull request 286): the host that
+#       opened a file with an index of an older fold keeps throwing the mismatch after a migrator dropped and created the index.
+expect_caught "an-unreadable-row-thrown-without-a-look-at-the-file" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OpenCallTests.A_stale_snapshot_whose_row_is_of_another_fold_is_looked_at_against_the_file_and_does_not_fail_for_ever" \
+  "sed -i 's|            if (!StoredIndexes.Refresh(snapshot))|            if (unreadable is not null \|\| !StoredIndexes.Refresh(snapshot))|' src/Nordmann.LUI/LuiCatalog.cs"
 
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"

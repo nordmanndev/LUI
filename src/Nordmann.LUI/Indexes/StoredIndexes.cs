@@ -61,20 +61,23 @@ internal sealed class StoredIndexes(Database database)
     }
 
     /// <summary>
-    /// Whether a decision that was made on <paramref name="judged"/> has to be made again: another thread has replaced the
-    /// snapshot since, or the file's counter is not the one of the snapshot and the definitions were read again. <b>False only when
-    /// the snapshot is still the newest one and the file has not moved</b> — only then may the caller throw from it.
+    /// Whether a decision that was made on <paramref name="judged"/> has to be made again: the snapshot of the catalog is of another
+    /// counter now, or the file's counter is not the one of the snapshot and the definitions were read again. <b>False only when
+    /// the file has not moved from the counter of the snapshot</b> — only then may the caller throw from it.
     /// </summary>
     /// <param name="judged">The snapshot the caller decided on.</param>
     /// <returns><see langword="true"/> when the caller has to look at <see cref="Current"/> again.</returns>
     internal bool Refresh(Snapshot judged)
     {
-        if (!ReferenceEquals(Current, judged))
+        // a snapshot at another counter is a snapshot of another state of the file; one at the same counter holds the same definitions
+        // — the file has to be asked whether it moved, and only a move is a reason to decide again: the loops of the callers end
+        // when the file stops changing, not when the threads stop reloading
+        if (Current.Counter != judged.Counter)
         {
             return true;
         }
 
-        return ReloadIfChanged() || !ReferenceEquals(Current, judged);
+        return ReloadIfChanged() || Current.Counter != judged.Counter;
     }
 
     /// <summary>
