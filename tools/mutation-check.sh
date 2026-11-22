@@ -455,11 +455,57 @@ expect_caught "the-page-gets-an-inline-script" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~SampleClientTests" \
   "sed -i 's|</head>|<script>window.x = 1</script></head>|' samples/Lui.Sample/wwwroot/index.html"
 
-# 24b. The index knows no types (ADR-0035): the hit gets back a payload property — a type parameter's
-#      view through the back door. It builds; only the guard of the public API can react.
+# 24b. The index knows no types (ADR-0035, ADR-0074): the untyped hit gets back a payload property — a type parameter's
+#      view through the back door. Only the hit of a handle with a payload type carries one (`LuiHit<TKey, TPayload>`, a
+#      plain value), the untyped hit and the hit of a handle without a payload type have none. It builds; only the guard of
+#      the public API can react.
 expect_caught "the-hit-gets-a-payload-property" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_index_knows_no_types" \
   "sed -i 's|    /// <summary>Whether the entry has a payload.</summary>|    /// <summary>x</summary>\n    public object? Payload => StoredPayload;\n\n    /// <summary>Whether the entry has a payload.</summary>|' src/Nordmann.LUI/LuiHit.cs"
+
+# 24b2. The hit of a handle without a payload type gets a payload property (ADR-0074): a hit has a payload only where
+#       the type of the payload is declared. It builds; the guard of the public API reacts.
+expect_caught "the-key-hit-gets-a-payload-property" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_index_knows_no_types" \
+  "sed -i 's|    /// <summary>The weight of the entry.</summary>|    /// <summary>x</summary>\n    public object? Payload => null;\n\n    /// <summary>The weight of the entry.</summary>|' src/Nordmann.LUI/LuiHitOfKey.cs"
+
+# 24b3. The payload is not loaded with the query (ADR-0074): the hit holds the default of its type, where the payload was to
+#       be. It builds; the test that reads the payload of a hit has to see the value.
+expect_caught "the-payload-is-not-loaded-with-the-query" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~HitPayloadTests" \
+  "sed -i 's|Payload = hit.RequirePayload<TPayload>(),|Payload = default!,|' src/Nordmann.LUI/LuiHitOfKeyAndPayload.cs"
+
+# 24b4. A map that returns null is no failure (ADR-0074): the null check is skipped for a payload that was built.
+expect_caught "a-map-that-returns-null-is-no-failure" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~HitPayloadTests" \
+  "sed -i -e 's|^        stored is null\$|        stored is null \&\& serialized|' -e 's|: Read<T>(stored, key);|: Read<T>(stored!, key);|' src/Nordmann.LUI/Querying/PayloadSource.cs"
+
+# 24b5. An entry whose payload is not stored is read as a payload (ADR-0074): the null check is skipped for stored bytes.
+expect_caught "a-payload-that-is-not-stored-is-no-failure" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~CheckPayloadsTests" \
+  "sed -i -e 's|^        stored is null\$|        stored is null \&\& !serialized|' -e 's|: Read<T>(stored, key);|: Read<T>(stored!, key);|' src/Nordmann.LUI/Querying/PayloadSource.cs"
+
+# 24b6. A map that throws escapes as it threw (ADR-0074): the query does not name the index, the key and the type.
+expect_caught "a-throwing-map-is-not-wrapped" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~HitPayloadTests" \
+  "sed -i 's|when (exception is not (OperationCanceledException or LuiPayloadException))|when (exception.Message.Length < 0)|' src/Nordmann.LUI/Querying/ColumnPayload.cs"
+
+# 24b7. The runtime of a handle without a payload type selects the payload column again (ADR-0074): the bytes that the old
+#       calls stored are copied for every hit of a query that has no use for them.
+expect_caught "a-handle-without-a-payload-type-reads-the-payload-column" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~HitPayloadTests" \
+  "sed -i 's|hitPayload: codec is null ? new NoPayload(name) : null),|hitPayload: null),|' src/Nordmann.LUI/Indexes/IndexRuntimes.cs"
+
+# 24b8. CheckPayloads reads without the guard of the handle (ADR-0075, ADR-0074): an index that was created again with
+#       another definition is read as if it were the old one.
+expect_caught "check-payloads-skips-the-guard" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~CheckPayloadsTests" \
+  "perl -0pi -e 's|(using var snapshot = connection.BeginTransaction\(deferred: true\);\n)        guard\?\.Check\(connection, snapshot\);\n(\n        var unreadable)|\$1\$2|' src/Nordmann.LUI/Indexes/EmbeddedCheck.cs"
+
+# 24b9. CheckPayloads stops at the first entry it cannot read (ADR-0074): the list is not every entry.
+expect_caught "check-payloads-stops-at-the-first-unreadable-entry" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~CheckPayloadsTests" \
+  "sed -i 's|                unreadable.Add((key, exception.Message));|                if (unreadable.Count == 0) { unreadable.Add((key, exception.Message)); }|' src/Nordmann.LUI/Indexes/EmbeddedCheck.cs"
 
 # 24c. A key of the other kind reaches the file (ADR-0035): the check of the kind is skipped, and a text
 #      would be written into an index of numbers — a key that can never be read back.
