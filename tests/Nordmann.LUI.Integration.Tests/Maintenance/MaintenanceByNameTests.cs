@@ -408,6 +408,47 @@ public sealed class MaintenanceByNameTests
         commands.Count.ShouldBe(4, "Count: the snapshot (BEGIN), PRAGMA schema_version, the count, the end of the snapshot — the check and the count are one step, and the name costs no statement");
     }
 
+    [Fact]
+    public void A_catalog_whose_registry_lacks_the_stored_payload_type_still_maintains_by_name()
+    {
+        using var database = new TestDatabase();
+        WriteAllKinds(database);
+
+        // a tool that registers a payload type that is none of the stored ones — or none at all: the runtime by name never asks the registry
+        using var tool = LuiCatalog.Open(database.FilePath, new LuiCatalogOptions { Payloads = new LuiPayloadRegistry().Use(new NoteSerializer()) });
+
+        tool.Indexes().Single(index => string.Equals(index.Name, "chips", StringComparison.Ordinal)).PayloadFormat.ShouldBe("lines-v1");
+        foreach (var name in AllNames)
+        {
+            tool.Count(name).ShouldBeGreaterThan(0);
+            tool.Check(name).IsHealthy.ShouldBeTrue();
+            tool.Optimize(name);
+        }
+
+        tool.Rebuild("chips");
+        tool.Rebuild("recipes");
+        tool.Check("chips").IsHealthy.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void A_held_typed_handle_keeps_its_dictionary_while_Optimize_and_Rebuild_run_by_name()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var corrected = catalog.Create(new LuiIndexDefinition<long>("corrected", index => index.SingleWord().TypoTolerance()));
+        corrected.Upsert(1, "kuchen");
+        corrected.WarmUpTypoDictionary();
+        corrected.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+
+        catalog.Optimize("corrected");
+        catalog.Rebuild("corrected");
+
+        corrected.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current, "the runtime by name shares the dictionary of the catalog and builds none");
+        catalog.Indexes().Single().TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        corrected.Count().ShouldBe(1, "the held handle goes on after the schema counter moved");
+        corrected.Search("kuchen").Hits.ShouldHaveSingleItem();
+    }
+
     // ---- a row that cannot be read ---------------------------------------------------------------------------------
 
     [Theory]

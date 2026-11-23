@@ -43,7 +43,9 @@ The owner decided on 2026-11-20: maintenance works by name, through the catalog,
    to write an entry or to read a payload.
 2. **The runtime is the stored definition's, and nothing of the application is in it.** An operation by name builds the internal runtime —
    the index, its source, its guard — from the stored entry of `lui_meta`, with no payload reader and no map: it **reads no payload and calls
-   no map**. `Check(name)` is the structure only (the definition, the triggers, FTS5's integrity check, the counts against the table); whether
+   no map**. `Check(name)` is the structure only (the definition, the triggers, FTS5's integrity check, the counts against the table, and — for a linked
+   index — that the table still has the **payload columns** of the stored definition: they are stored, so the check needs no map and
+   no registry); whether
    the stored payloads can be read is `CheckPayloads()` of a typed handle (ADR-0074), which needs the type. The runtime is built for the call
    and let go; nothing of it is kept, so the handle cache of ADR-0075 — which needs a definition object — is never reached.
 3. **The guards of ADR-0075 hold for every operation by name, with the same machinery.** The runtime has the `IndexGuard` of a handle: the
@@ -67,19 +69,24 @@ The owner decided on 2026-11-20: maintenance works by name, through the catalog,
      definition, so it is read from the dictionaries of this catalog — **without creating one**; a dictionary that was built for another
      definition of the same name is not the dictionary of the stored one, and the state is `NotBuilt`. It says what *this* catalog has built.
    - The list is in the order of the names. An index whose row this version cannot read (another LUI format, another folding, a key type it
-     does not know) is a `LuiDefinitionMismatchException` that names it, as `WarmUpTypoDictionaries()` already does.
+     does not know, a kind it does not know, a definition of `null` or of malformed JSON) is a `LuiDefinitionMismatchException` that names
+     it — the error of the parser is its inner exception — as `WarmUpTypoDictionaries()` already does, **for `Indexes()` and for every operation by
+     name on that index**. `Indexes()` throws for one damaged row and does not list the others around it: a list with a hole would hide the one
+     row the operator has to `DropIndex`, which is the way out and reads such a row leniently. The other indexes stay usable by name.
 6. **`Rebuild(name)` is for an embedded index only.** For a linked index it throws an `InvalidOperationException` before it touches the file:
    *"'chefs' is a linked index; rebuild it from its table with Sync() on its handle."* A linked index has no content of its own to rebuild
    the search index from: its content is the application's table, and `Sync()` is the call that reads it. The refusal is thrown only from a
    definition that has been compared with the file, like every other.
 7. **A catalog that may not be written** lists and counts. What writes — `Optimize` and `Rebuild` — is a `LuiReadOnlyException` that names
-   the index (ADR-0068); so is `Check(name)`, whose integrity check of FTS5 is an insert that is rolled back, as `Check()` of a handle always was.
+   the index (ADR-0068); so is `Check(name)`, whose integrity check of FTS5 is an insert that is rolled back, as `Check()` of a handle always was. For the same
+   reason `Check(name)` **holds the write lock of the file for the whole integrity check**, which reads the whole index: it is cheap in what it
+   reads, not in the lock it takes (#275 measures it), and a host should not call it from a probe of a second on a large index.
 
 Which check for what:
 
 | check | cost | use |
 |---|---|---|
-| `Check()` of a handle, `catalog.Check(name)` | cheap: structure only | health endpoints, every probe |
+| `Check()` of a handle, `catalog.Check(name)` | structure only; holds the write lock while FTS5 checks the index, refused on a read-only catalog | health checks on a schedule |
 | `catalog.Indexes()` → `NeedsInitialization` (#266) | cheap: state only | readiness, every probe |
 | `CheckPayloads()` (ADR-0074) | reads every stored payload | maintenance, after a change of the payload type |
 

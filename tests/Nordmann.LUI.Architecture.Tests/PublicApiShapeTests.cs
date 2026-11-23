@@ -249,19 +249,26 @@ public sealed class PublicApiShapeTests
 
         typeof(LuiIndexInfo).IsSealed.ShouldBeTrue();
         typeof(LuiIndexInfo).GetMethod("<Clone>$").ShouldNotBeNull("a record: it compares by value");
-        typeof(LuiIndexInfo).GetProperties(declared).Select(property => $"{TypeText(property.PropertyType)} {property.Name} {{ get; }}")
+        // nothing is hidden: the setter is init-only, and the properties that a caller has to set are required
+        static string Written(PropertyInfo property) =>
+            (property.GetCustomAttributes(typeof(System.Runtime.CompilerServices.RequiredMemberAttribute), inherit: false).Length > 0 ? "required " : string.Empty)
+            + $"{TypeText(property.PropertyType)} {property.Name} {{ get; "
+            + (property.SetMethod is null ? string.Empty
+                : property.SetMethod.ReturnParameter.GetRequiredCustomModifiers().Contains(typeof(System.Runtime.CompilerServices.IsExternalInit)) ? "init; " : "set; ")
+            + "}";
+        typeof(LuiIndexInfo).GetProperties(declared).Select(Written)
             .Order(StringComparer.Ordinal)
             .ToArray()
             .ShouldBe(
                 [
-                    "LuiIndexKind Kind { get; }",
-                    "LuiIndexSource Source { get; }",
-                    "LuiKeyType KeyType { get; }",
-                    "LuiTypoDictionaryState TypoDictionaryState { get; }",
-                    "LuiTypoDistance TypoDistance { get; }",
-                    "string Name { get; }",
-                    "string PayloadFormat { get; }",
-                    "string PayloadType { get; }",
+                    "required LuiIndexKind Kind { get; init; }",
+                    "required LuiIndexSource Source { get; init; }",
+                    "required LuiKeyType KeyType { get; init; }",
+                    "required LuiTypoDictionaryState TypoDictionaryState { get; init; }",
+                    "required LuiTypoDistance TypoDistance { get; init; }",
+                    "required string Name { get; init; }",
+                    "string PayloadFormat { get; init; }",
+                    "string PayloadType { get; init; }",
                 ],
                 "the definition fields and the state of the typo dictionary, as the table of the issue lists them (#266 adds NeedsInitialization)");
         Enum.GetNames<LuiIndexSource>().ShouldBe(["Embedded", "Linked"]);

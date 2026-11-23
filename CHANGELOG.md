@@ -122,11 +122,11 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   `TypoDistance`, `TypoDictionaryState` — in the order of the names; the definition fields come from the memory of the catalog, with no statement that reads them (one statement asks whether the
   schema counter moved), and the state of the typo dictionary is read when it is called. `Count(name)`, `Check(name)` (structure only: **it reads no payload and calls no map**) and
   `Optimize(name)` work for embedded and linked indexes; `Rebuild(name)` for an embedded index only — for a linked one it throws an `InvalidOperationException`
-  (`'chefs' is a linked index; rebuild it from its table with Sync() on its handle.`). None of them returns a handle or writes an entry. They meet the guards of every operation
+  (`'chefs' is a linked index; rebuild it from its table with Sync() on its handle.`). A stored definition that cannot be read (`null`, malformed JSON) is a `LuiDefinitionMismatchException` that names the index — also for `DropIndex`, which now takes such a row. None of them returns a handle or writes an entry. They meet the guards of every operation
   (ADR-0075): the check of the schema counter and the work are one step, an index that is gone is a `LuiIndexNotFoundException` that names it, and a call by name declares no definition, so
   an index that another process created again with another definition is used as it is stored. A name that is not known reloads the definitions once and is remembered as missing until the
   schema counter changes. A catalog opened with `OpenReadOnly` lists and counts; `Optimize`, `Rebuild` and `Check` are a `LuiReadOnlyException` that names the index. **Migration: none — the
-  members are new.** Which check for what: `Check()` / `catalog.Check(name)` is cheap (health endpoints, every probe), `CheckPayloads()` reads every stored payload (maintenance, after a change
+  members are new.** Which check for what: `Check()` / `catalog.Check(name)` reads no payload but holds the write lock of the file while FTS5 checks the index, and a linked index's payload columns are checked (health checks on a schedule), `CheckPayloads()` reads every stored payload (maintenance, after a change
   of the payload type). New public type: `LuiIndexInfo`.
 
 ### Changed

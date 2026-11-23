@@ -805,7 +805,7 @@ public sealed class LuiCatalog : IDisposable
     /// </para>
     /// </summary>
     /// <returns>One record per index; empty when the catalog holds none. It is a snapshot.</returns>
-    /// <exception cref="LuiDefinitionMismatchException">An index of the file was written by another version of the library (another LUI format, another folding, a key type this version does not know).</exception>
+    /// <exception cref="LuiDefinitionMismatchException">A row of the file cannot be read: another LUI format, another folding, a key type or a kind this version does not know, a definition of <c>null</c> or of malformed JSON (the error of the parser is the inner exception). It names the index, and the list is not given around it: <see cref="DropIndex"/> is the way out.</exception>
     /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
     public IReadOnlyList<LuiIndexInfo> Indexes()
     {
@@ -856,10 +856,10 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>
     /// Checks the structure of an index, by name (ADR-0076): an embedded one — its definition, its triggers and FTS5's integrity check
     /// against the content table; a linked one — its definition, its table and its entries against the rows of the table. The report
-    /// carries no keys. <b>It reads no payload and calls no map</b>: whether the stored payloads can be read is the question of
+    /// carries no keys. <b>It reads no payload and calls no map</b> (the payload columns of a linked index are stored, and the table is checked to still have them): whether the stored payloads can be read is the question of
     /// <c>CheckPayloads()</c> on a typed handle, which needs the payload type. It is cheap enough for a health endpoint.
     /// <para>
-    /// FTS5's integrity check is an insert that is rolled back, so the check needs a connection that may write: a catalog opened with
+    /// FTS5's integrity check is an insert that is rolled back and reads the whole index, so the check holds the write lock of the file for as long as it takes, and it needs a connection that may write: a catalog opened with
     /// <see cref="OpenReadOnly"/> refuses it with a <see cref="LuiReadOnlyException"/>, as the check of a handle does.
     /// </para>
     /// </summary>

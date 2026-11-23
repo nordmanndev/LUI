@@ -65,7 +65,7 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 | `ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)` | opens a linked index with payload columns; the map builds the payload from the row of the table. |
 | `IReadOnlyList<LuiIndexInfo> Indexes()` | describes **every** index of the catalog by what is stored, in the order of the names — without a definition and without a payload type ([maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type), ADR-0076). The definition fields come from the memory of the catalog, with no statement that reads them; the typo dictionary state is read when it is called. |
 | `long Count(string name)` | the number of the entries of the index, embedded or linked; the check of the schema counter and the count are one step. A name that is not there is a `LuiIndexNotFoundException` that names it. |
-| `LuiIntegrityReport Check(string name)` | compares the index with itself (embedded) or with its table (linked); the report has no keys. **Structure only: it reads no payload and calls no map** — cheap enough for a health endpoint. Needs a connection that may write, like `Check()` of a handle (FTS5's integrity check is an insert that is rolled back). |
+| `LuiIntegrityReport Check(string name)` | compares the index with itself (embedded) or with its table (linked); the report has no keys. **Structure only: it reads no payload and calls no map** (the payload *columns* of a linked index are stored, and are checked). It holds the **write lock of the file for the whole of FTS5's integrity check**, which reads the whole index (an insert that is rolled back): cheap in what it reads, not in the lock it takes — do not wire it into a liveness probe of a second on a large index (#275 measures it). For the same reason a catalog opened with `OpenReadOnly` refuses it with a `LuiReadOnlyException`. |
 | `void Optimize(string name)` | lets SQLite optimize the search index of the index, embedded or linked. A catalog opened with `OpenReadOnly` refuses it with a `LuiReadOnlyException` that names the index. |
 | `void Rebuild(string name)` | rebuilds an **embedded** index from its content table — the triggers anew, the search index anew, merged, in one transaction; it reads no payload. For a **linked** index it throws an `InvalidOperationException` (`'chefs' is a linked index; rebuild it from its table with Sync() on its handle.`): its content is the application's table, and `Sync()` on its handle builds the search index from it. A catalog opened with `OpenReadOnly` refuses it with a `LuiReadOnlyException` that names the index. |
 | `void WarmUpTypoDictionaries(CancellationToken cancellationToken = default)` | builds the typo dictionary of **every** index of the catalog — the warm-up of a host in one call (ADR-0043). The dictionary belongs to the index of the catalog: an index you open later sees it and reports it as built. |
@@ -114,18 +114,18 @@ Which check for what:
 
 ### `LuiIndexInfo` — an index described by name
 
-What `Indexes()` returns: a sealed record, one per index, a snapshot with named properties. It is no handle.
+What `Indexes()` returns: a sealed record, one per index, a snapshot with named properties (`init`-only; the six that a caller must set are `required`). It is no handle.
 
 | Member | What it is |
 |---|---|
-| `string Name { get; }` | the name of the index |
-| `LuiIndexSource Source { get; }` | `Embedded` or `Linked`. It is called `Source` because `Kind` already means single word or multi word |
-| `LuiIndexKind Kind { get; }` | `SingleWord` or `MultiWord` |
-| `string? PayloadType { get; }` | the stored name of the payload type of an embedded index that was created with one (ADR-0072); `null` otherwise, and for every linked index |
-| `string? PayloadFormat { get; }` | the format of the serializer that wrote the payloads; `null` exactly when `PayloadType` is |
-| `LuiKeyType KeyType { get; }` | the stored key type: `Long`, `Int`, `String` or `Guid` |
-| `LuiTypoDistance TypoDistance { get; }` | how many errors the index forgives |
-| `LuiTypoDictionaryState TypoDictionaryState { get; }` | `NotBuilt`, `Building` or `Current`, in this catalog, when `Indexes()` was called |
+| `required string Name { get; init; }` | the name of the index |
+| `required LuiIndexSource Source { get; init; }` | `Embedded` or `Linked`. It is called `Source` because `Kind` already means single word or multi word |
+| `required LuiIndexKind Kind { get; init; }` | `SingleWord` or `MultiWord` |
+| `string? PayloadType { get; init; }` | the stored name of the payload type of an embedded index that was created with one (ADR-0072); `null` otherwise, and for every linked index |
+| `string? PayloadFormat { get; init; }` | the format of the serializer that wrote the payloads; `null` exactly when `PayloadType` is |
+| `required LuiKeyType KeyType { get; init; }` | the stored key type: `Long`, `Int`, `String` or `Guid` |
+| `required LuiTypoDistance TypoDistance { get; init; }` | how many errors the index forgives |
+| `required LuiTypoDictionaryState TypoDictionaryState { get; init; }` | `NotBuilt`, `Building` or `Current`, in this catalog, when `Indexes()` was called |
 
 ### `LuiCatalogOptions`
 
@@ -1135,7 +1135,7 @@ The warm-up is a service of the host, not a thread of the library: the host star
 
 ## The whole surface
 
-Fifty-nine public type names in `Nordmann.LUI` (seventy-three types: a generic type counts once for each number of type parameters), two in `Nordmann.LUI.Hosting`. Nothing else is public.
+Sixty-three public type names in `Nordmann.LUI` (seventy-eight types: a generic type counts once for each number of type parameters), two in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|
