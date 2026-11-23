@@ -50,6 +50,7 @@ internal sealed class LinkedSync
 
     private long _generation;
     private bool _taken;
+    private bool _notNeeded;
     private bool _released;
     private TimeSpan _longestLock;
     private int _batches;
@@ -71,7 +72,22 @@ internal sealed class LinkedSync
         _owner = $"pid{Environment.ProcessId}-{database.InstanceId}-{Interlocked.Increment(ref _runs)}";
     }
 
-    internal LuiLinkedSyncReport Run(LuiSyncOptions options, CancellationToken cancellationToken)
+    /// <summary>Runs the sync (ADR-0077).</summary>
+    /// <param name="options">The options of the sync.</param>
+    /// <param name="cancellationToken">Checked between the batches and the steps.</param>
+    /// <returns>What the sync did.</returns>
+    internal LuiLinkedSyncReport Run(LuiSyncOptions options, CancellationToken cancellationToken) => Run(options, onlyWhenNeeded: false, cancellationToken)!;
+
+    /// <summary>
+    /// Runs the sync. With <paramref name="onlyWhenNeeded"/> it is the <b>first</b> sync that is wanted (<c>Initialize()</c>, ADR-0076): the flag
+    /// <c>NeedsInitialSync</c> is read in the same transaction that takes the lease, so of two catalogs that both read "due" exactly one syncs — the
+    /// other finds the flag cleared when it asks for the lease and does nothing.
+    /// </summary>
+    /// <param name="options">The options of the sync.</param>
+    /// <param name="onlyWhenNeeded">Whether the sync runs only while the first complete sync is still due.</param>
+    /// <param name="cancellationToken">Checked between the batches and the steps.</param>
+    /// <returns>The report; <see langword="null"/> when <paramref name="onlyWhenNeeded"/> is set and nothing was due.</returns>
+    internal LuiLinkedSyncReport? Run(LuiSyncOptions options, bool onlyWhenNeeded, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(options);
         cancellationToken.ThrowIfCancellationRequested();
@@ -82,7 +98,12 @@ internal sealed class LinkedSync
             using var writer = _database.OpenConnection();
             try
             {
-                Take(writer);
+                Take(writer, onlyWhenNeeded);
+                if (_notNeeded)
+                {
+                    return null;
+                }
+
                 WriteBatches(writer, options, cancellationToken);
                 RemoveWhatIsOld(writer, options, cancellationToken);
                 Merge(writer, options, cancellationToken);
@@ -106,9 +127,16 @@ internal sealed class LinkedSync
     /// The first transaction: the lease and the generation. A lease that is held and not expired is refused — the sync does not wait, and
     /// it has written nothing; one that is free, or expired, is taken, and the generation of this run is the next one.
     /// </summary>
-    private void Take(SqliteConnection writer) =>
+    private void Take(SqliteConnection writer, bool onlyWhenNeeded) =>
         InTransaction(writer, "lease", ownsTheLease: false, (connection, transaction) =>
         {
+            // the first sync of Initialize(): nothing is due any more — another sync completed it since the state was read — and nothing is taken
+            if (onlyWhenNeeded && !(IndexStore.ReadNeedsInitialSync(connection, transaction, _name) ?? throw new LuiIndexNotFoundException(_name)))
+            {
+                _notNeeded = true;
+                return;
+            }
+
             var now = Now();
             using (var take = Command(connection, transaction, SyncLease.TakeSql))
             {

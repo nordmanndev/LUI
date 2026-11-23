@@ -7,8 +7,8 @@ namespace Nordmann.LUI;
 public enum LuiTypoDictionaryState
 {
     /// <summary>
-    /// Not built: the first correction, <c>WarmUpTypoDictionary()</c> or a start with warm-up builds it — and after a
-    /// build that failed, the next correction tries again.
+    /// Not built — in this process: a query never builds it (ADR-0042), <c>Initialize()</c> or <c>WarmUpTypoDictionary()</c> does. An index that forgives
+    /// typos and has no dictionary answers without corrections and says so (<see cref="LuiResult.CorrectionSkipped"/>).
     /// </summary>
     NotBuilt,
 

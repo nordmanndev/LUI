@@ -1,3 +1,4 @@
+using Nordmann.LUI.Integration.Tests.Catalog;
 using Shouldly;
 using static Nordmann.LUI.Integration.Tests.Linked.LinkedTable;
 
@@ -34,6 +35,9 @@ public sealed class TwoCatalogsInitializeTests
         return database;
     }
 
+    private static LuiInitializeIndexReport Line(LuiInitializeReport report, string name) =>
+        report.Indexes.Single(line => string.Equals(line.Name, name, StringComparison.Ordinal));
+
     [Fact]
     public void Exactly_one_of_two_catalogs_runs_the_first_sync_the_other_reports_it_running_elsewhere()
     {
@@ -45,7 +49,7 @@ public sealed class TwoCatalogsInitializeTests
 
         // while the first catalog is in its first sync (it holds the lease), the second one initializes the same file
         progress.When(
-            told => told.Step == LuiInitializeStep.InitialSync && told.IndexName == "cooks" && told.Sync?.Batches == 1 && ofTheSecond is null,
+            told => told.Step == LuiInitializeStep.InitialSync && string.Equals(told.IndexName, "cooks", StringComparison.Ordinal) && told.Sync?.Batches == 1 && ofTheSecond is null,
             () => ofTheSecond = second.Initialize());
 
         var ofTheFirst = first.Initialize(new LuiInitializeOptions { Progress = progress, Sync = new LuiSyncOptions { BatchSize = 10 } });
@@ -54,25 +58,25 @@ public sealed class TwoCatalogsInitializeTests
         ofTheSecond.Failed.ShouldBeFalse("a lease that is held is no failure, and the call does not wait for it");
 
         // the second skipped the sync of the index the first was syncing, and its dictionary: the words of the sync are still to come
-        var cooksOfTheSecond = ofTheSecond.Indexes.Single(line => line.Name == "cooks");
+        var cooksOfTheSecond = Line(ofTheSecond, "cooks");
         cooksOfTheSecond.Sync.ShouldBeNull();
         cooksOfTheSecond.TypoDictionaryBuilt.ShouldBeFalse();
         cooksOfTheSecond.Skipped.ShouldBe(LuiInitializationNeeds.InitialSyncRunningElsewhere | LuiInitializationNeeds.TypoDictionary);
 
         // the sync of chefs was done by the first one already, so there was nothing to run; every process builds its own dictionaries of the others
-        ofTheSecond.Indexes.Single(line => line.Name == "chefs").Sync.ShouldBeNull();
-        ofTheSecond.Indexes.Single(line => line.Name == "recipes").TypoDictionaryBuilt.ShouldBeTrue();
+        Line(ofTheSecond, "chefs").Sync.ShouldBeNull();
+        Line(ofTheSecond, "recipes").TypoDictionaryBuilt.ShouldBeTrue();
 
         // the first one did the sync of cooks, then built its dictionary
-        var cooksOfTheFirst = ofTheFirst.Indexes.Single(line => line.Name == "cooks");
+        var cooksOfTheFirst = Line(ofTheFirst, "cooks");
         cooksOfTheFirst.Sync.ShouldNotBeNull().Indexed.ShouldBe(30);
         cooksOfTheFirst.TypoDictionaryBuilt.ShouldBeTrue();
-        ofTheFirst.Indexes.Single(line => line.Name == "recipes").TypoDictionaryBuilt.ShouldBeTrue();
+        Line(ofTheFirst, "recipes").TypoDictionaryBuilt.ShouldBeTrue();
 
         // a later call of the second completes: the sync is done, only its dictionary is left
         var later = second.Initialize();
-        later.Indexes.Single(line => line.Name == "cooks").Sync.ShouldBeNull("the first sync is done: it is not run again");
-        later.Indexes.Single(line => line.Name == "cooks").TypoDictionaryBuilt.ShouldBeTrue();
+        Line(later, "cooks").Sync.ShouldBeNull("the first sync is done: it is not run again");
+        Line(later, "cooks").TypoDictionaryBuilt.ShouldBeTrue();
         second.Indexes().ShouldAllBe(index => index.NeedsInitialization == LuiInitializationNeeds.None);
         first.Indexes().ShouldAllBe(index => index.NeedsInitialization == LuiInitializationNeeds.None);
 
@@ -92,7 +96,7 @@ public sealed class TwoCatalogsInitializeTests
 
         // told right before the sync call of the second catalog, after it read its state
         progress.When(
-            told => told.Step == LuiInitializeStep.InitialSync && told.IndexName == "chefs" && told.Sync is null,
+            told => told.Step == LuiInitializeStep.InitialSync && string.Equals(told.IndexName, "chefs", StringComparison.Ordinal) && told.Sync is null,
             () =>
             {
                 first.Initialize(new LuiInitializeOptions { Indexes = [Chefs] });

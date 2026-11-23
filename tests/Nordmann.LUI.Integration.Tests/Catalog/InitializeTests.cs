@@ -57,7 +57,7 @@ public sealed class InitializeTests
     {
         using var database = World();
         using var catalog = database.Open();
-        catalog.Indexes().Single(index => index.Name == "chefs").NeedsInitialization
+        Info(catalog, "chefs").NeedsInitialization
             .ShouldBe(LuiInitializationNeeds.Triggers | LuiInitializationNeeds.InitialSync, "before the call a linked index needs both file steps");
         var steps = new Steps();
 
@@ -76,7 +76,7 @@ public sealed class InitializeTests
             ],
             "exactly the steps the state of each index needs, in the order of the issue: triggers, first sync, outbox, dictionaries last");
 
-        var chefs = report.Indexes.Single(line => line.Name == "chefs");
+        var chefs = Line(report, "chefs");
         chefs.TriggersInstalled.ShouldBeTrue();
         chefs.Sync.ShouldNotBeNull().Indexed.ShouldBe(5);
         chefs.Sync.Batches.ShouldBe(3);
@@ -85,13 +85,13 @@ public sealed class InitializeTests
         chefs.Failed.ShouldBeFalse();
         chefs.Skipped.ShouldBe(LuiInitializationNeeds.None);
 
-        var recipes = report.Indexes.Single(line => line.Name == "recipes");
+        var recipes = Line(report, "recipes");
         recipes.TypoDictionaryBuilt.ShouldBeTrue();
         recipes.TriggersInstalled.ShouldBeFalse();
         recipes.Sync.ShouldBeNull();
         recipes.PendingApplied.ShouldBe(0);
 
-        var tags = report.Indexes.Single(line => line.Name == "tags");
+        var tags = Line(report, "tags");
         (tags.TriggersInstalled, tags.Sync, tags.PendingApplied, tags.TypoDictionaryBuilt, tags.Failed).ShouldBe((false, null, 0, false, false), "an index that needs nothing gets nothing");
 
         report.Indexes.Select(line => line.Name).ShouldBe(["chefs", "recipes", "tags"], "one line per index, in the order of the names");
@@ -180,10 +180,10 @@ public sealed class InitializeTests
         {
             using var catalog = database.Open();
             var report = catalog.Initialize(new LuiInitializeOptions { InstallTriggers = false });
-            report.Indexes.Single(line => line.Name == "chefs").TriggersInstalled.ShouldBeFalse();
+            Line(report, "chefs").TriggersInstalled.ShouldBeFalse();
             catalog.Index(Chefs).Triggers().ShouldBe(LuiTriggerState.None);
             catalog.Index(Chefs).NeedsInitialSync.ShouldBeFalse("the other steps still run");
-            report.Indexes.Single(line => line.Name == "chefs").Skipped.ShouldBe(LuiInitializationNeeds.Triggers, "what was switched off stays a need");
+            Line(report, "chefs").Skipped.ShouldBe(LuiInitializationNeeds.Triggers, "what was switched off stays a need");
         }
 
         // InitialSync
@@ -191,11 +191,11 @@ public sealed class InitializeTests
         {
             using var catalog = database.Open();
             var report = catalog.Initialize(new LuiInitializeOptions { InitialSync = false });
-            report.Indexes.Single(line => line.Name == "chefs").Sync.ShouldBeNull();
+            Line(report, "chefs").Sync.ShouldBeNull();
             catalog.Index(Chefs).NeedsInitialSync.ShouldBeTrue();
             catalog.Index(Chefs).Count().ShouldBe(0);
             catalog.Index(Chefs).Triggers().ShouldBe(LuiTriggerState.Current, "the other steps still run");
-            report.Indexes.Single(line => line.Name == "chefs").Skipped.ShouldBe(LuiInitializationNeeds.InitialSync);
+            Line(report, "chefs").Skipped.ShouldBe(LuiInitializationNeeds.InitialSync);
         }
 
         // ApplyPending
@@ -206,10 +206,10 @@ public sealed class InitializeTests
             Insert(database, (10, "kuchenform", 1));
 
             var report = catalog.Initialize(new LuiInitializeOptions { ApplyPending = false });
-            report.Indexes.Single(line => line.Name == "chefs").PendingApplied.ShouldBe(0);
+            Line(report, "chefs").PendingApplied.ShouldBe(0);
             catalog.Index(Chefs).Pending().ShouldBe(1, "the outbox waits");
 
-            catalog.Initialize().Indexes.Single(line => line.Name == "chefs").PendingApplied.ShouldBe(1);
+            Line(catalog.Initialize(), "chefs").PendingApplied.ShouldBe(1);
             catalog.Index(Chefs).Pending().ShouldBe(0);
         }
 
@@ -218,9 +218,9 @@ public sealed class InitializeTests
         {
             using var catalog = database.Open();
             var report = catalog.Initialize(new LuiInitializeOptions { WarmUpTypoDictionaries = false });
-            report.Indexes.Single(line => line.Name == "recipes").TypoDictionaryBuilt.ShouldBeFalse();
+            Line(report, "recipes").TypoDictionaryBuilt.ShouldBeFalse();
             catalog.Index(Recipes).TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
-            report.Indexes.Single(line => line.Name == "recipes").Skipped.ShouldBe(LuiInitializationNeeds.TypoDictionary);
+            Line(report, "recipes").Skipped.ShouldBe(LuiInitializationNeeds.TypoDictionary);
         }
     }
 
@@ -234,10 +234,10 @@ public sealed class InitializeTests
         var report = catalog.Initialize(new LuiInitializeOptions { Indexes = [Recipes, Cooks], Progress = steps });
 
         report.Indexes.Select(line => line.Name).ShouldBe(["cooks", "recipes"], "the selected indexes, and no other");
-        steps.Told.Select(told => told.IndexName).Distinct().Order(StringComparer.Ordinal).ShouldBe(["cooks", "recipes"]);
+        steps.Told.Select(told => told.IndexName).Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ShouldBe(["cooks", "recipes"]);
         catalog.Index(Chefs).Triggers().ShouldBe(LuiTriggerState.None, "chefs was not selected");
         catalog.Index(Chefs).NeedsInitialSync.ShouldBeTrue();
-        catalog.Indexes().Single(index => index.Name == "chefs").NeedsInitialization.ShouldBe(LuiInitializationNeeds.Triggers | LuiInitializationNeeds.InitialSync);
+        Info(catalog, "chefs").NeedsInitialization.ShouldBe(LuiInitializationNeeds.Triggers | LuiInitializationNeeds.InitialSync);
 
         // in parts: the rest comes with the next call
         catalog.Initialize(new LuiInitializeOptions { Indexes = [Chefs] });
@@ -285,26 +285,26 @@ public sealed class InitializeTests
 
         var failure = Should.Throw<LuiInitializeException>(() => catalog.Initialize(new LuiInitializeOptions { Progress = steps }));
 
-        failure.Errors.Keys.Order(StringComparer.Ordinal).ShouldBe(["chefs", "cooks"], "every failing index, by name");
+        failure.Errors.Keys.Order(StringComparer.Ordinal).ToArray().ShouldBe(["chefs", "cooks"], "every failing index, by name");
         failure.Errors.Values.ShouldAllBe(error => error != null);
         failure.Message.ShouldContain("'chefs'");
         failure.Message.ShouldContain("'cooks'");
-        failure.Message.ShouldContain(nameof(LuiInitializeStep.Triggers), customMessage: "the message names the failing step");
+        failure.Message.ShouldContain("at " + nameof(LuiInitializeStep.Triggers), Case.Sensitive); // the message names the failing step
         failure.Report.Failed.ShouldBeTrue();
         failure.Report.Ready.ShouldBeFalse();
 
-        var chefs = failure.Report.Indexes.Single(line => line.Name == "chefs");
+        var chefs = Line(failure.Report, "chefs");
         chefs.Failed.ShouldBeTrue();
         chefs.FailedStep.ShouldBe(LuiInitializeStep.Triggers);
         chefs.Sync.ShouldBeNull("the later steps of a failed index are skipped");
         chefs.Skipped.ShouldNotBe(LuiInitializationNeeds.None);
 
         steps.Told.ShouldNotContain(told => told.Step == LuiInitializeStep.InitialSync, "no sync of an index whose triggers failed");
-        failure.Report.Indexes.Single(line => line.Name == "recipes").TypoDictionaryBuilt.ShouldBeTrue("the other indexes go on");
+        Line(failure.Report, "recipes").TypoDictionaryBuilt.ShouldBeTrue("the other indexes go on");
         catalog.Index(Recipes).TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
 
         // the failed index still says what is missing
-        var info = catalog.Indexes().Single(index => index.Name == "chefs");
+        var info = Info(catalog, "chefs");
         info.NeedsInitialization.HasFlag(LuiInitializationNeeds.Triggers).ShouldBeTrue();
         info.NeedsInitialization.HasFlag(LuiInitializationNeeds.InitialSync).ShouldBeTrue();
     }
@@ -318,8 +318,8 @@ public sealed class InitializeTests
 
         var failure = Should.Throw<LuiInitializeException>(() => catalog.Initialize());
 
-        failure.Report.Indexes.Single(line => line.Name == "cooks").TypoDictionaryBuilt.ShouldBeFalse("a failed index gets no later step");
-        failure.Report.Indexes.Single(line => line.Name == "recipes").TypoDictionaryBuilt.ShouldBeTrue();
+        Line(failure.Report, "cooks").TypoDictionaryBuilt.ShouldBeFalse("a failed index gets no later step");
+        Line(failure.Report, "recipes").TypoDictionaryBuilt.ShouldBeTrue();
     }
 
     // ---- cancellation -----------------------------------------------------------------------------------------------
@@ -447,13 +447,13 @@ public sealed class InitializeTests
 
         steps.Told.ShouldBe([("cooks", LuiInitializeStep.TypoDictionary), ("recipes", LuiInitializeStep.TypoDictionary)], "the file steps cannot be done and are left to the writing process");
         report.Failed.ShouldBeFalse("a read-only catalog does not fail for what it cannot do");
-        report.Indexes.Single(line => line.Name == "recipes").TypoDictionaryBuilt.ShouldBeTrue();
-        report.Indexes.Single(line => line.Name == "cooks").TypoDictionaryBuilt.ShouldBeTrue("also a linked index: the writing process does the sync, this one holds the words it has");
-        report.Indexes.Single(line => line.Name == "chefs").Skipped.ShouldBe(LuiInitializationNeeds.Triggers | LuiInitializationNeeds.InitialSync);
+        Line(report, "recipes").TypoDictionaryBuilt.ShouldBeTrue();
+        Line(report, "cooks").TypoDictionaryBuilt.ShouldBeTrue("also a linked index: the writing process does the sync, this one holds the words it has");
+        Line(report, "chefs").Skipped.ShouldBe(LuiInitializationNeeds.Triggers | LuiInitializationNeeds.InitialSync);
 
         // a reader can tell "not ready yet" from "ready": its readiness looks only at the dictionary
         var infos = reader.Indexes();
-        infos.Single(index => index.Name == "chefs").NeedsInitialization.ShouldBe(LuiInitializationNeeds.Triggers | LuiInitializationNeeds.InitialSync);
+        infos.Single(index => string.Equals(index.Name, "chefs", StringComparison.Ordinal)).NeedsInitialization.ShouldBe(LuiInitializationNeeds.Triggers | LuiInitializationNeeds.InitialSync);
         infos.ShouldAllBe(index => !index.NeedsInitialization.HasFlag(LuiInitializationNeeds.TypoDictionary));
 
         // the writer of the file did none of it
@@ -485,7 +485,7 @@ public sealed class InitializeTests
         chefs.Search("kuchen").Hits.ShouldBeEmpty();
         chefs.Triggers().ShouldBe(LuiTriggerState.None);
         chefs.NeedsInitialSync.ShouldBeTrue();
-        catalog.Indexes().Single(index => index.Name == "chefs").NeedsInitialization.ShouldBe(LuiInitializationNeeds.InitialSync | LuiInitializationNeeds.Triggers);
+        Info(catalog, "chefs").NeedsInitialization.ShouldBe(LuiInitializationNeeds.InitialSync | LuiInitializationNeeds.Triggers);
     }
 
     [Fact]
@@ -495,7 +495,7 @@ public sealed class InitializeTests
         var clock = new FixedClock();
         using var catalog = database.Open(new LuiCatalogOptions { TimeProvider = clock });
         var chefs = catalog.Index(Chefs);
-        LuiInitializationNeeds Needs() => catalog.Indexes().Single(index => index.Name == "chefs").NeedsInitialization;
+        LuiInitializationNeeds Needs() => Info(catalog, "chefs").NeedsInitialization;
 
         Needs().ShouldBe(LuiInitializationNeeds.Triggers | LuiInitializationNeeds.InitialSync);
 
@@ -540,12 +540,12 @@ public sealed class InitializeTests
 
         report.Failed.ShouldBeFalse("a held lease is no failure");
         steps.Told.ShouldNotContain(told => told.Step == LuiInitializeStep.InitialSync);
-        report.Indexes.Single(line => line.Name == "chefs").Skipped.ShouldBe(LuiInitializationNeeds.InitialSyncRunningElsewhere);
-        var cooks = report.Indexes.Single(line => line.Name == "cooks");
+        Line(report, "chefs").Skipped.ShouldBe(LuiInitializationNeeds.InitialSyncRunningElsewhere);
+        var cooks = Line(report, "cooks");
         cooks.Skipped.ShouldBe(LuiInitializationNeeds.InitialSyncRunningElsewhere | LuiInitializationNeeds.TypoDictionary, "its dictionary would miss the words of the sync that is still to come: the reason stays");
         cooks.TypoDictionaryBuilt.ShouldBeFalse();
         report.Ready.ShouldBeFalse();
-        report.Indexes.Single(line => line.Name == "recipes").TypoDictionaryBuilt.ShouldBeTrue();
+        Line(report, "recipes").TypoDictionaryBuilt.ShouldBeTrue();
 
         // the other process is done (its lease runs out): the next call completes
         clock.Advance(TimeSpan.FromSeconds(31));
@@ -554,6 +554,12 @@ public sealed class InitializeTests
     }
 
     // ---- the plumbing of the tests --------------------------------------------------------------------------------------
+
+    private static LuiInitializeIndexReport Line(LuiInitializeReport report, string name) =>
+        report.Indexes.Single(line => string.Equals(line.Name, name, StringComparison.Ordinal));
+
+    private static LuiIndexInfo Info(LuiCatalog catalog, string name) =>
+        catalog.Indexes().Single(index => string.Equals(index.Name, name, StringComparison.Ordinal));
 
     private static void InterlockedMax(ref int target, int value)
     {

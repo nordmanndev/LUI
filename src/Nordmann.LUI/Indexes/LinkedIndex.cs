@@ -101,6 +101,37 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
         return TriggerState(connection, snapshot);
     }
 
+    /// <summary>
+    /// The state of the triggers, the flag of the first sync and the lease, in one snapshot that the guard checked (ADR-0075, ADR-0076): the answer is the one of the index
+    /// the guard judged. It is what <c>Initialize()</c> decides on, and what <c>Indexes()</c> turns into <see cref="LuiInitializationNeeds"/>.
+    /// </summary>
+    /// <returns>The state.</returns>
+    internal LinkedInitialization ReadInitializationState()
+    {
+        using var scope = _database.Begin();
+        using var connection = _database.OpenReadConnection();
+        using var snapshot = connection.BeginTransaction(deferred: true);
+        _guard?.Check(connection, snapshot);
+
+        var triggers = TriggerState(connection, snapshot);
+        var due = IndexStore.ReadNeedsInitialSync(connection, snapshot, Name) ?? throw new LuiIndexNotFoundException(Name);
+
+        // a lease says something only about a sync that is due: the owner and its expiry, as the sync of #271 writes them
+        var running = false;
+        if (due)
+        {
+            using var read = Command(connection, snapshot, SyncLease.ReadSql);
+            read.Parameters.AddWithValue("$name", Name);
+            using var lease = read.ExecuteReader();
+            running = lease.Read()
+                && !lease.IsDBNull(0)
+                && !lease.IsDBNull(1)
+                && lease.GetInt64(1) > _database.TimeProvider.GetUtcNow().ToUnixTimeMilliseconds();
+        }
+
+        return new LinkedInitialization(triggers, due, running);
+    }
+
     private LuiTriggerState TriggerState(SqliteConnection connection, SqliteTransaction? transaction)
     {
         using var command = connection.CreateCommand();
@@ -290,10 +321,28 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     /// <param name="options">The options of the sync; <see langword="null"/> for the defaults.</param>
     /// <param name="cancellationToken">Checked between the batches and the steps.</param>
     /// <returns>What was indexed, what was left out, and how the sync worked.</returns>
-    public LuiLinkedSyncReport Sync(LuiSyncOptions? options, CancellationToken cancellationToken = default)
+    public LuiLinkedSyncReport Sync(LuiSyncOptions? options, CancellationToken cancellationToken = default) =>
+        SyncCore(options, onlyWhenNeeded: false, cancellationToken)!; // never null without onlyWhenNeeded
+
+    /// <summary>
+    /// The first sync of <c>Initialize()</c> (ADR-0076): the sync of <see cref="Sync(LuiSyncOptions?, CancellationToken)"/>, but only while the first complete sync is still
+    /// due — checked in the transaction that takes the lease, so of two callers exactly one syncs.
+    /// </summary>
+    /// <param name="options">The options of the sync; <see langword="null"/> for the defaults.</param>
+    /// <param name="cancellationToken">Checked between the batches and the steps.</param>
+    /// <returns>The report; <see langword="null"/> when nothing was due.</returns>
+    /// <exception cref="LuiSyncInProgressException">Another sync holds the lease.</exception>
+    internal LuiLinkedSyncReport? SyncWhenNeeded(LuiSyncOptions? options, CancellationToken cancellationToken) =>
+        SyncCore(options, onlyWhenNeeded: true, cancellationToken);
+
+    private LuiLinkedSyncReport? SyncCore(LuiSyncOptions? options, bool onlyWhenNeeded, CancellationToken cancellationToken)
     {
         using var scope = _database.Begin();
-        var result = Guarded(() => new LinkedSync(_database, _source, _guard).Run(options ?? new LuiSyncOptions(), cancellationToken));
+        var result = Guarded(() => new LinkedSync(_database, _source, _guard).Run(options ?? new LuiSyncOptions(), onlyWhenNeeded, cancellationToken));
+        if (result is null)
+        {
+            return null;
+        }
 
         // the words of the table as they are now: a built dictionary is built anew
         if (_typos.IsBuilt)
