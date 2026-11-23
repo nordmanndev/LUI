@@ -22,7 +22,7 @@ public sealed class ConcurrencyTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         for (var i = 0; i < 2_000; i++)
         {
             tags.Upsert(i, $"kuchen{i}", i);
@@ -66,12 +66,12 @@ public sealed class ConcurrencyTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         const int Seed = 4_000;
         const int Written = 800;
 
-        tags.UpsertMany(Enumerable.Range(0, Seed).Select(i => new LuiEntry(i, TextOf(i))));
+        tags.UpsertMany(Enumerable.Range(0, Seed).Select(i => new LuiEntry<long>(i, TextOf(i))));
 
         var writer = Task.Run(() =>
         {
@@ -95,7 +95,7 @@ public sealed class ConcurrencyTests
             {
                 var result = tags.Query("kuchen").Take(20).Execute();
                 result.Hits.Count.ShouldBe(20);
-                result.Hits.ShouldAllBe(hit => hit.Text == TextOf(hit.Key.ToInt64()));
+                result.Hits.ShouldAllBe(hit => hit.Text == TextOf(hit.Key));
 
                 // the count is a scan of the whole table — every tenth round is enough to
                 // watch it, and the suite is not slowed down by the rest of it
@@ -127,7 +127,7 @@ public sealed class ConcurrencyTests
         // the reader holds the query — and with it the snapshot of the file
         using var reader = database.Open();
         var blocking = new BlockingSimilarity();
-        var ranked = reader.Create("tags", index => index.SingleWord().Similarity(blocking));
+        var ranked = reader.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord().Similarity(blocking)));
 
         const int Seed = 50;
         for (var i = 0; i < Seed; i++)
@@ -137,11 +137,11 @@ public sealed class ConcurrencyTests
 
         // the writer waits a second for a lock: a conflict has to be an error, not a wait
         using var writer = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(1) } });
-        var written = writer.Index("tags");
+        var written = writer.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord().Similarity(blocking)));
 
         const int Written = 500;
 
-        LuiResult? pinned = null;
+        LuiResult<long>? pinned = null;
         var reading = new Worker(() => pinned = ranked.Query("kuchen").Take(25).Execute());
         reading.Start();
 
@@ -168,11 +168,11 @@ public sealed class ConcurrencyTests
         // the reader sees the picture it pinned: the rows that were there when its query started
         pinned.ShouldNotBeNull("the reader answered");
         pinned!.Hits.Count.ShouldBe(25);
-        pinned.Hits.ShouldAllBe(hit => hit.Text == TextOf(hit.Key.ToInt64()));
+        pinned.Hits.ShouldAllBe(hit => hit.Text == TextOf(hit.Key));
 
         // and both connections see the same count at the end
         written.Count().ShouldBe(Seed + Written);
-        reader.Index("tags").Count().ShouldBe(Seed + Written);
+        reader.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord().Similarity(blocking))).Count().ShouldBe(Seed + Written);
     }
 
     /// <summary>
@@ -251,9 +251,9 @@ public sealed class ConcurrencyTests
     {
         using var database = new TestDatabase();
         var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord().TypoTolerance()));
 
-        tags.UpsertMany(Enumerable.Range(0, 20_000).Select(i => new LuiEntry(i, "wort" + i.ToString("D6", CultureInfo.InvariantCulture))));
+        tags.UpsertMany(Enumerable.Range(0, 20_000).Select(i => new LuiEntry<long>(i, "wort" + i.ToString("D6", CultureInfo.InvariantCulture))));
 
         var warm = new Worker(() => tags.WarmUpTypoDictionary());
         warm.Start();

@@ -15,17 +15,17 @@ public sealed class ReadOnlyCatalogTests
         using var database = new TestDatabase();
         using (var writer = database.Open())
         {
-            writer.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
-            writer.Create("titles", index => index.MultiWord()).Upsert(1, "Gedeckter Apfelkuchen");
+            writer.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
+            writer.Create(new LuiIndexDefinition<long>("titles", index => index.MultiWord())).Upsert(1, "Gedeckter Apfelkuchen");
         }
 
         using var reader = ReadOnly(database);
 
-        var tags = reader.Index("tags");
+        var tags = reader.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         tags.Search("vegan").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
         tags.Count().ShouldBe(1);
 
-        var titles = reader.Index("titles");
+        var titles = reader.Index(new LuiIndexDefinition<long>("titles", index => index.MultiWord()));
         titles.Search("apfelkuchen").Hits.ShouldHaveSingleItem().Text.ShouldBe("Gedeckter Apfelkuchen");
     }
 
@@ -36,7 +36,7 @@ public sealed class ReadOnlyCatalogTests
         database.PrepareWithATable();
         using (var writer = database.Open())
         {
-            writer.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+            writer.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
         }
 
         // the file is in the mode "delete": a read-only catalog may not switch it to write-ahead logging
@@ -45,7 +45,7 @@ public sealed class ReadOnlyCatalogTests
 
         using (var reader = ReadOnly(database))
         {
-            reader.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
+            reader.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Search("vegan").Hits.ShouldHaveSingleItem();
         }
 
         JournalMode(database).ShouldBe(mode, "the read path does not switch the file to write-ahead logging");
@@ -59,14 +59,14 @@ public sealed class ReadOnlyCatalogTests
         using var database = new TestDatabase();
         using (var writer = database.Open())
         {
-            writer.Create("tags", index => index.SingleWord());
+            writer.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         }
 
         var rows = database.Scalar<long>("SELECT count(*) FROM lui_meta;");
 
         using (var reader = ReadOnly(database))
         {
-            reader.Index("tags").ShouldNotBeNull();
+            reader.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).ShouldNotBeNull();
         }
 
         database.Scalar<long>("SELECT count(*) FROM lui_meta;").ShouldBe(rows, "no row of lui_meta was written");
@@ -78,11 +78,11 @@ public sealed class ReadOnlyCatalogTests
         using var database = new TestDatabase();
         using (var writer = database.Open())
         {
-            writer.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+            writer.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
         }
 
         using var reader = ReadOnly(database);
-        var index = reader.Index("tags");
+        var index = reader.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         var exception = Should.Throw<LuiReadOnlyException>(() => index.Upsert(2, "vegetarisch"));
 
@@ -97,12 +97,12 @@ public sealed class ReadOnlyCatalogTests
         using var database = new TestDatabase();
         using (var writer = database.Open())
         {
-            writer.Create("tags", index => index.SingleWord());
+            writer.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         }
 
         using var reader = ReadOnly(database);
 
-        var exception = Should.Throw<LuiReadOnlyException>(() => reader.Create("other", index => index.SingleWord()));
+        var exception = Should.Throw<LuiReadOnlyException>(() => reader.Create(new LuiIndexDefinition<long>("other", index => index.SingleWord())));
 
         exception.Operation.ShouldBe("creating an index");
         database.Scalar<long>("SELECT count(*) FROM lui_meta;").ShouldBe(1, "the index was not created");
@@ -114,7 +114,7 @@ public sealed class ReadOnlyCatalogTests
         using var database = new TestDatabase();
         using (var writer = database.Open())
         {
-            writer.Create("tags", index => index.SingleWord());
+            writer.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         }
 
         using var reader = ReadOnly(database);
@@ -131,14 +131,14 @@ public sealed class ReadOnlyCatalogTests
         using var database = new TestDatabase();
         using (var writer = database.Open())
         {
-            writer.Create("tags", index => index.SingleWord());
+            writer.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         }
 
         using var reader = ReadOnly(database);
-        var index = reader.Index("tags");
+        var index = reader.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         var exception = Should.Throw<LuiReadOnlyException>(
-            () => index.Sync([new LuiEntry(1, "vegan")]));
+            () => index.Sync([new LuiEntry<long>(1, "vegan")]));
 
         exception.Operation.ShouldBe("syncing an index");
         index.Count().ShouldBe(0, "nothing was indexed");

@@ -24,8 +24,8 @@ public sealed class BatchPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var single = catalog.Create("single", index => index.SingleWord());
-        var batch = catalog.Create("batch", index => index.SingleWord());
+        var single = catalog.Create(new LuiIndexDefinition<long>("single", index => index.SingleWord()));
+        var batch = catalog.Create(new LuiIndexDefinition<long>("batch", index => index.SingleWord()));
 
         var loop = Stopwatch.StartNew();
         for (var i = 0; i < entries; i++)
@@ -36,7 +36,7 @@ public sealed class BatchPerformance(ITestOutputHelper output)
         loop.Stop();
 
         var many = Stopwatch.StartNew();
-        batch.UpsertMany(texts.Select((text, i) => new LuiEntry(i + 1, text) { Weight = i }));
+        batch.UpsertMany(texts.Select((text, i) => new LuiEntry<long>(i + 1, text) { Weight = i }));
         many.Stop();
 
         Report($"{entries:N0} entries: single upserts {loop.Elapsed.TotalSeconds:F1} s ({entries / loop.Elapsed.TotalSeconds:N0}/s), "

@@ -131,11 +131,11 @@ public sealed class KeyTypeTests
     }
 
     [Fact]
-    public void A_string_definition_opens_an_index_the_old_calls_created_with_text_keys()
+    public void A_string_definition_opens_an_index_created_with_text_keys()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("words", index => index.SingleWord().WithKey(LuiKeyKind.Text)).Upsert("01JC0FFEE", "vegan");
+        catalog.Create(new LuiIndexDefinition<string>("words", index => index.SingleWord())).Upsert("01JC0FFEE", "vegan");
 
         var words = catalog.Index(new LuiIndexDefinition<string>("words", index => index.SingleWord()));
 
@@ -144,7 +144,7 @@ public sealed class KeyTypeTests
     }
 
     [Fact]
-    public void An_index_of_the_old_calls_with_int_or_guid_keys_reads_as_numbers_and_as_texts()
+    public void An_index_with_int_or_guid_keys_reads_them_in_the_type_of_its_definition()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
@@ -153,17 +153,13 @@ public sealed class KeyTypeTests
         counts.Upsert(42, "vegan");
         ids.Upsert(FirstGuid, "vegan");
 
-        var untypedCounts = catalog.Index("counts");
-        var untypedIds = catalog.Index("ids");
+        counts.Search("veg").Hits.ShouldHaveSingleItem().Key.ShouldBe(42);
+        ids.Search("veg").Hits.ShouldHaveSingleItem().Key.ShouldBe(FirstGuid);
 
-        untypedCounts.KeyKind.ShouldBe(LuiKeyKind.Number);
-        untypedCounts.Search("veg").Hits.ShouldHaveSingleItem().Key.ShouldBe((LuiKey)42L);
-        untypedIds.KeyKind.ShouldBe(LuiKeyKind.Text);
-        untypedIds.Search("veg").Hits.ShouldHaveSingleItem().Key.ShouldBe((LuiKey)"0f8fad5b-d9cb-469f-a165-70867728950e");
-        Should.Throw<ArgumentException>(() => untypedCounts.Upsert(3_000_000_000L, "too big")).Message.ShouldContain("'counts'");
-        Should.Throw<ArgumentException>(() => untypedIds.Upsert("not a guid", "refused")).Message.ShouldContain("'ids'");
-        untypedIds.Upsert("0F8FAD5B-D9CB-469F-A165-70867728950E", "same key, other case");
-        untypedIds.Count().ShouldBe(1);
+        // a key outside the range of an int or text that is no GUID cannot be written: the type of the key is the type argument
+        // of the definition, and the same key in another case is the same GUID
+        ids.Upsert(Guid.Parse("0F8FAD5B-D9CB-469F-A165-70867728950E"), "same key, other case");
+        ids.Count().ShouldBe(1);
     }
 
     // ---- the handle of a dropped index, whatever the key type -------------------------------------------------------
@@ -450,6 +446,12 @@ public sealed class KeyTypeTests
             "long" => Search(catalog.Create(new LuiIndexDefinition<long>("things", index => index.SingleWord())), 1L),
             _ => Search(catalog.Create(new LuiIndexDefinition<Guid>("things", index => index.SingleWord())), FirstGuid),
         };
+        Action opened = stored switch
+        {
+            "int" => () => catalog.Index(new LuiIndexDefinition<int>("things", index => index.SingleWord())).Search("veg"),
+            "long" => () => catalog.Index(new LuiIndexDefinition<long>("things", index => index.SingleWord())).Search("veg"),
+            _ => () => catalog.Index(new LuiIndexDefinition<Guid>("things", index => index.SingleWord())).Search("veg"),
+        };
         Run(database, $"UPDATE lui_things SET key = '{damaged}';");
 
         var exception = Should.Throw<LuiKeyException>(things);
@@ -460,8 +462,8 @@ public sealed class KeyTypeTests
         exception.Message.ShouldContain($"'{damaged}'");
         exception.ShouldBeAssignableTo<LuiException>();
 
-        // the untyped read of the same index fails the same way
-        Should.Throw<LuiKeyException>(() => catalog.Index("things").Search("veg"));
+        // the handle that Index(definition) opens fails the same way
+        Should.Throw<LuiKeyException>(opened);
     }
 
     private static Action Search<TKey>(LuiEmbeddedIndex<TKey> things, TKey key)

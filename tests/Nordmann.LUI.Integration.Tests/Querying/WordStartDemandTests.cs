@@ -21,7 +21,7 @@ public sealed class WordStartDemandTests
 
         // what the preparation of the input costs: a query of the same length that finds nothing
         var preparation = SearchForms(() => index.Search("q"));
-        var found = default(LuiResult);
+        var found = default(LuiResult<long>);
         var made = SearchForms(() => found = index.Search("a"));
 
         found!.Hits.Count.ShouldBeGreaterThan(5);
@@ -38,7 +38,7 @@ public sealed class WordStartDemandTests
 
         foreach (var rank in new[] { LuiRankingOrder.WordStartThenSimilarity, LuiRankingOrder.WordStartThenWeight })
         {
-            var result = default(LuiResult);
+            var result = default(LuiResult<long>);
             var made = SearchForms(() => result = index.Search("apf", new LuiQueryOptions { Rank = rank, TypoTolerance = false }));
 
             made.ShouldBeGreaterThanOrEqualTo(result!.CandidatesConsidered, $"{rank} sorts by the word start: every candidate has one");
@@ -53,11 +53,11 @@ public sealed class WordStartDemandTests
         var index = Entries(catalog);
 
         // only the weight alone ranks without a similarity — and the similarity is measured from the word start
-        var cheap = default(LuiResult);
+        var cheap = default(LuiResult<long>);
         var made = SearchForms(() => cheap = index.Search("apf", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = false }));
 
         // a correction may ask for the word start of every candidate: with the typo tolerance on, the word starts are made
-        var asked = default(LuiResult);
+        var asked = default(LuiResult<long>);
         var madeForCorrection = SearchForms(() => asked = index.Search("apf", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = true }));
 
         var preparation = SearchForms(() => index.Search("qxz", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = false }));
@@ -108,24 +108,25 @@ public sealed class WordStartDemandTests
         }
 
         using var catalog = database.Open();
-        var index = catalog.CreateLinked("tags", builder => builder.MultiWord().LinkTo("tag", "id", "name"));
+        var tags = new LuiLinkedIndexDefinition<long>("tags", builder => builder.MultiWord().LinkTo("tag", "id", "name"));
+        var index = catalog.Create(tags);
         index.Sync();
         Microsoft.Data.Sqlite.SqliteConnection.ClearAllPools();
 
         // the candidates of a linked index are checked against the table: the search form is made for that, and the word start
         // comes with it — with the weight alone and without a typo correction as with every other ranking
-        var preparation = SearchForms(() => catalog.LinkedIndex("tags").Search("qxz", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = false }));
-        var result = default(LuiResult);
-        var made = SearchForms(() => result = catalog.LinkedIndex("tags").Search("must", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = false }));
+        var preparation = SearchForms(() => catalog.Index(tags).Search("qxz", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = false }));
+        var result = default(LuiResult<long>);
+        var made = SearchForms(() => result = catalog.Index(tags).Search("must", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = false }));
 
         result!.Hits.ShouldNotBeEmpty();
         made.ShouldBeGreaterThanOrEqualTo(preparation + result.CandidatesConsidered, "every candidate makes its search form for the check against the table");
-        var asked = catalog.LinkedIndex("tags").Search("must", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = true });
+        var asked = catalog.Index(tags).Search("must", new LuiQueryOptions { Rank = LuiRankingOrder.WeightOnly, TypoTolerance = true });
         Describe(result).ShouldBe(Describe(asked), "the hits, their order, their word starts and similarities do not change");
         result.Hits.ShouldContain(hit => hit.AtWordStart);
     }
 
-    private static string Describe(LuiResult result) =>
+    private static string Describe(LuiResult<long> result) =>
         string.Join('|', result.Hits.Select(hit => string.Create(CultureInfo.InvariantCulture, $"{hit.Key}={hit.Text} w{hit.Weight} s{hit.AtWordStart} {hit.Similarity:F4}")));
 
     private static int SearchForms(Action query)
@@ -135,20 +136,20 @@ public sealed class WordStartDemandTests
         return Normalizer.SearchFormsWritten - before;
     }
 
-    private static ILuiEmbeddedIndex Names(LuiCatalog catalog)
+    private static LuiEmbeddedIndex<long> Names(LuiCatalog catalog)
     {
-        var index = catalog.Create("names", builder => builder.MultiWord().TypoTolerance());
+        var index = catalog.Create(new LuiIndexDefinition<long>("names", builder => builder.MultiWord().TypoTolerance()));
         string[] firstNames = ["Max", "Anna", "Hans-Peter", "Ärger", "Straße", "Maria", "Jan"];
         string[] lastNames = ["Mustermann", "Muster", "Mustafa", "Maier", "Mayer", "Petersen", "Peters"];
-        var entries = new List<LuiEntry>();
+        var entries = new List<LuiEntry<long>>();
         var key = 1;
         foreach (var first in firstNames)
         {
             foreach (var last in lastNames)
             {
-                entries.Add(new LuiEntry(key, $"{first} {last}") { Weight = (key * 5) % 31, Priority = key % 9 == 0 ? LuiPriority.High : LuiPriority.Normal });
+                entries.Add(new LuiEntry<long>(key, $"{first} {last}") { Weight = (key * 5) % 31, Priority = key % 9 == 0 ? LuiPriority.High : LuiPriority.Normal });
                 key++;
-                entries.Add(new LuiEntry(key, $"{last}, {first} {last}") { Weight = (key * 5) % 31 });
+                entries.Add(new LuiEntry<long>(key, $"{last}, {first} {last}") { Weight = (key * 5) % 31 });
                 key++;
             }
         }
@@ -157,17 +158,17 @@ public sealed class WordStartDemandTests
         return index;
     }
 
-    private static ILuiEmbeddedIndex Entries(LuiCatalog catalog)
+    private static LuiEmbeddedIndex<long> Entries(LuiCatalog catalog)
     {
-        var index = catalog.Create("words", builder => builder.MultiWord().TypoTolerance());
+        var index = catalog.Create(new LuiIndexDefinition<long>("words", builder => builder.MultiWord().TypoTolerance()));
         string[] words = ["apfel", "apfelkuchen", "apfelmus", "apfelsaft", "ananas", "aprikose", "avocado", "birne", "banane", "brot", "kuchen", "kaffee"];
-        var entries = new List<LuiEntry>();
+        var entries = new List<LuiEntry<long>>();
         var key = 1;
         for (var round = 0; round < 40; round++)
         {
             foreach (var word in words)
             {
-                entries.Add(new LuiEntry(key, round == 0 ? word : $"{word} {round}") { Weight = (key * 7) % 53 });
+                entries.Add(new LuiEntry<long>(key, round == 0 ? word : $"{word} {round}") { Weight = (key * 7) % 53 });
                 key++;
             }
         }

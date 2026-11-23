@@ -51,14 +51,14 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         CreateTable(database, rows);
 
-        var linked = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
+        var linked = catalog.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count")));
         var clock = Stopwatch.StartNew();
         linked.Sync();
         Report($"linked: sync {clock.Elapsed.TotalSeconds:F1} s");
 
-        var embedded = catalog.Create("embedded", index => index.SingleWord());
+        var embedded = catalog.Create(new LuiIndexDefinition<long>("embedded", index => index.SingleWord()));
         clock.Restart();
-        embedded.UpsertMany(rows.Select(row => new LuiEntry(row.Id, row.Text) { Weight = row.Weight }));
+        embedded.UpsertMany(rows.Select(row => new LuiEntry<long>(row.Id, row.Text) { Weight = row.Weight }));
         Report($"embedded:  UpsertMany {clock.Elapsed.TotalSeconds:F1} s");
 
         var inputs = Enumerable.Range(0, Queries).Select(_ =>
@@ -93,7 +93,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         MeasureRefreshes(database, linked, entries, random);
     }
 
-    private void MeasureRefreshes(TestDatabase database, ILuiLinkedIndex linked, int entries, Random random)
+    private void MeasureRefreshes(TestDatabase database, LuiLinkedIndex<long> linked, int entries, Random random)
     {
         var refreshes = new List<double>();
         using (var connection = database.Connect())
@@ -143,7 +143,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
         using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         CreateTable(database, rows);
 
-        var linked = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
+        var linked = catalog.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count")));
 
         var waiting = WriteBesideASync(database, linked, WriterBusyTimeout);
         Report($"sync: {waiting.LockSeconds:F1} s — the write lock of the file");
@@ -391,7 +391,7 @@ public sealed class LinkedPerformance(ITestOutputHelper output)
     /// <param name="linked">The linked index that syncs.</param>
     /// <param name="busyTimeout">The busy timeout of the writer of the application.</param>
     /// <returns>The lock and the waits of the writer.</returns>
-    private static LockMeasurement WriteBesideASync(TestDatabase database, ILuiLinkedIndex linked, TimeSpan busyTimeout)
+    private static LockMeasurement WriteBesideASync(TestDatabase database, LuiLinkedIndex<long> linked, TimeSpan busyTimeout)
     {
         var waits = new List<double>();
         var failures = 0;

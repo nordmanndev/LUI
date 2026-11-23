@@ -24,7 +24,7 @@ internal sealed class PayloadSource(string indexName, PayloadSerialization? seri
         stored is null
             ? throw new LuiPayloadException(
                 indexName,
-                key,
+                key.ToString(),
                 typeof(T),
                 serialized ? "the entry has no stored payload." : "the map of the linked index returned null.")
             : Read<T>(stored, key);
@@ -37,13 +37,13 @@ internal sealed class PayloadSource(string indexName, PayloadSerialization? seri
             return stored is T built
                 ? built
                 : throw new LuiPayloadException(
-                    indexName, key, typeof(T), $"the map of the linked index built a '{stored.GetType().FullName}'.");
+                    indexName, key.ToString(), typeof(T), $"the map of the linked index built a '{stored.GetType().FullName}'.");
         }
 
         if (serialization is not { CanRead: true })
         {
             throw new LuiPayloadException(
-                indexName, key, typeof(T), "the catalog has no serialiser — set LuiCatalogOptions.Payloads (or, for the old calls, PayloadSerializer).");
+                indexName, key.ToString(), typeof(T), "the catalog has no serialiser — set LuiCatalogOptions.Payloads (or, for the old calls, PayloadSerializer).");
         }
 
         try
@@ -55,7 +55,7 @@ internal sealed class PayloadSource(string indexName, PayloadSerialization? seri
             // whatever the serialiser throws — LUI's own or one of the application — the caller gets one exception
             // that names the index, the key and the type (review of PR 60, I1). A type that the registry does not know is no payload
             // that cannot be read but a configuration that is wrong (ADR-0072): it stays a LuiConfigurationException
-            throw new LuiPayloadException(indexName, key, typeof(T), exception.Message, exception);
+            throw new LuiPayloadException(indexName, key.ToString(), typeof(T), exception.Message, exception);
         }
     }
 }

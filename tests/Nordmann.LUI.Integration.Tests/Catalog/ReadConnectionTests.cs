@@ -77,7 +77,7 @@ public sealed class ReadConnectionTests
         using var database = new TestDatabase();
         MakeCatalogue(database);
         using var catalog = LuiCatalog.Open(database.FilePath);
-        var tags = catalog.Index("tags");
+        var tags = catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         tags.Search("vegan").Hits.ShouldHaveSingleItem();
 
@@ -107,7 +107,7 @@ public sealed class ReadConnectionTests
         {
             using var catalog = LuiCatalog.Open(database.FilePath);
 
-            catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
+            catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Search("vegan").Hits.ShouldHaveSingleItem();
             using var connection = catalog.Database.OpenReadConnection();
             Should.Throw<SqliteException>(() => Execute(connection, "DELETE FROM lui_meta;")).SqliteErrorCode.ShouldBe(8);
         }
@@ -131,7 +131,7 @@ public sealed class ReadConnectionTests
 
         using (var catalog = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            var tags = catalog.Create("tags", index => index.SingleWord());
+            var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
             for (var i = 1; i <= 50; i++)
             {
                 tags.Upsert(i, $"tag{i}");
@@ -147,7 +147,7 @@ public sealed class ReadConnectionTests
 
             using var reader = LuiCatalog.OpenReadOnly(copy);
 
-            reader.Index("tags").Count().ShouldBe(50, "the file alone holds what was written");
+            reader.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Count().ShouldBe(50, "the file alone holds what was written");
         }
         finally
         {
@@ -196,7 +196,7 @@ public sealed class ReadConnectionTests
     {
         using (var catalog = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+            catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
         }
 
         SqliteConnection.ClearAllPools();

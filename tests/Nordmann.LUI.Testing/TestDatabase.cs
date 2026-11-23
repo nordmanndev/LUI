@@ -11,7 +11,6 @@ public sealed class TestDatabase : IDisposable
 {
     private readonly string _path;
     private readonly bool _keep;
-    private static readonly ILuiPayloadSerializer ChipSerializer = LuiPayloadSerializer.Json(ChipJsonContext.Default);
 
     private readonly List<LuiCatalog> _catalogs = [];
 
@@ -41,11 +40,10 @@ public sealed class TestDatabase : IDisposable
 
     public LuiCatalog Open(LuiCatalogOptions? options = null)
     {
-        // the payloads of the tests are chips (ADR-0035: the serialiser is the catalog's); a test that wants another one,
-        // or none, says so in its options or opens the catalog itself. A test that brings a registry (ADR-0072) gets no
-        // serialiser besides it: the two are refused together
+        // the payloads of the tests are chips and recipe cards (ADR-0072: the registry of the catalog); a test that wants
+        // another registry, or none, says so in its options or opens the catalog itself
         options ??= new LuiCatalogOptions();
-        options = options.PayloadSerializer is null && options.Payloads is null ? options with { PayloadSerializer = ChipSerializer } : options;
+        options = options.Payloads is null ? options with { Payloads = new LuiPayloadRegistry().Use(ChipJsonContext.Default) } : options;
 
         var catalog = LuiCatalog.OpenOrCreate(FilePath, options);
         _catalogs.Add(catalog);

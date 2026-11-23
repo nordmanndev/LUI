@@ -22,11 +22,11 @@ public sealed class OneFileTests
 
         using (var catalog = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            catalog.Create("labels", index => index.SingleWord()).Upsert(1, "vegetarisch");
+            catalog.Create(new LuiIndexDefinition<long>("labels", index => index.SingleWord())).Upsert(1, "vegetarisch");
             var tags = LinkedTable.Tags(catalog);
             tags.Sync();
 
-            catalog.Index("labels").Search("vegetar").Hits.ShouldHaveSingleItem();
+            catalog.Index(new LuiIndexDefinition<long>("labels", index => index.SingleWord())).Search("vegetar").Hits.ShouldHaveSingleItem();
             tags.Search("veg").Hits.Count.ShouldBe(2, "the linked index answers from the table of the application");
         }
 
@@ -51,7 +51,7 @@ public sealed class OneFileTests
 
         using (var catalog = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            catalog.Create("labels", index => index.SingleWord()).Upsert(1, "vegan");
+            catalog.Create(new LuiIndexDefinition<long>("labels", index => index.SingleWord())).Upsert(1, "vegan");
         }
 
         SqliteConnection.ClearAllPools();
@@ -72,7 +72,7 @@ public sealed class OneFileTests
 
         using (var catalog = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            catalog.Create("labels", index => index.SingleWord()).Upsert(1, "vegan");
+            catalog.Create(new LuiIndexDefinition<long>("labels", index => index.SingleWord())).Upsert(1, "vegan");
         }
 
         SqliteConnection.ClearAllPools();
@@ -89,7 +89,7 @@ public sealed class OneFileTests
 
         using (var catalog = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            catalog.Create("labels", index => index.SingleWord()).Upsert(1, "vegan");
+            catalog.Create(new LuiIndexDefinition<long>("labels", index => index.SingleWord())).Upsert(1, "vegan");
             LinkedTable.Tags(catalog);
         }
 
@@ -110,7 +110,7 @@ public sealed class OneFileTests
 
         using (var catalog = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            catalog.Create("labels", index => index.SingleWord()).Upsert(1, "vegan");
+            catalog.Create(new LuiIndexDefinition<long>("labels", index => index.SingleWord())).Upsert(1, "vegan");
         }
 
         if (!applicationFirst)
@@ -125,7 +125,7 @@ public sealed class OneFileTests
 
         using (var catalog = LuiCatalog.Open(database.FilePath))
         {
-            catalog.Index("labels").Search("vegan").Hits.ShouldHaveSingleItem();
+            catalog.Index(new LuiIndexDefinition<long>("labels", index => index.SingleWord())).Search("vegan").Hits.ShouldHaveSingleItem();
         }
 
         SqliteConnection.ClearAllPools();

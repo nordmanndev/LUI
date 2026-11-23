@@ -7,11 +7,12 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Hosting;
 
 /// <summary>
-/// The warm-up as a service of the host (issue #68, ADR-0043): <c>AddLuiWarmup()</c> warms the typo dictionaries at
-/// the start of the host and applies the outbox of a linked index on an interval — and only when the application asks
-/// for it. The library starts nothing on its own: the host runs the service, and the service lives as long as the host.
+/// The start of the search in a host (ADR-0076, issue #266; the tests of the warm-up service of issue #68, ADR-0043, that
+/// <c>catalog.Initialize()</c> replaced): the application's own initializer calls <c>Initialize()</c> — it warms the typo
+/// dictionaries, applies the outbox of a linked index and brings the first sync in —, and without that call nothing happens: the
+/// library starts nothing on its own. The rounds of the outbox on an interval are <c>AddLuiOutbox</c> (<c>OutboxTests</c>).
 /// </summary>
-public sealed class LuiWarmupTests
+public sealed class HostInitializerTests
 {
     private const string Table = """
         CREATE TABLE tag (
@@ -20,394 +21,137 @@ public sealed class LuiWarmupTests
             usage_count INTEGER NOT NULL DEFAULT 0);
         """;
 
+    private static readonly LuiIndexDefinition<long> TypoTags = new("tags", index => index.SingleWord().TypoTolerance());
+
+    private static readonly LuiLinkedIndexDefinition<long> LinkedTags = new("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+
     [Fact]
-    public async Task The_host_warms_the_dictionary_of_every_index_at_its_start()
+    public async Task The_initializer_warms_the_dictionary_of_every_index_at_its_start()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance());
+        var tags = catalog.Create(TypoTags);
         tags.Upsert(1, "vegan");
 
-        using var host = Host(database, warmup: true);
-        await host.StartAsync();
+        using var host = Host(database, new LuiInitializeOptions());
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         // the dictionary belongs to the index of the catalog — the one of the host, not the one of the test
-        host.Services.GetRequiredService<LuiCatalog>()
-            .Index("tags")
-            .TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        host.Services.GetRequiredService<LuiCatalog>().Index(TypoTags).TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
     }
 
     [Fact]
-    public async Task The_host_applies_the_outbox_of_a_linked_index()
+    public async Task The_initializer_applies_the_outbox_of_a_linked_index()
     {
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
-        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        var tags = catalog.Create(LinkedTags);
         tags.CreateTriggers();
         Insert(database, (1, "vegan", 0));
         tags.Pending().ShouldBe(1, "the trigger noted the row in the outbox");
 
-        using var host = Host(database, warmup: true);
-        await host.StartAsync();
+        using var host = Host(database, new LuiInitializeOptions { InitialSync = false });
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var tagsOfTheHost = host.Services.GetRequiredService<LuiCatalog>().LinkedIndex("tags");
-        tagsOfTheHost.Pending().ShouldBe(0, "the outbox is empty — the warm-up brought the row in");
+        var tagsOfTheHost = host.Services.GetRequiredService<LuiCatalog>().Index(LinkedTags);
+        tagsOfTheHost.Pending().ShouldBe(0, "the outbox is empty — the initializer brought the row in");
         tagsOfTheHost.Search("vegan").Hits.ShouldHaveSingleItem();
     }
 
     [Fact]
-    [Trait("Category", "Timing")]
-    public async Task The_rounds_of_the_outbox_run_on_the_interval()
+    public async Task Without_an_initializer_nothing_happens()
     {
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
-        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
-        tags.CreateTriggers();
-        Insert(database, (1, "vegan", 0));
-
-        using var host = Host(database, warmup: true, configure: options => options.OutboxInterval = TimeSpan.FromMilliseconds(50));
-        await host.StartAsync();
-
-        // a row that comes after the start waits for the next round — the interval is the promise of the service
-        Insert(database, (2, "vegetarian", 0));
-        var tagsOfTheHost = host.Services.GetRequiredService<LuiCatalog>().LinkedIndex("tags");
-
-        await WaitUntil(() => tagsOfTheHost.Pending() == 0);
-        tagsOfTheHost.Search("vegetarian").Hits.ShouldHaveSingleItem();
-    }
-
-    [Fact]
-    public async Task Without_the_registration_nothing_happens()
-    {
-        using var database = new TestDatabase();
-        Run(database, Table);
-        using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord().TypoTolerance()));
         tags.Upsert(1, "vegan");
-        var linked = catalog.CreateLinked("linked", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        var linked = catalog.Create(new LuiLinkedIndexDefinition<long>("linked", index => index.SingleWord().LinkTo("tag", "id", "name")));
         linked.CreateTriggers();
         Insert(database, (1, "vegan", 0));
 
-        using var host = Host(database, warmup: false);
-        await host.StartAsync();
+        using var host = Host(database, options: null);
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         var catalogOfTheHost = host.Services.GetRequiredService<LuiCatalog>();
-        catalogOfTheHost.Index("tags").TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
-        catalogOfTheHost.LinkedIndex("linked").Pending().ShouldBe(1, "the outbox waits for the application");
+        catalogOfTheHost.Index(TypoTags).TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
+        catalogOfTheHost.Index(new LuiLinkedIndexDefinition<long>("linked", index => index.SingleWord().LinkTo("tag", "id", "name"))).Pending().ShouldBe(1, "the outbox waits for the application");
     }
 
     [Fact]
-    public async Task The_host_builds_only_the_dictionaries_it_is_told_to()
+    public async Task The_initializer_builds_only_the_dictionaries_of_the_indexes_it_is_told_to()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord().TypoTolerance()).Upsert(1, "vegan");
-        catalog.Create("names", index => index.SingleWord().TypoTolerance()).Upsert(1, "Vera");
+        var names = new LuiIndexDefinition<long>("names", index => index.SingleWord().TypoTolerance());
 
-        // an index that forgives nothing has no dictionary at all — not even when the warm-up is told to build it
-        catalog.Create("plain", index => index.SingleWord()).Upsert(1, "nothing");
+        // an index that forgives nothing has no dictionary at all — not even when the initializer is told to build it
+        var plain = new LuiIndexDefinition<long>("plain", index => index.SingleWord());
+        catalog.Create(TypoTags).Upsert(1, "vegan");
+        catalog.Create(names).Upsert(1, "Vera");
+        catalog.Create(plain).Upsert(1, "nothing");
 
         // a dictionary costs memory — the index whose queries correct no typos does not get one (ADR-0043)
-        using var host = Host(database, warmup: true, configure: options =>
-        {
-            options.TypoDictionaryIndexes.Add("tags");
-            options.TypoDictionaryIndexes.Add("plain");
-        });
-        await host.StartAsync();
+        using var host = Host(database, new LuiInitializeOptions { Indexes = [TypoTags, plain] });
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
         var catalogOfTheHost = host.Services.GetRequiredService<LuiCatalog>();
-        catalogOfTheHost.Index("tags").TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
-        catalogOfTheHost.Index("names").TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
-        catalogOfTheHost.Index("plain").TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt, "a distance of None builds no dictionary");
+        catalogOfTheHost.Index(TypoTags).TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        catalogOfTheHost.Index(names).TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
+        catalogOfTheHost.Index(plain).TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt, "a distance of None builds no dictionary");
     }
 
     [Fact]
-    public async Task Without_the_dictionaries_the_host_still_applies_the_outbox()
+    public async Task Without_the_dictionaries_the_initializer_still_applies_the_outbox()
     {
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
-        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
+        var tags = catalog.Create(LinkedTags);
         tags.CreateTriggers();
         Insert(database, (1, "vegan", 0));
 
-        using var host = Host(database, warmup: true, configure: options => options.WarmUpTypoDictionaries = false);
-        await host.StartAsync();
+        using var host = Host(database, new LuiInitializeOptions { WarmUpTypoDictionaries = false });
+        await host.StartAsync(TestContext.Current.CancellationToken);
 
-        var tagsOfTheHost = host.Services.GetRequiredService<LuiCatalog>().LinkedIndex("tags");
-        tagsOfTheHost.Pending().ShouldBe(0, "the outbox is the service's either way");
+        var tagsOfTheHost = host.Services.GetRequiredService<LuiCatalog>().Index(LinkedTags);
+        tagsOfTheHost.Pending().ShouldBe(0, "the outbox is the initializer's either way");
         tagsOfTheHost.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
     }
 
     [Fact]
-    public async Task A_name_the_catalog_does_not_know_fails_the_start_of_the_host()
+    public async Task An_index_the_catalog_does_not_have_fails_the_start_of_the_host()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+        catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
 
-        using var host = Host(database, warmup: true, configure: options => options.TypoDictionaryIndexes.Add("tgas"));
+        using var host = Host(database, new LuiInitializeOptions { Indexes = [new LuiIndexDefinition<long>("tgas", index => index.SingleWord())] });
 
-        var failure = await Should.ThrowAsync<LuiIndexNotFoundException>(() => host.StartAsync());
+        var failure = await Should.ThrowAsync<LuiIndexNotFoundException>(() => host.StartAsync(TestContext.Current.CancellationToken));
         failure.Message.ShouldContain("tgas");
     }
 
-    [Fact]
-    [Trait("Category", "Timing")]
-    public async Task A_round_that_fails_is_told_to_the_logger_of_the_host()
-    {
-        using var database = new TestDatabase();
-        Run(database, Table);
-        using var catalog = database.Open();
-        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
-        tags.CreateTriggers();
-
-        var logger = new RecordingLoggerProvider();
-        using var host = Host(
-            database,
-            warmup: true,
-            configure: options =>
-            {
-                options.WarmUpTypoDictionaries = false;
-
-                // the round of this test is started by hand — the timer of the service would run a round between the
-                // insert and the rename below, that round would bring the row in, and the failure would never come
-                // (issue #185: the wait of a test must not depend on the moment the machine happens to have)
-                options.OutboxInterval = TimeSpan.FromHours(1);
-            },
-            logger: logger);
-        await host.StartAsync();
-
-        // a row in the outbox whose table is gone: the round cannot read it and fails — every time (ADR-0045)
-        Insert(database, (1, "vegan", 0));
-        Run(database, "ALTER TABLE tag RENAME TO tag_gone;");
-
-        // the round is started by hand and waited for: a machine that is busy runs the timer later, and a test that
-        // waits for a warning with a deadline fails on a busy machine (issue #185)
-        var service = host.Services.GetServices<IHostedService>().OfType<global::Nordmann.LUI.Hosting.LuiWarmupService>().Single();
-        service.OnRound(null);
-        await service.RoundTask;
-
-        var warning = logger.Entries.First(entry => entry.Level == LogLevel.Warning);
-        warning.Event.Id.ShouldBe(3);
-        warning.Exception.ShouldNotBeNull("the logger gets the failure itself, not only a sentence about it");
-        warning.Message.ShouldContain("the rows stay in the outbox");
-
-        tags.Pending().ShouldBe(1, "the row waits in the outbox for a round that can read it");
-    }
-
-    [Fact]
-    [Trait("Category", "Timing")]
-    public async Task After_the_host_stops_no_round_of_the_outbox_begins()
-    {
-        // issue #106 (the coverage of #80, G3): StopAsync ran in no test — the tests disposed the host without stopping it
-        using var database = new TestDatabase();
-        Run(database, Table);
-        using var catalog = database.Open();
-        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
-        tags.CreateTriggers();
-
-        using var host = Host(database, warmup: true, configure: options =>
-        {
-            options.WarmUpTypoDictionaries = false;
-            options.OutboxInterval = TimeSpan.FromMilliseconds(50);
-        });
-        await host.StartAsync(TestContext.Current.CancellationToken);
-        await host.StopAsync(TestContext.Current.CancellationToken);
-
-        // the host is stopped, not disposed: its catalog is still open, so a timer that still ran would apply the row
-        Insert(database, (1, "vegan", 0));
-
-        // twenty intervals. Load only makes a round later: it can hide a round that should not run, never make one up —
-        // the claim is "none", and a mutation that keeps the timer is caught on any machine that is not stalled for a second
-        await Task.Delay(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
-        tags.Pending().ShouldBe(1, "no round ran after the stop");
-    }
-
-    [Fact]
-    [Trait("Category", "Timing")]
-    public async Task A_round_that_waits_for_the_write_lock_is_not_joined_by_the_next_one()
-    {
-        // issue #106 (G3): the guard against overlapping rounds was not tested. The rounds are started by hand, without
-        // the timer: one waits for the write lock of the file, held by the test, and a second one begins beside it. With
-        // the guard the second returns at once and does nothing. Without it, the second runs a round of its own: while the
-        // test holds the lock that round can only fail, and a round tells every failure to the logger (ADR-0045). So the
-        // verdict is the logger, not a clock: no warning when the second call returns.
-        // (The first version counted the failed rounds of a running timer. The catalog writes through one writer, so the
-        // rounds queue and fail a busy timeout apart with the guard and without it: the count did not tell them apart.)
-        using var database = new TestDatabase();
-        Run(database, Table);
-        using var catalog = database.Open();
-        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
-        tags.CreateTriggers();
-
-        var logger = new RecordingLoggerProvider();
-        using var host = Host(
-            database,
-            warmup: true,
-            configure: options => options.WarmUpTypoDictionaries = false,
-            logger: logger,
-            catalogOptions: new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(5) } });
-        var service = host.Services.GetServices<IHostedService>().OfType<global::Nordmann.LUI.Hosting.LuiWarmupService>().Single();
-
-        // the host is not started: no timer runs, and the row waits in the outbox under the lock of the test
-        Insert(database, (1, "vegan", 0));
-        using var blocker = database.Connect();
-        Run(blocker, "BEGIN IMMEDIATE;");
-
-        var first = Task.Factory.StartNew(() => service.OnRound(null), TestContext.Current.CancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
-
-        // issue #185: the wait asks for a round that has begun, not for a round that runs — the claim of a round that
-        // runs holds only while the round runs, and a loaded machine can delay the poll of the test by more than that
-        await WaitUntil(() => service.RoundsBegun > 0);
-
-        // the first round waits for the lock for the busy timeout of five seconds: the second call is made within it
-        service.OnRound(null);
-        logger.Entries.Where(entry => entry.Level == LogLevel.Warning).ShouldBeEmpty("the second call ran no round of its own");
-        first.IsCompleted.ShouldBeFalse("the first round still waits for the lock");
-
-        // the lock is let go within the busy timeout: the first round gets it and applies the row
-        Run(blocker, "COMMIT;");
-        await first;
-        tags.Pending().ShouldBe(0, "the first round applied the row once the lock was let go");
-    }
-
-    [Fact]
-    [Trait("Category", "Timing")]
-    public async Task The_host_waits_for_a_round_that_runs_when_it_is_disposed()
-    {
-        // issue #148: the host stopped the service, and the round that was running went on — it held the file of the
-        // application, and the teardown of a test could not delete it. The disposal of the host waits for the round
-        // (ADR-0043: the host runs it, the host stops it, the host disposes it).
-        // issue #185: this test failed under load, because it waited for a claim that holds only while a round runs:
-        // the round of this test waits for the write lock of the file, which the test itself holds, so it gives up
-        // after the busy timeout of one second — and a loaded machine can delay the poll of the test by more than
-        // that. The wait asks for a round that has begun, and the claim of that stays true.
-        using var database = new TestDatabase();
-        Run(database, Table);
-        using var catalog = database.Open();
-        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
-        tags.CreateTriggers();
-        Insert(database, (1, "vegan", 0));
-
-        // the round waits for the write lock, which the test holds — it cannot end before the lock is let go
-        using var blocker = database.Connect();
-        Run(blocker, "BEGIN IMMEDIATE;");
-
-        using var host = Host(
-            database,
-            warmup: true,
-            configure: options => options.WarmUpTypoDictionaries = false,
-            catalogOptions: new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(1) } });
-
-        // the host is not started: no timer runs, and the round is started by hand — it waits for the lock
-        var service = host.Services.GetServices<IHostedService>().OfType<global::Nordmann.LUI.Hosting.LuiWarmupService>().Single();
-        var round = Task.Factory.StartNew(
-            () => service.OnRound(null),
-            TestContext.Current.CancellationToken,
-            TaskCreationOptions.LongRunning,
-            TaskScheduler.Default);
-        await WaitUntil(() => service.RoundsBegun > 0);
-
-        // the host is disposed: the round that runs is joined, and nothing of LUI runs after the service is gone
-        ((IDisposable)host).Dispose();
-        service.RoundRunning.ShouldBeFalse("the disposal waits for the round that runs");
-        service.RoundTask.IsCompleted.ShouldBeTrue("the round ended before the host was gone");
-
-        await round;
-        Run(blocker, "COMMIT;");
-    }
-
-    [Fact]
-    [Trait("Category", "Timing")]
-    public async Task The_claim_of_a_round_that_has_begun_stays_true_when_the_round_is_over()
-    {
-        // issue #185: the claim of a round that runs is momentary — the round of the test waits for the write lock of
-        // the file, which the test itself holds, so it lives about a second. A waiter that comes late must still learn
-        // that a round ran: the claim of a round that has begun stays true.
-        using var database = new TestDatabase();
-        Run(database, Table);
-        using var catalog = database.Open();
-        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name"));
-        tags.CreateTriggers();
-        Insert(database, (1, "vegan", 0));
-
-        // the round waits for the write lock, which the test holds — it gives up after the busy timeout and is over
-        using var blocker = database.Connect();
-        Run(blocker, "BEGIN IMMEDIATE;");
-
-        using var host = Host(
-            database,
-            warmup: true,
-            configure: options => options.WarmUpTypoDictionaries = false,
-            catalogOptions: new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(1) } });
-
-        var service = host.Services.GetServices<IHostedService>().OfType<global::Nordmann.LUI.Hosting.LuiWarmupService>().Single();
-        var round = Task.Factory.StartNew(
-            () => service.OnRound(null),
-            TestContext.Current.CancellationToken,
-            TaskCreationOptions.LongRunning,
-            TaskScheduler.Default);
-        await WaitUntil(() => service.RoundsBegun > 0);
-        await service.RoundTask;
-        await round;
-
-        service.RoundRunning.ShouldBeFalse("the round is over");
-        service.RoundsBegun.ShouldBe(1, "the claim of a round that has begun stays true");
-    }
-
-    [Fact]
-    public void The_warm_up_is_registered_once_and_with_a_positive_interval()
-    {
-        var services = new ServiceCollection();
-        services.AddLuiWarmup();
-
-        Should.Throw<InvalidOperationException>(() => services.AddLuiWarmup());
-        Should.Throw<ArgumentOutOfRangeException>(() =>
-            new ServiceCollection().AddLuiWarmup(options => options.OutboxInterval = TimeSpan.Zero));
-    }
-
-    private static IHost Host(
-        TestDatabase database,
-        bool warmup,
-        Action<LuiWarmupOptions>? configure = null,
-        RecordingLoggerProvider? logger = null,
-        LuiCatalogOptions? catalogOptions = null)
+    private static IHost Host(TestDatabase database, LuiInitializeOptions? options)
     {
         var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
-        builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate(database.FilePath, catalogOptions));
-        if (warmup)
+        builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate(database.FilePath));
+        if (options is not null)
         {
-            builder.Services.AddLuiWarmup(configure);
-        }
-
-        if (logger is not null)
-        {
-            builder.Logging.AddProvider(logger);
+            builder.Services.AddSingleton(options);
+            builder.Services.AddHostedService<Initializer>();
         }
 
         return builder.Build();
     }
 
-    /// <summary>
-    /// Waits until the claim of the service holds. The interval of the service is 50 ms; the deadline of thirty seconds
-    /// only stops a hang — a claim that holds returns at once, and a loaded runner gets its time (issue #78).
-    /// </summary>
-    /// <param name="claim">What must come true.</param>
-    private static async Task WaitUntil(Func<bool> claim)
+    /// <summary>The application's own initializer: it calls <c>Initialize()</c> when the host starts, and a failure stops the start.</summary>
+    private sealed class Initializer(LuiCatalog catalog, LuiInitializeOptions options) : IHostedService
     {
-        var deadline = DateTime.UtcNow.AddSeconds(30);
-        while (!claim())
-        {
-            if (DateTime.UtcNow > deadline)
-            {
-                throw new TimeoutException("The claim of the service did not come true in thirty seconds.");
-            }
+        public Task StartAsync(CancellationToken cancellationToken) => Task.Run(() => catalog.Initialize(options, cancellationToken), cancellationToken);
 
-            await Task.Delay(20, TestContext.Current.CancellationToken).ConfigureAwait(false);
-        }
+        public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
     }
 
     private static void Run(SqliteConnection connection, string sql)

@@ -57,7 +57,7 @@ internal sealed class ColumnPayload : PayloadReader
             // the key is read only now, for the message: a map that does not throw costs nothing more than before
             throw new LuiPayloadException(
                 _indexName,
-                KeyCodec.FromText(row.GetString(KeyColumn), _keyType, _indexName),
+                KeyCodec.FromText(row.GetString(KeyColumn), _keyType, _indexName).ToString(),
                 _payloadType,
                 $"the map of the linked index threw: {exception.Message}",
                 exception);

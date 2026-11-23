@@ -63,14 +63,14 @@ public sealed class TypedPayloadHandleTests
         ];
         chips.Sync(all).Added.ShouldBe(1);
 
-        // the old untyped path reads what the typed handle wrote — until #262 brings hit.Payload
-        var hits = catalog.Index("chips").Search("veg").Hits.ToDictionary(hit => hit.Key.ToInt64());
+        // a handle opened with the definition reads what the handle of Create wrote: the payload comes with the hit
+        var hits = catalog.Index(Chips).Search("veg").Hits.ToDictionary(hit => hit.Key);
         hits.Keys.Order().ShouldBe([1L, 2L, 3L, 4L, 5L]);
-        hits[1].GetPayload<Chip>().ShouldBe(new Chip("one", "green"));
-        hits[2].GetPayload<Chip>().ShouldBe(new Chip("two"));
-        hits[3].GetPayload<Chip>().ShouldBe(new Chip("three"));
-        hits[4].GetPayload<Chip>().ShouldBe(new Chip("four"));
-        hits[5].GetPayload<Chip>().ShouldBe(new Chip("five"));
+        hits[1].Payload.ShouldBe(new Chip("one", "green"));
+        hits[2].Payload.ShouldBe(new Chip("two"));
+        hits[3].Payload.ShouldBe(new Chip("three"));
+        hits[4].Payload.ShouldBe(new Chip("four"));
+        hits[5].Payload.ShouldBe(new Chip("five"));
         hits[2].Priority.ShouldBe(LuiPriority.High);
         hits[1].Weight.ShouldBe(5);
     }
@@ -89,7 +89,7 @@ public sealed class TypedPayloadHandleTests
         var report = chips.Sync(Asynchronous(entries));
 
         report.ShouldBe(sameChips.Sync(entries));
-        catalog.Index("chips").Search("vegan").Hits.Select(hit => hit.GetPayload<Chip>()).ShouldBe([new Chip("one"), new Chip("two")], ignoreOrder: true);
+        catalog.Index(Chips).Search("vegan").Hits.Select(hit => hit.Payload).ShouldBe([new Chip("one"), new Chip("two")], ignoreOrder: true);
     }
 
     [Fact]
@@ -150,8 +150,8 @@ public sealed class TypedPayloadHandleTests
 
         numbers.Upsert(1, "vegan", 5);
 
-        var hit = catalog.Index("numbers").Search("vegan").Hits.ShouldHaveSingleItem();
-        hit.GetPayload<int>().ShouldBe(5);
+        var hit = catalog.Index(Numbers).Search("vegan").Hits.ShouldHaveSingleItem();
+        hit.Payload.ShouldBe(5);
         hit.Weight.ShouldBe(0, "the 5 is the payload, never a weight");
     }
 
@@ -159,7 +159,7 @@ public sealed class TypedPayloadHandleTests
     public void A_payload_definition_on_a_catalog_without_a_registry_is_refused_before_anything_is_written()
     {
         // #260: the serializer is bound to the payload type, and a type that has none is refused when the index is created or
-        // opened — not at the first write. The read side of an index that is there needs no serializer.
+        // opened — not at the first write. The maintenance by name of an index that is there needs no serializer.
         using var database = new TestDatabase();
         using (var writer = database.Open(Registered()))
         {
@@ -170,8 +170,8 @@ public sealed class TypedPayloadHandleTests
 
         Should.Throw<LuiConfigurationException>(() => catalog.Create(Chips)).Message.ShouldContain("chips", Case.Sensitive);
         Should.Throw<LuiConfigurationException>(() => catalog.Index(Chips)).Message.ShouldContain(nameof(LuiCatalogOptions.Payloads));
-        catalog.Index("chips").Search("vegan").Hits.ShouldHaveSingleItem().HasPayload.ShouldBeTrue();
-        catalog.Index("chips").Count().ShouldBe(1);
+        catalog.Count("chips").ShouldBe(1);
+        catalog.Check("chips").IsHealthy.ShouldBeTrue();
     }
 
     [Fact]
@@ -209,9 +209,9 @@ public sealed class TypedPayloadHandleTests
         {
             ("Bad Name", () => catalog.Create(new LuiIndexDefinition<long, Chip>("Bad Name", index => index.SingleWord()))),
             ("double_keys", () => catalog.Create(new LuiIndexDefinition<double, Chip>("double_keys", index => index.SingleWord()))),
-            ("with_key", () => catalog.Create(new LuiIndexDefinition<long, Chip>("with_key", index => index.SingleWord().WithKey(LuiKeyKind.Text)))),
+            ("own_failure", () => catalog.Create(new LuiIndexDefinition<long, Chip>("own_failure", _ => throw new LuiConfigurationException("my own words")))),
             ("null_function", () => catalog.Create(new LuiIndexDefinition<long, Chip>("null_function", null!))),
-            ("batch", () => catalog.Create(Numbers, new LuiIndexDefinition<long, Chip>("batch", index => index.SingleWord().WithKey(LuiKeyKind.Text)))),
+            ("batch", () => catalog.Create(Numbers, new LuiIndexDefinition<long, Chip>("batch", _ => throw new LuiConfigurationException("my own words")))),
         };
 
         foreach (var (name, create) in broken)

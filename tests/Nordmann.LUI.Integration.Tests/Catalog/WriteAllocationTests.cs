@@ -31,7 +31,7 @@ public sealed class WriteAllocationTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Create("labels", i => i.SingleWord());
+        var index = catalog.Create(new LuiIndexDefinition<long>("labels", i => i.SingleWord()));
         for (var key = 1; key <= 2_000; key++)
         {
             index.Upsert(key, "wort" + key, key);
@@ -55,7 +55,7 @@ public sealed class WriteAllocationTests
 
         using var database = new TestDatabase();
         using var catalog = database.Open(options);
-        var index = catalog.Create("labels", i => i.SingleWord());
+        var index = catalog.Create(new LuiIndexDefinition<long>("labels", i => i.SingleWord()));
 
         for (var round = 0; round < 5; round++)
         {
@@ -77,7 +77,7 @@ public sealed class WriteAllocationTests
 
         using var database = new TestDatabase();
         using var first = database.Open(sixteen);
-        first.Create("labels", i => i.SingleWord()).Upsert(1, "wort", 1);
+        first.Create(new LuiIndexDefinition<long>("labels", i => i.SingleWord())).Upsert(1, "wort", 1);
         using var second = LuiCatalog.Open(database.FilePath, defaults);
 
         for (var round = 0; round < 4; round++)

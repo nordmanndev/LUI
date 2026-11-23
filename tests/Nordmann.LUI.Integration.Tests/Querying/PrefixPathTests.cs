@@ -42,7 +42,7 @@ public sealed class PrefixPathTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Create("words", builder => kind == LuiIndexKind.SingleWord ? builder.SingleWord() : builder.MultiWord());
+        var index = catalog.Create(new LuiIndexDefinition<long>("words", builder => kind == LuiIndexKind.SingleWord ? builder.SingleWord() : builder.MultiWord()));
         index.UpsertMany(Entries(kind));
 
         var lines = new List<string>();
@@ -72,7 +72,7 @@ public sealed class PrefixPathTests
     private static EmbeddedSource Source(LuiIndexKind kind) =>
         new("tags", new IndexDefinition(kind, EmbeddedSource.SourceName, "long", GermanTransliteration: true, TokenizerFold.Version));
 
-    private static List<LuiEntry> Entries(LuiIndexKind kind)
+    private static List<LuiEntry<long>> Entries(LuiIndexKind kind)
     {
         string[] words =
         [
@@ -82,7 +82,7 @@ public sealed class PrefixPathTests
             " leerzeichen", "ab", "abc", "ap", "k", "s", "x", "a", "b", "zu", "Zug", "Zukunft", "Supermarkt", "suppe", "salz", "senf",
         ];
 
-        var entries = new List<LuiEntry>();
+        var entries = new List<LuiEntry<long>>();
         var key = 1;
         for (var round = 0; round < 12; round++)
         {
@@ -90,7 +90,7 @@ public sealed class PrefixPathTests
             {
                 var text = round == 0 ? word : $"{word} {round}";
                 var priority = key % 11 == 0 ? LuiPriority.High : key % 13 == 0 ? LuiPriority.System : key % 5 == 0 ? LuiPriority.Elevated : LuiPriority.Normal;
-                entries.Add(new LuiEntry(key, text) { Weight = (key * 7) % 53, Priority = priority });
+                entries.Add(new LuiEntry<long>(key, text) { Weight = (key * 7) % 53, Priority = priority });
                 key++;
             }
         }
@@ -116,9 +116,9 @@ public sealed class PrefixPathTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Create("words", builder => builder.MultiWord());
+        var index = catalog.Create(new LuiIndexDefinition<long>("words", builder => builder.MultiWord()));
         var longText = "Ärger " + string.Join(' ', Enumerable.Repeat("fragment", 40));
-        var entries = Enumerable.Range(1, 60).Select(i => new LuiEntry(i, i == 1 ? longText : "ärger " + i.ToString(CultureInfo.InvariantCulture)) { Weight = i == 1 ? 1 : 100 + i }).ToList();
+        var entries = Enumerable.Range(1, 60).Select(i => new LuiEntry<long>(i, i == 1 ? longText : "ärger " + i.ToString(CultureInfo.InvariantCulture)) { Weight = i == 1 ? 1 : 100 + i }).ToList();
         index.UpsertMany(entries);
 
         var result = index.Search("ä", new LuiQueryOptions { Candidates = 10, MaxResults = 20 });

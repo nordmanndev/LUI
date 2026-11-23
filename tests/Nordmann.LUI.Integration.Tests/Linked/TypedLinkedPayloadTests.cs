@@ -6,7 +6,7 @@ namespace Nordmann.LUI.Integration.Tests.Linked;
 /// <summary>
 /// The linked definition with a payload and the typed linked builder (ADR-0073, issue #269): <c>WithPayload</c> returns a
 /// <c>LuiLinkedIndexBuilder&lt;TPayload&gt;</c> that has the same option methods in any order, each definition keeps its own map,
-/// and the old <c>CreateLinked(name, index =&gt; index.….WithPayload(…))</c> keeps compiling through the bridge until #268.
+/// and the payload comes with the hit of the handle that <c>Create</c> or <c>Index</c> returns.
 /// </summary>
 public sealed class TypedLinkedPayloadTests
 {
@@ -106,26 +106,25 @@ public sealed class TypedLinkedPayloadTests
     }
 
     [Fact]
-    public void The_old_CreateLinked_with_WithPayload_still_works()
+    public void A_linked_definition_with_WithPayload_creates_the_handle_and_the_definition_opens_it()
     {
         using var database = Prepared();
         using var catalog = database.Open();
 
-        var tags = catalog.CreateLinked("chips", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count")
-            .WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.IsNull("color") ? null : row.GetString("color"))));
+        var tags = catalog.Create(new LuiLinkedIndexDefinition<long, Chip>("chips", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count")
+            .WithPayload(["slug", "color"], row => new Chip(row.GetString("slug"), row.IsNull("color") ? null : row.GetString("color")))));
         tags.Sync();
 
-        ILuiLinkedIndex linked = tags;
-        linked.Search("vegan").Hits[0].GetPayload<Chip>().ShouldBe(new Chip("vegan", "#0a0"));
-        linked.Search("vegan").Hits[1].GetPayload<Chip>().ShouldBe(new Chip("veganer"));
+        tags.Search("vegan").Hits[0].Payload.ShouldBe(new Chip("vegan", "#0a0"));
+        tags.Search("vegan").Hits[1].Payload.ShouldBe(new Chip("veganer"));
 
-        // the bridge goes through the definition: the same stored definition, and the typed handle opens the index
+        // the same stored definition, and the handle of the definition opens the index
         var typed = catalog.Index(Chips);
         typed.Search("vegan").Hits.Select(hit => hit.Key).ShouldBe([1L, 2L]);
 
-        // the options may come after WithPayload on the old path, too
-        var options = catalog.CreateLinked("other", index => index.SingleWord().LinkTo("tag", "id", "name")
-            .WithPayload(["slug"], row => row.GetString("slug")).TypoTolerance());
+        // the options may come after WithPayload, too
+        var options = catalog.Create(new LuiLinkedIndexDefinition<long, string>("other", index => index.SingleWord().LinkTo("tag", "id", "name")
+            .WithPayload(["slug"], row => row.GetString("slug")).TypoTolerance()));
         options.TypoDistance.ShouldBe(LuiTypoDistance.OneError);
     }
 

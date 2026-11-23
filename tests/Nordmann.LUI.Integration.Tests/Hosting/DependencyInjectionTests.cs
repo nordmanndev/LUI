@@ -31,10 +31,10 @@ public sealed class DependencyInjectionTests
         host.Start();
 
         // ADR-0033: the index is not registered and not injected — the application asks the catalog for it.
-        host.Services.GetService<ILuiEmbeddedIndex>().ShouldBeNull();
-        host.Services.GetService<ILuiLinkedIndex>().ShouldBeNull();
-        host.Services.GetService<ILuiIndex>().ShouldBeNull();
-        host.Services.GetKeyedService<ILuiEmbeddedIndex>("tags").ShouldBeNull();
+        host.Services.GetService<LuiEmbeddedIndex<long>>().ShouldBeNull();
+        host.Services.GetService<LuiLinkedIndex<long>>().ShouldBeNull();
+        host.Services.GetService<LuiIndex<long>>().ShouldBeNull();
+        host.Services.GetKeyedService<LuiEmbeddedIndex<long>>("tags").ShouldBeNull();
     }
 
     [Fact]
@@ -45,12 +45,12 @@ public sealed class DependencyInjectionTests
         host.Start();
 
         var catalog = host.Services.GetRequiredService<LuiCatalog>();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         tags.Upsert(1, "vegan");
 
         // the index lives in the catalog, not in the container
-        host.Services.GetService<ILuiEmbeddedIndex>().ShouldBeNull();
-        catalog.Index("tags").Count().ShouldBe(1);
+        host.Services.GetService<LuiEmbeddedIndex<long>>().ShouldBeNull();
+        catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Count().ShouldBe(1);
     }
 
     [Fact]
@@ -85,7 +85,7 @@ public sealed class DependencyInjectionTests
         provider.GetRequiredService<LuiCatalog>().ShouldBeSameAs(catalog, "the container holds one catalog");
 
         provider.Dispose();
-        Should.Throw<ObjectDisposedException>(() => catalog.Index("words"), "the catalog goes with the container");
+        Should.Throw<ObjectDisposedException>(() => catalog.Index(new LuiIndexDefinition<long>("words", index => index.SingleWord())), "the catalog goes with the container");
     }
 
     [Fact]
@@ -100,7 +100,7 @@ public sealed class DependencyInjectionTests
             await host.StopAsync();
         }
 
-        Should.Throw<ObjectDisposedException>(() => catalog.Index("words"));
+        Should.Throw<ObjectDisposedException>(() => catalog.Index(new LuiIndexDefinition<long>("words", index => index.SingleWord())));
     }
 
     [Fact]

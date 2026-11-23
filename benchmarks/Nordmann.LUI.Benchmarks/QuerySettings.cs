@@ -91,7 +91,7 @@ internal sealed record QuerySettings
     /// </summary>
     /// <param name="index">The index the query runs on.</param>
     /// <returns>The result of the query.</returns>
-    internal LuiResult Run(ILuiIndex index) => index
+    internal LuiResult<long> Run(LuiIndex<long> index) => index
         .Query(Input)
         .Candidates(Candidates)
         .Rank(Rank())
@@ -105,7 +105,7 @@ internal sealed record QuerySettings
     /// </summary>
     /// <param name="index">The index the query runs on.</param>
     /// <returns>The result of the query.</returns>
-    internal LuiResult RunChecked(ILuiIndex index)
+    internal LuiResult<long> RunChecked(LuiIndex<long> index)
     {
         var result = Run(index);
         if (Correction && result.CandidatesConsidered == 0)

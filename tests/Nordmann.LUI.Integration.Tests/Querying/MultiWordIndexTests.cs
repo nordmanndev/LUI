@@ -17,7 +17,7 @@ public sealed class MultiWordIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Create("recipes", index => index.MultiWord());
+        catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
 
         Columns(database, "lui_recipes").Contains("s_compact", StringComparer.Ordinal).ShouldBeTrue();
         Columns(database, "lui_recipes").Contains("s_norm", StringComparer.Ordinal).ShouldBeTrue("s_norm stays a column of the table");
@@ -31,7 +31,7 @@ public sealed class MultiWordIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Create("tags", index => index.SingleWord());
+        catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         Columns(database, "lui_tags").Contains("s_compact", StringComparer.Ordinal).ShouldBeFalse();
         Columns(database, "lui_tags_fts").ShouldBe(["s_norm"]);
@@ -47,7 +47,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
 
         recipes.Upsert(1, text, 1);
 
@@ -61,10 +61,10 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("recipes", index => index.MultiWord());
+        catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
 
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Create("recipes", index => index.SingleWord()));
+            () => catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.SingleWord())));
     }
 
     [Fact]
@@ -72,7 +72,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
         recipes.Upsert(1, "Apfelkuchen", 1);
 
         var expected = LuiSimilarity.NgramDice.Similarity("apfelkuch", "apfelkuchen");
@@ -87,7 +87,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
 
         for (var i = 1; i <= 40; i++)
         {
@@ -236,7 +236,7 @@ public sealed class MultiWordIndexTests
         // and „-a b" is the same (review of pull request 8, M1)
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var titles = catalog.Create("titles", index => index.MultiWord());
+        var titles = catalog.Create(new LuiIndexDefinition<long>("titles", index => index.MultiWord()));
         titles.Upsert(1, "Abendbrot", 100);
         titles.Upsert(2, "A Bit Of Fun", 90);
         titles.Upsert(3, "Anna Berg", 80);
@@ -271,7 +271,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var titles = catalog.Create("titles", index => index.MultiWord());
+        var titles = catalog.Create(new LuiIndexDefinition<long>("titles", index => index.MultiWord()));
         titles.Upsert(1, "wort001 wort002 wort003", 10);
 
         var typed = string.Join(' ', Enumerable.Range(0, 100).Select(i => $"wort{i:000}"));
@@ -286,7 +286,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
         recipes.Upsert(1, "Apfel-Zimt-Kuchen", 10);
         recipes.Upsert(2, "Zimtschnecken", 20);
 
@@ -301,7 +301,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
         recipes.Upsert(1, "Apfel Kuchen", 900);
         recipes.Upsert(2, "Brat Apfel Kuchen", 0, priority: LuiPriority.System);
 
@@ -314,7 +314,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var people = catalog.Create("people", index => index.MultiWord());
+        var people = catalog.Create(new LuiIndexDefinition<long>("people", index => index.MultiWord()));
         people.Upsert(1, "Anna Müller", 10);
         people.Upsert(2, "Anna Schmidt", 20);
         people.Upsert(3, "Hans Müller", 30);
@@ -332,7 +332,7 @@ public sealed class MultiWordIndexTests
         // boundary of the title — checked here without FTS5, on the folded texts.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
 
         var random = new Random(4);
         var titles = RandomTitles(random, 1_500);
@@ -388,7 +388,7 @@ public sealed class MultiWordIndexTests
         // the one thing the compact column adds to the two columns of the first version of ADR-0008 (ADR-0011)
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
         recipes.Upsert(1, "Apfel Kuchen Torte", 10);
         recipes.Upsert(2, "Elke Ortmann", 5);
 
@@ -404,7 +404,7 @@ public sealed class MultiWordIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
         recipes.Upsert(1, "Apfel Kuchen", 10);
         var before = database.Scalar<string>("SELECT count(*) || ':' || coalesce(sum(length(block)), 0) || ':' || coalesce(sum(id), 0) FROM lui_recipes_fts_data");
 
@@ -414,8 +414,8 @@ public sealed class MultiWordIndexTests
         recipes.Query("apfel kuchen").Execute().Hits.ShouldHaveSingleItem().Text.ShouldBe("Apfel-Kuchen");
     }
 
-    private static long[] Keys(ILuiEmbeddedIndex index, string typed) =>
-        [.. index.Query(typed).Execute().Hits.Select(h => h.Key.ToInt64()).Order()];
+    private static long[] Keys(LuiEmbeddedIndex<long> index, string typed) =>
+        [.. index.Query(typed).Execute().Hits.Select(h => h.Key).Order()];
 
     private static List<string> RandomTitles(Random random, int count)
     {
@@ -426,7 +426,7 @@ public sealed class MultiWordIndexTests
             .Select(_ => string.Join(random.Next(3) == 0 ? "-" : " ", Enumerable.Range(0, random.Next(1, 4)).Select(_ => words[random.Next(words.Count)])))];
     }
 
-    private static void Load(LuiCatalog catalog, ILuiEmbeddedIndex index, List<string> titles)
+    private static void Load(LuiCatalog catalog, LuiEmbeddedIndex<long> index, List<string> titles)
     {
         using var connection = catalog.Database.OpenConnection();
         using var transaction = connection.BeginTransaction();
@@ -491,7 +491,7 @@ public sealed class MultiWordIndexTests
     private static Fixture Recipes(TestDatabase database)
     {
         var catalog = database.Open();
-        var recipes = catalog.Create("recipes", index => index.MultiWord());
+        var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
         recipes.Upsert(1, "Apfelkuchen", 900);
         recipes.Upsert(2, "Gedeckter Apfelkuchen", 800);
         recipes.Upsert(3, "Apfel Kuchen", 700);
@@ -519,9 +519,9 @@ public sealed class MultiWordIndexTests
         return names;
     }
 
-    private sealed class Fixture(ILuiEmbeddedIndex index) : IDisposable
+    private sealed class Fixture(LuiEmbeddedIndex<long> index) : IDisposable
     {
-        internal ILuiEmbeddedIndex Index => index;
+        internal LuiEmbeddedIndex<long> Index => index;
 
         public void Dispose()
         {

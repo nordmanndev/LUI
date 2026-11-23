@@ -27,7 +27,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
-        var wordIndex = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var wordIndex = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
 
         var random = new Random(5);
         using (var connection = catalog.Database.OpenConnection())
@@ -84,7 +84,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
         {
             using var database = new TestDatabase();
             using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
-            var wordIndex = catalog.Create("words", index => index.SingleWord().TypoTolerance(distance));
+            var wordIndex = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(distance)));
 
             var random = new Random(5);
             using (var connection = catalog.Database.OpenConnection())
@@ -111,7 +111,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
         }
     }
 
-    private void Quality(ILuiEmbeddedIndex index, List<string> words, Random random)
+    private void Quality(LuiEmbeddedIndex<long> index, List<string> words, Random random)
     {
         foreach (var length in new[] { 4, 5, 6, 7 })
         {
@@ -128,7 +128,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
         }
     }
 
-    private void Latency(ILuiEmbeddedIndex index, List<string> words, Random random)
+    private void Latency(LuiEmbeddedIndex<long> index, List<string> words, Random random)
     {
         var inputs = Enumerable.Range(0, 1_000).Select(_ =>
         {
@@ -161,7 +161,7 @@ public sealed class TypoPerformance(ITestOutputHelper output)
             + $"alloc p50 {allocations[allocations.Count / 2] / 1024:F0} KB, p95 {allocations[(int)(allocations.Count * 0.95)] / 1024:F0} KB; corrected {corrected} of {inputs.Count}");
     }
 
-    private static bool Found(ILuiEmbeddedIndex index, string typed, string word, bool typoTolerance) =>
+    private static bool Found(LuiEmbeddedIndex<long> index, string typed, string word, bool typoTolerance) =>
         index.Query(typed).Take(20).TypoTolerance(typoTolerance).Execute().Hits
             .Any(h => string.Equals(h.Text, word, StringComparison.Ordinal));
 

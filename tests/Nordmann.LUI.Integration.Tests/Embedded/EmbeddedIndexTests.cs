@@ -14,7 +14,7 @@ public sealed class EmbeddedIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Create("recipes", index => index.SingleWord());
+        catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.SingleWord()));
 
         var tables = Names(database, "type = 'table'");
         tables.Contains("lui_recipes", StringComparer.Ordinal).ShouldBeTrue();
@@ -30,7 +30,7 @@ public sealed class EmbeddedIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        catalog.Create("recipes", index => index.SingleWord());
+        catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.SingleWord()));
 
         database.Scalar<string>("SELECT kind FROM lui_meta WHERE index_name = 'recipes'").ShouldBe("SingleWord");
         database.Scalar<string>("SELECT source FROM lui_meta WHERE index_name = 'recipes'").ShouldBe("Embedded");
@@ -43,10 +43,10 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var first = catalog.Create("tags", index => index.SingleWord());
+        var first = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         first.Upsert(1, "vegan", 5);
 
-        var second = catalog.Create("tags", index => index.SingleWord());
+        var second = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         second.Count().ShouldBe(1);
         database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(1);
@@ -57,10 +57,10 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord());
+        catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         var exception = Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Create("tags", index => index.SingleWord().GermanTransliteration(false)));
+            () => catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord().GermanTransliteration(false))));
 
         exception.IndexName.ShouldBe("tags");
         exception.Stored.ShouldContain("\"germanTransliteration\":true");
@@ -70,15 +70,15 @@ public sealed class EmbeddedIndexTests
     }
 
     [Fact]
-    public void A_payload_is_no_part_of_the_definition()
+    public void A_definition_without_a_payload_type_names_no_payload()
     {
-        // ADR-0035: every entry of an embedded index may carry a payload, of any type the serialiser of the catalog
-        // writes; the definition names neither a payload nor a type, so the index with payloads is the same index
+        // ADR-0072: the type of a payload is part of the stored definition — only where the definition declares one; an index
+        // without a payload type stores no payload and its definition names none
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord()).Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("gruen") });
+        catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(new LuiEntry<long>(1, "vegan"));
 
-        Should.NotThrow(() => catalog.Create("tags", index => index.SingleWord()));
+        Should.NotThrow(() => catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())));
 
         var definition = database.Scalar<string>("SELECT definition FROM lui_meta WHERE index_name = 'tags';");
         definition.ShouldNotContain("payload", Case.Insensitive);
@@ -90,10 +90,10 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord());
+        catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Create("tags", index => index.SingleWord().WithKey(LuiKeyKind.Text)));
+            () => catalog.Create(new LuiIndexDefinition<string>("tags", index => index.SingleWord())));
     }
 
     [Fact]
@@ -101,7 +101,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord());
+        catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         using (var connection = database.Connect())
         {
@@ -111,7 +111,7 @@ public sealed class EmbeddedIndexTests
         }
 
         var exception = Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Create("tags", index => index.SingleWord()));
+            () => catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())));
         exception.Stored.ShouldContain("old-");
     }
 
@@ -120,7 +120,7 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan", 5);
+        catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan", 5);
 
         catalog.DropIndex("tags").ShouldBeTrue();
 
@@ -129,7 +129,7 @@ public sealed class EmbeddedIndexTests
         catalog.DropIndex("tags").ShouldBeFalse();
 
         // and the index can be ensured again, with another definition
-        Should.NotThrow(() => catalog.Create("tags", index => index.SingleWord().GermanTransliteration(false)));
+        Should.NotThrow(() => catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord().GermanTransliteration(false))));
     }
 
     [Fact]
@@ -137,8 +137,8 @@ public sealed class EmbeddedIndexTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
-        var words = catalog.Create("words", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord()));
 
         tags.Upsert(1, "vegan", 5);
         words.Upsert(1, "apfelkuchen", 5);
@@ -154,11 +154,11 @@ public sealed class EmbeddedIndexTests
         using var database = new TestDatabase();
         using (var catalog = database.Open())
         {
-            catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan", 5);
+            catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan", 5);
         }
 
         using var again = database.Open();
-        var tags = again.Create("tags", index => index.SingleWord());
+        var tags = again.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         tags.Query("vegan").Execute().Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
     }

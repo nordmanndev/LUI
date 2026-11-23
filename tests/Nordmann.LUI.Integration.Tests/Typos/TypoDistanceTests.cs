@@ -23,7 +23,7 @@ public sealed class TypoDistanceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors));
+        catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors)));
 
         var definition = database.Scalar<string>("SELECT definition FROM lui_meta WHERE index_name = 'words';");
 
@@ -36,13 +36,13 @@ public sealed class TypoDistanceTests
         using var database = new TestDatabase();
         using (var catalog = database.Open())
         {
-            var words = catalog.Create("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors));
+            var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors)));
             words.Upsert(1, "Kartoffel", 10);
         }
 
         // a new process, the same file: the distance is in the definition, so the index knows it
         using var reopened = database.Open();
-        var index = reopened.Index("words");
+        var index = reopened.Index(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors)));
 
         index.TypoDistance.ShouldBe(LuiTypoDistance.TwoErrors);
 
@@ -83,7 +83,7 @@ public sealed class TypoDistanceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.None));
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.None)));
         words.Upsert(1, "Kartoffel", 10);
 
         // the application asks for the build — and an index that forgives nothing has none to build
@@ -99,7 +99,7 @@ public sealed class TypoDistanceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.None));
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.None)));
         words.Upsert(1, "Kartoffel", 10);
 
         GC.Collect();
@@ -124,7 +124,7 @@ public sealed class TypoDistanceTests
         Run(database, Table);
         Insert(database, (1, "Kartoffel", 10));
         using var catalog = database.Open();
-        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").TypoTolerance(LuiTypoDistance.None));
+        var tags = catalog.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count").TypoTolerance(LuiTypoDistance.None)));
 
         // the rebuild is asked for explicitly — and an index that forgives nothing has no dictionary to build
         tags.RebuildTypoDictionary();
@@ -144,8 +144,8 @@ public sealed class TypoDistanceTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        var none = catalog.Create("none", index => index.SingleWord().TypoTolerance(LuiTypoDistance.None));
-        var one = catalog.Create("one", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError));
+        var none = catalog.Create(new LuiIndexDefinition<long>("none", index => index.SingleWord().TypoTolerance(LuiTypoDistance.None)));
+        var one = catalog.Create(new LuiIndexDefinition<long>("one", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError)));
         none.Upsert(1, "Kartoffel", 10);
         one.Upsert(1, "Kartoffel", 10);
 
@@ -177,8 +177,8 @@ public sealed class TypoDistanceTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        var two = catalog.Create("two", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors));
-        var one = catalog.Create("one", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError));
+        var two = catalog.Create(new LuiIndexDefinition<long>("two", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors)));
+        var one = catalog.Create(new LuiIndexDefinition<long>("one", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError)));
         two.Upsert(1, "Kartoffel", 10);
         one.Upsert(1, "Kartoffel", 10);
 
@@ -201,12 +201,12 @@ public sealed class TypoDistanceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError));
+        catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError)));
 
         // the distance is part of the definition: an index that is created again with another one is another index
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Create("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors)));
+            () => catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors))));
 
-        Should.NotThrow(() => catalog.Create("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError)));
+        Should.NotThrow(() => catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError))));
     }
 }

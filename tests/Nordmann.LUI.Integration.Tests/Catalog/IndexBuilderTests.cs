@@ -11,13 +11,13 @@ public sealed class IndexBuilderTests
 {
     // the shape of the API before 0.1.0 (ADR-0013), the builder and the interfaces
     [Fact]
-    public void An_undefined_kind_of_key_fails_where_it_is_chosen()
+    public void An_undefined_key_type_fails_where_it_is_chosen()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.Throw<ArgumentOutOfRangeException>(
-            () => catalog.Create("tags", index => index.SingleWord().WithKey((LuiKeyKind)7))).ParamName.ShouldBe("kind");
+        Should.Throw<LuiConfigurationException>(
+            () => catalog.Create(new LuiIndexDefinition<decimal>("tags", index => index.SingleWord()))).Message.ShouldContain("tags");
     }
 
     // the shape of the API before 0.1.0 (ADR-0013), the builder and the interfaces
@@ -26,8 +26,8 @@ public sealed class IndexBuilderTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance().GermanTransliteration(false).Similarity(new Constant(0.25)));
-        words.Upsert(new LuiEntry(1, "Apfelkuchen") { Weight = 10, Payload = new Chip("a") });
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance().GermanTransliteration(false).Similarity(new Constant(0.25))));
+        words.Upsert(new LuiEntry<long>(1, "Apfelkuchen") { Weight = 10 });
 
         // the typo tolerance: the application asks for the build (ADR-0042), a query never does
         words.WarmUpTypoDictionary();
@@ -38,12 +38,12 @@ public sealed class IndexBuilderTests
 
         // the transliteration: it is part of the definition, so an index with it on is another index
         Should.Throw<LuiDefinitionMismatchException>(
-            () => catalog.Create("words", index => index.SingleWord()));
+            () => catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord())));
     }
 
     // the shape of the API before 0.1.0 (ADR-0013), the builder and the interfaces
     [Fact]
-    public void Every_step_that_changes_the_key_or_the_payload_keeps_every_setting()
+    public void Every_step_that_changes_the_payload_keeps_every_setting()
     {
         // review of 2026-11-04, C.1 (#40): one settings record instead of three fields copied by hand in four places
         var similarity = new Constant(0.25);
@@ -57,7 +57,6 @@ public sealed class IndexBuilderTests
         IndexOptions.Default.ShouldBe(new IndexOptions(Similarity: null, GermanTransliteration: true, TypoDistance: LuiTypoDistance.None));
         new LuiIndexKindBuilder(oldPath: true).SingleWord().Options.ShouldBe(IndexOptions.Default);
         described.Options.ShouldBe(expected);
-        described.WithKey(LuiKeyKind.Number).Options.ShouldBe(expected, "WithKey");
 
         var linked = described.LinkTo("tag", "id", "name");
         linked.Options.ShouldBe(expected, "LinkTo");

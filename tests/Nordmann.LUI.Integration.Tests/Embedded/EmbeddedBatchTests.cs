@@ -14,14 +14,14 @@ public sealed class EmbeddedBatchTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long, Chip>("tags", index => index.SingleWord()));
 
         var written = tags.UpsertMany(Enumerable.Range(1, 1_000).Select(
-            i => new LuiEntry(i, $"kuchen{i}") { Weight = i, Payload = new Chip($"k{i}") }));
+            i => new LuiEntry<long, Chip>(i, $"kuchen{i}", new Chip($"k{i}")) { Weight = i }));
 
         written.ShouldBe(1_000);
         tags.Count().ShouldBe(1_000);
-        tags.Search("kuchen1000").Hits[0].GetPayload<Chip>().ShouldBe(new Chip("k1000"));
+        tags.Search("kuchen1000").Hits[0].Payload.ShouldBe(new Chip("k1000"));
     }
 
     // the shape of the API before 0.1.0 (ADR-0013), the batch
@@ -30,12 +30,12 @@ public sealed class EmbeddedBatchTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         tags.UpsertMany(
         [
-            new LuiEntry(1, "apfel") { Weight = 1 },
-            new LuiEntry(1, "birne") { Weight = 2 },
+            new LuiEntry<long>(1, "apfel") { Weight = 1 },
+            new LuiEntry<long>(1, "birne") { Weight = 2 },
         ]);
 
         tags.Count().ShouldBe(1);
@@ -49,7 +49,7 @@ public sealed class EmbeddedBatchTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         Should.Throw<InvalidOperationException>(() => tags.UpsertMany(FailingAfter(10)));
 
@@ -57,7 +57,7 @@ public sealed class EmbeddedBatchTests
 
         // the writer is free again: a single write and another batch go through
         tags.Upsert(1, "apfel", 1);
-        tags.UpsertMany([new LuiEntry(2, "birne")]).ShouldBe(1);
+        tags.UpsertMany([new LuiEntry<long>(2, "birne")]).ShouldBe(1);
         tags.Count().ShouldBe(2);
     }
 
@@ -67,10 +67,10 @@ public sealed class EmbeddedBatchTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         using var cancellation = new CancellationTokenSource();
 
-        IEnumerable<LuiEntry> Entries()
+        IEnumerable<LuiEntry<long>> Entries()
         {
             for (var i = 1; i <= 100; i++)
             {
@@ -79,7 +79,7 @@ public sealed class EmbeddedBatchTests
                     cancellation.Cancel();
                 }
 
-                yield return new LuiEntry(i, $"kuchen{i}");
+                yield return new LuiEntry<long>(i, $"kuchen{i}");
             }
         }
 
@@ -94,12 +94,12 @@ public sealed class EmbeddedBatchTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         using (var connection = database.Connect())
         using (var transaction = connection.BeginTransaction())
         {
-            tags.UpsertMany([new LuiEntry(1, "apfel"), new LuiEntry(2, "birne")], transaction)
+            tags.UpsertMany([new LuiEntry<long>(1, "apfel"), new LuiEntry<long>(2, "birne")], transaction)
                 .ShouldBe(2);
             transaction.Rollback();
         }
@@ -109,7 +109,7 @@ public sealed class EmbeddedBatchTests
         using (var connection = database.Connect())
         using (var transaction = connection.BeginTransaction())
         {
-            tags.UpsertMany([new LuiEntry(1, "apfel")], transaction);
+            tags.UpsertMany([new LuiEntry<long>(1, "apfel")], transaction);
             transaction.Commit();
         }
 
@@ -122,15 +122,15 @@ public sealed class EmbeddedBatchTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var batch = catalog.Create("batch", index => index.SingleWord().TypoTolerance());
-        var single = catalog.Create("single", index => index.SingleWord().TypoTolerance());
+        var batch = catalog.Create(new LuiIndexDefinition<long>("batch", index => index.SingleWord().TypoTolerance()));
+        var single = catalog.Create(new LuiIndexDefinition<long>("single", index => index.SingleWord().TypoTolerance()));
         foreach (var index in new[] { batch, single })
         {
             index.Upsert(1, "Apfelkuchen", 10);
             index.WarmUpTypoDictionary();
         }
 
-        batch.UpsertMany([new LuiEntry(2, "Himbeere") { Weight = 50 }]);
+        batch.UpsertMany([new LuiEntry<long>(2, "Himbeere") { Weight = 50 }]);
         single.Upsert(2, "Himbeere", 50);
 
         var learned = batch.Search("himbere");
@@ -145,8 +145,8 @@ public sealed class EmbeddedBatchTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var batch = catalog.Create("batch", index => index.SingleWord());
-        var single = catalog.Create("single", index => index.SingleWord());
+        var batch = catalog.Create(new LuiIndexDefinition<long>("batch", index => index.SingleWord()));
+        var single = catalog.Create(new LuiIndexDefinition<long>("single", index => index.SingleWord()));
 
         var writer = Task.Run(() =>
         {
@@ -158,7 +158,7 @@ public sealed class EmbeddedBatchTests
 
         for (var round = 0; round < 10; round++)
         {
-            batch.UpsertMany(Enumerable.Range((round * 100) + 1, 100).Select(i => new LuiEntry(i, $"kuchen{i}")));
+            batch.UpsertMany(Enumerable.Range((round * 100) + 1, 100).Select(i => new LuiEntry<long>(i, $"kuchen{i}")));
         }
 
         await writer.WaitAsync(TimeSpan.FromSeconds(30), TestContext.Current.CancellationToken);
@@ -166,11 +166,11 @@ public sealed class EmbeddedBatchTests
         single.Count().ShouldBe(200);
     }
 
-    private static IEnumerable<LuiEntry> FailingAfter(int count)
+    private static IEnumerable<LuiEntry<long>> FailingAfter(int count)
     {
         for (var i = 1; i <= count; i++)
         {
-            yield return new LuiEntry(i, $"kuchen{i}");
+            yield return new LuiEntry<long>(i, $"kuchen{i}");
         }
 
         throw new InvalidOperationException("the source failed");

@@ -202,11 +202,48 @@ public sealed class OutboxTests
         options.Interval.ShouldBe(TimeSpan.FromSeconds(30));
         options.MaxBackoff.ShouldBe(TimeSpan.FromMinutes(5));
 
-        // beside the warm-up (until #268) and in a container of its own
+        // beside the application's own initializer (ADR-0076), in a container of its own
         var both = new ServiceCollection();
-        both.AddLuiWarmup();
+        both.AddHostedService<OwnInitializer>();
         both.AddLuiOutbox(options => options.Interval = TimeSpan.FromSeconds(7));
         both.Count(service => service.ServiceType == typeof(IHostedService)).ShouldBe(2);
+    }
+
+    [Fact]
+    [Trait("Category", "Timing")]
+    public async Task The_claim_of_a_round_that_has_begun_stays_true_when_the_round_is_over()
+    {
+        // issue #185: the claim of a round that runs is momentary — the round of the test waits for the write lock of the file, which
+        // the test itself holds, so it lives about a second. A waiter that comes late must still learn that a round ran: the claim of a
+        // round that has begun stays true.
+        using var world = new World(Interval, MaxBackoff, busyTimeout: TimeSpan.FromSeconds(1));
+        var service = world.Service;
+        await world.Host.StartAsync(TestContext.Current.CancellationToken);
+        await service.ArmedAsync();
+
+        using var blocker = world.Database.Connect();
+        RunOn(blocker, "BEGIN IMMEDIATE;");
+
+        world.Clock.Advance(Interval);
+        await service.BeganAsync();
+        await service.FinishedAsync();
+
+        service.RoundRunning.ShouldBeFalse("the round is over");
+        service.RoundsBegun.ShouldBe(1, "the claim of a round that has begun stays true");
+        RunOn(blocker, "COMMIT;");
+    }
+
+    private static void RunOn(SqliteConnection connection, string sql)
+    {
+        using var command = connection.CreateCommand();
+        command.CommandText = sql;
+        command.ExecuteNonQuery();
+    }
+
+    /// <summary>The application's own initializer, as far as the registration is concerned: a second hosted service in the container.</summary>
+    private sealed class OwnInitializer : BackgroundService
+    {
+        protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.CompletedTask;
     }
 
     /// <summary>A host with a catalog, a linked index with a row in its outbox, the outbox service, a clock the test moves and a logger that keeps what it heard.</summary>

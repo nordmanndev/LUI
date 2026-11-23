@@ -42,7 +42,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
 
         // the build: the bulk path of a sync into an empty index (ADR-0016); the batch of the scenario measures another
         // batch — the first load of a file no other process writes: the largest batch, the fewest commits (ADR-0016, ADR-0020)
@@ -112,7 +112,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
     {
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
 
         if (checkpointPages is { } pages)
         {
@@ -156,7 +156,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
-        var index = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var index = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         index.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = 100_000 });
 
         var before = GC.GetTotalMemory(forceFullCollection: true);
@@ -188,7 +188,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
-        var index = catalog.Create("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors));
+        var index = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors)));
         index.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = 100_000 });
 
         var before = GC.GetTotalMemory(forceFullCollection: true);
@@ -221,7 +221,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
                 $"The corpus '{corpus.Name}' is not a corpus of titles — the index of this measurement is a multi-word one.");
         }
 
-        var titles = catalog.Create("titles", index => index.MultiWord());
+        var titles = catalog.Create(new LuiIndexDefinition<long>("titles", index => index.MultiWord()));
         var build = Stopwatch.StartNew();
         titles.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = 100_000 });
         build.Stop();
@@ -234,7 +234,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
         budget.Verify();
     }
 
-    private (double[] Latencies, double[] Allocations) MeasureQueries(ILuiIndex index, IReadOnlyList<string> inputs, bool typoTolerance)
+    private (double[] Latencies, double[] Allocations) MeasureQueries(LuiIndex<long> index, IReadOnlyList<string> inputs, bool typoTolerance)
     {
         var options = new LuiQueryOptions { TypoTolerance = typoTolerance };
 
@@ -285,7 +285,7 @@ public sealed class BudgetPerformance(ITestOutputHelper output)
     }
 
     /// <summary>The single writes of ADR-0020, each in a transaction of its own: an upsert, a weight, a removal (and the entry back).</summary>
-    private static double[] MeasureWrites(ILuiEmbeddedIndex index, Corpus corpus)
+    private static double[] MeasureWrites(LuiEmbeddedIndex<long> index, Corpus corpus)
     {
         var writes = new List<double>(600);
         var random = new Random(11);
