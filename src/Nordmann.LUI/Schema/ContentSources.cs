@@ -4,11 +4,11 @@ namespace Nordmann.LUI.Schema;
 internal static class ContentSources
 {
     /// <summary>
-    /// The statements that remove an index — by the source of its stored definition, and as <c>Embedded</c> when there is
-    /// none: the way out of a <see cref="LuiDefinitionMismatchException"/> works whatever the definition is. A source
+    /// The statements that remove an index — by its source — the one of its stored definition, or the source column of a
+    /// row whose definition cannot be read —, and as <c>Embedded</c> when there is no row at all: the way out of a <see cref="LuiDefinitionMismatchException"/> works whatever the definition is. A source
     /// this version does not know is refused rather than guessed (review of pull request 14, N2).
     /// </summary>
-    internal static IReadOnlyList<string> DropStatements(string indexName, IndexDefinition? stored) => stored?.Source switch
+    internal static IReadOnlyList<string> DropStatements(string indexName, string? source) => source switch
     {
         null or EmbeddedSource.SourceName => EmbeddedSource.Drop(indexName),
         LinkedSource.SourceName => LinkedSource.Drop(indexName),

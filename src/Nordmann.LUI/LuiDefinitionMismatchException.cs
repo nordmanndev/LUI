@@ -86,6 +86,20 @@ public sealed class LuiDefinitionMismatchException : LuiException
         Requested = requested;
     }
 
+    /// <summary>The row of the index cannot be parsed: the exception keeps the error of the parser.</summary>
+    internal LuiDefinitionMismatchException(string indexName, string stored, string requested, string advice, Exception inner)
+        : base(
+            $"The index '{indexName}' exists with another definition.{Environment.NewLine}"
+            + $"  stored:    {stored}{Environment.NewLine}"
+            + $"  requested: {requested}{Environment.NewLine}"
+            + advice,
+            inner)
+    {
+        IndexName = indexName;
+        Stored = stored;
+        Requested = requested;
+    }
+
     /// <summary>The name of the index.</summary>
     public string IndexName { get; }
 

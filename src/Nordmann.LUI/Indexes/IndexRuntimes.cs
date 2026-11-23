@@ -14,15 +14,33 @@ namespace Nordmann.LUI.Indexes;
 /// </summary>
 internal sealed class IndexRuntimes(Database database, TypoDictionaries typos, PayloadSerialization payload, StoredIndexes stored)
 {
+    /// <summary>
+    /// The runtime of an index by its stored definition alone (ADR-0076): no definition object of the application, no payload type and no
+    /// map. It is the runtime of <see cref="Build"/> with nothing of the application in it — the index has no payload reader, so it reads
+    /// no payload and calls no map — and the same guard, so every operation of it meets the checks of ADR-0075. It is built for one call
+    /// and let go: nothing of it is kept.
+    /// </summary>
+    /// <param name="name">The name of the index.</param>
+    /// <param name="entry">What <c>lui_meta</c> holds about the index.</param>
+    /// <param name="counter">The schema counter the entry was read at.</param>
+    /// <returns>The runtime.</returns>
+    internal IndexRuntime BuildStored(string name, IndexStoreEntry entry, long counter)
+    {
+        var source = string.Equals(entry.Source, EmbeddedSource.SourceName, StringComparison.Ordinal) ? LuiIndexSource.Embedded : LuiIndexSource.Linked;
+        var description = new IndexDescription(source, entry.Kind, IndexOptions.Default, entry.Definition.Link);
+        return Build(new ResolvedIndex(name, description, entry.Definition.KeyType), entry, counter, byName: true);
+    }
+
     /// <summary>The runtime of an index that is stored.</summary>
     /// <param name="resolved">The definition after its first use.</param>
     /// <param name="entry">What <c>lui_meta</c> holds about the index.</param>
     /// <param name="counter">The schema counter the entry was read at.</param>
+    /// <param name="byName">Whether the runtime is built for an operation by name (ADR-0076): a linked index then knows the stored payload columns, and no map.</param>
     /// <param name="codec">The serializer of the declared payload type of an embedded index, found in the registry of the catalog
     /// when the definition was compared (ADR-0072); <see langword="null"/> for an index without a declared payload type, which takes the
     /// serialisation of the catalog. It lives in the runtime, so the lookup is made once per catalog and definition.</param>
     /// <returns>The runtime.</returns>
-    internal IndexRuntime Build(ResolvedIndex resolved, IndexStoreEntry entry, long counter, PayloadCodec? codec = null)
+    internal IndexRuntime Build(ResolvedIndex resolved, IndexStoreEntry entry, long counter, PayloadCodec? codec = null, bool byName = false)
     {
         var name = resolved.Name;
         var description = resolved.Description;
@@ -52,7 +70,9 @@ internal sealed class IndexRuntimes(Database database, TypoDictionaries typos, P
         var linked = new LinkedSource(name, entry.Definition);
         PayloadReader reader = description.PayloadMap is { } map
             ? new ColumnPayload(name, entry.Definition.Link?.PayloadColumns ?? [], map, entry.Definition.KeyType, description.PayloadType)
-            : new NoPayload(name);
+            : byName && entry.Definition.Link?.PayloadColumns is { Count: > 0 } columns
+                ? new StoredColumns(name, columns) // the check of the structure sees the columns of the payload; no map, no payload
+                : new NoPayload(name);
         return new IndexRuntime(
             new LinkedIndex(
                 database,

@@ -793,6 +793,213 @@ public sealed class LuiCatalog : IDisposable
     }
 
     /// <summary>
+    /// Describes every index of the catalog, by what is stored (ADR-0076) — for a tool, an admin endpoint or a health check that
+    /// knows neither the definitions of the application nor its payload types. The list is in the order of the names.
+    /// <para>
+    /// <b>The definition fields</b> (the source, the kind, the payload type and its format, the key type, the typo distance) come from the
+    /// definitions in the memory of the catalog (ADR-0075): no statement reads them. The only statement of the call asks whether the
+    /// SQLite schema counter of the file moved; only then the definitions are read again — so an index that another process created or
+    /// dropped is in the list. <b>The state field</b>, the state of the typo dictionary, is read from the dictionaries of this catalog
+    /// when the call is made: <c>NotBuilt</c> says that <i>this</i> catalog has not built it. Nothing else of the state is in the
+    /// list — <see cref="Count(string)"/> and <see cref="Check(string)"/> are asked by name, and cost what they cost.
+    /// </para>
+    /// </summary>
+    /// <returns>One record per index; empty when the catalog holds none. It is a snapshot.</returns>
+    /// <exception cref="LuiDefinitionMismatchException">A row of the file cannot be read: another LUI format, another folding, a key type or a kind this version does not know, a definition of <c>null</c> or of malformed JSON (the error of the parser is the inner exception). It names the index, and the list is not given around it: <see cref="DropIndex"/> is the way out.</exception>
+    /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
+    public IReadOnlyList<LuiIndexInfo> Indexes()
+    {
+        Database.ThrowIfDisposed();
+        _ = StoredIndexes.ReloadIfChanged();
+
+        var infos = new List<LuiIndexInfo>();
+        foreach (var (name, stored) in StoredIndexes.Current.Entries.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+        {
+            // a row that cannot be read says what is wrong with it when it is read again; an index that was dropped meanwhile is not listed
+            var entry = stored ?? IndexStore.ReadIndex(Database, name);
+            if (entry is null)
+            {
+                continue;
+            }
+
+            entry.EnsureReadable(name);
+            var definition = entry.Definition;
+            infos.Add(
+                new LuiIndexInfo
+                {
+                    Name = name,
+                    Source = string.Equals(entry.Source, EmbeddedSource.SourceName, StringComparison.Ordinal) ? LuiIndexSource.Embedded : LuiIndexSource.Linked,
+                    Kind = entry.Kind,
+                    PayloadType = definition.PayloadTypeName,
+                    PayloadFormat = definition.PayloadFormat,
+                    KeyType = KeyCodec.TypeOf(definition.KeyType),
+                    TypoDistance = definition.TypoDistance,
+                    TypoDictionaryState = TypoDictionaries.StateOf(name, definition.ToJson()),
+                });
+        }
+
+        return infos;
+    }
+
+    /// <summary>
+    /// The number of the entries of an index, by name (ADR-0076) — embedded or linked, without its definition and without a payload
+    /// type. It meets the guard of ADR-0075 like the count of a handle: the schema counter is read in the snapshot of the count.
+    /// </summary>
+    /// <param name="name">The name of the index.</param>
+    /// <returns>The count.</returns>
+    /// <exception cref="ArgumentException">The name is no index name.</exception>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database — or it was dropped under the call.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding), or its stored definition cannot be read (<c>null</c>, malformed JSON): the exception names the index, and <see cref="DropIndex"/> is the way out.</exception>
+    /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
+    public long Count(string name) => Maintain(name, runtime => runtime.Index.Count());
+
+    /// <summary>
+    /// Checks the structure of an index, by name (ADR-0076): an embedded one — its definition, its triggers and FTS5's integrity check
+    /// against the content table; a linked one — its definition, its table and its entries against the rows of the table. The report
+    /// carries no keys. <b>It reads no payload and calls no map</b> (the payload columns of a linked index are stored, and the table is checked to still have them): whether the stored payloads can be read is the question of
+    /// <c>CheckPayloads()</c> on a typed handle, which needs the payload type.
+    /// <para>
+    /// FTS5's integrity check is an insert that is rolled back and reads the whole index, so the check holds the write lock of the file for as long as it takes, and it needs a connection that may write: a catalog opened with
+    /// <see cref="OpenReadOnly"/> refuses it with a <see cref="LuiReadOnlyException"/>, as the check of a handle does.
+    /// </para>
+    /// </summary>
+    /// <param name="name">The name of the index.</param>
+    /// <returns>The report.</returns>
+    /// <exception cref="ArgumentException">The name is no index name.</exception>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database — or it was dropped under the call.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding), or its stored definition cannot be read (<c>null</c>, malformed JSON): the exception names the index, and <see cref="DropIndex"/> is the way out.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
+    /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
+    public LuiIntegrityReport Check(string name) => Maintain(name, runtime => runtime.Index.Check());
+
+    /// <summary>
+    /// Lets SQLite optimize the search index of an index, by name (ADR-0076) — embedded or linked, without its definition.
+    /// </summary>
+    /// <param name="name">The name of the index.</param>
+    /// <exception cref="ArgumentException">The name is no index name.</exception>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database — or it was dropped under the call.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding), or its stored definition cannot be read (<c>null</c>, malformed JSON): the exception names the index, and <see cref="DropIndex"/> is the way out.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written; the message names the index.</exception>
+    /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
+    public void Optimize(string name) =>
+        Maintain(
+            name,
+            runtime =>
+            {
+                runtime.Index.Optimize();
+                return true;
+            });
+
+    /// <summary>
+    /// Rebuilds the search index of an embedded index from its content table, by name (ADR-0076): the triggers anew, the search index
+    /// anew, merged — one transaction, whatever the payload type of the index is; no payload is read. It is for an <b>embedded</b> index
+    /// only: the content of a linked index is the application's table, and its search index is built from it by <c>Sync()</c> on its handle.
+    /// </summary>
+    /// <param name="name">The name of the index.</param>
+    /// <exception cref="ArgumentException">The name is no index name.</exception>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database — or it was dropped under the call.</exception>
+    /// <exception cref="InvalidOperationException">The index is a linked one: "'chefs' is a linked index; rebuild it from its table with Sync() on its handle."</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding), or its stored definition cannot be read (<c>null</c>, malformed JSON): the exception names the index, and <see cref="DropIndex"/> is the way out.</exception>
+    /// <exception cref="LuiReadOnlyException">The file may not be written; the message names the index.</exception>
+    /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
+    public void Rebuild(string name) =>
+        Maintain(
+            name,
+            runtime =>
+            {
+                ((EmbeddedIndex)runtime.Index).Rebuild();
+                return true;
+            },
+            entry => string.Equals(entry.Source, LinkedSource.SourceName, StringComparison.Ordinal)
+                ? new InvalidOperationException($"'{name}' is a linked index; rebuild it from its table with Sync() on its handle.")
+                : null);
+
+    /// <summary>
+    /// The runtime of an index by its stored definition, for one operation by name (ADR-0076). The name is looked up in the definitions
+    /// in memory — an unknown name reloads them once and is remembered as missing until the schema counter changes
+    /// (<see cref="StoredIndexes.Find"/>, ADR-0075) — and the operation runs on a runtime that is built from what was found, with the guard
+    /// of every operation: the schema counter is read inside the snapshot or the transaction of the work, so the check and the work are
+    /// one step. A call by name declares no definition, so an index that another process created again with another definition is not a
+    /// mismatch: when the guard says that the stored definition is not the one this call looked up, the call is made again from the
+    /// definitions as the file holds them — it stops when the file stops moving, and then the exception of the guard is the answer.
+    /// </summary>
+    /// <typeparam name="T">What the operation returns.</typeparam>
+    /// <param name="name">The name of the index.</param>
+    /// <param name="work">The operation, on the internal index.</param>
+    /// <param name="refuse">Whether the stored index is the wrong kind for the operation; the exception to throw, once the file has been looked at.</param>
+    /// <returns>What the operation returned.</returns>
+    private T Maintain<T>(string name, Func<IndexRuntime, T> work, Func<IndexStoreEntry, Exception?>? refuse = null)
+    {
+        var validated = Identifier.ValidateIndexName(name, nameof(name));
+        Database.ThrowIfDisposed();
+
+        while (true)
+        {
+            var entry = FindStoredByName(validated, out var snapshot);
+            if (refuse?.Invoke(entry) is { } refusal)
+            {
+                // thrown only from a snapshot that has been compared with the file: an index that another process created again
+                // as the other kind is not refused for what it was
+                if (StoredIndexes.Refresh(snapshot))
+                {
+                    continue;
+                }
+
+                throw refusal;
+            }
+
+            var runtime = Runtimes.BuildStored(validated, entry, snapshot.Counter);
+            try
+            {
+                return work(runtime);
+            }
+            catch (Exception exception) when (exception is LuiIndexNotFoundException or LuiDefinitionMismatchException && runtime.Guard.HasFailed)
+            {
+                // the guard judged the index as the file holds it now; the definitions are read again, and the call is made again from
+                // them unless nobody has moved the file since — then this is the answer
+                if (StoredIndexes.Refresh(snapshot))
+                {
+                    continue;
+                }
+
+                throw;
+            }
+        }
+    }
+
+    /// <summary>
+    /// The stored index of a name for an operation by name: from the definitions in memory, thrown as "not found" or as unreadable only
+    /// when the file has been looked at for the snapshot the answer was judged on (<see cref="StoredIndexes.Refresh"/>).
+    /// </summary>
+    /// <param name="name">The validated name of the index.</param>
+    /// <param name="snapshot">The definitions the answer was read from.</param>
+    /// <returns>What <c>lui_meta</c> holds about the index.</returns>
+    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The LUI format, the key type or the folding of the stored index is another one.</exception>
+    private IndexStoreEntry FindStoredByName(string name, out StoredIndexes.Snapshot snapshot)
+    {
+        while (true)
+        {
+            var entry = StoredIndexes.Find(name, out snapshot) ?? throw new LuiIndexNotFoundException(name);
+            try
+            {
+                entry.EnsureReadable(name);
+                return entry;
+            }
+            catch (LuiDefinitionMismatchException)
+            {
+                // the same discipline as the open call: the unreadable index is thrown only when the file has not moved since
+                if (StoredIndexes.Refresh(snapshot))
+                {
+                    continue;
+                }
+
+                throw;
+            }
+        }
+    }
+
+    /// <summary>
     /// Applies the outbox of every linked index of the catalog: the rows the triggers noted come into the index
     /// (ADR-0015, ADR-0043).
     /// <para>
@@ -1236,11 +1443,17 @@ public sealed class LuiCatalog : IDisposable
     /// (review of pull request 16, M3). <b>After the drop and a new <c>Create()</c> a linked index is empty and has no
     /// triggers</b>: <c>CreateTriggers()</c> — or the migration — sets them again, <b>first</b>, and then <c>Sync()</c> fills it: a row written in between is noted by the triggers and not lost.
     /// </para>
+    /// <para>
+    /// <b>A row that cannot be read</b> — a definition of <c>null</c> or of malformed JSON — is dropped as what its source column says (ADR-0076):
+    /// a <c>Linked</c> row with its outbox, search index and entries, and with the refusal of its triggers; an <c>Embedded</c> row as an embedded
+    /// index. A row whose source is neither is refused, and nothing is removed.
+    /// </para>
     /// </summary>
     /// <param name="name">The name of the index.</param>
     /// <param name="dropTriggers">Removes the triggers of a linked index on the application's table, too.</param>
     /// <returns><see langword="true"/> when the index existed.</returns>
-    /// <exception cref="InvalidOperationException">A linked index has triggers, and <paramref name="dropTriggers"/> is not set.</exception>
+    /// <exception cref="InvalidOperationException">A linked index has triggers, and <paramref name="dropTriggers"/> is not set; or an embedded index has triggers of its names on a table that is not its own.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The row of the index cannot be read, and its source column is neither <c>Embedded</c> nor <c>Linked</c>: nothing is removed.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     public bool DropIndex(string name, bool dropTriggers = false)
     {

@@ -90,7 +90,7 @@ public sealed class PublicApiShapeTests
         [
             "LuiHit", "LuiResult", "LuiTimings", "LuiQueryOptions", "LuiCatalogOptions",
             "LuiLinkedSyncReport", "LuiSyncOptions", "LuiSyncReport", "LuiIntegrityReport",
-            "LuiTypedHit", "LuiTypedResult",
+            "LuiTypedHit", "LuiTypedResult", "LuiIndexInfo",
         ];
 
         // LuiHit and LuiResult have two generic forms each (ADR-0073: without and with a payload): the guard counts all forms of a name
@@ -224,6 +224,54 @@ public sealed class PublicApiShapeTests
                     "long Removed { get; }", "long WithoutText { get; }",
                 ],
                 "what was indexed, what was left out and why, and how the sync worked: the batches, the removal and the longest lock");
+    }
+
+    [Fact]
+    public void The_catalog_maintains_every_index_by_name_and_describes_it_in_a_record_with_named_properties()
+    {
+        // ADR-0076, issue #273: a tool inspects and maintains every index without its definition and without a payload type. Nothing
+        // that is returned is a handle, the members are exactly the ones of the issue, and none of them is filtered out here.
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        static string[] Members(Type type, params string[] names) =>
+            [.. type.GetMethods(declared).Where(method => !method.IsSpecialName && names.Contains(method.Name, StringComparer.Ordinal))
+                .Select(method => $"{TypeText(method.ReturnType)} {method.Name}({Parameters(method)})")
+                .Order(StringComparer.Ordinal)];
+
+        Members(typeof(LuiCatalog), "Indexes", "Count", "Check", "Optimize", "Rebuild").ShouldBe(
+            [
+                "IReadOnlyList<LuiIndexInfo> Indexes()",
+                "LuiIntegrityReport Check(string name)",
+                "long Count(string name)",
+                "void Optimize(string name)",
+                "void Rebuild(string name)",
+            ],
+            "the members of the issue, by name, and nothing that returns a handle");
+
+        typeof(LuiIndexInfo).IsSealed.ShouldBeTrue();
+        typeof(LuiIndexInfo).GetMethod("<Clone>$").ShouldNotBeNull("a record: it compares by value");
+        // nothing is hidden: the setter is init-only, and the properties that a caller has to set are required
+        static string Written(PropertyInfo property) =>
+            (property.GetCustomAttributes(typeof(System.Runtime.CompilerServices.RequiredMemberAttribute), inherit: false).Length > 0 ? "required " : string.Empty)
+            + $"{TypeText(property.PropertyType)}{(Nullable.GetUnderlyingType(property.PropertyType) is null && new NullabilityInfoContext().Create(property).WriteState == NullabilityState.Nullable ? "?" : string.Empty)} {property.Name} {{ get; "
+            + (property.SetMethod is null ? string.Empty
+                : property.SetMethod.ReturnParameter.GetRequiredCustomModifiers().Contains(typeof(System.Runtime.CompilerServices.IsExternalInit)) ? "init; " : "set; ")
+            + "}";
+        typeof(LuiIndexInfo).GetProperties(declared).Select(Written)
+            .Order(StringComparer.Ordinal)
+            .ToArray()
+            .ShouldBe(
+                [
+                    "required LuiIndexKind Kind { get; init; }",
+                    "required LuiIndexSource Source { get; init; }",
+                    "required LuiKeyType KeyType { get; init; }",
+                    "required LuiTypoDictionaryState TypoDictionaryState { get; init; }",
+                    "required LuiTypoDistance TypoDistance { get; init; }",
+                    "required string Name { get; init; }",
+                    "string? PayloadFormat { get; init; }",
+                    "string? PayloadType { get; init; }",
+                ],
+                "the definition fields and the state of the typo dictionary, as the table of the issue lists them (#266 adds NeedsInitialization)");
+        Enum.GetNames<LuiIndexSource>().ShouldBe(["Embedded", "Linked"]);
     }
 
     [Fact]

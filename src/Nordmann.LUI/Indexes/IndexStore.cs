@@ -413,18 +413,42 @@ internal static class IndexStore
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
 
-        var stored = ReadDefinition(connection, transaction, name);
-        var existed = stored is not null;
+        var (stored, sourceName, existed) = ReadForDrop(connection, transaction, name);
 
-        if (!dropTriggers && stored?.Link is { } link && HasTriggers(connection, transaction, name))
+        // a row whose definition cannot be read is dropped as what its source column says (ADR-0076): a linked index with its outbox, its
+        // search index and its entries — and with the refusal of its triggers. A source that is not 'Embedded' or 'Linked' — the column
+        // is NOT NULL, so it is a value this version does not know — is refused, as a source always was (review of pull request 14, N2):
+        // nothing is guessed, and no statement runs
+        var source = stored?.Source ?? sourceName;
+        if (existed && stored is null && source is not (LinkedSource.SourceName or EmbeddedSource.SourceName))
         {
+            throw new LuiDefinitionMismatchException(
+                name,
+                $"a definition that cannot be read, and the content source '{source}', which this version does not know",
+                $"the content source {EmbeddedSource.SourceName} or {LinkedSource.SourceName}",
+                "Neither the definition nor the source column of the row of the index can be read, so LUI does not know what it would remove "
+                + "and removes nothing: repair the row, or remove it by hand.");
+        }
+
+        if (!dropTriggers && string.Equals(source, LinkedSource.SourceName, StringComparison.Ordinal) && HasTriggers(connection, transaction, name))
+        {
+            var table = stored?.Link is { } link ? $" on the table '{link.Table}'" : " on the table of the application";
             throw new InvalidOperationException(
-                $"The linked index '{name}' has triggers on the table '{link.Table}'. They write into the tables of the index "
+                $"The linked index '{name}' has triggers{table}. They write into the tables of the index "
                 + "and go with it: call DropIndex(name, dropTriggers: true), and take them out of the application's migration "
                 + "too. After a new Create() the index is empty and has no triggers — create them again, then Sync() it (the triggers first, so that no row written in between is lost).");
         }
 
-        foreach (var statement in ContentSources.DropStatements(name, stored))
+        // the triggers of an embedded index sit on its own table and go with it; a trigger of the same name on another table is the
+        // application's table's — whatever the row says, it goes only with the flag
+        if (!dropTriggers && string.Equals(source, EmbeddedSource.SourceName, StringComparison.Ordinal) && HasTriggersOnAnotherTable(connection, transaction, name))
+        {
+            throw new InvalidOperationException(
+                $"The index '{name}' has triggers named like its own on a table that is not its own. They go with the index only with "
+                + "DropIndex(name, dropTriggers: true): take them out of the application's migration too.");
+        }
+
+        foreach (var statement in ContentSources.DropStatements(name, source))
         {
             Execute(connection, transaction, statement);
         }
@@ -517,13 +541,30 @@ internal static class IndexStore
     {
         var kind = ReadKind(reader.GetString(firstColumn), indexName);
         var source = reader.GetString(firstColumn + 1);
-        var definition = IndexDefinition.FromJson(reader.GetString(firstColumn + 2))
-            ?? throw new InvalidOperationException(
-                $"The definition of the index '{indexName}' in lui_meta is empty; the file was written by another version "
-                + "of LUI and cannot be read: remove the index (LuiCatalog.DropIndex) and create it again.");
+        var definition = ParseDefinition(reader.GetString(firstColumn + 2), indexName);
         var schemaVersion = reader.GetInt32(firstColumn + 3);
 
         return new IndexStoreEntry(kind, source, definition, schemaVersion);
+    }
+
+    /// <summary>
+    /// The definition of a row. A row that cannot be parsed — malformed JSON, or <c>null</c> — is a <see cref="LuiDefinitionMismatchException"/>
+    /// that names the index, like a kind this version does not know (ADR-0076): the file was written by something else, and the way out is the
+    /// drop. The error of the parser is kept as the inner exception.
+    /// </summary>
+    private static IndexDefinition ParseDefinition(string json, string indexName)
+    {
+        const string advice = "The definition in lui_meta cannot be read; the file was written by another version of LUI or was changed by hand: "
+            + "remove the index with LuiCatalog.DropIndex(name) and create it again.";
+        try
+        {
+            return IndexDefinition.FromJson(json)
+                ?? throw new LuiDefinitionMismatchException(indexName, "an empty definition", "a definition of this version", advice);
+        }
+        catch (System.Text.Json.JsonException exception)
+        {
+            throw new LuiDefinitionMismatchException(indexName, "a definition that is no JSON of this version", "a definition of this version", advice, exception);
+        }
     }
 
     /// <summary>
@@ -558,6 +599,43 @@ internal static class IndexStore
                 $"a kind of this version ({string.Join(", ", Enum.GetNames<LuiIndexKind>())})",
                 "The index was written by another version of LUI: remove it with LuiCatalog.DropIndex(name) and create "
                 + "it again.");
+
+    /// <summary>
+    /// The definition of an index that is about to be dropped, its source column, and whether the row is there. The drop is the way out of a
+    /// row that cannot be read (ADR-0076): a definition that is <c>null</c> or no JSON is no reason to keep the row when its source column is
+    /// one this version knows — it is dropped as that source; a source it does not know is refused by the caller.
+    /// </summary>
+    private static (IndexDefinition? Stored, string? Source, bool Existed) ReadForDrop(SqliteConnection connection, SqliteTransaction transaction, string indexName)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT definition, source FROM lui_meta WHERE index_name = $name;";
+        command.Parameters.AddWithValue("$name", indexName);
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
+        {
+            return (null, null, false);
+        }
+
+        var source = reader.IsDBNull(1) ? null : reader.GetString(1);
+        try
+        {
+            return (reader.IsDBNull(0) ? null : IndexDefinition.FromJson(reader.GetString(0)), source, true);
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            return (null, source, true);
+        }
+    }
+
+    private static bool HasTriggersOnAnotherTable(SqliteConnection connection, SqliteTransaction transaction, string indexName)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = LinkedSource.TriggerCountSql(indexName).TrimEnd(';') + " AND tbl_name <> $own;";
+        command.Parameters.AddWithValue("$own", $"lui_{indexName}");
+        return (long)command.ExecuteScalar()! > 0;
+    }
 
     /// <summary>The stored definition of an index, or <see langword="null"/> when there is none.</summary>
     internal static IndexDefinition? ReadDefinition(SqliteConnection connection, SqliteTransaction? transaction, string indexName)

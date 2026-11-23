@@ -66,6 +66,18 @@ internal sealed class TypoDictionaries
         }
     }
 
+    /// <summary>
+    /// Where the dictionary of an index <b>with this definition</b> stands — without creating one: an index nobody has opened in this
+    /// process has none, and a dictionary of another definition (the index was created again under the name) is not its dictionary.
+    /// </summary>
+    /// <param name="indexName">The name of the index.</param>
+    /// <param name="fingerprint">The stored definition, as text — what <see cref="For"/> was asked with.</param>
+    /// <returns>The state of the dictionary, <see cref="LuiTypoDictionaryState.NotBuilt"/> when there is none.</returns>
+    internal LuiTypoDictionaryState StateOf(string indexName, string fingerprint) =>
+        _byIndex.TryGetValue(indexName, out var entry) && string.Equals(entry.Fingerprint, fingerprint, StringComparison.Ordinal)
+            ? entry.Dictionary.State
+            : LuiTypoDictionaryState.NotBuilt;
+
     /// <summary>Whether the typo dictionary of an index exists and is built.</summary>
     internal bool IsBuilt(string indexName) => _byIndex.TryGetValue(indexName, out var entry) && entry.Dictionary.IsBuilt;
 

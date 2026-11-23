@@ -63,10 +63,15 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 | `ILuiEmbeddedIndex Index(string name)` | opens an embedded index that exists, and **writes nothing**: the definition is read out of the file, no table, no write lock. |
 | `ILuiLinkedIndex LinkedIndex(string name)` | opens a linked index without payload columns. |
 | `ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)` | opens a linked index with payload columns; the map builds the payload from the row of the table. |
+| `IReadOnlyList<LuiIndexInfo> Indexes()` | describes **every** index of the catalog by what is stored, in the order of the names — **one row that cannot be read (another LUI format, `null` or malformed JSON) makes the whole call throw a `LuiDefinitionMismatchException` that names the index; `DropIndex` is the way out** — without a definition and without a payload type ([maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type), ADR-0076). The definition fields come from the memory of the catalog, with no statement that reads them; the typo dictionary state is read when it is called. |
+| `long Count(string name)` | the number of the entries of the index, embedded or linked; the check of the schema counter and the count are one step. A name that is not there is a `LuiIndexNotFoundException` that names it. |
+| `LuiIntegrityReport Check(string name)` | compares the index with itself (embedded) or with its table (linked); the report has no keys. **Structure only: it reads no payload and calls no map** (the payload *columns* of a linked index are stored, and are checked). It holds the **write lock of the file for the whole of FTS5's integrity check**, which reads the whole index (an insert that is rolled back): cheap in what it reads, not in the lock it takes — do not wire it into a liveness probe of a second on a large index (#275 measures it). For the same reason a catalog opened with `OpenReadOnly` refuses it with a `LuiReadOnlyException`. |
+| `void Optimize(string name)` | lets SQLite optimize the search index of the index, embedded or linked. A catalog opened with `OpenReadOnly` refuses it with a `LuiReadOnlyException` that names the index. |
+| `void Rebuild(string name)` | rebuilds an **embedded** index from its content table — the triggers anew, the search index anew, merged, in one transaction; it reads no payload. For a **linked** index it throws an `InvalidOperationException` (`'chefs' is a linked index; rebuild it from its table with Sync() on its handle.`): its content is the application's table, and `Sync()` on its handle builds the search index from it. A catalog opened with `OpenReadOnly` refuses it with a `LuiReadOnlyException` that names the index. |
 | `void WarmUpTypoDictionaries(CancellationToken cancellationToken = default)` | builds the typo dictionary of **every** index of the catalog — the warm-up of a host in one call (ADR-0043). The dictionary belongs to the index of the catalog: an index you open later sees it and reports it as built. |
 | `void WarmUpTypoDictionaries(IEnumerable<string> names, CancellationToken cancellationToken = default)` | the same for the **named** indexes — a dictionary costs memory (194 MB for 685,739 words), and an index whose queries correct no typos needs none. Every name is checked before the first build: an unknown one is a `LuiIndexNotFoundException`. |
 | `int ApplyPending(CancellationToken cancellationToken = default)` | applies the outbox of **every** linked index: the rows the triggers noted come into the index. The table of the application is not touched. Returns the number of rows brought in. |
-| `bool DropIndex(string name, bool dropTriggers = false)` | drops the index. The triggers of a linked index are dropped with it only if you say so. The handles that were handed out for it are stale from now on: an operation on one throws a `LuiIndexNotFoundException`, also after the index was created again — take a new handle from `Create` or `Index`. |
+| `bool DropIndex(string name, bool dropTriggers = false)` | drops the index. The triggers of a linked index are dropped with it only if you say so. The handles that were handed out for it are stale from now on: an operation on one throws a `LuiIndexNotFoundException`, also after the index was created again — take a new handle from `Create` or `Index`. **A row of `lui_meta` that cannot be read** (a definition of `null` or malformed JSON) is the one that this call is the way out of: it is dropped as what its source column says — a `Linked` row with its outbox, search index and entries, and with the refusal of its triggers unless `dropTriggers: true`, an `Embedded` row as an embedded index (also refused without the flag when a trigger of its names sits on another table). A row whose source column is neither is refused with a `LuiDefinitionMismatchException` that names the index; nothing is removed. |
 | `string Path { get; }` | the full path of the file the catalog was opened with. |
 | `void Dispose()` | closes the catalog: it waits for the operations that are running and clears the pools of the provider (the read connections first). The catalog holds no connection (ADR-0070); the indexes hold no resource of their own. |
 
@@ -80,6 +85,47 @@ silent change.
 
 `Index` and `LinkedIndex` are the read path. They never write, whatever the file allows afterwards: the file decides
 what may happen.
+
+### Maintenance by name — without a definition or a payload type
+
+A tool, an admin endpoint or a health check inspects and maintains every index of a catalog **without knowing the definitions of the
+application and without its payload types** (ADR-0076): `Indexes()`, `Count(name)`, `Check(name)`, `Optimize(name)` — and `Rebuild(name)` for
+an embedded index. None of them returns a handle or can write an entry, so one index still has one kind of definition (ADR-0073). They open
+the internal runtime from the **stored** definition: they read no payload and call no map, and they meet the same guards as a handle (ADR-0075) —
+the schema counter is read inside the snapshot or the transaction of the work, so the check and the work are one step; an index that is gone
+is a `LuiIndexNotFoundException` that names it. A call by name declares no definition, so an index that another process created again with
+another definition is **used as it is stored** — there is nothing to mismatch.
+
+- **A name that is not known** reloads the stored definitions once and is remembered as missing until the SQLite schema counter changes, so
+  the names a user types on an admin endpoint cause no reload per request.
+- **`Indexes()`** asks whether the schema counter moved — one statement — and reads the definitions again only then, so an index that another
+  process created or dropped is in the list. It reads **no** definition from the file otherwise. `TypoDictionaryState` is the state of the
+  dictionary in **this** catalog, read at the call; `NotBuilt` says that this catalog has not built it.
+- **A read-only catalog** lists and counts; what writes — `Optimize`, `Rebuild`, and `Check`, whose integrity check is an insert that is rolled
+  back — is a `LuiReadOnlyException` that names the index.
+
+Which check for what:
+
+| check | cost | use |
+|---|---|---|
+| `Check()` of a handle, `catalog.Check(name)` | structure only (definition, triggers, the payload columns of a linked index, FTS5's integrity check, the counts against the table); **holds the write lock of the file while FTS5 checks the index** and is refused on a read-only catalog | health checks on a schedule, not a liveness check of a second |
+| `catalog.Indexes()` → `NeedsInitialization` (#266) | cheap: state only | readiness, every probe |
+| `CheckPayloads()` of a typed handle with a payload (ADR-0074) | reads every stored payload | maintenance, after a change of the payload type |
+
+### `LuiIndexInfo` — an index described by name
+
+What `Indexes()` returns: a sealed record, one per index, a snapshot with named properties (`init`-only; the six that a caller must set are `required`). It is no handle.
+
+| Member | What it is |
+|---|---|
+| `required string Name { get; init; }` | the name of the index |
+| `required LuiIndexSource Source { get; init; }` | `Embedded` or `Linked`. It is called `Source` because `Kind` already means single word or multi word |
+| `required LuiIndexKind Kind { get; init; }` | `SingleWord` or `MultiWord` |
+| `string? PayloadType { get; init; }` | the stored name of the payload type of an embedded index that was created with one (ADR-0072); `null` otherwise, and for every linked index |
+| `string? PayloadFormat { get; init; }` | the format of the serializer that wrote the payloads; `null` exactly when `PayloadType` is |
+| `required LuiKeyType KeyType { get; init; }` | the stored key type: `Long`, `Int`, `String` or `Guid` |
+| `required LuiTypoDistance TypoDistance { get; init; }` | how many errors the index forgives |
+| `required LuiTypoDictionaryState TypoDictionaryState { get; init; }` | `NotBuilt`, `Building` or `Current`, in this catalog, when `Indexes()` was called |
 
 ### `LuiCatalogOptions`
 
@@ -434,7 +480,7 @@ entries that do not read — keyed by `TKey`, with the reason — in the order o
 maintenance and not for every probe: one read connection, one snapshot, the check of the handle inside it as for any operation (a
 dropped index is a `LuiIndexNotFoundException`, another definition a `LuiDefinitionMismatchException`), cancellable between the entries,
 and a catalog that was opened read-only may call it. `Check()` stays the **structural** check — a report without keys that reads **no
-payload** and calls **no map**, cheap enough for a health endpoint. A linked index has no `CheckPayloads()`: its payload is not stored.
+payload** and calls **no map** (it holds the write lock of the file for FTS5's integrity check, see [maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type)). A linked index has no `CheckPayloads()`: its payload is not stored.
 
 ```csharp
 var check = recipes.CheckPayloads(cancellationToken);
@@ -1089,7 +1135,7 @@ The warm-up is a service of the host, not a thread of the library: the host star
 
 ## The whole surface
 
-Fifty-nine public type names in `Nordmann.LUI` (seventy-three types: a generic type counts once for each number of type parameters), two in `Nordmann.LUI.Hosting`. Nothing else is public.
+Sixty-three public type names in `Nordmann.LUI` (seventy-eight types: a generic type counts once for each number of type parameters), two in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|
@@ -1101,6 +1147,7 @@ Fifty-nine public type names in `Nordmann.LUI` (seventy-three types: a generic t
 | `LuiIndexDefinition` | class | [the definition](#defining-an-index--the-definition) |
 | `LuiLinkedIndexDefinition` | class | [the definition](#defining-an-index--the-definition) |
 | `LuiIndexSource` | enum | [the definition](#defining-an-index--the-definition) |
+| `LuiIndexInfo` | record | [maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type) |
 | `LuiIndex` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
 | `LuiEmbeddedIndex` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
 | `LuiLinkedIndex` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
