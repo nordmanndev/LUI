@@ -1262,6 +1262,25 @@ public sealed class PublicApiShapeTests
     }
 
     [Fact]
+    public void The_outbox_options_have_exactly_the_members_of_the_issue()
+    {
+        // ADR-0076, issue #266: AddLuiOutbox takes an interval (30 s) and a longest backoff (5 min) — and nothing else. The list is not filtered.
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        var type = Assembly.Load("Nordmann.LUI.Hosting").GetType("Nordmann.LUI.LuiOutboxOptions").ShouldNotBeNull();
+
+        type.IsSealed.ShouldBeTrue();
+        type.GetProperties(declared).Select(property => $"{TypeText(property.PropertyType)} {property.Name} {{ get; {(property.SetMethod is null ? string.Empty : "set; ")}}}")
+            .Order(StringComparer.Ordinal)
+            .ToArray()
+            .ShouldBe(["TimeSpan Interval { get; set; }", "TimeSpan MaxBackoff { get; set; }"]);
+        type.GetMethods(declared).Where(method => !method.IsSpecialName).ShouldBeEmpty();
+        type.GetFields(declared).ShouldBeEmpty();
+        var defaults = Activator.CreateInstance(type)!;
+        type.GetProperty("Interval")!.GetValue(defaults).ShouldBe(TimeSpan.FromSeconds(30));
+        type.GetProperty("MaxBackoff")!.GetValue(defaults).ShouldBe(TimeSpan.FromMinutes(5));
+    }
+
+    [Fact]
     public void The_guard_of_the_vocabulary_reads_the_public_surface_and_only_that()
     {
         // Review of pull request 46: the first version missed the parameters of a public constructor and tripped over a

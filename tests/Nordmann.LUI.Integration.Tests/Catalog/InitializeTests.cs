@@ -610,7 +610,7 @@ public sealed class InitializeTests
     public void Indexes_costs_a_bounded_number_of_statements_per_linked_index()
     {
         // a readiness probe calls Indexes() every few seconds: the state of a linked index is the guard's counter, the triggers, the flag and the lease
-        // in one snapshot — a handful of statements. The bound has room (the begin and the pragma of a connection count), and a Count() or a scan
+        // in one snapshot — a handful of statements. The bound has little room (the begin of the snapshot counts; measured 13 for two linked indexes, bound 13), and a Count() or a scan
         // of the table creeping in would not fit it
         using var database = World(withCooks: true);
         using var catalog = database.Open();
@@ -621,7 +621,7 @@ public sealed class InitializeTests
         _ = catalog.Indexes();
 
         const int linked = 2;
-        commands.Count.ShouldBeLessThanOrEqualTo(1 + (linked * 8), "one statement for the schema counter, and at most eight for each linked index");
+        commands.Count.ShouldBeLessThanOrEqualTo(1 + (linked * 6), "one statement for the schema counter, and at most six for each linked index (measured: 13 for two)");
     }
 
     // ---- the plumbing of the tests --------------------------------------------------------------------------------------
