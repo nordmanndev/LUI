@@ -16,13 +16,14 @@ public sealed record LuiEntry<TKey, TPayload>
     where TPayload : notnull
 {
     /// <summary>Creates an entry.</summary>
-    /// <param name="key">The key of the entry.</param>
+    /// <param name="key">The key of the entry; a string key may not be <see langword="null"/>.</param>
     /// <param name="text">The text of the entry — what the search finds. It may not be empty.</param>
     /// <param name="payload">The payload; it is written with the serializer of the catalog. It may not be <see langword="null"/>.</param>
     /// <exception cref="ArgumentNullException"><paramref name="payload"/> is <see langword="null"/>.</exception>
     public LuiEntry(TKey key, string text, TPayload payload)
     {
         ArgumentNullException.ThrowIfNull(payload);
+        ArgumentNullException.ThrowIfNull(key);
         Key = key;
         Text = Setting.NotEmpty(text, nameof(text));
         Payload = payload;

@@ -39,10 +39,19 @@ internal static class KeyConversion
     /// <summary>The text of a key, as the file stores it.</summary>
     /// <typeparam name="TKey">The key type.</typeparam>
     /// <param name="key">The key.</param>
+    /// <param name="indexName">The index the handle belongs to, for the message; <see langword="null"/> where the entry does not know it.</param>
     /// <returns>The text.</returns>
-    internal static string ToText<TKey>(TKey key)
+    /// <exception cref="ArgumentNullException">A <see langword="null"/> string key: a null text is not a key.</exception>
+    internal static string ToText<TKey>(TKey key, string? indexName = null)
         where TKey : notnull
     {
+        if (key is null)
+        {
+            throw new ArgumentNullException(
+                nameof(key),
+                indexName is null ? "A key may not be null." : $"The key of the index '{indexName}' may not be null.");
+        }
+
         if (typeof(TKey) == typeof(long))
         {
             return ((long)(object)key).ToString(CultureInfo.InvariantCulture);

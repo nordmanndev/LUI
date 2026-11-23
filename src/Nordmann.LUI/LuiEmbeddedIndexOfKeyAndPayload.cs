@@ -149,7 +149,7 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     {
         try
         {
-            return _index.Remove(KeyConversion.ToText(key), transaction);
+            return _index.Remove(KeyConversion.ToText(key, Name), transaction);
         }
         catch (Exception exception) when (IsDropped(exception))
         {
@@ -168,7 +168,7 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     {
         try
         {
-            return _index.UpdateWeight(KeyConversion.ToText(key), weight, transaction);
+            return _index.UpdateWeight(KeyConversion.ToText(key, Name), weight, transaction);
         }
         catch (Exception exception) when (IsDropped(exception))
         {
@@ -187,7 +187,7 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     {
         try
         {
-            return _index.UpdatePriority(KeyConversion.ToText(key), priority, transaction);
+            return _index.UpdatePriority(KeyConversion.ToText(key, Name), priority, transaction);
         }
         catch (Exception exception) when (IsDropped(exception))
         {
