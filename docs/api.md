@@ -534,7 +534,7 @@ one writer at a time (ADR-0046).
 
 **A failing index does not stop the others**: its failing step is recorded, its later steps are skipped, the other indexes go on, and at the end
 the call throws a `LuiInitializeException` with the complete report and the error of each failed index (never swallowed). **Cancellation** is checked
-between the steps and inside the syncs; it throws an `OperationCanceledException`, what was finished stays, and the next call continues by state.
+between the steps and inside the syncs; it throws an `OperationCanceledException` (not the errors of indexes that had failed by then — the next call finds them again), what was finished stays, and the next call continues by state.
 **A catalog opened with `OpenReadOnly`** builds the dictionaries and nothing else: the file steps cannot be done and are left to the writing process
 — `NeedsInitialization` reports them, and the readiness of a reader looks only at `TypoDictionary`.
 
@@ -543,7 +543,7 @@ The single steps stay public for fine control: `CreateTriggers()`, `Sync()`, `Ap
 
 ### `LuiInitializeOptions`
 
-A sealed record with `init` properties, bindable from configuration. Every default is "all of it, for every index".
+A sealed record with `init` properties; the four switches can be bound from configuration, `Indexes`, `Sync` and `Progress` cannot. Every default is "all of it, for every index".
 
 | Member | Default | What it says |
 |---|---|---|
@@ -624,7 +624,7 @@ bool Ready(LuiCatalog catalog) => catalog.Indexes().All(index => index.NeedsInit
 A linked index that an application keeps **without triggers** by choice is never ready by this check: it names `Triggers` for ever, and
 `Initialize()` builds no dictionary for it. Such an application leaves the flag out of its check.
 
-### The host pattern
+### The host pattern in short
 
 The factory of `AddLui` only **opens** the catalog. Creating the indexes and initializing them are explicit steps after `Build()` — so every
 configuration error (an invalid definition, a mismatch, an unregistered payload type, a missing table of a linked index) surfaces at a line of
@@ -1251,8 +1251,8 @@ the host and tells the logger of the host what it did and what failed (ADR-0045)
 
 | Member | Default | What it says |
 |---|---|---|
-| `TimeSpan Interval { get; set; }` | 30 s | the time between two rounds that worked; positive |
-| `TimeSpan MaxBackoff { get; set; }` | 5 min | the longest wait while rounds fail: the wait doubles after each failed round — `Interval` × 2, × 4, … — up to this; positive. A value below `Interval` is the interval |
+| `TimeSpan Interval { get; set; }` | 30 s | the time between two rounds that worked; positive, at most 24 days (a longer wait is refused at the registration, with a message that names `LuiOutboxOptions.Interval`) |
+| `TimeSpan MaxBackoff { get; set; }` | 5 min | the longest wait while rounds fail: the wait doubles after each failed round — `Interval` × 2, × 4, … — up to this; positive, at most 24 days. A value below `Interval` is **not an error**: it is the interval — the wait never shrinks below it |
 
 ```csharp
 builder.Services.AddLuiOutbox(TimeSpan.FromSeconds(10));                       // the interval alone
@@ -1283,16 +1283,38 @@ catalog.Create(SearchIndexes.Recipes, SearchIndexes.Chefs, SearchIndexes.Tags); 
 app.MapHealthChecks("/ready");      // readiness: not ready while an index has NeedsInitialization != None
 app.Run();
 
-// The application's own service: the host starts at once, the search becomes complete when Initialize() is done.
+// The application's own service: the host starts at once, the search becomes complete when Initialize() says Ready.
 sealed class SearchInitializer(LuiCatalog catalog, ILogger<SearchInitializer> logger) : BackgroundService
 {
-    protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.Run(() =>
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var report = catalog.Initialize(cancellationToken: stoppingToken);
-        logger.LogInformation("Search initialized: {Report}", report);
-    }, stoppingToken);
+        try
+        {
+            // Initialize() is idempotent and safe to repeat: repeat it while the report says that something is not ready — an index that waits
+            // for a first sync that another process runs (InitialSyncRunningElsewhere, also the lease of a killed predecessor, which runs out after a minute)
+            LuiInitializeReport report;
+            while (!(report = await Task.Run(() => catalog.Initialize(cancellationToken: stoppingToken), stoppingToken)).Ready)
+            {
+                logger.LogInformation("Search is not ready yet: {Report}", report);
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            }
+
+            logger.LogInformation("Search initialized: {Report}", report);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // the host stops
+        }
+        catch (LuiInitializeException exception)
+        {
+            // an exception that escapes ExecuteAsync stops the host (the default of .NET): log it to stay up — the readiness check stays "not ready"
+            logger.LogError(exception, "Search could not be initialized: {Report}", exception.Report);
+        }
+    }
 }
 ```
+
+**The rule: repeat `Initialize()` until the report says `Ready`.** It is idempotent and safe to repeat; a call can end "not ready" without a failure — another process runs the first sync (`InitialSyncRunningElsewhere`), or the lease of a killed predecessor has not run out (a minute) — and then it skips that index and its dictionary and does not wait: the next call does the rest. An initializer that calls it once leaves the host "not ready" for good. An exception that escapes `ExecuteAsync` stops the host (the default of .NET); the initializer above logs a `LuiInitializeException` instead and stays up, "not ready".
 
 This background form is the **documented default** for containers: the host comes up, the readiness check says "not ready" until `Initialize()` is done, and a long first sync does not
 fail a liveness probe and restart the pod. For a small application or a tool the short form is enough — `catalog.Initialize();` right before `app.Run()` — and an application

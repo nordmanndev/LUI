@@ -1273,6 +1273,17 @@ expect_caught "the-outbox-service-starts-on-a-read-only-catalog" "${INTEGRATION_
   "FullyQualifiedName~OutboxTests.On_a_read_only_catalog_AddLuiOutbox_throws_at_start" \
   "sed -i 's|        if (_catalog.IsReadOnly)|        if (false)|' src/Nordmann.LUI.Hosting/Hosting/LuiOutboxService.cs"
 
+# 35zzzg. The loser of the take of the lease fails (issue #266, review of #294, B2): two processes that start together both read 'the lease is free', and the one that loses the take
+#         throws a LuiInitializeException — which stops a host whose initializer lets it escape.
+expect_caught "the-loser-of-the-take-of-the-lease-fails" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~InitializeTests.A_lease_that_is_taken_between_the_read_and_the_take_is_running_elsewhere_and_no_failure" \
+  "sed -i 's|catch (LuiSyncInProgressException exception) when (exception.Owner is not null)|catch (LuiSyncInProgressException exception) when (exception.Owner is null)|' src/Nordmann.LUI/CatalogInitialization.cs"
+
+# 35zzzh. A wait that the timer cannot hold is accepted by the outbox registration (issue #266, review of #294, S2): the loop faults at the first wait and stops the host.
+expect_caught "the-outbox-accepts-a-wait-the-timer-cannot-hold" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OutboxTests.The_outbox_is_registered_once_with_an_interval_or_with_options_and_with_positive_values" \
+  "sed -i 's/ || options.MaxBackoff > longest//' src/Nordmann.LUI.Hosting/LuiServiceCollectionExtensions.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

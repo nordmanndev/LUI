@@ -121,7 +121,7 @@ public static class LuiServiceCollectionExtensions
     /// <param name="services">The services of the application.</param>
     /// <param name="configure">Sets the settings of the loop.</param>
     /// <returns>The services of the application; the outbox loop is in them.</returns>
-    /// <exception cref="ArgumentOutOfRangeException">The interval or the maximum backoff is not positive.</exception>
+    /// <exception cref="ArgumentOutOfRangeException">The interval or the maximum backoff is not positive, or longer than 24 days.</exception>
     /// <exception cref="InvalidOperationException">The outbox is registered already.</exception>
     public static IServiceCollection AddLuiOutbox(this IServiceCollection services, Action<LuiOutboxOptions> configure)
     {
@@ -142,14 +142,16 @@ public static class LuiServiceCollectionExtensions
                 "The outbox of LUI is registered already: AddLuiOutbox is called once per container.");
         }
 
-        if (options.Interval <= TimeSpan.Zero)
+        // a wait the timer cannot hold (Task.Delay refuses more than about 49 days) would fault the loop and stop the host at the first wait: both values are bound
+        var longest = TimeSpan.FromDays(24);
+        if (options.Interval <= TimeSpan.Zero || options.Interval > longest)
         {
-            throw new ArgumentOutOfRangeException(parameterName, options.Interval, "The interval between two rounds of the outbox must be positive.");
+            throw new ArgumentOutOfRangeException(parameterName, options.Interval, "LuiOutboxOptions.Interval, the time between two rounds of the outbox, must be positive and at most 24 days.");
         }
 
-        if (options.MaxBackoff <= TimeSpan.Zero)
+        if (options.MaxBackoff <= TimeSpan.Zero || options.MaxBackoff > longest)
         {
-            throw new ArgumentOutOfRangeException(parameterName, options.MaxBackoff, "The longest wait between two rounds of the outbox, while rounds fail, must be positive.");
+            throw new ArgumentOutOfRangeException(parameterName, options.MaxBackoff, "LuiOutboxOptions.MaxBackoff, the longest wait between two rounds while rounds fail, must be positive and at most 24 days.");
         }
 
         // the settings as they stand now: a later change of the object the application holds changes nothing

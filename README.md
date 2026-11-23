@@ -402,7 +402,8 @@ Console.WriteLine(ready);
   `InitialSyncRunningElsewhere` and does not wait or fail; of two processes that start together exactly one runs it. A typo dictionary lives in memory, so every process builds its own,
   and an index with a file step left gets none yet — it would miss the words of the sync that is still to come.
 - **One failing index does not stop the others.** The call throws a `LuiInitializeException` at the end, with the complete report and the error of each failed index by name — and
-  what was finished stays. Cancel it with the token: the batches that are committed stay, and the next call continues by state.
+  what was finished stays. Cancel it with the token: the batches that are committed stay, and the next call continues by state (a cancelled call throws only the `OperationCanceledException`; the errors of indexes that had failed by then are found again by the next call).
+- **A call that is not ready is repeated.** When another process runs the first sync (`InitialSyncRunningElsewhere`), this call neither waits nor fails, and the dictionary of that index waits too: call `Initialize()` again after a pause — see the host pattern below.
 - **A read-only catalog** builds the dictionaries and leaves the file steps to the process that writes.
 - **The cost:** each typo dictionary takes seconds and some hundred MB at the size of the German word list (194 MB for 685,739 words), so with several typo-tolerant indexes the time adds up.
 
@@ -481,13 +482,38 @@ using Microsoft.Extensions.Logging;
 
 sealed class SearchInitializer(LuiCatalog catalog, ILogger<SearchInitializer> logger) : BackgroundService
 {
-    protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.Run(() =>
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        var report = catalog.Initialize(cancellationToken: stoppingToken);
-        logger.LogInformation("Search initialized: {Report}", report);
-    }, stoppingToken);
+        try
+        {
+            // Initialize() is idempotent and safe to repeat: repeat it while the report says that something is not ready — an index that waits
+            // for a first sync that another process runs (InitialSyncRunningElsewhere, also the lease of a killed predecessor, which runs out after a minute)
+            LuiInitializeReport report;
+            while (!(report = await Task.Run(() => catalog.Initialize(cancellationToken: stoppingToken), stoppingToken)).Ready)
+            {
+                logger.LogInformation("Search is not ready yet: {Report}", report);
+                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
+            }
+
+            logger.LogInformation("Search initialized: {Report}", report);
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // the host stops
+        }
+        catch (LuiInitializeException exception)
+        {
+            // an exception that escapes ExecuteAsync stops the host (the default of .NET): log it to stay up — the readiness check stays "not ready"
+            logger.LogError(exception, "Search could not be initialized: {Report}", exception.Report);
+        }
+    }
 }
 ```
+
+**Repeat `Initialize()` until the report says `Ready`** — that is the rule of the pattern. `Initialize()` is idempotent and safe to repeat, and one call can end "not ready" without a
+failure: another process runs the first sync of a linked index (`InitialSyncRunningElsewhere`), and so does the lease of a replica that was killed in its first sync, which runs out after a
+minute. This call skips that index and its dictionary and does not wait; the **next call** does the rest. An initializer that calls it once would leave the host "not ready" for good. An
+exception that escapes the initializer stops the host (the default of .NET), so the one above logs a `LuiInitializeException` and stays up, "not ready", with what it could not do in the log.
 
 A small application or a tool needs no service: `catalog.Initialize();` right before `app.Run()` is the short form. While an index is not initialized, the search answers without corrections,
 and a linked index shows the batches that are synced so far.

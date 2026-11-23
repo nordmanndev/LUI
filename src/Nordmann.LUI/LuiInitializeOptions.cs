@@ -3,7 +3,7 @@ namespace Nordmann.LUI;
 /// <summary>
 /// What <see cref="LuiCatalog.Initialize"/> does (ADR-0076): each step can be switched off, the run can be limited to some indexes, and the first
 /// syncs and the progress can be set. Every default is what an application wants at the start of a process: all of it, for every index. A record with
-/// <c>init</c> properties, bindable from configuration.
+/// <c>init</c> properties; the four switches can be bound from configuration, the definitions and the progress cannot.
 /// </summary>
 public sealed record LuiInitializeOptions
 {

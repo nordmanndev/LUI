@@ -157,7 +157,7 @@ defaults**; the hosting package keeps only what needs a background loop.
 12. **A failing index does not stop the others, and the failure is never swallowed.** Its failing step is recorded (`LuiInitializeStep`, with `ReadState` for a state that cannot be read), its
    later steps are skipped, the other indexes go on, and at the end the call throws a `LuiInitializeException` (a `LuiException`) with the complete `Report` and the `Errors` by index name; its
    message names every failed index and its step, and the first error is its inner exception. **Cancellation** is checked between the steps and inside the syncs, throws an
-   `OperationCanceledException` and is no failure of an index: what was finished stays, and the next call continues by state. **A catalog opened with `OpenReadOnly`** builds the dictionaries only; the
+   `OperationCanceledException` and is no failure of an index (the errors of indexes that had failed by then are not carried — the next call finds them again, and `NeedsInitialization` names what they need): what was finished stays, and the next call continues by state. **A catalog opened with `OpenReadOnly`** builds the dictionaries only; the
    file steps cannot be done and are left to the writing process, and the call does not fail for what it cannot do.
 13. **`LuiIndexInfo.NeedsInitialization` is a `[Flags]` `LuiInitializationNeeds`, read from the same state.** `None` is ready. `Triggers` (none on the table), `StaleTriggers`, `InitialSync` (due, and no
    sync holds the lease), `InitialSyncRunningElsewhere` (due, and a sync holds an unexpired lease — **instead of** `InitialSync`, not beside it, so that the one flag says what this call would do),
@@ -175,7 +175,7 @@ defaults**; the hosting package keeps only what needs a background loop.
 15. **The host pattern: the factory of `AddLui` only opens the catalog.** Creating the indexes and initializing them are explicit steps after `Build()`, so that every configuration error (an invalid
    definition, a mismatch, an unregistered payload type, a missing table of a linked index) surfaces at a line of `Program.cs`, not inside a service resolution — and a failing factory, which the container does not
    cache, never leaves an open catalog behind. The documented default for a container is a background service **of the application** that calls `Initialize()`: the host is up at once, the readiness check says "not
-   ready" until it is done, and a long first sync does not fail a liveness probe and restart the pod; the short form for a small application or a tool is `catalog.Initialize();` before `app.Run()`. While an
+   ready" until it is done, and a long first sync does not fail a liveness probe and restart the pod; the short form for a small application or a tool is `catalog.Initialize();` before `app.Run()`. **The initializer repeats `Initialize()` until the report says `Ready`**: the call is idempotent, and it can end "not ready" without a failure — another process runs the first sync, or the lease of a killed predecessor runs out only after a minute (ADR-0077) — skipping that index and its dictionary without waiting; a pattern that calls it once would stay "not ready" for good (found in the review of #294). An exception that escapes `ExecuteAsync` stops the host, so the documented service catches and logs a `LuiInitializeException`. The outbox loop's `Interval` and `MaxBackoff` are at most 24 days (a longer wait faults `Task.Delay` and would stop the host); a `MaxBackoff` below `Interval` is the interval, by decision, not an error. While an
    index is not initialized, the search answers without corrections, and a linked index shows the batches synced so far (ADR-0077). LUI offers no `AddLuiIndex<T>` and no hosted initializer.
 16. **This record supersedes ADR-0043** (the warm-up as a service of the host): `AddLuiWarmup` is replaced by `Initialize()` and `AddLuiOutbox`, and #268 removes it. Until then it stays, and ADR-0043 says so.
 
@@ -189,8 +189,8 @@ defaults**; the hosting package keeps only what needs a background loop.
 - **Read `NeedsInitialSync` first and sync after, without the lease's transaction.** Two processes that start together could both sync (one after the other).
 - **A dictionary for an index with a file step left.** It would miss the words of the sync still to come and have to be rebuilt at its end.
 - **Fail on a read-only catalog.** A reader process is a normal citizen of the file; it builds what is its own — the dictionaries — and reports the rest.
-- **Public `IsReadOnly` rejected in favor of a probe write in the hosting package** (`DropIndex` of a name that does not exist, translated by SQLite's refusal): a write of the application's file at the start of a host to find out
-  how the catalog was opened.
+- **A probe write in the hosting package instead of a public `IsReadOnly`** (`DropIndex` of a name that does not exist, translated by SQLite's refusal): rejected — it writes the application's file at the start of a host
+  only to find out how the catalog was opened.
 
 ### Consequences (#266)
 

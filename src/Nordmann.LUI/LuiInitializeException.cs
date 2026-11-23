@@ -35,6 +35,6 @@ public sealed class LuiInitializeException : LuiException
             }));
 
         var tail = "What was finished stays: Report says what was done, Errors holds the exception of each index, and the next Initialize() continues by the state of the indexes.";
-        return string.Create(CultureInfo.InvariantCulture, $"Initialize failed for {errors.Count} of {report.Indexes.Count} indexes, and the others were initialized: {failed}. {tail}");
+        return string.Create(CultureInfo.InvariantCulture, $"Initialize failed for {errors.Count} of {report.Indexes.Count} indexes, and the other indexes went on: {failed}. {tail}");
     }
 }

@@ -901,7 +901,7 @@ public sealed class LuiCatalog : IDisposable
     /// <returns>What was done, one line per index.</returns>
     /// <exception cref="LuiIndexNotFoundException">A definition of <see cref="LuiInitializeOptions.Indexes"/> names an index that does not exist — before any step.</exception>
     /// <exception cref="LuiInitializeException">One or more indexes failed, after every other index was initialized.</exception>
-    /// <exception cref="OperationCanceledException">The token was cancelled; what was finished stays.</exception>
+    /// <exception cref="OperationCanceledException">The token was cancelled; what was finished stays. The errors of indexes that had failed by then are not carried: <see cref="LuiIndexInfo.NeedsInitialization"/> still names what they need, and the next call runs their steps again.</exception>
     /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
     public LuiInitializeReport Initialize(LuiInitializeOptions? options = null, CancellationToken cancellationToken = default)
     {

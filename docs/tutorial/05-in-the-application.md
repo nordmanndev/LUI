@@ -177,7 +177,7 @@ app.Run();
 ```
 
 `AddLuiOutbox` applies the outbox of your linked indexes every `Interval` and stops with the host; a round that fails is logged as a warning and retried with
-backoff up to `MaxBackoff`, and on a read-only catalog the host does not start. It does nothing at the start — that is `Initialize()`. The sections of the
+backoff up to `MaxBackoff`, and on a read-only catalog the host does not start. It does nothing at the start — that is `Initialize()`. **Repeat `Initialize()` until the report says `Ready`**: it is idempotent, and a call ends "not ready" when another replica runs the first sync of a linked index (`InitialSyncRunningElsewhere`) or the lease of a killed one has not run out yet (a minute); the next call does the rest. An exception that escapes the initializer stops the host — catch and log a `LuiInitializeException` to stay up. The sections of the
 [README](../../README.md#starting-up-initialize-and-the-host-pattern) and of the [API page](../api.md#initializing--the-start-of-a-process) have the whole pattern;
 what follows is the way of `0.3.0`, which `Initialize()` and `AddLuiOutbox` replace.
 
