@@ -178,6 +178,32 @@ public sealed class OutboxTests
     }
 
     [Fact]
+    [Trait("Category", "Timing")]
+    public async Task The_host_waits_for_a_round_that_runs_when_it_is_disposed()
+    {
+        // issue #148: the host stopped the service, and the round that was running went on — it held the file of the application, and the
+        // teardown of a test could not delete it. The disposal of the host waits for the round (ADR-0043: the host runs it, the host stops it,
+        // the host disposes it). The round waits for the write lock of the file, which the test holds, and gives up after the busy timeout of
+        // one second; the wait asks for a round that has begun (issue #185), and the claim of that stays true.
+        using var world = new World(Interval, MaxBackoff, busyTimeout: TimeSpan.FromSeconds(1));
+        var service = world.Service;
+        await world.Host.StartAsync(TestContext.Current.CancellationToken);
+        await service.ArmedAsync();
+
+        using var blocker = world.Database.Connect();
+        RunOn(blocker, "BEGIN IMMEDIATE;");
+
+        world.Clock.Advance(Interval);
+        await service.BeganAsync();
+
+        world.Host.Dispose();
+
+        service.RoundRunning.ShouldBeFalse("the disposal waits for the round that runs");
+        service.RoundsFinished.ShouldBe(1, "the round was over before the host was gone");
+        RunOn(blocker, "COMMIT;");
+    }
+
+    [Fact]
     public void The_outbox_is_registered_once_with_an_interval_or_with_options_and_with_positive_values()
     {
         var services = new ServiceCollection();

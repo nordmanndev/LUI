@@ -742,8 +742,8 @@ public sealed class LuiCatalog : IDisposable
     /// </para>
     /// <para>
     /// The build takes seconds and needs memory — 194 MB for 685,739 words (ADR-0021). A host that wants corrections
-    /// from its first query warms the catalog at the start; the registration <c>AddLuiWarmup()</c> of the hosting
-    /// package does it for the host (ADR-0043).
+    /// from its first query warms the catalog at the start; <see cref="Initialize"/> does it, with the rest of the start
+    /// (ADR-0076).
     /// </para>
     /// </summary>
     /// <param name="cancellationToken">Checked between the indexes.</param>

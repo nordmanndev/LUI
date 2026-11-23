@@ -1235,8 +1235,8 @@ library.
 ## The hosting package
 
 `Nordmann.LUI.Hosting` carries the dependency injection — and, only if the application asks for them, the **outbox loop**
-(`AddLuiOutbox`, ADR-0076) and the **warm-up** (`AddLuiWarmup`, ADR-0043, which #268 removes — `catalog.Initialize()` replaces it). Each is one service of
-the host and tells the logger of the host what it did and what failed (ADR-0045).
+(`AddLuiOutbox`, ADR-0076). It is one service of the host and tells the logger of the host what it did and what failed (ADR-0045). The start of the search is
+`catalog.Initialize()` — the application's own call (ADR-0076); the warm-up service of `0.3.0` (`AddLuiWarmup`) is gone.
 
 ### `LuiServiceCollectionExtensions`
 
@@ -1245,7 +1245,6 @@ the host and tells the logger of the host what it did and what failed (ADR-0045)
 | `IServiceCollection AddLui(this IServiceCollection services, Func<IServiceProvider, LuiCatalog> open)` | puts the **catalog** into the container: it opens it when it is first needed and disposes it with the container. The way the catalog is opened is the caller's — `services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"))` (ADR-0066). Once per container: a second call throws. |
 | `IServiceCollection AddLuiOutbox(this IServiceCollection services, TimeSpan interval)` | registers **the one background loop LUI needs** (ADR-0076): it calls `catalog.ApplyPending()` every `interval` and stops with the host. It does **nothing at the start** — that is `catalog.Initialize()`, which the application calls; LUI offers **no hosted service that calls `Initialize()`**. Only with linked indexes that have triggers. Once per container: a second call, with either overload, throws. |
 | `IServiceCollection AddLuiOutbox(this IServiceCollection services, Action<LuiOutboxOptions> configure)` | the same with the settings (`Interval`, `MaxBackoff`). **A failing round never stops the host**: it is logged through the host's `ILogger` (a warning, with the exception), the next round waits with exponential backoff up to `MaxBackoff`, and the first round that works goes back to `Interval`. **On a catalog opened with `OpenReadOnly` the host does not start**: `InvalidOperationException` — "a read-only catalog cannot apply the outbox". |
-| `IServiceCollection AddLuiWarmup(this IServiceCollection services, Action<LuiWarmupOptions>? configure = null)` | registers the **warm-up** as a service of the host: the outbox of every linked index is applied and the typo dictionaries are built at the start of the host, and the outbox is applied again on an interval. **Off by default** — without this call the host starts nothing of LUI (ADR-0043). Once per container: a second call throws. |
 
 ### `LuiOutboxOptions`
 
@@ -1338,35 +1337,12 @@ fail a liveness probe and restart the pod. For a small application or a tool the
 that wants it in parts says `Initialize(new LuiInitializeOptions { Indexes = [SearchIndexes.Chefs] })`. While an index is not initialized, the search answers without
 corrections, and a linked index shows the batches synced so far. `IsReadOnly` tells a reader-only process which readiness it has: the dictionaries alone.
 
-### `LuiWarmupOptions`
-
-| Member | Default | What it says |
-|---|---|---|
-| `bool WarmUpTypoDictionaries { get; set; }` | `true` | whether the start of the host builds typo dictionaries at all — `false` leaves only the outbox to the service |
-| `ICollection<string> TypoDictionaryIndexes { get; }` | empty | the indexes whose dictionary is built; **empty builds every index's**. A name the catalog does not know fails the start of the host |
-| `TimeSpan OutboxInterval { get; set; }` | 30 s | the time between two rounds of the outbox; positive |
-
-```csharp
-builder.Services.AddLuiWarmup(options =>
-{
-    options.TypoDictionaryIndexes.Add("recipes");   // the tag index corrects no typos — it gets no dictionary
-    options.OutboxInterval = TimeSpan.FromSeconds(10);
-});
-```
-
-**The start of the host waits for the dictionaries** — so that the first query already corrects a typo. In an ASP.NET
-Core application the server listens once they are built: seconds for a large index.
-
-**The logger of the host** hears what the service did: the dictionaries it built and how long that took
-(`Information`), the rows of the outbox it applied (`Debug`), and **a round that failed** (`Warning`, with the
-exception). A failed round does not take the host with it: the rows stay in the outbox, and the next round tries again.
-
-The container holds the catalog and — if the application asks for it — the warm-up: **an index is not registered and
+The container holds the catalog and — if the application asks for it — the outbox loop: **an index is not registered and
 not injected**. The application asks the catalog for the index it needs. A second `AddLui` throws — the catalog is the
 one thing of LUI in the container.
 
-The warm-up is a service of the host, not a thread of the library: the host starts it, stops it and disposes it
-(ADR-0043). The library starts nothing on its own.
+The outbox loop is a service of the host, not a thread of the library: the host starts it, stops it and disposes it
+(ADR-0076). The library starts nothing on its own.
 
 ---
 
@@ -1451,7 +1427,6 @@ Seventy public type names in `Nordmann.LUI` (eighty-five types: a generic type c
 | `LuiInitializeException` | class | [the exceptions](#the-exceptions) |
 | `LuiConfigurationException` | class | [the exceptions](#the-exceptions) |
 | `LuiServiceCollectionExtensions` | class | [the hosting package](#the-hosting-package) |
-| `LuiWarmupOptions` | class | [the hosting package](#the-hosting-package) |
 | `LuiOutboxOptions` | class | [the hosting package](#the-hosting-package) |
 
 ---

@@ -1254,9 +1254,9 @@ public sealed class PublicApiShapeTests
             .SelectMany(type => type.GetMethods(declared))
             .Where(method => method.Name.StartsWith("Add", StringComparison.Ordinal))
             .ToArray();
-        // AddLui, AddLuiWarmup and the two overloads of AddLuiOutbox (#266, ADR-0076) — AddLuiWarmup goes with #268, and then there are three
-        registrations.Length.ShouldBe(4, "AddLui, AddLuiWarmup and two AddLuiOutbox — the hosting takes a factory (ADR-0066)");
-        registrations.ShouldAllBe(method => method.Name == "AddLui" || method.Name == "AddLuiWarmup" || method.Name == "AddLuiOutbox");
+        // AddLui and the two overloads of AddLuiOutbox (#266, ADR-0076): AddLuiWarmup is gone (#268) — the application calls catalog.Initialize()
+        registrations.Length.ShouldBe(3, "AddLui and two AddLuiOutbox — the hosting takes a factory (ADR-0066)");
+        registrations.ShouldAllBe(method => method.Name == "AddLui" || method.Name == "AddLuiOutbox");
         registrations.Count(method => string.Equals(method.Name, "AddLuiOutbox", StringComparison.Ordinal)).ShouldBe(2, "the interval, or the options (ADR-0076)");
         registrations.ShouldAllBe(method => method.ReturnType == typeof(IServiceCollection));
     }
