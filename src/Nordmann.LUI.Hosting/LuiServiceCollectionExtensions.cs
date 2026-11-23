@@ -94,4 +94,73 @@ public static class LuiServiceCollectionExtensions
 
         return services;
     }
+
+    /// <summary>
+    /// Registers the one background loop LUI needs (ADR-0076): the outbox of the linked indexes is applied every <paramref name="interval"/>, and the loop stops with the host.
+    /// See <see cref="AddLuiOutbox(IServiceCollection, Action{LuiOutboxOptions})"/> for what it does when a round fails.
+    /// </summary>
+    /// <param name="services">The services of the application.</param>
+    /// <param name="interval">The time between two rounds; positive.</param>
+    /// <returns>The services of the application; the outbox loop is in them.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The interval is not positive.</exception>
+    /// <exception cref="InvalidOperationException">The outbox is registered already.</exception>
+    public static IServiceCollection AddLuiOutbox(this IServiceCollection services, TimeSpan interval) =>
+        AddOutbox(services, new LuiOutboxOptions { Interval = interval }, nameof(interval));
+
+    /// <summary>
+    /// Registers the one background loop LUI needs (ADR-0076): it calls <c>catalog.ApplyPending()</c> every <see cref="LuiOutboxOptions.Interval"/> (30 seconds by default)
+    /// and stops with the host. <b>It does nothing at the start</b> — creating the triggers, the first sync and the typo dictionaries are <c>catalog.Initialize()</c>, which
+    /// the application calls; LUI offers no hosted service that does.
+    /// <para>
+    /// <b>A failing round never stops the host:</b> it is logged through the logger of the host (a warning, with the exception), the next round waits with exponential
+    /// backoff up to <see cref="LuiOutboxOptions.MaxBackoff"/> (5 minutes by default), and the first round that works goes back to the interval. Every process with the
+    /// registration runs its own loop; that is safe — the outbox is applied by one writer at a time — and documented. Register it only where there are linked indexes with
+    /// triggers: <b>on a catalog opened with <c>OpenReadOnly</c> the host does not start</b> ("a read-only catalog cannot apply the outbox").
+    /// </para>
+    /// </summary>
+    /// <param name="services">The services of the application.</param>
+    /// <param name="configure">Sets the settings of the loop.</param>
+    /// <returns>The services of the application; the outbox loop is in them.</returns>
+    /// <exception cref="ArgumentOutOfRangeException">The interval or the maximum backoff is not positive.</exception>
+    /// <exception cref="InvalidOperationException">The outbox is registered already.</exception>
+    public static IServiceCollection AddLuiOutbox(this IServiceCollection services, Action<LuiOutboxOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+
+        var options = new LuiOutboxOptions();
+        configure(options);
+        return AddOutbox(services, options, nameof(configure));
+    }
+
+    private static IServiceCollection AddOutbox(IServiceCollection services, LuiOutboxOptions options, string parameterName)
+    {
+        ArgumentNullException.ThrowIfNull(services);
+
+        if (services.Any(service => service.ServiceType == typeof(LuiOutboxService)))
+        {
+            throw new InvalidOperationException(
+                "The outbox of LUI is registered already: AddLuiOutbox is called once per container.");
+        }
+
+        if (options.Interval <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(parameterName, options.Interval, "The interval between two rounds of the outbox must be positive.");
+        }
+
+        if (options.MaxBackoff <= TimeSpan.Zero)
+        {
+            throw new ArgumentOutOfRangeException(parameterName, options.MaxBackoff, "The longest wait between two rounds of the outbox, while rounds fail, must be positive.");
+        }
+
+        // the settings as they stand now: a later change of the object the application holds changes nothing
+        var settings = new LuiOutboxOptions { Interval = options.Interval, MaxBackoff = options.MaxBackoff };
+        services.AddSingleton(provider => new LuiOutboxService(
+            provider.GetRequiredService<LuiCatalog>(),
+            settings,
+            provider.GetService<TimeProvider>() ?? TimeProvider.System,
+            provider.GetService<ILogger<LuiOutboxService>>() ?? NullLogger<LuiOutboxService>.Instance));
+        services.AddSingleton<IHostedService>(provider => provider.GetRequiredService<LuiOutboxService>());
+
+        return services;
+    }
 }

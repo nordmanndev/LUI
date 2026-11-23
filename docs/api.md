@@ -1234,15 +1234,70 @@ library.
 
 ## The hosting package
 
-`Nordmann.LUI.Hosting` carries the dependency injection — and, only if the application asks for it, the **warm-up**:
-one service of the host (ADR-0043). It tells the logger of the host what it did and what failed (ADR-0045).
+`Nordmann.LUI.Hosting` carries the dependency injection — and, only if the application asks for them, the **outbox loop**
+(`AddLuiOutbox`, ADR-0076) and the **warm-up** (`AddLuiWarmup`, ADR-0043, which #268 removes — `catalog.Initialize()` replaces it). Each is one service of
+the host and tells the logger of the host what it did and what failed (ADR-0045).
 
 ### `LuiServiceCollectionExtensions`
 
 | Member | What it does |
 |---|---|
 | `IServiceCollection AddLui(this IServiceCollection services, Func<IServiceProvider, LuiCatalog> open)` | puts the **catalog** into the container: it opens it when it is first needed and disposes it with the container. The way the catalog is opened is the caller's — `services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"))` (ADR-0066). Once per container: a second call throws. |
+| `IServiceCollection AddLuiOutbox(this IServiceCollection services, TimeSpan interval)` | registers **the one background loop LUI needs** (ADR-0076): it calls `catalog.ApplyPending()` every `interval` and stops with the host. It does **nothing at the start** — that is `catalog.Initialize()`, which the application calls; LUI offers **no hosted service that calls `Initialize()`**. Only with linked indexes that have triggers. Once per container: a second call, with either overload, throws. |
+| `IServiceCollection AddLuiOutbox(this IServiceCollection services, Action<LuiOutboxOptions> configure)` | the same with the settings (`Interval`, `MaxBackoff`). **A failing round never stops the host**: it is logged through the host's `ILogger` (a warning, with the exception), the next round waits with exponential backoff up to `MaxBackoff`, and the first round that works goes back to `Interval`. **On a catalog opened with `OpenReadOnly` the host does not start**: `InvalidOperationException` — "a read-only catalog cannot apply the outbox". |
 | `IServiceCollection AddLuiWarmup(this IServiceCollection services, Action<LuiWarmupOptions>? configure = null)` | registers the **warm-up** as a service of the host: the outbox of every linked index is applied and the typo dictionaries are built at the start of the host, and the outbox is applied again on an interval. **Off by default** — without this call the host starts nothing of LUI (ADR-0043). Once per container: a second call throws. |
+
+### `LuiOutboxOptions`
+
+| Member | Default | What it says |
+|---|---|---|
+| `TimeSpan Interval { get; set; }` | 30 s | the time between two rounds that worked; positive |
+| `TimeSpan MaxBackoff { get; set; }` | 5 min | the longest wait while rounds fail: the wait doubles after each failed round — `Interval` × 2, × 4, … — up to this; positive. A value below `Interval` is the interval |
+
+```csharp
+builder.Services.AddLuiOutbox(TimeSpan.FromSeconds(10));                       // the interval alone
+builder.Services.AddLuiOutbox(options => options.MaxBackoff = TimeSpan.FromMinutes(1));
+```
+
+**Every process with the registration runs its own loop.** That is safe — the outbox is applied by one writer at a time (ADR-0046), and a second loop only
+finds less to do. A round that fails tells the logger of the host (`Warning`, with the exception, how many rounds in a row failed and when the next one is);
+the first round that works after failures says so (`Information`); the rows an ordinary round applied are a `Debug` line. The loop is a task of the service: the host
+that stops it waits for a round that runs.
+
+### The host pattern
+
+The factory of `AddLui` only **opens** the catalog; creating and initializing the indexes are explicit steps after `Build()`, so that a configuration error stops the start
+at a line of `Program.cs` (see [Initializing](#initializing--the-start-of-a-process)):
+
+```csharp
+builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db", options));    // open only
+builder.Services.AddLuiOutbox(TimeSpan.FromSeconds(10));                      // only with linked indexes and triggers
+builder.Services.AddHostedService<SearchInitializer>();                       // the application's own background start
+
+var app = builder.Build();
+// … the application's own schema migrations run here, before the catalog is used …
+
+var catalog = app.Services.GetRequiredService<LuiCatalog>();
+catalog.Create(SearchIndexes.Recipes, SearchIndexes.Chefs, SearchIndexes.Tags);   // fast; configuration errors stop the start here
+
+app.MapHealthChecks("/ready");      // readiness: not ready while an index has NeedsInitialization != None
+app.Run();
+
+// The application's own service: the host starts at once, the search becomes complete when Initialize() is done.
+sealed class SearchInitializer(LuiCatalog catalog, ILogger<SearchInitializer> logger) : BackgroundService
+{
+    protected override Task ExecuteAsync(CancellationToken stoppingToken) => Task.Run(() =>
+    {
+        var report = catalog.Initialize(cancellationToken: stoppingToken);
+        logger.LogInformation("Search initialized: {Report}", report);
+    }, stoppingToken);
+}
+```
+
+This background form is the **documented default** for containers: the host comes up, the readiness check says "not ready" until `Initialize()` is done, and a long first sync does not
+fail a liveness probe and restart the pod. For a small application or a tool the short form is enough — `catalog.Initialize();` right before `app.Run()` — and an application
+that wants it in parts says `Initialize(new LuiInitializeOptions { Indexes = [SearchIndexes.Chefs] })`. While an index is not initialized, the search answers without
+corrections, and a linked index shows the batches synced so far. `IsReadOnly` tells a reader-only process which readiness it has: the dictionaries alone.
 
 ### `LuiWarmupOptions`
 
@@ -1358,6 +1413,7 @@ Seventy public type names in `Nordmann.LUI` (eighty-five types: a generic type c
 | `LuiConfigurationException` | class | [the exceptions](#the-exceptions) |
 | `LuiServiceCollectionExtensions` | class | [the hosting package](#the-hosting-package) |
 | `LuiWarmupOptions` | class | [the hosting package](#the-hosting-package) |
+| `LuiOutboxOptions` | class | [the hosting package](#the-hosting-package) |
 
 ---
 

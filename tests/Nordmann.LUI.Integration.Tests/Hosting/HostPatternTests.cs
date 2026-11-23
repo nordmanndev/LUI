@@ -212,7 +212,10 @@ public sealed class HostPatternTests
             {
                 var report = catalog.Initialize(new LuiInitializeOptions { Progress = Gate }, stoppingToken);
                 Reported = report;
-                logger.LogInformation("Search initialized: {Report}", report);
+                if (logger.IsEnabled(LogLevel.Information))
+                {
+                    logger.LogInformation("Search initialized: {Report}", report);
+                }
             },
             stoppingToken);
     }
