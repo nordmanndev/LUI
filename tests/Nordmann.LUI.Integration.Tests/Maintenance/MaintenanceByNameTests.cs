@@ -522,6 +522,66 @@ public sealed class MaintenanceByNameTests
     }
 
     [Theory]
+    [InlineData("{bad", "", false)]
+    [InlineData("null", "", true)]
+    [InlineData("{bad", "Foo", true)]
+    [InlineData("null", "Foo", false)]
+    public void A_row_whose_source_cannot_be_read_is_refused_and_nothing_is_dropped(string definition, string source, bool withTriggers)
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "vegan", 5));
+        using (var catalog = database.Open())
+        {
+            var tags = catalog.Create(new LuiLinkedIndexDefinition<long>("tags_x", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count")));
+            if (withTriggers)
+            {
+                tags.CreateTriggers();
+            }
+
+            _ = tags.Sync();
+        }
+
+        Run(database, $"UPDATE lui_meta SET definition = '{definition}', source = '{source}' WHERE index_name = 'tags_x';");
+        var tables = database.Scalar<long>("SELECT count(*) FROM sqlite_master;");
+        using var tool = LuiCatalog.Open(database.FilePath);
+
+        foreach (var dropTriggers in new[] { false, true })
+        {
+            var exception = Should.Throw<LuiDefinitionMismatchException>(() => tool.DropIndex("tags_x", dropTriggers));
+            exception.IndexName.ShouldBe("tags_x");
+            exception.Message.ShouldContain("source");
+        }
+
+        database.Scalar<long>("SELECT count(*) FROM sqlite_master;").ShouldBe(tables, "no statement ran: the tables and the triggers of the application are as they were");
+        database.Scalar<long>("SELECT count(*) FROM lui_meta;").ShouldBe(1);
+    }
+
+    [Fact]
+    public void An_embedded_drop_does_not_take_triggers_that_sit_on_another_table_without_the_flag()
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "vegan", 5));
+        using (var catalog = database.Open())
+        {
+            var tags = catalog.Create(new LuiLinkedIndexDefinition<long>("tags_x", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count")));
+            tags.CreateTriggers();
+            _ = tags.Sync();
+        }
+
+        // the row says Embedded, and the triggers of the application's table carry the names of an embedded index's triggers
+        Run(database, "UPDATE lui_meta SET definition = '{bad', source = 'Embedded' WHERE index_name = 'tags_x';");
+        using var tool = LuiCatalog.Open(database.FilePath);
+
+        Should.Throw<InvalidOperationException>(() => tool.DropIndex("tags_x")).Message.ShouldContain("dropTriggers: true");
+        database.Scalar<long>("SELECT count(*) FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'tag';").ShouldBe(3);
+
+        tool.DropIndex("tags_x", dropTriggers: true).ShouldBeTrue();
+        database.Scalar<long>("SELECT count(*) FROM sqlite_master WHERE type = 'trigger' AND tbl_name = 'tag';").ShouldBe(0);
+    }
+
+    [Theory]
     [InlineData("null")]
     [InlineData("{bad")]
     public void A_damaged_row_of_an_embedded_index_is_dropped_and_created_again(string definition)
