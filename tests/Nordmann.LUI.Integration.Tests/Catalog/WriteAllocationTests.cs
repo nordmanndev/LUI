@@ -14,6 +14,13 @@ namespace Nordmann.LUI.Integration.Tests.Catalog;
 /// after a warm-up of three hundred. The bounds are regression guards: above the measured values (a patch of the provider may add
 /// a little) and below what the pragmas cost.
 /// </para>
+/// <para>
+/// 0.4.0 (#268, decided by the owner): the writes of this test go through the typed handle of a definition, which checks its definition on
+/// every write (ADR-0075): one <c>PRAGMA schema_version</c> command in the write transaction, about 1.5 KB. The handle of the old calls
+/// that these writes went through before held no definition and made no check. Measured on the final tree: <c>UpdateWeight</c> about 3,600–3,700 B,
+/// <c>Upsert</c> about 4,700–4,800 B; the bounds stand about 500 B above. The purpose of the test is unchanged — the pragmas are not applied
+/// again on every write, which would add about 1 KB and exceed both bounds (the mutation <c>the-pragmas-are-applied-on-every-write</c> shows it).
+/// </para>
 /// </summary>
 public sealed class WriteAllocationTests
 {
@@ -21,10 +28,10 @@ public sealed class WriteAllocationTests
     private const int Writes = 2000;
 
     /// <summary>The bound of <c>UpdateWeight</c>: the checkout of a connection, a transaction and one statement.</summary>
-    private const double UpdateWeightBytes = 2_000;
+    private const double UpdateWeightBytes = 4_200;
 
     /// <summary>The bound of <c>Upsert</c> — one statement more, and the entry.</summary>
-    private const double UpsertBytes = 3_400;
+    private const double UpsertBytes = 5_300;
 
     [Fact]
     public void A_write_takes_a_connection_of_the_pool_and_does_not_apply_its_pragmas_again()

@@ -560,6 +560,12 @@ expect_caught "a-failed-round-of-the-outbox-is-silent" "${INTEGRATION_PROJECT}" 
   "FullyQualifiedName~A_failing_round_is_logged_and_retried_with_backoff" \
   "sed -i 's|            LogRoundFailed(exception, failures, next.TotalSeconds);|            _ = exception;|' src/Nordmann.LUI.Hosting/Hosting/LuiOutboxService.cs"
 
+# 26b2. The pragmas are applied again on every write (issue #237): a command and two statements, about 1 KB per write. The allocation test of a
+#       write has to see it above its bounds (they include the definition check of the typed handle, #268).
+expect_caught "the-pragmas-are-applied-on-every-write" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~WriteAllocationTests.A_write_takes_a_connection_of_the_pool_and_does_not_apply_its_pragmas_again" \
+  "sed -i 's|if (handle is not null \&\& Configured.TryGetValue(handle, out var applied)|if (false \&\& handle is not null \&\& Configured.TryGetValue(handle, out var applied)|' src/Nordmann.LUI/Storage/Database.cs"
+
 # 26c. The provider retries a busy command for thirty seconds again (issue #70, ADR-0046): without the timeout of
 #      the commands, a write waits 31 s whatever BusyTimeout says. The test of the wait has to notice.
 expect_caught "the-provider-retries-for-thirty-seconds" "${INTEGRATION_PROJECT}" \
