@@ -34,7 +34,9 @@ public sealed class LuiInitializeException : LuiException
                 return string.Create(CultureInfo.InvariantCulture, $"'{pair.Key}' at {step}: {pair.Value.Message}");
             }));
 
+        var noun = report.Indexes.Count == 1 ? "index" : "indexes";
+        var others = report.Indexes.Count > errors.Count ? ", and the other indexes went on" : string.Empty;
         var tail = "What was finished stays: Report says what was done, Errors holds the exception of each index, and the next Initialize() continues by the state of the indexes.";
-        return string.Create(CultureInfo.InvariantCulture, $"Initialize failed for {errors.Count} of {report.Indexes.Count} indexes, and the other indexes went on: {failed}. {tail}");
+        return string.Create(CultureInfo.InvariantCulture, $"Initialize failed for {errors.Count} of {report.Indexes.Count} {noun}{others}: {failed}. {tail}");
     }
 }

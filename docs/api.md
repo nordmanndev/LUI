@@ -547,7 +547,7 @@ A sealed record with `init` properties; the four switches can be bound from conf
 
 | Member | Default | What it says |
 |---|---|---|
-| `bool InstallTriggers { get; init; }` | `true` | linked: `CreateTriggers()` when the triggers are missing or stale. An index whose triggers stay missing keeps the need `Triggers` and gets no dictionary from this call |
+| `bool InstallTriggers { get; init; }` | `true` | linked: `CreateTriggers()` when the triggers are missing or stale. **Off, the first sync runs without triggers — the order that can lose a row written in between (ADR-0077).** An index whose triggers stay missing keeps the need `Triggers` and gets no dictionary from this call |
 | `bool InitialSync { get; init; }` | `true` | linked: the first `Sync()`, in batches, when `NeedsInitialSync` — guarded by the lease |
 | `bool ApplyPending { get; init; }` | `true` | the outbox, once, of every linked index that has rows in it |
 | `bool WarmUpTypoDictionaries { get; init; }` | `true` | every index with a typo distance other than `None`, last, one after the other |
@@ -1003,8 +1003,8 @@ The report of a `Sync` of a linked index:
   starve.** SQLite has no queue for its one write lock: a waiting writer polls (at most every 100 ms), and the sync takes the lock again
   within microseconds of a commit, so beside a very large sync (hundreds of thousands of rows or more) and a busy application a write can wait
   a long time — in three million-row runs a writer with a busy timeout of twice a batch (2 s) had 4 of 38, 0 of 45 and 6 of 35 writes fail with `SQLITE_BUSY` (the longest wait of a write that
-  succeeded: 1.99 s, 1.96 s and 1.82 s; in the third run, which also had a writer with a timeout of 30 s, that one was never refused). LUI adds **no pause between the transactions** (ADR-0077 records why). What to do: run the
-  **first sync before the application accepts writes**; give the application's writers a **generous busy timeout** (30 seconds, set explicitly — `Default Timeout=30` in the connection string of a `Microsoft.Data.Sqlite` connection; measured, a plain connection waits 30 s on its own,
+  succeeded: 1.99 s, 1.96 s and 1.82 s; in the third run, which also had a writer with a timeout of 30 s, that one was never refused). LUI adds **no pause between the transactions** (ADR-0077 records why). What to do: for a **very large table** run the
+  **first sync before the application accepts writes** (a small or medium table can be initialized in the background — see [the host pattern](#the-host-pattern)); give the application's writers a **generous busy timeout** (30 seconds, set explicitly — `Default Timeout=30` in the connection string of a `Microsoft.Data.Sqlite` connection; measured, a plain connection waits 30 s on its own,
   but a setting that is not stated is not controlled; LUI's own connections wait `LuiPragmas.BusyTimeout`, five seconds by default) and **retry** a write that fails with `SQLITE_BUSY`; open the application's own write transactions with `BEGIN IMMEDIATE`
   (`connection.BeginTransaction(deferred: false)`), so that a busy file is found at their start. The README has the same advice, with the code.
 
@@ -1259,7 +1259,7 @@ builder.Services.AddLuiOutbox(TimeSpan.FromSeconds(10));                       /
 builder.Services.AddLuiOutbox(options => options.MaxBackoff = TimeSpan.FromMinutes(1));
 ```
 
-**Every process with the registration runs its own loop.** That is safe — the outbox is applied by one writer at a time (ADR-0046), and a second loop only
+**It competes with a long first sync for the write lock**: while the sync holds it, rounds can fail and are logged as warnings, and the backoff can reach `MaxBackoff` — with a large table choose a longer `Interval`, or register the loop after the first sync. **Every process with the registration runs its own loop.** That is safe — the outbox is applied by one writer at a time (ADR-0046), and a second loop only
 finds less to do. A round that fails tells the logger of the host (`Warning`, with the exception, how many rounds in a row failed and when the next one is);
 the first round that works after failures says so (`Information`); the rows an ordinary round applied are a `Debug` line. The loop is a task of the service: the host
 that stops it waits for a round that runs.
@@ -1308,11 +1308,12 @@ sealed class SearchInitializer(LuiCatalog catalog, ILogger<SearchInitializer> lo
                     logger.LogInformation("Search is not ready yet: {Report}", report);
                     pause = TimeSpan.FromSeconds(5);
                 }
-                catch (LuiInitializeException exception)
+                catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
                 {
-                    // never let it escape: an exception that leaves ExecuteAsync stops the host. A permanent failure is logged again at every attempt
+                    // a LuiInitializeException, or the error of SQLite itself before the first step: never let it escape — an exception that leaves
+                    // ExecuteAsync stops the host. A permanent failure is logged again at every attempt
                     pause = TimeSpan.FromTicks(Math.Min(pause.Ticks * 2, TimeSpan.FromMinutes(1).Ticks));
-                    logger.LogWarning(exception, "Search could not be initialized yet, trying again in {Pause}: {Report}", pause, exception.Report);
+                    logger.LogWarning(exception, "Search could not be initialized yet, trying again in {Pause}", pause);
                 }
 
                 await Task.Delay(pause, clock, stoppingToken);
@@ -1326,9 +1327,11 @@ sealed class SearchInitializer(LuiCatalog catalog, ILogger<SearchInitializer> lo
 }
 ```
 
-**The rule: repeat `Initialize()` until the report says `Ready` — inside the loop, after a failure too.** It is idempotent and safe to repeat. A call can end "not ready" without a failure — another process runs the first sync (`InitialSyncRunningElsewhere`), or the lease of a killed predecessor has not run out (a minute) — and then it skips that index and its dictionary and does not wait: the next call does the rest. A call can also fail for a reason that passes (SQLITE_BUSY while another replica runs its batches): the initializer above logs the `LuiInitializeException` as a warning, waits longer each time (5 s, doubling up to a minute) and calls again; a permanent failure is logged again at every attempt. An exception that escapes `ExecuteAsync` stops the host (the default of .NET), so none escapes. An initializer that calls it once, or ends at the first failure, leaves the host "not ready" for good.
+**The rule: repeat `Initialize()` until the report says `Ready` — inside the loop, after a failure too.** It is idempotent and safe to repeat. A call can end "not ready" without a failure — another process runs the first sync (`InitialSyncRunningElsewhere`), or the lease of a killed predecessor has not run out (a minute) — and then it skips that index and its dictionary and does not wait: the next call does the rest. A call can also fail for a reason that passes (SQLITE_BUSY while another replica runs its batches): the initializer above logs the `LuiInitializeException` as a warning, waits longer each time (10 s after the first failure, doubling up to a minute; 5 s after a call that is only not ready) and calls again; a permanent failure is logged again at every attempt. An exception that escapes `ExecuteAsync` stops the host (the default of .NET), so none escapes. An initializer that calls it once, or ends at the first failure, leaves the host "not ready" for good.
 
-**Which readiness for which process.** The loop above is for the process that **writes** the file, with the defaults. (1) A process that keeps a linked index **without triggers by choice** (`InstallTriggers = false`) never gets that index to `Ready`: it names `Triggers` for ever and gets no dictionary — its loop and its readiness check leave that flag out (`NeedsInitialization & ~LuiInitializationNeeds.Triggers`). (2) A process on a catalog opened with `OpenReadOnly` does not loop on `Ready`: the report names file steps only a writer can do, so one call builds its dictionaries and its readiness is "no index has `TypoDictionary`" (`!NeedsInitialization.HasFlag(LuiInitializationNeeds.TypoDictionary)`). **Start the readers after the writer is ready**: a dictionary that a reader builds from a table whose first sync is only half done is marked built and is not rebuilt by the writer's later rows (#287).
+**Which readiness for which process.** The loop above is for the process that **writes** the file, with the defaults. (1) A linked index kept **without triggers by choice** (`InstallTriggers = false`) never becomes `Ready`: it names `Triggers` for ever, `report.Ready` cannot be masked, and **a typo-tolerant one gets no dictionary** from `Initialize()` (it withholds it for an index with a file step left) — leave such an index out of the loop (`Indexes = […]` of the others), build its dictionary with `WarmUpTypoDictionary()` and check its readiness yourself (`NeedsInitialization & ~LuiInitializationNeeds.Triggers`). Its first sync runs **without triggers**, the order ADR-0077 says can lose a row written in between — switch the triggers off only for an index that you keep current with `Refresh` or `Sync()` yourself. (2) A process on a catalog opened with `OpenReadOnly` does not loop on `Ready`: the report names file steps only a writer can do, so one call builds its dictionaries and its readiness is "no index has `TypoDictionary`" (`!NeedsInitialization.HasFlag(LuiInitializationNeeds.TypoDictionary)`). **Start the readers after the writer is ready**: a dictionary that a reader builds from a table whose first sync is only half done is marked built and is not rebuilt by the writer's later rows (#287).
+
+**What "not ready" means, and the size of the table.** "Not ready" is a fact about the **search**: reads are served — without corrections, and with the batches that are synced so far. It does not stop your application's **own writes**: the triggers are installed first, so a row written during the first sync is noted in the outbox and applied — none is lost. What the first sync costs the writers is the write lock: SQLite has no queue, and a sync of hundreds of thousands of rows beside a busy application can make the application's writes wait (see "Linked indexes and the sync"). So the rule is by the size of the table. **A small or medium table** (the first sync takes seconds): the background initializer above is right — the host is up at once, readers wait for "ready", writers proceed. **A very large table** (hundreds of thousands of rows or more) **with a busy application**: run `Initialize()` — or just the first sync — **before the application accepts writes**: a startup step before `app.Run()`, before the listener opens, or the writer deployed as a step of its own; or keep the background initializer and give the application's writes a generous busy timeout (30 seconds, set explicitly) and a retry on `SQLITE_BUSY`. "Ready" means for readers that the search is complete; for writers it means nothing — they never wait for it.
 
 This background form is the **documented default** for containers: the host comes up, the readiness check says "not ready" until `Initialize()` is done, and a long first sync does not
 fail a liveness probe and restart the pod. For a small application or a tool the short form is enough — `catalog.Initialize();` right before `app.Run()` — and an application

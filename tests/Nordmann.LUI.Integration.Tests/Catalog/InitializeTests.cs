@@ -318,7 +318,7 @@ public sealed class InitializeTests
 
         var failure = Should.Throw<LuiInitializeException>(() => catalog.Initialize(new LuiInitializeOptions { Indexes = [Chefs] }));
 
-        failure.Message.ShouldContain("1 of 1 index ");
+        failure.Message.ShouldContain("1 of 1 index:");
         failure.Message.ShouldNotContain("1 of 1 indexes");
     }
 

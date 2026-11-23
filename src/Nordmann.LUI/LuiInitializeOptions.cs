@@ -9,7 +9,7 @@ public sealed record LuiInitializeOptions
 {
     /// <summary>
     /// Creates the triggers of every linked index whose triggers are missing or stale (<c>CreateTriggers()</c>, idempotent, ADR-0077) — the first step. Default: <see langword="true"/>.
-    /// An index whose triggers are missing and not installed here keeps the need <see cref="LuiInitializationNeeds.Triggers"/>, and gets no typo dictionary from this call.
+    /// <b>Off, the first sync runs without triggers — the order that can lose a row written in between (ADR-0077).</b> An index whose triggers are missing and not installed here keeps the need <see cref="LuiInitializationNeeds.Triggers"/>, and gets no typo dictionary from this call.
     /// </summary>
     public bool InstallTriggers { get; init; } = true;
 

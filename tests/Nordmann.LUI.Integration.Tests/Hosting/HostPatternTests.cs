@@ -343,7 +343,7 @@ public sealed class HostPatternTests
     /// The initializer of the docs — the very class of the README and of docs/api.md, character for character (a test compares them): it repeats
     /// Initialize() until the report says Ready, also after a failure. The pause is the clock of the test.
     /// </summary>
-#pragma warning disable MA0004, CA1873 // the class is the one of the docs, character for character: it is written for an application, not for these analyzers
+#pragma warning disable MA0004, CA1873, CA1031 // the class is the one of the docs, character for character: it is written for an application, not for these analyzers
     private sealed class SearchInitializer(LuiCatalog catalog, ILogger<SearchInitializer> logger, TimeProvider? time = null) : BackgroundService
     {
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -368,11 +368,12 @@ public sealed class HostPatternTests
                         logger.LogInformation("Search is not ready yet: {Report}", report);
                         pause = TimeSpan.FromSeconds(5);
                     }
-                    catch (LuiInitializeException exception)
+                    catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
                     {
-                        // never let it escape: an exception that leaves ExecuteAsync stops the host. A permanent failure is logged again at every attempt
+                        // a LuiInitializeException, or the error of SQLite itself before the first step: never let it escape — an exception that leaves
+                        // ExecuteAsync stops the host. A permanent failure is logged again at every attempt
                         pause = TimeSpan.FromTicks(Math.Min(pause.Ticks * 2, TimeSpan.FromMinutes(1).Ticks));
-                        logger.LogWarning(exception, "Search could not be initialized yet, trying again in {Pause}: {Report}", pause, exception.Report);
+                        logger.LogWarning(exception, "Search could not be initialized yet, trying again in {Pause}", pause);
                     }
 
                     await Task.Delay(pause, clock, stoppingToken);
@@ -384,7 +385,7 @@ public sealed class HostPatternTests
             }
         }
     }
-#pragma warning restore MA0004, CA1873
+#pragma warning restore MA0004, CA1873, CA1031
 
     /// <summary>A clock that tells when a timer is made — the initializer waits on one after every call that is not ready or failed — so that the test moves the clock after that and never before.</summary>
     private sealed class SignallingClock(DateTimeOffset start) : FakeTimeProvider(start)
