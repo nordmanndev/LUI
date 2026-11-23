@@ -358,6 +358,31 @@ public sealed class KeyTypeTests
         }
     }
 
+    // ---- a null string key is no key (0.3.0: LuiKey.FromString(null) threw an ArgumentNullException) ------------------------------------
+
+    [Fact]
+    public void A_null_string_key_is_refused_at_every_entry_point_naming_the_parameter_and_the_index()
+    {
+        using var database = new TestDatabase();
+        using var catalog = database.Open();
+        var words = catalog.Create(new LuiIndexDefinition<string>("words", index => index.SingleWord()));
+        var tagged = catalog.Create(new LuiIndexDefinition<string, Chip>("tagged", index => index.SingleWord()));
+        words.Upsert("a", "alpha");
+
+        Should.Throw<ArgumentNullException>(() => words.Upsert(null!, "alpha")).ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => words.Remove(null!)).ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => words.UpdateWeight(null!, 5)).ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => words.UpdatePriority(null!, LuiPriority.High)).ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => words.UpsertMany([new LuiEntry<string>("b", "beta"), new LuiEntry<string>(null!, "gamma")])).ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => words.Sync([new LuiEntry<string>(null!, "gamma")])).ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => words.Check([new LuiEntry<string>(null!, "gamma")])).ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => tagged.Upsert(null!, "alpha", new Chip("x"))).ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => tagged.Remove(null!)).ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => new LuiEntry<string, Chip>(null!, "alpha", new Chip("x"))).ParamName.ShouldBe("key");
+        Should.Throw<ArgumentNullException>(() => words.Remove(null!)).Message.ShouldContain("words");
+        words.Count().ShouldBe(1, "nothing was written");
+    }
+
     // ---- a key type that is none of the four ------------------------------------------------------------------------
 
     [Fact]
