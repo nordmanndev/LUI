@@ -155,7 +155,7 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   removes it; `Initialize()` with `AddLuiOutbox` replaces it. **Migration: none — the members are new.** New public type: `LuiOutboxOptions`.
 
 - **The host pattern** (ADR-0076, #266; README "Starting up", `docs/api.md`): the factory of `AddLui` only **opens** the catalog; `catalog.Create(…)` and `catalog.Initialize()` are explicit steps after `Build()`, so that
-  every configuration error stops the start at a line of `Program.cs`. The documented default for a container is a background service of the application that calls `Initialize()`: the host is up at once, a readiness check says
+  every configuration error stops the start at a line of `Program.cs`. The documented default for a container is a background service of the application that **repeats `Initialize()` until the report says `Ready`** (also after a failure that may pass, with a growing pause; an exception that escapes it would stop the host): the host is up at once, a readiness check says
   "not ready" until it is done, and a long first sync does not fail a liveness probe. The short form for a small application is `catalog.Initialize();` before `app.Run()`.
 
 ### Changed

@@ -1284,37 +1284,51 @@ app.MapHealthChecks("/ready");      // readiness: not ready while an index has N
 app.Run();
 
 // The application's own service: the host starts at once, the search becomes complete when Initialize() says Ready.
-sealed class SearchInitializer(LuiCatalog catalog, ILogger<SearchInitializer> logger) : BackgroundService
+sealed class SearchInitializer(LuiCatalog catalog, ILogger<SearchInitializer> logger, TimeProvider? time = null) : BackgroundService
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        var clock = time ?? TimeProvider.System;
+        var pause = TimeSpan.FromSeconds(5);
         try
         {
-            // Initialize() is idempotent and safe to repeat: repeat it while the report says that something is not ready — an index that waits
-            // for a first sync that another process runs (InitialSyncRunningElsewhere, also the lease of a killed predecessor, which runs out after a minute)
-            LuiInitializeReport report;
-            while (!(report = await Task.Run(() => catalog.Initialize(cancellationToken: stoppingToken), stoppingToken)).Ready)
+            // Initialize() is idempotent and safe to repeat: repeat it until the report says Ready — also after a failure, which may be transient
+            // (a busy file while another replica syncs), and while an index waits for a first sync that another process runs
+            while (true)
             {
-                logger.LogInformation("Search is not ready yet: {Report}", report);
-                await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
-            }
+                try
+                {
+                    var report = await Task.Run(() => catalog.Initialize(cancellationToken: stoppingToken), stoppingToken);
+                    if (report.Ready)
+                    {
+                        logger.LogInformation("Search initialized: {Report}", report);
+                        return;
+                    }
 
-            logger.LogInformation("Search initialized: {Report}", report);
+                    logger.LogInformation("Search is not ready yet: {Report}", report);
+                    pause = TimeSpan.FromSeconds(5);
+                }
+                catch (LuiInitializeException exception)
+                {
+                    // never let it escape: an exception that leaves ExecuteAsync stops the host. A permanent failure is logged again at every attempt
+                    pause = TimeSpan.FromTicks(Math.Min(pause.Ticks * 2, TimeSpan.FromMinutes(1).Ticks));
+                    logger.LogWarning(exception, "Search could not be initialized yet, trying again in {Pause}: {Report}", pause, exception.Report);
+                }
+
+                await Task.Delay(pause, clock, stoppingToken);
+            }
         }
         catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
         {
             // the host stops
         }
-        catch (LuiInitializeException exception)
-        {
-            // an exception that escapes ExecuteAsync stops the host (the default of .NET): log it to stay up — the readiness check stays "not ready"
-            logger.LogError(exception, "Search could not be initialized: {Report}", exception.Report);
-        }
     }
 }
 ```
 
-**The rule: repeat `Initialize()` until the report says `Ready`.** It is idempotent and safe to repeat; a call can end "not ready" without a failure — another process runs the first sync (`InitialSyncRunningElsewhere`), or the lease of a killed predecessor has not run out (a minute) — and then it skips that index and its dictionary and does not wait: the next call does the rest. An initializer that calls it once leaves the host "not ready" for good. An exception that escapes `ExecuteAsync` stops the host (the default of .NET); the initializer above logs a `LuiInitializeException` instead and stays up, "not ready".
+**The rule: repeat `Initialize()` until the report says `Ready` — inside the loop, after a failure too.** It is idempotent and safe to repeat. A call can end "not ready" without a failure — another process runs the first sync (`InitialSyncRunningElsewhere`), or the lease of a killed predecessor has not run out (a minute) — and then it skips that index and its dictionary and does not wait: the next call does the rest. A call can also fail for a reason that passes (SQLITE_BUSY while another replica runs its batches): the initializer above logs the `LuiInitializeException` as a warning, waits longer each time (5 s, doubling up to a minute) and calls again; a permanent failure is logged again at every attempt. An exception that escapes `ExecuteAsync` stops the host (the default of .NET), so none escapes. An initializer that calls it once, or ends at the first failure, leaves the host "not ready" for good.
+
+**Which readiness for which process.** The loop above is for the process that **writes** the file, with the defaults. (1) A process that keeps a linked index **without triggers by choice** (`InstallTriggers = false`) never gets that index to `Ready`: it names `Triggers` for ever and gets no dictionary — its loop and its readiness check leave that flag out (`NeedsInitialization & ~LuiInitializationNeeds.Triggers`). (2) A process on a catalog opened with `OpenReadOnly` does not loop on `Ready`: the report names file steps only a writer can do, so one call builds its dictionaries and its readiness is "no index has `TypoDictionary`" (`!NeedsInitialization.HasFlag(LuiInitializationNeeds.TypoDictionary)`). **Start the readers after the writer is ready**: a dictionary that a reader builds from a table whose first sync is only half done is marked built and is not rebuilt by the writer's later rows (#287).
 
 This background form is the **documented default** for containers: the host comes up, the readiness check says "not ready" until `Initialize()` is done, and a long first sync does not
 fail a liveness probe and restart the pod. For a small application or a tool the short form is enough — `catalog.Initialize();` right before `app.Run()` — and an application

@@ -1284,6 +1284,17 @@ expect_caught "the-outbox-accepts-a-wait-the-timer-cannot-hold" "${INTEGRATION_P
   "FullyQualifiedName~OutboxTests.The_outbox_is_registered_once_with_an_interval_or_with_options_and_with_positive_values" \
   "sed -i 's/ || options.MaxBackoff > longest//' src/Nordmann.LUI.Hosting/LuiServiceCollectionExtensions.cs"
 
+# 35zzzi. The initializer of the docs does not catch a failed call (issue #266, review of #294, round 2): it ends — or stops the host — at the first transient failure and the host stays 'not ready' for ever.
+#         The class of the page is the class the tests run, so a page that teaches another one fails.
+expect_caught "the-initializer-of-the-docs-gives-up-after-one-failure" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~HostPatternTests.The_initializer_the_tests_run_is_the_one_of_the_README_and_of_the_api_page" \
+  "sed -i 's|                catch (LuiInitializeException exception)|                catch (InvalidOperationException exception) when (exception is null)|' README.md"
+
+# 35zzzj. An Interval above what the timer can hold is accepted by the outbox registration (issue #266, review of #294): the loop faults at its first wait and stops the host.
+expect_caught "the-outbox-accepts-an-interval-the-timer-cannot-hold" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OutboxTests.The_outbox_is_registered_once_with_an_interval_or_with_options_and_with_positive_values" \
+  "sed -i 's/ || options.Interval > longest//' src/Nordmann.LUI.Hosting/LuiServiceCollectionExtensions.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

@@ -168,7 +168,7 @@ a liveness probe:
 ```text
 builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"));    // open only
 builder.Services.AddLuiOutbox(TimeSpan.FromSeconds(10));              // the one background loop: ApplyPending() every 10 s
-builder.Services.AddHostedService<SearchInitializer>();               // your own: catalog.Initialize(cancellationToken: stoppingToken)
+builder.Services.AddHostedService<SearchInitializer>();               // your own: repeat catalog.Initialize() until the report says Ready
 
 var app = builder.Build();
 app.Services.GetRequiredService<LuiCatalog>().Create(SearchIndexes.Recipes, SearchIndexes.Tags);   // fast; a broken definition stops the start here
@@ -177,7 +177,7 @@ app.Run();
 ```
 
 `AddLuiOutbox` applies the outbox of your linked indexes every `Interval` and stops with the host; a round that fails is logged as a warning and retried with
-backoff up to `MaxBackoff`, and on a read-only catalog the host does not start. It does nothing at the start — that is `Initialize()`. **Repeat `Initialize()` until the report says `Ready`**: it is idempotent, and a call ends "not ready" when another replica runs the first sync of a linked index (`InitialSyncRunningElsewhere`) or the lease of a killed one has not run out yet (a minute); the next call does the rest. An exception that escapes the initializer stops the host — catch and log a `LuiInitializeException` to stay up. The sections of the
+backoff up to `MaxBackoff`, and on a read-only catalog the host does not start. It does nothing at the start — that is `Initialize()`. **Repeat `Initialize()` until the report says `Ready`**: it is idempotent, and a call ends "not ready" when another replica runs the first sync of a linked index (`InitialSyncRunningElsewhere`) or the lease of a killed one has not run out yet (a minute); the next call does the rest. The loop is inside the service and covers a failure too (a busy file while another replica syncs): catch and log the `LuiInitializeException` there, wait, call again — an exception that escapes the initializer stops the host. A reader on a read-only catalog calls it once and starts after the writer is ready. The sections of the
 [README](../../README.md#starting-up-initialize-and-the-host-pattern) and of the [API page](../api.md#initializing--the-start-of-a-process) have the whole pattern;
 what follows is the way of `0.3.0`, which `Initialize()` and `AddLuiOutbox` replace.
 
