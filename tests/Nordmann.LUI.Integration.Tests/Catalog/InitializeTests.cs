@@ -433,6 +433,37 @@ public sealed class InitializeTests
         result.Hits.Select(hit => hit.Key).ShouldContain(4L);
     }
 
+    [Fact]
+    public void A_dictionary_waits_for_the_file_steps_of_its_index_also_when_an_option_switched_them_off()
+    {
+        // the rule is about the state of the index and not about the intention of the call: an index with a file step left gets no dictionary yet —
+        // it would miss the words of a sync still to come — and the reason stays. The next call, with the steps on, builds it
+        using (var database = World(withCooks: true))
+        {
+            using var catalog = database.Open();
+
+            var report = catalog.Initialize(new LuiInitializeOptions { InitialSync = false, Indexes = [Cooks, Recipes] });
+
+            Line(report, "cooks").TypoDictionaryBuilt.ShouldBeFalse("its first sync is still due");
+            Line(report, "cooks").Skipped.ShouldBe(LuiInitializationNeeds.InitialSync | LuiInitializationNeeds.TypoDictionary);
+            Line(report, "recipes").TypoDictionaryBuilt.ShouldBeTrue("an embedded index has no file step");
+
+            catalog.Initialize(new LuiInitializeOptions { Indexes = [Cooks] });
+            catalog.Index(Cooks).TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        }
+
+        using (var database = World(withCooks: true))
+        {
+            using var catalog = database.Open();
+
+            var report = catalog.Initialize(new LuiInitializeOptions { InstallTriggers = false, Indexes = [Cooks] });
+
+            Line(report, "cooks").Sync.ShouldNotBeNull("the sync is not what was switched off");
+            Line(report, "cooks").TypoDictionaryBuilt.ShouldBeFalse("its triggers are missing");
+            Line(report, "cooks").Skipped.ShouldBe(LuiInitializationNeeds.Triggers | LuiInitializationNeeds.TypoDictionary);
+        }
+    }
+
     // ---- a read-only catalog ----------------------------------------------------------------------------------------
 
     [Fact]

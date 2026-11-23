@@ -806,9 +806,11 @@ public sealed class LuiCatalog : IDisposable
     /// <b>The definition fields</b> (the source, the kind, the payload type and its format, the key type, the typo distance) come from the
     /// definitions in the memory of the catalog (ADR-0075): no statement reads them. The only statement of the call asks whether the
     /// SQLite schema counter of the file moved; only then the definitions are read again — so an index that another process created or
-    /// dropped is in the list. <b>The state field</b>, the state of the typo dictionary, is read from the dictionaries of this catalog
-    /// when the call is made: <c>NotBuilt</c> says that <i>this</i> catalog has not built it. Nothing else of the state is in the
-    /// list — <see cref="Count(string)"/> and <see cref="Check(string)"/> are asked by name, and cost what they cost.
+    /// dropped is in the list. <b>The state fields</b> are read when the call is made: the state of the typo dictionary, from the dictionaries
+    /// of this catalog — <c>NotBuilt</c> says that <i>this</i> catalog has not built it —, and <see cref="LuiIndexInfo.NeedsInitialization"/> (#266): the dictionary,
+    /// and for each <b>linked</b> index the triggers, the flag of the first sync and its lease, read from the file in one snapshot with the guard of every
+    /// operation (an embedded index costs no statement). Nothing else of the state is in the list — <see cref="Count(string)"/> and
+    /// <see cref="Check(string)"/> are asked by name, and cost what they cost.
     /// </para>
     /// </summary>
     /// <returns>One record per index; empty when the catalog holds none. It is a snapshot.</returns>

@@ -1232,10 +1232,11 @@ expect_caught "dictionaries-are-built-before-the-file-steps" "${INTEGRATION_PROJ
   "FullyQualifiedName~InitializeTests.Initialize_with_defaults_brings_three_indexes_to_ready_in_order" \
   "perl -0pi -e 's|(        // 1 the triggers, 2 the first syncs, 3 the outbox.*?\\n        \\}\\n\\n)(        // 4 the dictionaries.*?\\n        \\}\\n\\n)|\$2\$1|s' src/Nordmann.LUI/CatalogInitialization.cs"
 
-# 35zzy. A dictionary is built for an index that has a file step left (issue #266, ADR-0076): it misses the words of a sync that another process is still running.
-expect_caught "a-dictionary-is-built-for-an-index-with-a-sync-running-elsewhere" "${INTEGRATION_PROJECT}" \
-  "FullyQualifiedName~InitializeTests.A_sync_that_another_process_runs_is_skipped_and_reported_and_blocks_the_dictionary_of_that_index" \
-  "sed -i 's|if (!_readOnly \&\& state.File is|if (false \&\& state.File is|' src/Nordmann.LUI/CatalogInitialization.cs"
+# 35zzy. A dictionary is built for an index that has a file step left (issue #266, ADR-0076): it misses the words of a sync that is still to come — also when the call itself
+#        switched the step off.
+expect_caught "a-dictionary-is-built-for-an-index-with-a-file-step-left" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~InitializeTests.A_dictionary_waits_for_the_file_steps_of_its_index_also_when_an_option_switched_them_off" \
+  "sed -i 's|if (!_readOnly \\&\\& state.File is|if (false \\&\\& state.File is|' src/Nordmann.LUI/CatalogInitialization.cs"
 
 # 35zzz. The dictionaries are built in parallel (issue #266, ADR-0076): the peak memory is the sum of the dictionaries and not the largest.
 expect_caught "the-dictionaries-are-built-in-parallel" "${INTEGRATION_PROJECT}" \
