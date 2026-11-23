@@ -160,8 +160,12 @@ internal sealed class LinkedIndex : IMaintainedIndex
     public RawResult Search(
         string text,
         LuiQueryOptions? options = null,
-        CancellationToken cancellationToken = default) =>
-        Guarded(() => _runner.Execute(text, options ?? DefaultOptions, cancellationToken));
+        CancellationToken cancellationToken = default)
+    {
+        RawResult result = null!;
+        Guarded(() => result = _runner.Execute(text, options ?? DefaultOptions, cancellationToken));
+        return result;
+    }
 
     public void WarmUpTypoDictionary(CancellationToken cancellationToken = default)
     {
@@ -268,7 +272,9 @@ internal sealed class LinkedIndex : IMaintainedIndex
         using var connection = _database.OpenReadConnection();
         using var snapshot = _guard is null ? null : connection.BeginTransaction(deferred: true);
         _guard?.Check(connection, snapshot);
-        return Guarded(() => Scalar(connection, snapshot, _source.PendingCountSql));
+        long pending = 0;
+        Guarded(() => pending = Scalar(connection, snapshot, _source.PendingCountSql));
+        return pending;
     }
 
     /// <summary>Brings up to <see cref="PendingBatch"/> keys of the outbox in step, the smallest first, and takes them out.</summary>
@@ -334,7 +340,8 @@ internal sealed class LinkedIndex : IMaintainedIndex
     private LuiLinkedSyncReport? SyncCore(LuiSyncOptions? options, bool onlyWhenNeeded, CancellationToken cancellationToken)
     {
         using var scope = _database.Begin();
-        var result = Guarded(() => new LinkedSync(_database, _source, _guard).Run(options ?? new LuiSyncOptions(), onlyWhenNeeded, cancellationToken));
+        LuiLinkedSyncReport? result = null;
+        Guarded(() => result = new LinkedSync(_database, _source, _guard).Run(options ?? new LuiSyncOptions(), onlyWhenNeeded, cancellationToken));
         if (result is null)
         {
             return null;
@@ -575,11 +582,11 @@ internal sealed class LinkedIndex : IMaintainedIndex
     /// A table that changed under the index — a column renamed, the table dropped — answers with a statement that names
     /// what is missing, not with a bare SQLite error (review of pull request 16, S4).
     /// </summary>
-    private T Guarded<T>(Func<T> run)
+    private void Guarded(Action run)
     {
         try
         {
-            return run();
+            run();
         }
         catch (SqliteException exception) when (exception.SqliteErrorCode == SqliteError
             && (exception.Message.Contains("no such column", StringComparison.Ordinal)
@@ -591,12 +598,6 @@ internal sealed class LinkedIndex : IMaintainedIndex
                 exception);
         }
     }
-
-    private void Guarded(Action run) => Guarded(() =>
-    {
-        run();
-        return true;
-    });
 
     private static SqliteCommand Command(SqliteConnection connection, SqliteTransaction transaction, string sql)
     {

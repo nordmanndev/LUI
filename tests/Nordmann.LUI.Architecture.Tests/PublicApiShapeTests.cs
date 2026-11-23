@@ -1132,8 +1132,14 @@ public sealed class PublicApiShapeTests
             .ToArray();
         types.ShouldNotBeEmpty();
 
-        // 1. a type of the application can only come in through a type parameter: no type of the layers has one
+        // 1. a type of the application can only come in through a type parameter: no type and no method of the layers has one
         types.Where(type => type.IsGenericTypeDefinition).Select(type => type.FullName).ShouldBeEmpty("a type parameter is where an application type enters");
+
+        // ... and none of their methods (public or not) has one either: the helpers of the layers are written without type parameters
+        types.SelectMany(type => type.GetMethods(all))
+            .Where(method => method.IsGenericMethodDefinition)
+            .Select(method => $"{method.DeclaringType?.FullName}.{method.Name}")
+            .ShouldBeEmpty("a method with a type parameter is where an application type enters");
 
         // 2. what the signatures of the layers name — base types, interfaces, fields, properties, parameters, returns — is of the BCL, of the
         //    SQLite provider or of the library: no type of another assembly is an application type

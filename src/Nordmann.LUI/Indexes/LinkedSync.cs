@@ -164,13 +164,12 @@ internal sealed class LinkedSync
     /// transaction, and so is the lease — a run that is not the owner of the lease any more stops here, before its first statement, and
     /// the lease is renewed again before the commit, so that a long batch does not leave the lease at the time the batch began.
     /// </summary>
-    private T InTransaction<T>(
+    private void InTransaction(
         SqliteConnection writer,
         string phase,
         bool ownsTheLease,
-        Func<SqliteConnection, SqliteTransaction, T> work)
+        Action<SqliteConnection, SqliteTransaction> work)
     {
-        T result;
         lock (_database.WriterGate)
         {
             // the checkpoint takes the writer lock of SQLite while it backfills: its time is time that the sync keeps another writer out
@@ -188,7 +187,7 @@ internal sealed class LinkedSync
                 Renew(writer, transaction, throwWhenLost: true);
             }
 
-            result = work(writer, transaction);
+            work(writer, transaction);
             if (ownsTheLease)
             {
                 Renew(writer, transaction, throwWhenLost: false);
@@ -203,15 +202,7 @@ internal sealed class LinkedSync
         }
 
         _database.AfterSyncTransaction?.Invoke(phase);
-        return result;
     }
-
-    private void InTransaction(SqliteConnection writer, string phase, bool ownsTheLease, Action<SqliteConnection, SqliteTransaction> work) =>
-        InTransaction(writer, phase, ownsTheLease, (connection, transaction) =>
-        {
-            work(connection, transaction);
-            return true;
-        });
 
     /// <summary>
     /// Gives the write-ahead log back before a transaction of the sync begins (ADR-0077): a checkpoint that backfills the log and truncates it.
@@ -343,7 +334,8 @@ internal sealed class LinkedSync
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var batch = InTransaction(writer, "batch", ownsTheLease: true, (connection, transaction) => WriteBatch(connection, transaction, last, options.BatchSize, cancellationToken));
+            BatchResult batch = null!;
+            InTransaction(writer, "batch", ownsTheLease: true, (connection, transaction) => batch = WriteBatch(connection, transaction, last, options.BatchSize, cancellationToken));
 
             if (batch.Read > 0)
             {
@@ -424,7 +416,8 @@ internal sealed class LinkedSync
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var removed = InTransaction(writer, "removal", ownsTheLease: true, (connection, transaction) => RemoveBatch(connection, transaction, options.BatchSize, cancellationToken));
+            var removed = 0;
+            InTransaction(writer, "removal", ownsTheLease: true, (connection, transaction) => removed = RemoveBatch(connection, transaction, options.BatchSize, cancellationToken));
             _removed += removed;
             if (removed > 0)
             {
@@ -482,7 +475,8 @@ internal sealed class LinkedSync
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var nothingLeft = InTransaction(writer, "merge", ownsTheLease: true, (connection, transaction) => MergeStep(connection, transaction, pages));
+            var nothingLeft = false;
+            InTransaction(writer, "merge", ownsTheLease: true, (connection, transaction) => nothingLeft = MergeStep(connection, transaction, pages));
             if (nothingLeft)
             {
                 // the commit of the last step has gone through: the lease went with it (set before it, a failing commit would leave the lease to expire)
