@@ -11,8 +11,7 @@ namespace Nordmann.LUI.Sample.Indexes;
 /// or by <c>Refresh</c> when the application tells it.
 /// </summary>
 internal sealed class LinkedSampleIndex(
-    ILuiLinkedIndex index,
-    Func<LuiHit, object?> payload,
+    LuiLinkedIndex<long, TagPayload> index,
     string path,
     string payloadDescription,
     string description) : ILinkedSampleIndex
@@ -35,7 +34,7 @@ internal sealed class LinkedSampleIndex(
         index.Triggers().ToString());
 
     public SuggestResponse Suggest(string text, LuiQueryOptions options, CancellationToken cancellationToken) =>
-        SuggestMapper.Run(index, text, options, payload, cancellationToken);
+        SuggestMapper.Run(index, text, options, cancellationToken);
 
     public long UpsertRow(TagRowRequest request)
     {
@@ -96,7 +95,7 @@ internal sealed class LinkedSampleIndex(
 
     public void RebuildTypoDictionary(CancellationToken cancellationToken) => index.RebuildTypoDictionary(cancellationToken);
 
-    public object Sync(CancellationToken cancellationToken) => index.Sync(cancellationToken);
+    public object Sync(CancellationToken cancellationToken) => index.Sync(options: null, cancellationToken);
 
     private static void Validate(TagRowRequest request)
     {

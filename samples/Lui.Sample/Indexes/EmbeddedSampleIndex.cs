@@ -1,18 +1,15 @@
-using System.Text.Json;
 using Nordmann.LUI.Sample.Api;
 
 namespace Nordmann.LUI.Sample.Indexes;
 
 /// <summary>
-/// An <c>Embedded</c> index (ADR-0014, ADR-0015): the entries live in LUI's own table and the page writes through the
-/// library. The seed is the "source of truth" the sample syncs from; it stands for the table of another database, or a
-/// file, that an application would sync from (<c>Sync(entries)</c>, ADR-0016).
+/// An <c>Embedded</c> index (ADR-0014, ADR-0015) that stores no payload — the handle of a definition without a payload type: the entries
+/// live in LUI's own table and the page writes through the library. The seed is the "source of truth" the sample syncs from; it stands
+/// for the table of another database, or a file, that an application would sync from (<c>Sync(entries)</c>, ADR-0016).
 /// </summary>
 internal sealed class EmbeddedSampleIndex(
-    ILuiEmbeddedIndex index,
-    Func<IReadOnlyList<LuiEntry>> seed,
-    SamplePayload? payload,
-    string payloadDescription,
+    LuiEmbeddedIndex<long> index,
+    Func<IReadOnlyList<LuiEntry<long>>> seed,
     string description) : IEmbeddedSampleIndex
 {
     public string Name => index.Name;
@@ -24,26 +21,23 @@ internal sealed class EmbeddedSampleIndex(
         index.TypoDistance.ToString(),
         index.TypoDictionaryState.ToString(),
         index.Count(),
-        payloadDescription,
+        "none",
         description,
         Pending: null,
         Triggers: null);
 
     public SuggestResponse Suggest(string text, LuiQueryOptions options, CancellationToken cancellationToken) =>
-        SuggestMapper.Run(index, text, options, hit => payload?.Show(hit), cancellationToken);
+        SuggestMapper.Run(index, text, options, cancellationToken);
 
     public long Upsert(UpsertRequest request)
     {
         var key = request.Key ?? Random.Shared.NextInt64(1_000_000, 1_000_000_000_000);
-        object? stored = null;
-        if (request.Payload is { ValueKind: not (JsonValueKind.Null or JsonValueKind.Undefined) } json)
+        if (request.Payload is { ValueKind: not (System.Text.Json.JsonValueKind.Null or System.Text.Json.JsonValueKind.Undefined) })
         {
-            stored = payload is null
-                ? throw new ArgumentException($"The index '{index.Name}' stores no payload.", nameof(request))
-                : payload.Read(json);
+            throw new ArgumentException($"The index '{index.Name}' stores no payload.", nameof(request));
         }
 
-        index.Upsert(new LuiEntry(key, request.Text) { Weight = request.Weight, Priority = request.Priority, Payload = stored });
+        index.Upsert(new LuiEntry<long>(key, request.Text) { Weight = request.Weight, Priority = request.Priority });
         return key;
     }
 
