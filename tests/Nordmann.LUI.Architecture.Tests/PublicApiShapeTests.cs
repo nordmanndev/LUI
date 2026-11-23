@@ -90,7 +90,7 @@ public sealed class PublicApiShapeTests
         [
             "LuiHit", "LuiResult", "LuiTimings", "LuiQueryOptions", "LuiCatalogOptions",
             "LuiLinkedSyncReport", "LuiSyncOptions", "LuiSyncReport", "LuiIntegrityReport",
-            "LuiTypedHit", "LuiTypedResult", "LuiIndexInfo",
+            "LuiIndexInfo",
         ];
 
         // LuiHit and LuiResult have two generic forms each (ADR-0073: without and with a payload): the guard counts all forms of a name
@@ -1142,8 +1142,6 @@ public sealed class PublicApiShapeTests
         payload.PropertyType.ShouldBe(typeof(LuiHit<,>).GetGenericArguments()[1]);
         payload.GetMethod!.IsPublic.ShouldBeTrue();
         payload.SetMethod!.ReturnParameter.GetRequiredCustomModifiers().ShouldContain(typeof(System.Runtime.CompilerServices.IsExternalInit), "init only: the payload never changes");
-        typeof(LuiTypedHit<object>).GetProperty("Payload")
-            .ShouldBeNull("the typed hit reads the payload as the hit does: a method that deserialises, not a property (ADR-0044)");
 
         // the serialiser of the old path stays one per catalog until #268 removes it; the typed path binds the serializer to the
         // payload type through the registry (ADR-0072)

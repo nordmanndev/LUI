@@ -2,7 +2,7 @@ namespace Nordmann.LUI.Architecture.Tests;
 
 /// <summary>
 /// The name of a type as the documents write it: without the arity that the runtime appends to a generic type
-/// (<c>LuiTypedHit`1</c>). The documents name a type, not a closed generic — and the guards that compare the page
+/// (<c>LuiHit`1</c>). The documents name a type, not a closed generic — and the guards that compare the page
 /// with the assemblies must ask the same question on both sides.
 /// </summary>
 internal static class TypeNames

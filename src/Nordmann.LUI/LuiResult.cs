@@ -36,31 +36,4 @@ public sealed record LuiResult
 
     /// <summary>Where the time went; only set with <see cref="LuiQueryOptions.TrackTimings"/>.</summary>
     public LuiTimings? Timings { get; init; }
-
-    /// <summary>
-    /// The same answer, with the payload in the type of the application (ADR-0044) — the end of the fluent path:
-    /// <c>index.Query("veg").Take(5).Execute().As&lt;TagChip&gt;()</c>. The answer stays untyped; the type is named
-    /// where it is used, and nothing is read until a hit is asked for its payload.
-    /// </summary>
-    /// <typeparam name="TPayload">The type of the payload — the application's to know.</typeparam>
-    /// <returns>The typed answer.</returns>
-    public LuiTypedResult<TPayload> As<TPayload>()
-    {
-        var hits = new LuiTypedHit<TPayload>[Hits.Count];
-        for (var i = 0; i < hits.Length; i++)
-        {
-            hits[i] = new LuiTypedHit<TPayload> { Hit = Hits[i] };
-        }
-
-        return new LuiTypedResult<TPayload>
-        {
-            Query = Query,
-            Hits = hits,
-            CandidatesConsidered = CandidatesConsidered,
-            Truncated = Truncated,
-            CorrectedQuery = CorrectedQuery,
-            CorrectionSkipped = CorrectionSkipped,
-            Timings = Timings,
-        };
-    }
 }

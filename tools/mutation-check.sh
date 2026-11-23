@@ -558,11 +558,11 @@ expect_caught "a-failed-round-of-the-outbox-is-silent" "${INTEGRATION_PROJECT}" 
   "FullyQualifiedName~A_failing_round_is_logged_and_retried_with_backoff" \
   "sed -i 's|            LogRoundFailed(exception, failures, next.TotalSeconds);|            _ = exception;|' src/Nordmann.LUI.Hosting/Hosting/LuiOutboxService.cs"
 
-# 26b. The typed hit gets a property that deserialises (ADR-0044, review of pull request 69): a property is a promise
-#      of a field, and the read of a payload does work and can fail. The guard of the untyped index has to name it.
-expect_caught "the-typed-hit-gets-a-payload-property" "${ARCHITECTURE_PROJECT}" \
+# 26b. The hit of a handle without a payload type gets a payload property (ADR-0074): a hit that does not know a payload type has none.
+#      The guard of the index layer and of the hits has to name it.
+expect_caught "the-hit-without-a-payload-type-gets-a-payload-property" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_index_knows_no_types" \
-  "sed -i 's|    public TPayload? GetPayload() => Hit.GetPayload<TPayload>();|    public TPayload? GetPayload() => Hit.GetPayload<TPayload>();\n\n    /// <summary>x</summary>\n    public TPayload? Payload => GetPayload();|' src/Nordmann.LUI/LuiTypedHit.cs"
+  "sed -i 's|    public bool AtWordStart { get; init; }|    public bool AtWordStart { get; init; }\n\n    /// <summary>x</summary>\n    public object? Payload => null;|' src/Nordmann.LUI/LuiHitOfKey.cs"
 
 # 26c. The provider retries a busy command for thirty seconds again (issue #70, ADR-0046): without the timeout of
 #      the commands, a write waits 31 s whatever BusyTimeout says. The test of the wait has to notice.
