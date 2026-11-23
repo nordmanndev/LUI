@@ -1212,6 +1212,66 @@ expect_caught "an-embedded-drop-takes-triggers-of-another-table" "${INTEGRATION_
   "FullyQualifiedName~MaintenanceByNameTests.An_embedded_drop_does_not_take_triggers_that_sit_on_another_table_without_the_flag" \
   "sed -i 's|        if (!dropTriggers \&\& string.Equals(source, EmbeddedSource.SourceName, StringComparison.Ordinal) \&\& HasTriggersOnAnotherTable|        if (false \&\& string.Equals(source, EmbeddedSource.SourceName, StringComparison.Ordinal) \&\& HasTriggersOnAnotherTable|' src/Nordmann.LUI/Indexes/IndexStore.cs"
 
+# 35zzu. A step runs although the state of the index does not need it (issue #266, ADR-0076): the triggers are created and announced again by every call, and a second Initialize() is not a call that does nothing.
+expect_caught "initialize-runs-a-step-the-state-does-not-need" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~InitializeTests.A_second_Initialize_does_nothing" \
+  "sed -i 's|file.Triggers == LuiTriggerState.Current|false|' src/Nordmann.LUI/CatalogInitialization.cs"
+
+# 35zzv. The first sync runs before the triggers exist (issue #266, ADR-0077): a row written between the two is in neither the sync nor the outbox — and the flag is false by then.
+expect_caught "initialize-syncs-before-it-installs-the-triggers" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~InitializeTests.The_triggers_come_before_the_first_sync_so_that_a_row_written_between_the_two_is_not_lost" \
+  "perl -0pi -e 's|(            if \\(options.InstallTriggers\\)\\n            \\{\\n                EachIndex\\(InstallTriggers\\);\\n            \\}\\n\\n)(            if \\(options.InitialSync\\)\\n            \\{\\n                EachIndex\\(RunInitialSync\\);\\n            \\}\\n)|\$2\\n\$1|' src/Nordmann.LUI/CatalogInitialization.cs"
+
+# 35zzw. The error of one index ends the call (issue #266, ADR-0076): the other indexes are not initialized, and no report says what was done.
+expect_caught "an-exception-of-one-index-stops-the-others" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~InitializeTests.One_failing_index_does_not_stop_the_others" \
+  "sed -i 's|            run.Fail(step, exception);|            _ = exception; throw;|' src/Nordmann.LUI/CatalogInitialization.cs"
+
+# 35zzx. The typo dictionaries are built before the file steps (issue #266, ADR-0076): they miss the words of the syncs, and an index with a file step left gets none.
+expect_caught "dictionaries-are-built-before-the-file-steps" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~InitializeTests.Initialize_with_defaults_brings_three_indexes_to_ready_in_order" \
+  "perl -0pi -e 's|(        // 1 the triggers, 2 the first syncs, 3 the outbox.*?\\n        \\}\\n\\n)(        // 4 the dictionaries.*?\\n        \\}\\n\\n)|\$2\$1|s' src/Nordmann.LUI/CatalogInitialization.cs"
+
+# 35zzy. A dictionary is built for an index that has a file step left (issue #266, ADR-0076): it misses the words of a sync that another process is still running.
+expect_caught "a-dictionary-is-built-for-an-index-with-a-sync-running-elsewhere" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~InitializeTests.A_sync_that_another_process_runs_is_skipped_and_reported_and_blocks_the_dictionary_of_that_index" \
+  "sed -i 's|if (!_readOnly \&\& state.File is|if (false \&\& state.File is|' src/Nordmann.LUI/CatalogInitialization.cs"
+
+# 35zzz. The dictionaries are built in parallel (issue #266, ADR-0076): the peak memory is the sum of the dictionaries and not the largest.
+expect_caught "the-dictionaries-are-built-in-parallel" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~InitializeTests.The_dictionaries_are_built_one_after_the_other" \
+  "sed -i 's|            EachIndex(BuildTypoDictionary);|            _ = Parallel.ForEach(_runs.Where(run => run.Error is null), BuildTypoDictionary);|' src/Nordmann.LUI/CatalogInitialization.cs"
+
+# 35zzza. A catalog that may not write tries the file steps (issue #266, ADR-0076): the triggers are refused, and the call fails for what a reader cannot do.
+expect_caught "a-read-only-catalog-tries-the-file-steps" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~InitializeTests.On_a_read_only_catalog_only_the_dictionaries_are_built" \
+  "sed -i 's|        if (!_readOnly)\$|        if (true)|' src/Nordmann.LUI/CatalogInitialization.cs"
+
+# 35zzzb. The first sync does not look at the flag in the transaction that takes the lease (issue #266, ADR-0077): two catalogs that both read 'due' run the sync one after the other.
+expect_caught "the-first-sync-does-not-look-at-the-flag-under-the-lease" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~TwoCatalogsInitializeTests.A_sync_that_the_other_catalog_completed_after_the_state_was_read_is_not_run_again" \
+  "sed -i 's|if (onlyWhenNeeded \&\& !(IndexStore.ReadNeedsInitialSync(|if (false \&\& !(IndexStore.ReadNeedsInitialSync(|' src/Nordmann.LUI/Indexes/LinkedSync.cs"
+
+# 35zzzc. NeedsInitialization says 'due' where another process holds the lease (issue #266, ADR-0076): the one flag no longer says what the call would do.
+expect_caught "needs-initialization-reports-a-running-sync-as-due" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~InitializeTests.NeedsInitialization_reads_the_state_of_the_index_from_the_file_and_names_it_in_text" \
+  "sed -i 's|(SyncRunning ? LuiInitializationNeeds.InitialSyncRunningElsewhere : LuiInitializationNeeds.InitialSync)|LuiInitializationNeeds.InitialSync|' src/Nordmann.LUI/Indexes/LinkedInitialization.cs"
+
+# 35zzzd. The outbox loop does not back off (issue #266, ADR-0076): a round that fails is tried again at the interval, for ever, against a file that cannot be read.
+expect_caught "the-outbox-service-does-not-back-off" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OutboxTests.A_failing_round_is_logged_and_retried_with_backoff" \
+  "sed -i 's|        return ticks >= _maxBackoff.Ticks ? _maxBackoff : TimeSpan.FromTicks((long)ticks);|        return _interval;|' src/Nordmann.LUI.Hosting/Hosting/LuiOutboxService.cs"
+
+# 35zzze. The outbox loop never resets after a success (issue #266, ADR-0076): the next failure continues the ladder where it was, and the count of the failures in a row is a lie.
+expect_caught "the-outbox-service-never-resets-after-a-success" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OutboxTests.The_first_successful_round_returns_to_the_interval" \
+  "sed -i 's|if (Interlocked.Exchange(ref _failures, 0) > 0)|if (Volatile.Read(ref _failures) > 0)|' src/Nordmann.LUI.Hosting/Hosting/LuiOutboxService.cs"
+
+# 35zzzf. The outbox loop starts on a read-only catalog (issue #266, ADR-0076): every round fails, and the host that was told to apply an outbox applies none.
+expect_caught "the-outbox-service-starts-on-a-read-only-catalog" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~OutboxTests.On_a_read_only_catalog_AddLuiOutbox_throws_at_start" \
+  "sed -i 's|        if (_catalog.IsReadOnly)|        if (false)|' src/Nordmann.LUI.Hosting/Hosting/LuiOutboxService.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"
