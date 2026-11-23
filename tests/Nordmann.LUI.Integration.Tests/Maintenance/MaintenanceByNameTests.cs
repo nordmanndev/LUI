@@ -484,6 +484,62 @@ public sealed class MaintenanceByNameTests
         tool.Indexes().Count.ShouldBe(3);
     }
 
+    [Theory]
+    [InlineData("{bad", false)]
+    [InlineData("null", false)]
+    [InlineData("{bad", true)]
+    [InlineData("null", true)]
+    public void A_damaged_row_of_a_linked_index_is_dropped_as_a_linked_index_and_its_triggers_go_only_with_the_flag(string definition, bool withTriggers)
+    {
+        using var database = new TestDatabase();
+        Run(database, Table);
+        Insert(database, (1, "vegan", 5), (2, "veganer", 4));
+        using (var catalog = database.Open())
+        {
+            var tags = catalog.Create(new LuiLinkedIndexDefinition<long>("tags_x", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count")));
+            if (withTriggers)
+            {
+                tags.CreateTriggers();
+            }
+
+            _ = tags.Sync();
+        }
+
+        Run(database, $"UPDATE lui_meta SET definition = '{definition}' WHERE index_name = 'tags_x';");
+        using var tool = LuiCatalog.Open(database.FilePath);
+
+        if (withTriggers)
+        {
+            Should.Throw<InvalidOperationException>(() => tool.DropIndex("tags_x")).Message.ShouldContain("dropTriggers: true");
+            database.Scalar<long>("SELECT count(*) FROM sqlite_master WHERE type = 'trigger' AND name LIKE 'lui_tags_x_%';").ShouldBe(3, "the triggers of the application stay without the flag");
+            database.Scalar<long>("SELECT count(*) FROM lui_meta;").ShouldBe(1, "and so does the row");
+        }
+
+        tool.DropIndex("tags_x", dropTriggers: withTriggers).ShouldBeTrue();
+
+        database.Scalar<long>("SELECT count(*) FROM sqlite_master WHERE name LIKE 'lui_tags_x%';").ShouldBe(0, "the outbox, the search index, the entries and the triggers are gone");
+        tool.Create(new LuiLinkedIndexDefinition<long>("tags_x", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"))).Sync().Indexed.ShouldBe(2, "the index can be created again");
+    }
+
+    [Theory]
+    [InlineData("null")]
+    [InlineData("{bad")]
+    public void A_damaged_row_of_an_embedded_index_is_dropped_and_created_again(string definition)
+    {
+        using var database = new TestDatabase();
+        using (var catalog = database.Open())
+        {
+            catalog.Create(Recipes).Upsert(1, "kuchen");
+        }
+
+        Run(database, $"UPDATE lui_meta SET definition = '{definition}' WHERE index_name = 'recipes';");
+        using var tool = LuiCatalog.Open(database.FilePath);
+
+        tool.DropIndex("recipes").ShouldBeTrue();
+
+        tool.Create(Recipes).Count().ShouldBe(0);
+    }
+
     [Fact]
     public void A_row_that_was_damaged_after_the_open_is_found_when_the_schema_counter_moves()
     {
