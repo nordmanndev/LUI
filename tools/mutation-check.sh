@@ -409,22 +409,21 @@ expect_caught "an-option-without-a-method-on-the-query" "${ARCHITECTURE_PROJECT}
   "FullyQualifiedName~Every_option_of_a_query_can_be_set_on_the_query" \
   "sed -i 's|    public bool TrackTimings { get; init; }|    public bool TrackTimings { get; init; }\n\n    /// <summary>x</summary>\n    public bool Extra { get; init; }|' src/Nordmann.LUI/LuiQueryOptions.cs"
 
-# 21. A member joins the interface that only reads (B.3). A default interface member needs no
-#     implementation, so the tree builds and only the guard can react.
+# 21. A member joins the base of the handles that only reads (B.3, ADR-0073). The tree builds, and only the guard can react.
 expect_caught "a-member-joins-the-read-interface" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~The_read_interface_only_reads" \
-  "sed -i '\$ i\\    /// <summary>x</summary>\n    void Extra() { }' src/Nordmann.LUI/ILuiIndex.cs"
+  "FullyQualifiedName~The_read_side_of_a_handle_only_reads" \
+  "perl -0pi -e 's|(    internal Database Database => _database;)|    /// <summary>x</summary>\n    public void Extra() { }\n\n\$1|' src/Nordmann.LUI/LuiIndexOfKey.cs"
 
-# 22. An event joins the interface that only reads (review of pull request 47, M5): an event
+# 22. An event joins the base of the handles that only reads (review of pull request 47, M5): an event
 #     is neither a property nor a method without a special name, so the guard has to ask for events.
 expect_caught "an-event-joins-the-read-interface" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~The_read_interface_only_reads" \
-  "sed -i '\$ i\\    /// <summary>x</summary>\n    event System.EventHandler? Extra { add { } remove { } }' src/Nordmann.LUI/ILuiIndex.cs"
+  "FullyQualifiedName~The_read_side_of_a_handle_only_reads" \
+  "perl -0pi -e 's|(    internal Database Database => _database;)|    /// <summary>x</summary>\n    public event System.EventHandler? Extra { add { } remove { } }\n\n\$1|' src/Nordmann.LUI/LuiIndexOfKey.cs"
 
-# 23. A write interface loses a maintenance member (B.3): the class keeps the method, so the tree builds.
+# 23. The base of the handles loses a maintenance member (B.3): the engine keeps the method, so the tree builds.
 expect_caught "a-write-interface-loses-a-maintenance-member" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~The_read_interface_only_reads" \
-  "perl -0pi -e 's|    /// <summary>\\n    /// Checks the index against itself and against.*?LuiIntegrityReport Check\\(\\);\\n\\n||s' src/Nordmann.LUI/ILuiLinkedIndex.cs"
+  "FullyQualifiedName~The_read_side_of_a_handle_only_reads" \
+  "sed -i 's|    public void Optimize()|    internal void Optimize()|' src/Nordmann.LUI/LuiIndexOfKey.cs"
 
 # 24. The client of the sample (PR-011, ADR-0027). Each mutation is a thing that would go wrong on a tired day, and the
 #     guard `SampleClientTests` has to notice — the client has no build, so nothing else does.
@@ -455,18 +454,10 @@ expect_caught "the-page-gets-an-inline-script" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~SampleClientTests" \
   "sed -i 's|</head>|<script>window.x = 1</script></head>|' samples/Lui.Sample/wwwroot/index.html"
 
-# 24b. The index knows no types (ADR-0035, ADR-0074): the untyped hit gets back a payload property — a type parameter's
-#      view through the back door. Only the hit of a handle with a payload type carries one (`LuiHit<TKey, TPayload>`, a
-#      plain value), the untyped hit and the hit of a handle without a payload type have none. It builds; only the guard of
-#      the public API can react.
-expect_caught "the-hit-gets-a-payload-property" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~The_index_knows_no_types" \
-  "sed -i 's|    /// <summary>Whether the entry has a payload.</summary>|    /// <summary>x</summary>\n    public object? Payload => StoredPayload;\n\n    /// <summary>Whether the entry has a payload.</summary>|' src/Nordmann.LUI/LuiHit.cs"
-
 # 24b2. The hit of a handle without a payload type gets a payload property (ADR-0074): a hit has a payload only where
 #       the type of the payload is declared. It builds; the guard of the public API reacts.
 expect_caught "the-key-hit-gets-a-payload-property" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~The_index_knows_no_types" \
+  "FullyQualifiedName~The_hit_carries_its_payload_only_when_the_handle_knows_its_type" \
   "sed -i 's|    /// <summary>The weight of the entry.</summary>|    /// <summary>x</summary>\n    public object? Payload => null;\n\n    /// <summary>The weight of the entry.</summary>|' src/Nordmann.LUI/LuiHitOfKey.cs"
 
 # 24b3. The payload is not loaded with the query (ADR-0074): the hit holds the default of its type, where the payload was to
@@ -500,18 +491,29 @@ expect_caught "a-handle-without-a-payload-type-reads-the-payload-column" "${INTE
 #       another definition is read as if it were the old one.
 expect_caught "check-payloads-skips-the-guard" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~CheckPayloadsTests" \
-  "perl -0pi -e 's|(using var snapshot = connection.BeginTransaction\(deferred: true\);\n)        guard\?\.Check\(connection, snapshot\);\n(\n        var unreadable)|\$1\$2|' src/Nordmann.LUI/Indexes/EmbeddedCheck.cs"
+  "perl -0pi -e 's|(using var snapshot = connection.BeginTransaction\(deferred: true\);\n)        guard\?\.Check\(connection, snapshot\);\n(\n        using var command = Command\(connection, snapshot, source.PayloadsSql\))|\$1\$2|' src/Nordmann.LUI/Indexes/EmbeddedCheck.cs"
 
 # 24b9. CheckPayloads stops at the first entry it cannot read (ADR-0074): the list is not every entry.
 expect_caught "check-payloads-stops-at-the-first-unreadable-entry" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~CheckPayloadsTests" \
-  "sed -i 's|                unreadable.Add((key, exception.Message));|                if (unreadable.Count == 0) { unreadable.Add((key, exception.Message)); }|' src/Nordmann.LUI/Indexes/EmbeddedCheck.cs"
+  "sed -i 's|                        unreadable.Add(new LuiUnreadablePayload<TKey> { Key = KeyConversion.FromText<TKey>(key, Name), Message = exception.Message });|                        if (unreadable.Count == 0) { unreadable.Add(new LuiUnreadablePayload<TKey> { Key = KeyConversion.FromText<TKey>(key, Name), Message = exception.Message }); }|' src/Nordmann.LUI/LuiEmbeddedIndexOfKeyAndPayload.cs"
 
-# 24c. A key of the other kind reaches the file (ADR-0035): the check of the kind is skipped, and a text
-#      would be written into an index of numbers — a key that can never be read back.
-expect_caught "a-key-of-the-other-kind-reaches-the-file" "${UNIT_PROJECT}" \
+# 24b3. The index layer holds a type parameter (ADR-0035, ADR-0073): the way an application type enters it. The tree builds, and only the
+#       guard of the layer can react.
+expect_caught "the-index-layer-gets-a-type-parameter" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_index_layer_references_no_application_types" \
+  "printf 'namespace Nordmann.LUI.Indexes;\n\ninternal sealed class PayloadHolder<TPayload>\n{\n    internal TPayload? Value { get; set; }\n}\n' > src/Nordmann.LUI/Indexes/PayloadHolder.cs"
+
+# 24b4. The index layer names a serializer (ADR-0072, ADR-0073): a field of the registry in a type of the layer.
+expect_caught "the-index-layer-names-a-serializer" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_index_layer_references_no_application_types" \
+  "sed -i 's|^internal sealed record IndexRuntime(IMaintainedIndex Index, IndexGuard Guard);|internal sealed record IndexRuntime(IMaintainedIndex Index, IndexGuard Guard)\n{\n    internal LuiPayloadRegistry? Registry { get; init; }\n}|' src/Nordmann.LUI/Indexes/IndexRuntime.cs"
+
+# 24c. A text that is no GUID in the form D is read as a GUID key (ADR-0073): a damaged key would read as another key instead of
+#      failing the read. (A key of the other kind can no longer be written: the type argument of the definition is the key type.)
+expect_caught "a-damaged-guid-key-is-read-leniently" "${UNIT_PROJECT}" \
   "FullyQualifiedName~KeyCodecTests" \
-  "sed -i 's|        if (key.Kind != kind)|        if (key.Kind != kind \&\& string.IsNullOrEmpty(indexName))|' src/Nordmann.LUI/Schema/KeyCodec.cs"
+  "sed -i 's|Guid.TryParseExact(text, \"D\", out var guid)|Guid.TryParse(text, out var guid)|' src/Nordmann.LUI/KeyConversion.cs"
 
 # 24d. The JSON payload is read tolerantly again (review of PR 60, I1): a chip read as a recipe comes back as a recipe
 #      of defaults — wrong data that looks like right data — instead of an error.
@@ -557,12 +559,6 @@ expect_caught "a-dispose-that-never-wakes-the-waiter" "${INTEGRATION_PROJECT}" \
 expect_caught "a-failed-round-of-the-outbox-is-silent" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~A_failing_round_is_logged_and_retried_with_backoff" \
   "sed -i 's|            LogRoundFailed(exception, failures, next.TotalSeconds);|            _ = exception;|' src/Nordmann.LUI.Hosting/Hosting/LuiOutboxService.cs"
-
-# 26b. The hit of a handle without a payload type gets a payload property (ADR-0074): a hit that does not know a payload type has none.
-#      The guard of the index layer and of the hits has to name it.
-expect_caught "the-hit-without-a-payload-type-gets-a-payload-property" "${ARCHITECTURE_PROJECT}" \
-  "FullyQualifiedName~The_index_knows_no_types" \
-  "sed -i 's|    public bool AtWordStart { get; init; }|    public bool AtWordStart { get; init; }\n\n    /// <summary>x</summary>\n    public object? Payload => null;|' src/Nordmann.LUI/LuiHitOfKey.cs"
 
 # 26c. The provider retries a busy command for thirty seconds again (issue #70, ADR-0046): without the timeout of
 #      the commands, a write waits 31 s whatever BusyTimeout says. The test of the wait has to notice.
@@ -957,11 +953,8 @@ expect_caught "object-is-a-payload-type" "${UNIT_PROJECT}" \
   "FullyQualifiedName~LuiPayloadRegistryTests.A_payload_type_that_is_no_single_type_is_refused_also_when_a_context_answers_for_it" \
   "sed -i 's|type == typeof(object) ? \"object\"|type == typeof(void) ? \"object\"|' src/Nordmann.LUI/Schema/PayloadTypeName.cs"
 
-# 35z. The old write path by name ignores the fingerprint (issue #260, ADR-0072, review of pull request 288): the serializer of the old
-#       calls writes bytes of its own format into an index that stores another one.
-expect_caught "the-old-write-path-ignores-the-fingerprint" "${INTEGRATION_PROJECT}" \
-  "FullyQualifiedName~PayloadFingerprintTests.The_old_write_path_by_name_refuses_a_payload_for_an_index_that_stores_a_format" \
-  "sed -i 's|PayloadFormat: { } storedFormat }$|PayloadFormat: { } storedFormat } \&\& storedFormat.Length < 0|' src/Nordmann.LUI/LuiCatalog.cs"
+# 35z. (The old write path by name ignored the fingerprint — the rule went with the calls by name (#268): a definition without a payload type
+#       does not open an index that stores a format, which `the-format-is-not-part-of-the-fingerprint` and the mismatch tests hold.)
 
 # 35za. A context that fails is cached as the exception it threw (issue #260, review of pull request 288): the same instance on every use, without
 #       the name of the definition.
