@@ -26,7 +26,8 @@ public sealed record LuiInitializeReport
     {
         var indexes = Indexes.Count == 0 ? string.Empty : "; " + string.Join("; ", Indexes.Select(Describe));
         var state = Failed ? "FAILED" : Ready ? "ready" : "not ready";
-        return string.Create(CultureInfo.InvariantCulture, $"Initialize: {Indexes.Count} indexes in {Elapsed.TotalSeconds:F2} s, {state}{indexes}");
+        var noun = Indexes.Count == 1 ? "index" : "indexes";
+        return string.Create(CultureInfo.InvariantCulture, $"{Indexes.Count} {noun} in {Elapsed.TotalSeconds:F2} s: {state}{indexes}");
     }
 
     private static string Describe(LuiInitializeIndexReport line)

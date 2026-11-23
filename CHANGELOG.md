@@ -128,7 +128,39 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   schema counter changes. A catalog opened with `OpenReadOnly` lists and counts; `Optimize`, `Rebuild` and `Check` are a `LuiReadOnlyException` that names the index. **Migration: none — the members are new** (two existing members change a detail: see *Changed*). Which check for what: `Check()` / `catalog.Check(name)` reads no payload but holds the write lock of the file while FTS5 checks the index, and a linked index's payload columns are checked (health checks on a schedule), `CheckPayloads()` reads every stored payload (maintenance, after a change
   of the payload type). New public type: `LuiIndexInfo`.
 
+- **`catalog.Initialize()` — the one explicit start call** ([ADR-0076](.agents/adr/0076-maintenance-works-by-name.md), #266): `Initialize(LuiInitializeOptions? options = null, CancellationToken cancellationToken = default)`
+  returns a `LuiInitializeReport` and does everything an index needs at the start of a process, **in LUI's order and by the state of each index**: (1) the triggers of every linked index whose
+  triggers are missing or stale (`CreateTriggers()`), (2) the first sync of every linked index that still needs one, one after the other, in batches, (3) the outbox, (4) the typo dictionaries — last, so
+  that they know the words of the syncs and the outbox, and **one after the other**, so that the peak memory is that of the largest dictionary. A second call does nothing. It is **synchronous** — there is no
+  `InitializeAsync` — and LUI never calls it on its own. `LuiInitializeOptions` switches each step off (`InstallTriggers`, `InitialSync`, `ApplyPending`, `WarmUpTypoDictionaries`), limits the run to some
+  indexes by definition (`Indexes`; `null` is every index, from the stored definitions; a definition of an index that does not exist is a `LuiIndexNotFoundException` before any step), and takes the options of the
+  syncs (`Sync`) and a progress (`Progress`, a `LuiInitializeProgress` before each step and after each batch). **Several processes:** the first sync is guarded by the lease of #271 — of two processes that start together
+  exactly one runs it, and the other skips it and reports `InitialSyncRunningElsewhere` without waiting or failing; a typo dictionary is per process, and an index with a file step left gets none yet.
+  **One failing index does not stop the others**: the call ends with a `LuiInitializeException` that carries the complete `Report` and the `Errors` by index name. A cancelled call keeps what it finished.
+  **A catalog opened with `OpenReadOnly`** builds the dictionaries and leaves the file steps to the writing process. The report has one `LuiInitializeIndexReport` per index (`TriggersInstalled`,
+  `Sync`, `PendingApplied`, `TypoDictionaryBuilt`, `Skipped`, `Failed`, `FailedStep`, `Elapsed`) and a total; `ToString()` is a log line. Each dictionary takes seconds and some hundred MB at the size of the German word list.
+  **Migration: none — the members are new.** New public types: `LuiInitializeOptions`, `LuiInitializeProgress`, `LuiInitializeStep`, `LuiInitializeReport`, `LuiInitializeIndexReport`, `LuiInitializeException`, `LuiInitializationNeeds`;
+  `LuiCatalog.IsReadOnly` says how the catalog was opened.
+
+- **Forgetting is visible — `LuiIndexInfo.NeedsInitialization`** (ADR-0076, #266): a `[Flags]` `LuiInitializationNeeds` — `None` when the index is ready; `Triggers`, `StaleTriggers`, `InitialSync`,
+  `InitialSyncRunningElsewhere`, `TypoDictionary` — read from the state like `Initialize()` reads it. Without `Initialize()` a typo-tolerant index reports `TypoDictionary` and a linked one
+  `InitialSync | Triggers`. A readiness check is `catalog.Indexes().All(index => index.NeedsInitialization == LuiInitializationNeeds.None)`; on a read-only catalog it asks for `TypoDictionary` only.
+  `Indexes()` now reads the file for each **linked** index (the triggers, the flag of the first sync and its lease, in one snapshot); an embedded index costs no statement.
+  **Migration: `LuiIndexInfo` has a new `required` property** — code that constructs one (a test double) sets `NeedsInitialization`; code that reads one is unchanged.
+
+- **`AddLuiOutbox` — the one background loop LUI needs** (ADR-0076, #266): `AddLuiOutbox(TimeSpan interval)` or `AddLuiOutbox(Action<LuiOutboxOptions>)` (`Interval`, 30 s by default; `MaxBackoff`, 5 minutes by
+  default) registers a service of the host that calls `catalog.ApplyPending()` every `Interval` and stops with the host. **It does nothing at the start** — that is `Initialize()`, which the application calls; LUI
+  offers no hosted service that calls it. **A failing round never stops the host**: it is logged through the logger of the host (a warning, with the exception), the next round waits with exponential backoff up to
+  `MaxBackoff`, and the first round that works goes back to the interval. On a catalog opened with `OpenReadOnly` the host does not start (`a read-only catalog cannot apply the outbox`). `AddLuiWarmup` stays until #268
+  removes it; `Initialize()` with `AddLuiOutbox` replaces it. **Migration: none — the members are new.** New public type: `LuiOutboxOptions`.
+
+- **The host pattern** (ADR-0076, #266; README "Starting up", `docs/api.md`): the factory of `AddLui` only **opens** the catalog; `catalog.Create(…)` and `catalog.Initialize()` are explicit steps after `Build()`, so that
+  every configuration error stops the start at a line of `Program.cs`. The documented default for a container is a background service of the application that calls `Initialize()`: the host is up at once, a readiness check says
+  "not ready" until it is done, and a long first sync does not fail a liveness probe. The short form for a small application is `catalog.Initialize();` before `app.Run()`.
+
 ### Changed
+
+- **The comment of `LuiTypoDictionaryState.NotBuilt` is true again** (#266): it said that the first correction builds the dictionary, which stopped being true with ADR-0042 — a query never builds it; `Initialize()` or `WarmUpTypoDictionary()` does.
 
 - **A stored definition that cannot be read is a `LuiDefinitionMismatchException` that names the index; `DropIndex` takes such a row** (ADR-0076, #273): a row of `lui_meta`
   whose definition is `null` or malformed JSON used to surface as an `InvalidOperationException` or as the bare `JsonException` of the parser, naming no index; now every read of it —
@@ -204,6 +236,11 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   Now it works in batches (see *Added*): other writers wait for one transaction at a time, a cancelled sync keeps its batches, and the index is partly old and partly new while it runs.
 
 ### Migration
+
+**The start of an application** (#266): replace the sequence you wrote yourself — `CreateTriggers()`, `if (NeedsInitialSync) Sync()`, `ApplyPending()`, `WarmUpTypoDictionary()` of every index, or `AddLuiWarmup()` of the host —
+with one call after `Create`: `catalog.Initialize();` (in the background in a container: see the host pattern in the README). A host that applied the outbox on an interval with `AddLuiWarmup()` adds
+`AddLuiOutbox(TimeSpan.FromSeconds(10))` for the loop. `AddLuiWarmup` is removed with #268, before 0.4.0 is released. A readiness check reads `catalog.Indexes()` — `NeedsInitialization == None` for every index —
+instead of asking each index.
 
 **A break the compiler does not see — read it first: files of 0.3.0 are not read.** A catalog file that holds an index written by 0.3.0
 (format 1) cannot be opened by 0.4.0: `LuiCatalog.Open`, `OpenReadOnly` and `OpenOrCreate` throw a `LuiFormatException` before any index is

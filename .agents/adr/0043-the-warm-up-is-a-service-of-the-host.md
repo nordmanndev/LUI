@@ -1,5 +1,8 @@
 # 0043 — The warm-up is a service of the host
 
+> **Note (issue #266, 2026-11-23):** [ADR-0076](./0076-maintenance-works-by-name.md) supersedes this decision: `catalog.Initialize()` brings every index to ready and `AddLuiOutbox` is the one background loop,
+> and #268 removes `AddLuiWarmup`. Until then the service below is what the code has; the record stays as it was written.
+
 > **Note (issue #148, 2026-11-13):** the decision below says that the host stops the service and disposes it, and that
 > the timer of the outbox belongs to the service and dies with it. What was missing is the round that **runs** when the
 > host stops: the timer died, the round went on — it held the file of the application, and the host that stopped the

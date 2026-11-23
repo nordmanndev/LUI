@@ -153,6 +153,34 @@ service that only reads: `LuiCatalog.OpenOrCreate("app.db")` and
 writes nothing at all — no write-ahead logging, no `lui_meta` — and every
 write is refused with a `LuiReadOnlyException`.
 
+## Starting up: `Initialize()`, the outbox loop and the host pattern
+
+An application has four start steps to know and to order: the triggers and the first sync of a linked index, the rows of the outbox, and the typo
+dictionaries — and every forgotten one fails silently (an index without its dictionary never corrects). **`catalog.Initialize()`** does all of them in one
+explicit, synchronous call, in LUI's order and by the state of each index: the triggers first, then the first syncs, then the outbox, and last the
+dictionaries, one after the other. A second call does nothing, one failing index does not stop the others (a `LuiInitializeException` at the end carries the
+report and the error of each), and `NeedsInitialization` on `catalog.Indexes()` says what is still missing — so a readiness check is one line.
+
+The factory of `AddLui` only **opens** the catalog. The indexes are created and initialized after `Build()`, so that a configuration error stops the start at
+a line of `Program.cs` — and the initialization runs in the background, in a service of your own, so that the host is up at once and a long first sync does not fail
+a liveness probe:
+
+```text
+builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"));    // open only
+builder.Services.AddLuiOutbox(TimeSpan.FromSeconds(10));              // the one background loop: ApplyPending() every 10 s
+builder.Services.AddHostedService<SearchInitializer>();               // your own: catalog.Initialize(cancellationToken: stoppingToken)
+
+var app = builder.Build();
+app.Services.GetRequiredService<LuiCatalog>().Create(SearchIndexes.Recipes, SearchIndexes.Tags);   // fast; a broken definition stops the start here
+app.MapHealthChecks("/ready");      // not ready while an index has NeedsInitialization != None
+app.Run();
+```
+
+`AddLuiOutbox` applies the outbox of your linked indexes every `Interval` and stops with the host; a round that fails is logged as a warning and retried with
+backoff up to `MaxBackoff`, and on a read-only catalog the host does not start. It does nothing at the start — that is `Initialize()`. The sections of the
+[README](../../README.md#starting-up-initialize-and-the-host-pattern) and of the [API page](../api.md#initializing--the-start-of-a-process) have the whole pattern;
+what follows is the way of `0.3.0`, which `Initialize()` and `AddLuiOutbox` replace.
+
 ## The background work is yours — or LUI's, if you ask
 
 Two things repeat in every application that searches with LUI, and both are
