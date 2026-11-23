@@ -1212,7 +1212,7 @@ The outbox loop is a service of the host, not a thread of the library: the host 
 
 ## The whole surface
 
-Seventy public type names in `Nordmann.LUI` (eighty-five types: a generic type counts once for each number of type parameters), three in `Nordmann.LUI.Hosting`. Nothing else is public.
+Sixty-one public type names in `Nordmann.LUI` (seventy-one types: a generic type counts once for each number of type parameters), two in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|

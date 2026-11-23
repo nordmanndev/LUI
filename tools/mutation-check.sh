@@ -698,7 +698,7 @@ expect_caught "a-null-read-as-null-for-every-type-refused" "${INTEGRATION_PROJEC
 #       second time has to notice.
 expect_caught "the-distance-does-not-survive-a-restart" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~An_opened_index_keeps_its_distance_and_corrects_without_the_query_asking_for_it" \
-  "sed -i 's|typoDistance: entry.Definition.TypoDistance);|typoDistance: LuiTypoDistance.None);|' src/Nordmann.LUI/LuiCatalog.cs"
+  "sed -i 's|typoDistance: entry.Definition.TypoDistance,|typoDistance: LuiTypoDistance.None,|' src/Nordmann.LUI/Indexes/IndexRuntimes.cs"
 
 # 26y. The distance of the index never reaches its dictionary (ADR-0054): every index forgives one error, whatever
 #       its definition says. The index that forgives nothing would build a dictionary — and pay for it.
@@ -940,7 +940,7 @@ expect_caught "a-second-serializer-option-appears" "${INTEGRATION_PROJECT}" \
 #      asked of the registry when the index is created or opened.)
 expect_caught "a-payload-error-is-made-a-configuration-error" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~PayloadFingerprintTests.A_payload_that_cannot_be_read_is_a_payload_exception_and_not_a_configuration_exception" \
-  "sed -i 's|throw new LuiPayloadException(indexName, key.ToString(), typeof(T), exception.Message, exception);|throw new LuiConfigurationException(exception.Message, exception);|' src/Nordmann.LUI/Querying/PayloadSource.cs"
+  "sed -i 's|throw new LuiPayloadException(indexName, key, typeof(T), exception.Message, exception);|throw new LuiConfigurationException(exception.Message, exception);|' src/Nordmann.LUI/Querying/PayloadSource.cs"
 
 # 35x. The name of a payload type carries the assembly version (issue #260, ADR-0072): a rebuild with another version is a changed definition.
 expect_caught "the-name-of-a-payload-type-carries-the-assembly-version" "${UNIT_PROJECT}" \

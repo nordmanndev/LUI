@@ -188,3 +188,13 @@ chain ended in a `Create()` that the catalog called — the description and the 
   one could reach an index that needs one. Four definition types make it a fact of the type.
 - **`LuiLinkedIndexBuilder<TPayload>` deriving from `LuiLinkedIndexBuilder`.** A `LuiLinkedIndexDefinition<long>` would then accept a
   builder with a payload and ignore its map; with two unrelated builders the compiler refuses it.
+
+## Removal (#268, 2026-11-23)
+
+The old calls are removed, not deprecated (ADR-0071): `ILuiIndex`, `ILuiEmbeddedIndex`, `ILuiLinkedIndex`, the non-generic `LuiHit`, `LuiResult`,
+`LuiEntry` and `LuiQuery`, `LuiTypedIndex<T>` and its siblings, `LuiKey` and `LuiKeyKind`, `Create(name, …)`, `CreateLinked`, `Index(name)`,
+`LinkedIndex`, the builders' `Create()` and `WithKey`, `LuiCatalogOptions.PayloadSerializer`, the non-generic `ILuiPayloadSerializer`, `GetPayload`,
+`TryGetPayload`, `HasPayload`, and in the hosting package `AddLuiWarmup` and `LuiWarmupOptions`. Below the handles the index layer speaks the key as the
+text the file stores (`KeyConversion` at the border) and the internal `RawEntry`, `RawHit` and `RawResult`; `LuiPayloadException.Key` is the stored key
+text. The guard `The_index_knows_no_types` of ADR-0035 is `The_index_layer_references_no_application_types`: the index and storage layers have no type
+parameter, name no type of another assembly and use no serializer. The migration lines are in `CHANGELOG.md`.
