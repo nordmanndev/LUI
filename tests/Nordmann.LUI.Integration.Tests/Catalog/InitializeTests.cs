@@ -584,6 +584,46 @@ public sealed class InitializeTests
         catalog.Indexes().ShouldAllBe(index => index.NeedsInitialization == LuiInitializationNeeds.None);
     }
 
+    [Fact]
+    public void A_lease_that_is_taken_between_the_read_and_the_take_is_running_elsewhere_and_no_failure()
+    {
+        // the real race of two processes that start together: both read "the lease is free", one takes it first, the other loses the take and gets a
+        // LuiSyncInProgressException from the sync. That is the answer "running elsewhere" — not a failure of the index, which would stop a host
+        using var database = World(withCooks: true);
+        var clock = new FixedClock();
+        using var catalog = database.Open(new LuiCatalogOptions { TimeProvider = clock });
+        var steps = new Steps();
+        steps.When(
+            progress => progress.Step == LuiInitializeStep.InitialSync && progress.Sync is null && string.Equals(progress.IndexName, "cooks", StringComparison.Ordinal),
+            () => Run(database, $"UPDATE lui_meta SET sync_lease_owner = 'the-other-process', sync_lease_expires = {clock.GetUtcNow().AddSeconds(30).ToUnixTimeMilliseconds()} WHERE index_name = 'cooks';"));
+
+        var report = catalog.Initialize(new LuiInitializeOptions { Progress = steps });
+
+        report.Failed.ShouldBeFalse("a lease that was lost in the race is no failure");
+        Line(report, "cooks").Sync.ShouldBeNull();
+        Line(report, "cooks").TypoDictionaryBuilt.ShouldBeFalse("its sync is still to come");
+        Line(report, "cooks").Skipped.ShouldBe(LuiInitializationNeeds.InitialSyncRunningElsewhere | LuiInitializationNeeds.TypoDictionary);
+        Line(report, "chefs").Sync.ShouldNotBeNull("the other indexes went on");
+    }
+
+    [Fact]
+    public void Indexes_costs_a_bounded_number_of_statements_per_linked_index()
+    {
+        // a readiness probe calls Indexes() every few seconds: the state of a linked index is the guard's counter, the triggers, the flag and the lease
+        // in one snapshot — a handful of statements. The bound has room (the begin and the pragma of a connection count), and a Count() or a scan
+        // of the table creeping in would not fit it
+        using var database = World(withCooks: true);
+        using var catalog = database.Open();
+        _ = catalog.Indexes();
+        var commands = new Nordmann.LUI.Storage.CommandCounter();
+        catalog.Database.CommandCounter = commands;
+
+        _ = catalog.Indexes();
+
+        const int linked = 2;
+        commands.Count.ShouldBeLessThanOrEqualTo(1 + (linked * 8), "one statement for the schema counter, and at most eight for each linked index");
+    }
+
     // ---- the plumbing of the tests --------------------------------------------------------------------------------------
 
     private static LuiInitializeIndexReport Line(LuiInitializeReport report, string name) =>

@@ -189,6 +189,14 @@ public sealed class OutboxTests
         Should.Throw<ArgumentOutOfRangeException>(() => new ServiceCollection().AddLuiOutbox(options => options.Interval = TimeSpan.FromSeconds(-1)));
         Should.Throw<ArgumentOutOfRangeException>(() => new ServiceCollection().AddLuiOutbox(options => options.MaxBackoff = TimeSpan.Zero));
 
+        // a value the timer cannot wait for would stop the host at the first wait: it is refused at the registration, and the message names the option
+        var tooLong = Should.Throw<ArgumentOutOfRangeException>(() => new ServiceCollection().AddLuiOutbox(options => options.MaxBackoff = TimeSpan.MaxValue));
+        tooLong.Message.ShouldContain("LuiOutboxOptions.MaxBackoff");
+        Should.Throw<ArgumentOutOfRangeException>(() => new ServiceCollection().AddLuiOutbox(TimeSpan.FromDays(60))).Message.ShouldContain("LuiOutboxOptions.Interval");
+        Should.Throw<ArgumentOutOfRangeException>(() => new ServiceCollection().AddLuiOutbox(options => options.MaxBackoff = TimeSpan.Zero)).Message.ShouldContain("LuiOutboxOptions.MaxBackoff");
+        Should.Throw<ArgumentOutOfRangeException>(() => new ServiceCollection().AddLuiOutbox(TimeSpan.Zero)).Message.ShouldContain("LuiOutboxOptions.Interval");
+        Should.NotThrow(() => new ServiceCollection().AddLuiOutbox(options => options.MaxBackoff = TimeSpan.FromDays(24)));
+
         // the defaults of the issue
         var options = new LuiOutboxOptions();
         options.Interval.ShouldBe(TimeSpan.FromSeconds(30));

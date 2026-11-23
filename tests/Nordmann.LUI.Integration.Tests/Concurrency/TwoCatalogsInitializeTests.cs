@@ -75,6 +75,7 @@ public sealed class TwoCatalogsInitializeTests
 
         // a later call of the second completes: the sync is done, only its dictionary is left
         var later = second.Initialize();
+        later.Ready.ShouldBeTrue("a repeat after the other process finished is ready: Initialize() is safe to repeat");
         Line(later, "cooks").Sync.ShouldBeNull("the first sync is done: it is not run again");
         Line(later, "cooks").TypoDictionaryBuilt.ShouldBeTrue();
         second.Indexes().ShouldAllBe(index => index.NeedsInitialization == LuiInitializationNeeds.None);

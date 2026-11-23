@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Time.Testing;
 using Shouldly;
 using static Nordmann.LUI.Integration.Tests.Linked.LinkedTable;
 
@@ -174,6 +175,45 @@ public sealed class HostPatternTests
         restarted.Index(Chefs).Count().ShouldBe(40);
     }
 
+    [Fact]
+    public async Task A_predecessor_that_was_killed_in_its_first_sync_leaves_a_lease_and_the_initializer_that_repeats_Initialize_finishes_when_it_expires()
+    {
+        // the real crash: a pod that is killed during its first sync does not release its lease (a cancelled run does, in its finally). The restarted pod
+        // sees the lease for up to a minute — it reports InitialSyncRunningElsewhere, the readiness stays false, and the initializer of the docs
+        // repeats the call until the report says Ready: Initialize() is idempotent and safe to repeat
+        using var database = Written();
+        var clock = new FakeTimeProvider(new DateTimeOffset(2026, 11, 23, 9, 0, 0, TimeSpan.Zero));
+        using var host = BuildRetrying(database, clock);
+        var catalog = host.Services.GetRequiredService<LuiCatalog>();
+        catalog.Create(Recipes, Chefs, Tags);
+        Run(database, $"UPDATE lui_meta SET sync_lease_owner = 'dead-pod', sync_lease_expires = {clock.GetUtcNow().AddSeconds(60).ToUnixTimeMilliseconds()} WHERE index_name = 'chefs';");
+        var initializer = host.Services.GetServices<IHostedService>().OfType<RetryingInitializer>().Single();
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await initializer.Waiting.WaitAsync(HangStop, TestContext.Current.CancellationToken);
+
+        Ready(catalog).ShouldBeFalse("the lease of the dead pod is held");
+        initializer.Reports[0].Indexes.Single(line => string.Equals(line.Name, "chefs", StringComparison.Ordinal)).Skipped
+            .ShouldBe(LuiInitializationNeeds.InitialSyncRunningElsewhere);
+        initializer.Reports[0].Failed.ShouldBeFalse("a held lease is no failure");
+
+        // the pause passes, the lease is still there: the call is repeated, and is not ready again
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await initializer.Waiting.WaitAsync(HangStop, TestContext.Current.CancellationToken);
+        Ready(catalog).ShouldBeFalse();
+        initializer.ExecuteTask!.IsCompleted.ShouldBeFalse("the initializer goes on until the report says Ready");
+
+        // the lease runs out: the next call takes it over, syncs, builds the dictionary — and the initializer ends
+        clock.Advance(TimeSpan.FromSeconds(55));
+        await initializer.Waiting.WaitAsync(HangStop, TestContext.Current.CancellationToken);
+        await initializer.ExecuteTask.WaitAsync(HangStop, TestContext.Current.CancellationToken);
+
+        initializer.Reports[^1].Ready.ShouldBeTrue();
+        Ready(catalog).ShouldBeTrue();
+        catalog.Index(Chefs).Count().ShouldBe(40);
+        await host.StopAsync(TestContext.Current.CancellationToken);
+    }
+
     /// <summary>The readiness check of the docs: not ready while any index has <c>NeedsInitialization != None</c>.</summary>
     private static bool Ready(LuiCatalog catalog) =>
         catalog.Indexes().All(index => index.NeedsInitialization == LuiInitializationNeeds.None);
@@ -198,6 +238,46 @@ public sealed class HostPatternTests
         }
 
         return builder.Build();
+    }
+
+    private static IHost BuildRetrying(TestDatabase database, FakeTimeProvider clock)
+    {
+        var builder = Microsoft.Extensions.Hosting.Host.CreateApplicationBuilder();
+        builder.Services.AddSingleton<TimeProvider>(clock);
+        builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate(database.FilePath, new LuiCatalogOptions { TimeProvider = clock }));
+        builder.Services.AddHostedService<RetryingInitializer>();
+        return builder.Build();
+    }
+
+    /// <summary>The initializer of the docs as it repeats the call while the report is not ready; the pause is the clock of the test, and every report is a signal.</summary>
+    private sealed class RetryingInitializer(LuiCatalog catalog, TimeProvider time) : BackgroundService
+    {
+        internal List<LuiInitializeReport> Reports { get; } = [];
+
+        /// <summary>One signal per report, given once the pause is armed (or the work is done).</summary>
+        internal SemaphoreSlim Waiting { get; } = new(0);
+
+        protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+        {
+            while (true)
+            {
+                var report = await Task.Run(() => catalog.Initialize(cancellationToken: stoppingToken), stoppingToken).ConfigureAwait(false);
+                lock (Reports)
+                {
+                    Reports.Add(report);
+                }
+
+                if (report.Ready)
+                {
+                    _ = Waiting.Release();
+                    return;
+                }
+
+                var pause = Task.Delay(TimeSpan.FromSeconds(10), time, stoppingToken);
+                _ = Waiting.Release();
+                await pause.ConfigureAwait(false);
+            }
+        }
     }
 
     /// <summary>The initializer of the docs — the application's own background start — and a gate before its first step.</summary>
