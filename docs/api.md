@@ -63,7 +63,9 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 | `ILuiEmbeddedIndex Index(string name)` | opens an embedded index that exists, and **writes nothing**: the definition is read out of the file, no table, no write lock. |
 | `ILuiLinkedIndex LinkedIndex(string name)` | opens a linked index without payload columns. |
 | `ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)` | opens a linked index with payload columns; the map builds the payload from the row of the table. |
-| `IReadOnlyList<LuiIndexInfo> Indexes()` | describes **every** index of the catalog by what is stored, in the order of the names — **one row that cannot be read (another LUI format, `null` or malformed JSON) makes the whole call throw a `LuiDefinitionMismatchException` that names the index; `DropIndex` is the way out** — without a definition and without a payload type ([maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type), ADR-0076). The definition fields come from the memory of the catalog, with no statement that reads them; the typo dictionary state is read when it is called. |
+| `IReadOnlyList<LuiIndexInfo> Indexes()` | describes **every** index of the catalog by what is stored, in the order of the names — **one row that cannot be read (another LUI format, `null` or malformed JSON) makes the whole call throw a `LuiDefinitionMismatchException` that names the index; `DropIndex` is the way out** — without a definition and without a payload type ([maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type), ADR-0076). The definition fields come from the memory of the catalog, with no statement that reads them; the typo dictionary state and `NeedsInitialization` are read when it is called (for a linked index that is one read of the file). |
+| `LuiInitializeReport Initialize(LuiInitializeOptions? options = null, CancellationToken cancellationToken = default)` | **the one explicit, synchronous start call** (ADR-0076): brings every index to the state an application needs at the start of a process, in LUI's order and driven by the state of each index — the triggers of every linked index, then the first sync of every linked index that needs one, the outbox, and the typo dictionaries last and one after the other. A second call right after the first does nothing. See [Initializing](#initializing--the-start-of-a-process). There is no `InitializeAsync`: the work is synchronous SQLite. |
+| `bool IsReadOnly { get; }` | whether the catalog was opened with `OpenReadOnly` — the way it was opened and no second switch (ADR-0068). The hosting package asks it to refuse `AddLuiOutbox` on a catalog that cannot apply an outbox. |
 | `long Count(string name)` | the number of the entries of the index, embedded or linked; the check of the schema counter and the count are one step. A name that is not there is a `LuiIndexNotFoundException` that names it. |
 | `LuiIntegrityReport Check(string name)` | compares the index with itself (embedded) or with its table (linked); the report has no keys. **Structure only: it reads no payload and calls no map** (the payload *columns* of a linked index are stored, and are checked). It holds the **write lock of the file for the whole of FTS5's integrity check**, which reads the whole index (an insert that is rolled back): cheap in what it reads, not in the lock it takes — do not wire it into a liveness probe of a second on a large index (#275 measures it). For the same reason a catalog opened with `OpenReadOnly` refuses it with a `LuiReadOnlyException`. |
 | `void Optimize(string name)` | lets SQLite optimize the search index of the index, embedded or linked. A catalog opened with `OpenReadOnly` refuses it with a `LuiReadOnlyException` that names the index. |
@@ -100,7 +102,9 @@ another definition is **used as it is stored** — there is nothing to mismatch.
   the names a user types on an admin endpoint cause no reload per request.
 - **`Indexes()`** asks whether the schema counter moved — one statement — and reads the definitions again only then, so an index that another
   process created or dropped is in the list. It reads **no** definition from the file otherwise. `TypoDictionaryState` is the state of the
-  dictionary in **this** catalog, read at the call; `NotBuilt` says that this catalog has not built it.
+  dictionary in **this** catalog, read at the call; `NotBuilt` says that this catalog has not built it. `NeedsInitialization` is read like
+  `Initialize()` reads it — for a linked index the triggers, the flag of the first sync and its lease, from the file in one snapshot; for an
+  embedded index only the dictionary, from memory.
 - **A read-only catalog** lists and counts; what writes — `Optimize`, `Rebuild`, and `Check`, whose integrity check is an insert that is rolled
   back — is a `LuiReadOnlyException` that names the index.
 
@@ -109,12 +113,12 @@ Which check for what:
 | check | cost | use |
 |---|---|---|
 | `Check()` of a handle, `catalog.Check(name)` | structure only (definition, triggers, the payload columns of a linked index, FTS5's integrity check, the counts against the table); **holds the write lock of the file while FTS5 checks the index** and is refused on a read-only catalog | health checks on a schedule, not a liveness check of a second |
-| `catalog.Indexes()` → `NeedsInitialization` (#266) | cheap: state only | readiness, every probe |
+| `catalog.Indexes()` → `NeedsInitialization` | cheap: state only (one small read of the file per linked index) | readiness, every probe |
 | `CheckPayloads()` of a typed handle with a payload (ADR-0074) | reads every stored payload | maintenance, after a change of the payload type |
 
 ### `LuiIndexInfo` — an index described by name
 
-What `Indexes()` returns: a sealed record, one per index, a snapshot with named properties (`init`-only; the six that a caller must set are `required`). It is no handle.
+What `Indexes()` returns: a sealed record, one per index, a snapshot with named properties (`init`-only; the seven that a caller must set are `required`). It is no handle.
 
 | Member | What it is |
 |---|---|
@@ -126,6 +130,7 @@ What `Indexes()` returns: a sealed record, one per index, a snapshot with named 
 | `required LuiKeyType KeyType { get; init; }` | the stored key type: `Long`, `Int`, `String` or `Guid` |
 | `required LuiTypoDistance TypoDistance { get; init; }` | how many errors the index forgives |
 | `required LuiTypoDictionaryState TypoDictionaryState { get; init; }` | `NotBuilt`, `Building` or `Current`, in this catalog, when `Indexes()` was called |
+| `required LuiInitializationNeeds NeedsInitialization { get; init; }` | what the index still needs at the start of a process — `None` when it is ready; `[Flags]`: `Triggers`, `StaleTriggers`, `InitialSync`, `InitialSyncRunningElsewhere`, `TypoDictionary`; read from the state like `Initialize()` reads it (see [Initializing](#initializing--the-start-of-a-process)). On a read-only catalog the file steps are reported too: a reader asks `NeedsInitialization.HasFlag(LuiInitializationNeeds.TypoDictionary)`. |
 
 ### `LuiCatalogOptions`
 
@@ -496,6 +501,141 @@ if (!check.IsHealthy)
 
 ---
 
+## Initializing — the start of a process
+
+An application has four start steps to know and to order — the triggers and the first sync of a linked index, the outbox, the typo
+dictionaries — and every forgotten one fails silently: without its dictionary a typo-tolerant index **never corrects** (a query never builds
+it, ADR-0042; it answers with `CorrectionSkipped = true`). `catalog.Initialize()` does all of it **in one explicit, synchronous call**
+(ADR-0076). LUI never initializes on its own; the application decides **when** and **on which thread**, and `NeedsInitialization` makes
+forgetting visible.
+
+```csharp
+var report = catalog.Initialize();                       // everything, for every index — a second call right after does nothing
+catalog.Initialize(new LuiInitializeOptions { Indexes = [SearchIndexes.Chefs] });   // in parts
+```
+
+**The order**, step by step across the selected indexes — LUI's order, not the application's:
+
+1. the **triggers** of every linked index whose triggers are missing or stale (`CreateTriggers()`, idempotent) — **before** the sync, so that a row written in between is noted in the outbox and not lost (ADR-0077);
+2. the **first sync** of every linked index that still needs one, one after the other, in batches, through the lease of ADR-0077;
+3. the **outbox** of every linked index that has rows in it, once;
+4. the **typo dictionaries**, last — so that they know the words of the syncs and the outbox — and **one after the other**, so that the peak memory is that of the largest dictionary and not the sum.
+
+**Per index only what its state needs**, read first: the triggers (`Triggers()`), `NeedsInitialSync`, the outbox (`Pending()`), the typo dictionary.
+A typo dictionary is built only for an index that has no file step left (no triggers missing, no initial sync due or running elsewhere) —
+otherwise it would miss the words of a sync still to come; the reason stays, and the next `Initialize()` builds it. A dictionary is
+**per process** (it lives in memory): every process builds its own; that is expected work, not a repetition. **The cost**: each dictionary takes
+seconds and some hundred MB at the size of the German word list (194 MB for 685,739 words); with several typo-tolerant indexes the time adds up.
+
+**Several processes.** The first sync is guarded by the lease: of two processes that start together exactly one runs it (the flag is read in the
+transaction that takes the lease). The other skips that sync — and the steps after it for that index — and reports
+`LuiInitializationNeeds.InitialSyncRunningElsewhere`; it does not wait and does not fail. Triggers are idempotent, and the outbox is applied by
+one writer at a time (ADR-0046).
+
+**A failing index does not stop the others**: its failing step is recorded, its later steps are skipped, the other indexes go on, and at the end
+the call throws a `LuiInitializeException` with the complete report and the error of each failed index (never swallowed). **Cancellation** is checked
+between the steps and inside the syncs; it throws an `OperationCanceledException` (not the errors of indexes that had failed by then — the next call finds them again), what was finished stays, and the next call continues by state.
+**A catalog opened with `OpenReadOnly`** builds the dictionaries and nothing else: the file steps cannot be done and are left to the writing process
+— `NeedsInitialization` reports them, and the readiness of a reader looks only at `TypoDictionary`.
+
+The single steps stay public for fine control: `CreateTriggers()`, `Sync()`, `ApplyPending()`, `WarmUpTypoDictionary()` and
+`catalog.WarmUpTypoDictionaries()`.
+
+### `LuiInitializeOptions`
+
+A sealed record with `init` properties; the four switches can be bound from configuration, `Indexes`, `Sync` and `Progress` cannot. Every default is "all of it, for every index".
+
+| Member | Default | What it says |
+|---|---|---|
+| `bool InstallTriggers { get; init; }` | `true` | linked: `CreateTriggers()` when the triggers are missing or stale. **Off, the first sync runs without triggers — the order that can lose a row written in between (ADR-0077).** An index whose triggers stay missing keeps the need `Triggers` and gets no dictionary from this call |
+| `bool InitialSync { get; init; }` | `true` | linked: the first `Sync()`, in batches, when `NeedsInitialSync` — guarded by the lease |
+| `bool ApplyPending { get; init; }` | `true` | the outbox, once, of every linked index that has rows in it |
+| `bool WarmUpTypoDictionaries { get; init; }` | `true` | every index with a typo distance other than `None`, last, one after the other |
+| `IReadOnlyCollection<LuiIndexDefinitionBase>? Indexes { get; init; }` | `null` | the indexes to initialize, by definition: `[SearchIndexes.Chefs]`; only the names are used. A definition of an index that does not exist throws a `LuiIndexNotFoundException` before any step. `null` is every index of the catalog, read from the stored definitions — a tool without definitions can initialize everything |
+| `LuiSyncOptions? Sync { get; init; }` | `null` | the options of the first syncs, above all `BatchSize`; its `Progress` is called as well |
+| `IProgress<LuiInitializeProgress>? Progress { get; init; }` | `null` | told right before each step and after every batch of a first sync |
+
+### `LuiInitializeProgress`
+
+| Member | What it says |
+|---|---|
+| `required string IndexName { get; init; }` | the index the step is for |
+| `required LuiInitializeStep Step { get; init; }` | `Triggers`, `InitialSync`, `Outbox` or `TypoDictionary` — the step that is about to begin, or the first sync that is running (`ReadState` names only the place of a failure) |
+| `LuiSyncReport? Sync { get; init; }` | what the first sync has done so far, after each batch; `null` when a step is told. A step that is not needed is not told: a second call tells nothing |
+
+### `LuiInitializeReport`
+
+What the call returns — and what `LuiInitializeException.Report` carries. `ToString()` is a readable summary for a log line:
+`logger.LogInformation("Search initialized: {Report}", report)`.
+
+| Member | What it says |
+|---|---|
+| `required IReadOnlyList<LuiInitializeIndexReport> Indexes { get; init; }` | one line per index, in the order of the names |
+| `TimeSpan Elapsed { get; init; }` | the total |
+| `bool Failed { get; }` | whether an index failed |
+| `bool Ready { get; }` | whether every index of the run is ready: none failed and none needs anything |
+
+### `LuiInitializeIndexReport`
+
+One line of the report: what ran for the index, what is left, whether it failed and how long it took.
+
+| Member | What it says |
+|---|---|
+| `required string Name { get; init; }` | the name of the index |
+| `bool TriggersInstalled { get; init; }` | this call created or replaced the triggers |
+| `LuiLinkedSyncReport? Sync { get; init; }` | what the first sync did; `null` when this call ran none |
+| `int PendingApplied { get; init; }` | the rows of the outbox this call brought in |
+| `bool TypoDictionaryBuilt { get; init; }` | this call built the dictionary in this process |
+| `LuiInitializationNeeds Skipped { get; init; }` | what the index still needs when the call is through — read again from the state; `None` when it is ready |
+| `bool Failed { get; init; }` | a step of the index failed; its later steps were skipped |
+| `LuiInitializeStep? FailedStep { get; init; }` | the step that failed |
+| `TimeSpan Elapsed { get; init; }` | the time spent on this index |
+
+### `LuiInitializeException`
+
+Thrown at the end of `Initialize()` when one or more indexes failed — after every other index was initialized. It derives from `LuiException`; its message names
+every failed index and the step it failed at, and the first error is the inner exception. Only the library throws it.
+
+| Member | What it says |
+|---|---|
+| `LuiInitializeReport Report { get; }` | the complete report — the failed indexes and the others |
+| `IReadOnlyDictionary<string, Exception> Errors { get; }` | the exception of each failed index, by its name, as it was thrown |
+
+### `LuiInitializationNeeds`
+
+A `[Flags]` enumeration: what an index still needs at the start of a process. `None` is ready. `ToString()` is readable text for a log (`Triggers, InitialSync`).
+
+| Flag | Value | The index needs |
+|---|---|---|
+| `None` | 0 | nothing |
+| `Triggers` | 1 | a linked index has no triggers |
+| `StaleTriggers` | 2 | a linked index has triggers that differ from the ones LUI writes now |
+| `InitialSync` | 4 | the first complete sync of a linked index is due and nobody runs it |
+| `InitialSyncRunningElsewhere` | 8 | the first sync is due and another sync holds the lease — instead of `InitialSync`, not beside it; the lease of a sync that stopped renewing expires, and the need is `InitialSync` again |
+| `TypoDictionary` | 16 | the typo dictionary of an index that forgives typos is not built in this process (also while it is building) |
+
+**The readiness check.** A host is not ready while any index has `NeedsInitialization != None`; on a catalog opened with `OpenReadOnly`
+it asks `NeedsInitialization.HasFlag(LuiInitializationNeeds.TypoDictionary)`:
+
+```csharp
+bool Ready(LuiCatalog catalog) => catalog.Indexes().All(index => index.NeedsInitialization == LuiInitializationNeeds.None);
+```
+
+A linked index that an application keeps **without triggers** by choice is never ready by this check: it names `Triggers` for ever, and
+`Initialize()` builds no dictionary for it. Such an application leaves the flag out of its check.
+
+### The host pattern in short
+
+The factory of `AddLui` only **opens** the catalog. Creating the indexes and initializing them are explicit steps after `Build()` — so every
+configuration error (an invalid definition, a mismatch, an unregistered payload type, a missing table of a linked index) surfaces at a line of
+`Program.cs`, not inside a service resolution, and a failing factory — which the container does not cache — never leaves an open catalog behind.
+The documented default for a container is to initialize **in the background**: the host comes up, the readiness check says "not ready" until
+`Initialize()` is done, and a long first sync does not fail a liveness probe and restart the pod. While an index is not initialized the
+search answers without corrections, and a linked index shows the batches synced so far. No hosted service of LUI calls `Initialize()` — the
+application's own does (see [the hosting package](#the-hosting-package)).
+
+---
+
 ## Several processes on one file
 
 A catalog is meant to be a singleton of one process, and the file may be open in several processes — a web application and a
@@ -863,8 +1003,8 @@ The report of a `Sync` of a linked index:
   starve.** SQLite has no queue for its one write lock: a waiting writer polls (at most every 100 ms), and the sync takes the lock again
   within microseconds of a commit, so beside a very large sync (hundreds of thousands of rows or more) and a busy application a write can wait
   a long time — in three million-row runs a writer with a busy timeout of twice a batch (2 s) had 4 of 38, 0 of 45 and 6 of 35 writes fail with `SQLITE_BUSY` (the longest wait of a write that
-  succeeded: 1.99 s, 1.96 s and 1.82 s; in the third run, which also had a writer with a timeout of 30 s, that one was never refused). LUI adds **no pause between the transactions** (ADR-0077 records why). What to do: run the
-  **first sync before the application accepts writes**; give the application's writers a **generous busy timeout** (30 seconds, set explicitly — `Default Timeout=30` in the connection string of a `Microsoft.Data.Sqlite` connection; measured, a plain connection waits 30 s on its own,
+  succeeded: 1.99 s, 1.96 s and 1.82 s; in the third run, which also had a writer with a timeout of 30 s, that one was never refused). LUI adds **no pause between the transactions** (ADR-0077 records why). What to do: for a **very large table** run the
+  **first sync before the application accepts writes** (a small or medium table can be initialized in the background — see [the host pattern](#the-host-pattern)); give the application's writers a **generous busy timeout** (30 seconds, set explicitly — `Default Timeout=30` in the connection string of a `Microsoft.Data.Sqlite` connection; measured, a plain connection waits 30 s on its own,
   but a setting that is not stated is not controlled; LUI's own connections wait `LuiPragmas.BusyTimeout`, five seconds by default) and **retry** a write that fails with `SQLITE_BUSY`; open the application's own write transactions with `BEGIN IMMEDIATE`
   (`connection.BeginTransaction(deferred: false)`), so that a busy file is found at their start. The README has the same advice, with the code.
 
@@ -1056,6 +1196,8 @@ The four measures of the library — all of them its own, without a dictionary p
 | Type | Values | What they are for |
 |---|---|---|
 | `LuiIndexKind` | `SingleWord`, `MultiWord` | the kind of an index |
+| `LuiInitializationNeeds` | `None`, `Triggers`, `StaleTriggers`, `InitialSync`, `InitialSyncRunningElsewhere`, `TypoDictionary` | what an index still needs at the start of a process (flags) — [Initializing](#initializing--the-start-of-a-process) |
+| `LuiInitializeStep` | `ReadState`, `Triggers`, `InitialSync`, `Outbox`, `TypoDictionary` | a step of the call `catalog.Initialize`, in the order it takes them; `ReadState` only names where a failure happened |
 | `LuiKeyKind` | `Number`, `Text` | the kind of a key — the old calls; it goes with them (#268) |
 | `LuiKeyType` | `Long`, `Int`, `String`, `Guid` | the exact type of the keys of an index, as the stored definition names it (long, int, string, guid); the exception for a damaged key carries it |
 | `LuiPriority` | `System`, `High`, `Elevated`, `Normal` | the priority of an entry |
@@ -1085,21 +1227,116 @@ library.
 | `LuiKeyException` | a stored key does not convert to the key type of its definition — a damaged file, not an expected state (LUI only writes keys that convert, so there is no check to run). The message names the index and the stored key. It carries `IndexName`, `StoredKey` and `KeyType`. |
 | `LuiPayloadException` | a payload cannot be read in the type asked for — and, for a handle with a payload, a query meets a payload that is missing, that the serializer cannot read, or that a map did not build (it threw, or it returned null): the query fails and the message names the index, the key and the type. It carries `IndexName`, `Key` and `RequestedType`; the exception of the serializer or the map is the inner one. |
 | `LuiSyncInProgressException` | another sync of the linked index is running — or this one lost its lease (it did not renew it in time and another sync took it over, or the index was dropped and created again), and stops before it writes another batch. Thrown at once, the sync does not wait. It carries `IndexName`, `Owner` and `ExpiresAt` (UTC) of the lease — the last two are not set (null) when nobody holds it now. |
+| `LuiInitializeException` | one or more indexes failed in `catalog.Initialize` — after every other index was initialized. It carries the complete `Report` and the `Errors` by index name; the message names every failed index and the step. See [Initializing](#initializing--the-start-of-a-process). |
 | `LuiReadOnlyException` | SQLite refused a write because the file may not be written. The message names the reason — the catalog was opened read-only, or the file and its directory may not be written — the operation and the index; the error of SQLite is the inner exception. It carries `Operation`. |
 
 ---
 
 ## The hosting package
 
-`Nordmann.LUI.Hosting` carries the dependency injection — and, only if the application asks for it, the **warm-up**:
-one service of the host (ADR-0043). It tells the logger of the host what it did and what failed (ADR-0045).
+`Nordmann.LUI.Hosting` carries the dependency injection — and, only if the application asks for them, the **outbox loop**
+(`AddLuiOutbox`, ADR-0076) and the **warm-up** (`AddLuiWarmup`, ADR-0043, which #268 removes — `catalog.Initialize()` replaces it). Each is one service of
+the host and tells the logger of the host what it did and what failed (ADR-0045).
 
 ### `LuiServiceCollectionExtensions`
 
 | Member | What it does |
 |---|---|
 | `IServiceCollection AddLui(this IServiceCollection services, Func<IServiceProvider, LuiCatalog> open)` | puts the **catalog** into the container: it opens it when it is first needed and disposes it with the container. The way the catalog is opened is the caller's — `services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"))` (ADR-0066). Once per container: a second call throws. |
+| `IServiceCollection AddLuiOutbox(this IServiceCollection services, TimeSpan interval)` | registers **the one background loop LUI needs** (ADR-0076): it calls `catalog.ApplyPending()` every `interval` and stops with the host. It does **nothing at the start** — that is `catalog.Initialize()`, which the application calls; LUI offers **no hosted service that calls `Initialize()`**. Only with linked indexes that have triggers. Once per container: a second call, with either overload, throws. |
+| `IServiceCollection AddLuiOutbox(this IServiceCollection services, Action<LuiOutboxOptions> configure)` | the same with the settings (`Interval`, `MaxBackoff`). **A failing round never stops the host**: it is logged through the host's `ILogger` (a warning, with the exception), the next round waits with exponential backoff up to `MaxBackoff`, and the first round that works goes back to `Interval`. **On a catalog opened with `OpenReadOnly` the host does not start**: `InvalidOperationException` — "a read-only catalog cannot apply the outbox". |
 | `IServiceCollection AddLuiWarmup(this IServiceCollection services, Action<LuiWarmupOptions>? configure = null)` | registers the **warm-up** as a service of the host: the outbox of every linked index is applied and the typo dictionaries are built at the start of the host, and the outbox is applied again on an interval. **Off by default** — without this call the host starts nothing of LUI (ADR-0043). Once per container: a second call throws. |
+
+### `LuiOutboxOptions`
+
+| Member | Default | What it says |
+|---|---|---|
+| `TimeSpan Interval { get; set; }` | 30 s | the time between two rounds that worked; positive, at most 24 days (a longer wait is refused at the registration, with a message that names `LuiOutboxOptions.Interval`) |
+| `TimeSpan MaxBackoff { get; set; }` | 5 min | the longest wait while rounds fail: the wait doubles after each failed round — `Interval` × 2, × 4, … — up to this; positive, at most 24 days. A value below `Interval` is **not an error**: it is the interval — the wait never shrinks below it |
+
+```csharp
+builder.Services.AddLuiOutbox(TimeSpan.FromSeconds(10));                       // the interval alone
+builder.Services.AddLuiOutbox(options => options.MaxBackoff = TimeSpan.FromMinutes(1));
+```
+
+**It competes with a long first sync for the write lock**: while the sync holds it, rounds can fail and are logged as warnings, and the backoff can reach `MaxBackoff` — with a large table choose a longer `Interval`, or register the loop after the first sync. **Every process with the registration runs its own loop.** That is safe — the outbox is applied by one writer at a time (ADR-0046), and a second loop only
+finds less to do. A round that fails tells the logger of the host (`Warning`, with the exception, how many rounds in a row failed and when the next one is);
+the first round that works after failures says so (`Information`); the rows an ordinary round applied are a `Debug` line. The loop is a task of the service: the host
+that stops it waits for a round that runs.
+
+### The host pattern
+
+The factory of `AddLui` only **opens** the catalog; creating and initializing the indexes are explicit steps after `Build()`, so that a configuration error stops the start
+at a line of `Program.cs` (see [Initializing](#initializing--the-start-of-a-process)):
+
+```csharp
+builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db", options));    // open only
+builder.Services.AddLuiOutbox(TimeSpan.FromSeconds(10));                      // only with linked indexes and triggers
+builder.Services.AddHostedService<SearchInitializer>();                       // the application's own background start
+
+var app = builder.Build();
+// … the application's own schema migrations run here, before the catalog is used …
+
+var catalog = app.Services.GetRequiredService<LuiCatalog>();
+catalog.Create(SearchIndexes.Recipes, SearchIndexes.Chefs, SearchIndexes.Tags);   // fast; configuration errors stop the start here
+
+app.MapHealthChecks("/ready");      // readiness: not ready while an index has NeedsInitialization != None
+app.Run();
+
+// The application's own service: the host starts at once, the search becomes complete when Initialize() says Ready.
+sealed class SearchInitializer(LuiCatalog catalog, ILogger<SearchInitializer> logger, TimeProvider? time = null) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var clock = time ?? TimeProvider.System;
+        var pause = TimeSpan.FromSeconds(5);
+        try
+        {
+            // Initialize() is idempotent and safe to repeat: repeat it until the report says Ready — also after a failure, which may be transient
+            // (a busy file while another replica syncs), and while an index waits for a first sync that another process runs
+            while (true)
+            {
+                try
+                {
+                    var report = await Task.Run(() => catalog.Initialize(cancellationToken: stoppingToken), stoppingToken);
+                    if (report.Ready)
+                    {
+                        logger.LogInformation("Search initialized: {Report}", report);
+                        return;
+                    }
+
+                    logger.LogInformation("Search is not ready yet: {Report}", report);
+                    pause = TimeSpan.FromSeconds(5);
+                }
+                catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
+                {
+                    // a LuiInitializeException, or the error of SQLite itself before the first step: never let it escape — an exception that leaves
+                    // ExecuteAsync stops the host. A permanent failure is logged again at every attempt
+                    pause = TimeSpan.FromTicks(Math.Min(pause.Ticks * 2, TimeSpan.FromMinutes(1).Ticks));
+                    logger.LogWarning(exception, "Search could not be initialized yet, trying again in {Pause}", pause);
+                }
+
+                await Task.Delay(pause, clock, stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // the host stops
+        }
+    }
+}
+```
+
+**The rule: repeat `Initialize()` until the report says `Ready` — inside the loop, after a failure too.** It is idempotent and safe to repeat. A call can end "not ready" without a failure — another process runs the first sync (`InitialSyncRunningElsewhere`), or the lease of a killed predecessor has not run out (a minute) — and then it skips that index and its dictionary and does not wait: the next call does the rest. A call can also fail for a reason that passes (SQLITE_BUSY while another replica runs its batches): the initializer above logs the `LuiInitializeException` as a warning, waits longer each time (10 s after the first failure, doubling up to a minute; 5 s after a call that is only not ready) and calls again; a permanent failure is logged again at every attempt. An exception that escapes `ExecuteAsync` stops the host (the default of .NET), so none escapes. An initializer that calls it once, or ends at the first failure, leaves the host "not ready" for good.
+
+**Which readiness for which process.** The loop above is for the process that **writes** the file, with the defaults. (1) A linked index kept **without triggers by choice** (`InstallTriggers = false`) never becomes `Ready`: it names `Triggers` for ever, `report.Ready` cannot be masked, and **a typo-tolerant one gets no dictionary** from `Initialize()` (it withholds it for an index with a file step left) — leave such an index out of the loop (`Indexes = […]` of the others), build its dictionary with `WarmUpTypoDictionary()` and check its readiness yourself (`NeedsInitialization & ~LuiInitializationNeeds.Triggers`). Its first sync runs **without triggers**, the order ADR-0077 says can lose a row written in between — switch the triggers off only for an index that you keep current with `Refresh` or `Sync()` yourself. (2) A process on a catalog opened with `OpenReadOnly` does not loop on `Ready`: the report names file steps only a writer can do, so one call builds its dictionaries and its readiness is "no index has `TypoDictionary`" (`!NeedsInitialization.HasFlag(LuiInitializationNeeds.TypoDictionary)`). **Start the readers after the writer is ready**: a dictionary that a reader builds from a table whose first sync is only half done is marked built and is not rebuilt by the writer's later rows (#287).
+
+**What "not ready" means, and the size of the table.** "Not ready" is a fact about the **search**: reads are served — without corrections, and with the batches that are synced so far. It does not stop your application's **own writes**: the triggers are installed first, so a row written during the first sync is noted in the outbox and applied — none is lost. What the first sync costs the writers is the write lock: SQLite has no queue, and a sync of hundreds of thousands of rows beside a busy application can make the application's writes wait (see "Linked indexes and the sync"). So the rule is by the size of the table. **A small or medium table** (the first sync takes seconds): the background initializer above is right — the host is up at once, readers wait for "ready", writers proceed. **A very large table** (hundreds of thousands of rows or more) **with a busy application**: run `Initialize()` — or just the first sync — **before the application accepts writes**: a startup step before `app.Run()`, before the listener opens, or the writer deployed as a step of its own; or keep the background initializer and give the application's writes a generous busy timeout (30 seconds, set explicitly) and a retry on `SQLITE_BUSY`. "Ready" means for readers that the search is complete; for writers it means nothing — they never wait for it.
+
+This background form is the **documented default** for containers: the host comes up, the readiness check says "not ready" until `Initialize()` is done, and a long first sync does not
+fail a liveness probe and restart the pod. For a small application or a tool the short form is enough — `catalog.Initialize();` right before `app.Run()` — and an application
+that wants it in parts says `Initialize(new LuiInitializeOptions { Indexes = [SearchIndexes.Chefs] })`. While an index is not initialized, the search answers without
+corrections, and a linked index shows the batches synced so far. `IsReadOnly` tells a reader-only process which readiness it has: the dictionaries alone.
 
 ### `LuiWarmupOptions`
 
@@ -1135,7 +1372,7 @@ The warm-up is a service of the host, not a thread of the library: the host star
 
 ## The whole surface
 
-Sixty-three public type names in `Nordmann.LUI` (seventy-eight types: a generic type counts once for each number of type parameters), two in `Nordmann.LUI.Hosting`. Nothing else is public.
+Seventy public type names in `Nordmann.LUI` (eighty-five types: a generic type counts once for each number of type parameters), three in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|
@@ -1148,6 +1385,12 @@ Sixty-three public type names in `Nordmann.LUI` (seventy-eight types: a generic 
 | `LuiLinkedIndexDefinition` | class | [the definition](#defining-an-index--the-definition) |
 | `LuiIndexSource` | enum | [the definition](#defining-an-index--the-definition) |
 | `LuiIndexInfo` | record | [maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type) |
+| `LuiInitializeOptions` | record | [initializing](#initializing--the-start-of-a-process) |
+| `LuiInitializeProgress` | record | [initializing](#initializing--the-start-of-a-process) |
+| `LuiInitializeReport` | record | [initializing](#initializing--the-start-of-a-process) |
+| `LuiInitializeIndexReport` | record | [initializing](#initializing--the-start-of-a-process) |
+| `LuiInitializationNeeds` | enum | [initializing](#initializing--the-start-of-a-process) |
+| `LuiInitializeStep` | enum | [initializing](#initializing--the-start-of-a-process) |
 | `LuiIndex` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
 | `LuiEmbeddedIndex` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
 | `LuiLinkedIndex` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
@@ -1205,9 +1448,11 @@ Sixty-three public type names in `Nordmann.LUI` (seventy-eight types: a generic 
 | `LuiPayloadException` | class | [the exceptions](#the-exceptions) |
 | `LuiReadOnlyException` | class | [the exceptions](#the-exceptions) |
 | `LuiSyncInProgressException` | class | [the exceptions](#the-exceptions) |
+| `LuiInitializeException` | class | [the exceptions](#the-exceptions) |
 | `LuiConfigurationException` | class | [the exceptions](#the-exceptions) |
 | `LuiServiceCollectionExtensions` | class | [the hosting package](#the-hosting-package) |
 | `LuiWarmupOptions` | class | [the hosting package](#the-hosting-package) |
+| `LuiOutboxOptions` | class | [the hosting package](#the-hosting-package) |
 
 ---
 

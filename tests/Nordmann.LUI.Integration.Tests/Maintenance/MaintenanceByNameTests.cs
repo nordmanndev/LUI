@@ -100,6 +100,7 @@ public sealed class MaintenanceByNameTests
                     KeyType = LuiKeyType.String,
                     TypoDistance = LuiTypoDistance.TwoErrors,
                     TypoDictionaryState = LuiTypoDictionaryState.NotBuilt,
+                    NeedsInitialization = LuiInitializationNeeds.TypoDictionary,
                 },
                 new LuiIndexInfo
                 {
@@ -111,6 +112,7 @@ public sealed class MaintenanceByNameTests
                     KeyType = LuiKeyType.Int,
                     TypoDistance = LuiTypoDistance.None,
                     TypoDictionaryState = LuiTypoDictionaryState.NotBuilt,
+                    NeedsInitialization = LuiInitializationNeeds.Triggers,
                 },
                 new LuiIndexInfo
                 {
@@ -122,6 +124,7 @@ public sealed class MaintenanceByNameTests
                     KeyType = LuiKeyType.Long,
                     TypoDistance = LuiTypoDistance.None,
                     TypoDictionaryState = LuiTypoDictionaryState.NotBuilt,
+                    NeedsInitialization = LuiInitializationNeeds.None,
                 },
                 new LuiIndexInfo
                 {
@@ -133,6 +136,7 @@ public sealed class MaintenanceByNameTests
                     KeyType = LuiKeyType.Long,
                     TypoDistance = LuiTypoDistance.None,
                     TypoDictionaryState = LuiTypoDictionaryState.NotBuilt,
+                    NeedsInitialization = LuiInitializationNeeds.Triggers,
                 },
             ]);
         StoredPayloadType(database).ShouldNotBeNullOrWhiteSpace();
@@ -186,8 +190,15 @@ public sealed class MaintenanceByNameTests
     [Fact]
     public void Indexes_executes_no_SQL_for_the_definition_fields()
     {
+        // two embedded indexes: the state of an embedded index is in the memory of the catalog, so nothing but the question whether the
+        // schema counter moved is asked. (The state of a linked index is read from the file — NeedsInitialization, #266 — and costs statements.)
         using var database = new TestDatabase();
-        WriteAllKinds(database);
+        using (var writer = database.Open(Lines(new LinesChipSerializer())))
+        {
+            _ = writer.Create(Recipes);
+            _ = writer.Create(Chips);
+        }
+
         using var tool = LuiCatalog.Open(database.FilePath);
         var commands = new Nordmann.LUI.Storage.CommandCounter();
         tool.Database.CommandCounter = commands;
@@ -195,7 +206,7 @@ public sealed class MaintenanceByNameTests
 
         for (var call = 0; call < 20; call++)
         {
-            tool.Indexes().Count.ShouldBe(4);
+            tool.Indexes().Count.ShouldBe(2);
         }
 
         tool.StoredIndexes.Reloads.ShouldBe(reloads, "the definitions are those of the catalog's memory: lui_meta is not read while the schema counter is unchanged");

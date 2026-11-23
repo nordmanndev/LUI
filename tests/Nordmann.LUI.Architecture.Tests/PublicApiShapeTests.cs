@@ -158,7 +158,7 @@ public sealed class PublicApiShapeTests
             [
                 "LuiCatalogNotFoundException", "LuiConfigurationException", "LuiDefinitionMismatchException", "LuiEnvironmentException",
                 "LuiException", "LuiFormatException",
-                "LuiIndexNotFoundException", "LuiKeyException", "LuiLinkedTableException", "LuiPayloadException", "LuiReadOnlyException",
+                "LuiIndexNotFoundException", "LuiInitializeException", "LuiKeyException", "LuiLinkedTableException", "LuiPayloadException", "LuiReadOnlyException",
                 "LuiSyncInProgressException",
             ]);
     }
@@ -263,6 +263,7 @@ public sealed class PublicApiShapeTests
                 [
                     "required LuiIndexKind Kind { get; init; }",
                     "required LuiIndexSource Source { get; init; }",
+                    "required LuiInitializationNeeds NeedsInitialization { get; init; }",
                     "required LuiKeyType KeyType { get; init; }",
                     "required LuiTypoDictionaryState TypoDictionaryState { get; init; }",
                     "required LuiTypoDistance TypoDistance { get; init; }",
@@ -270,8 +271,106 @@ public sealed class PublicApiShapeTests
                     "string? PayloadFormat { get; init; }",
                     "string? PayloadType { get; init; }",
                 ],
-                "the definition fields and the state of the typo dictionary, as the table of the issue lists them (#266 adds NeedsInitialization)");
+                "the definition fields, the state of the typo dictionary and what the index needs at its start (#266), as the table of the issue lists them");
         Enum.GetNames<LuiIndexSource>().ShouldBe(["Embedded", "Linked"]);
+    }
+
+    [Fact]
+    public void The_catalog_initializes_in_one_synchronous_call_and_its_types_have_exactly_the_members_of_the_issue()
+    {
+        // ADR-0076, issue #266: `catalog.Initialize()` is the one explicit start call. It is synchronous (there is no InitializeAsync), it takes the
+        // options and a token, and it returns the report; the types around it are exactly the ones of the issue, and none of their members is
+        // filtered out here. A catalog says how it was opened (IsReadOnly) — the way it was opened and no second switch (ADR-0068).
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        typeof(LuiCatalog).GetMethods(declared).Where(method => method.Name.StartsWith("Initialize", StringComparison.Ordinal))
+            .Select(method => $"{TypeText(method.ReturnType)} {method.Name}({Parameters(method)})")
+            .ShouldBe(["LuiInitializeReport Initialize(LuiInitializeOptions options = default, CancellationToken cancellationToken = default)"], "one call, synchronous, no InitializeAsync");
+        typeof(LuiCatalog).GetProperty(nameof(LuiCatalog.IsReadOnly))!.PropertyType.ShouldBe(typeof(bool));
+
+        static string Written(PropertyInfo property) =>
+            (property.GetCustomAttributes(typeof(System.Runtime.CompilerServices.RequiredMemberAttribute), inherit: false).Length > 0 ? "required " : string.Empty)
+            + $"{TypeText(property.PropertyType)}{(Nullable.GetUnderlyingType(property.PropertyType) is null && new NullabilityInfoContext().Create(property).WriteState == NullabilityState.Nullable ? "?" : string.Empty)} {property.Name} {{ get; "
+            + (property.SetMethod is null ? string.Empty
+                : property.SetMethod.ReturnParameter.GetRequiredCustomModifiers().Contains(typeof(System.Runtime.CompilerServices.IsExternalInit)) ? "init; " : "set; ")
+            + "}";
+        static string[] Properties(Type type) => [.. type.GetProperties(declared).Select(Written).Order(StringComparer.Ordinal)];
+
+        typeof(LuiInitializeOptions).IsSealed.ShouldBeTrue();
+        Properties(typeof(LuiInitializeOptions)).ShouldBe(
+            [
+                "IProgress<LuiInitializeProgress>? Progress { get; init; }",
+                "IReadOnlyCollection<LuiIndexDefinitionBase>? Indexes { get; init; }",
+                "LuiSyncOptions? Sync { get; init; }",
+                "bool ApplyPending { get; init; }",
+                "bool InitialSync { get; init; }",
+                "bool InstallTriggers { get; init; }",
+                "bool WarmUpTypoDictionaries { get; init; }",
+            ],
+            "the options of the issue: four steps that can be switched off, the selection, the options of the syncs and the progress");
+        var defaults = new LuiInitializeOptions();
+        (defaults.InstallTriggers, defaults.InitialSync, defaults.ApplyPending, defaults.WarmUpTypoDictionaries, defaults.Indexes, defaults.Sync, defaults.Progress)
+            .ShouldBe((true, true, true, true, null, null, null), "every step on, every index, nothing told");
+
+    }
+
+    [Fact]
+    public void The_report_the_progress_and_the_exception_of_Initialize_have_exactly_the_members_of_the_issue()
+    {
+        // ADR-0076, issue #266: what the call tells while it runs, what it returns and what it throws — and the flags that say what an index needs
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        static string Written(PropertyInfo property) =>
+            (property.GetCustomAttributes(typeof(System.Runtime.CompilerServices.RequiredMemberAttribute), inherit: false).Length > 0 ? "required " : string.Empty)
+            + $"{TypeText(property.PropertyType)}{(Nullable.GetUnderlyingType(property.PropertyType) is null && new NullabilityInfoContext().Create(property).WriteState == NullabilityState.Nullable ? "?" : string.Empty)} {property.Name} {{ get; "
+            + (property.SetMethod is null ? string.Empty
+                : property.SetMethod.ReturnParameter.GetRequiredCustomModifiers().Contains(typeof(System.Runtime.CompilerServices.IsExternalInit)) ? "init; " : "set; ")
+            + "}";
+        static string[] Properties(Type type) => [.. type.GetProperties(declared).Select(Written).Order(StringComparer.Ordinal)];
+
+        typeof(LuiInitializeProgress).IsSealed.ShouldBeTrue();
+        Properties(typeof(LuiInitializeProgress)).ShouldBe(
+            [
+                "LuiSyncReport? Sync { get; init; }",
+                "required LuiInitializeStep Step { get; init; }",
+                "required string IndexName { get; init; }",
+            ],
+            "the index, the step and the progress of the sync");
+        Enum.GetNames<LuiInitializeStep>().ShouldBe(["ReadState", "Triggers", "InitialSync", "Outbox", "TypoDictionary"]);
+
+        typeof(LuiInitializeReport).IsSealed.ShouldBeTrue();
+        Properties(typeof(LuiInitializeReport)).ShouldBe(
+            [
+                "TimeSpan Elapsed { get; init; }",
+                "bool Failed { get; }",
+                "bool Ready { get; }",
+                "required IReadOnlyList<LuiInitializeIndexReport> Indexes { get; init; }",
+            ],
+            "one line per index and the total");
+        typeof(LuiInitializeIndexReport).IsSealed.ShouldBeTrue();
+        Properties(typeof(LuiInitializeIndexReport)).ShouldBe(
+            [
+                "LuiInitializationNeeds Skipped { get; init; }",
+                "LuiLinkedSyncReport? Sync { get; init; }",
+                "Nullable<LuiInitializeStep> FailedStep { get; init; }",
+                "TimeSpan Elapsed { get; init; }",
+                "bool Failed { get; init; }",
+                "bool TriggersInstalled { get; init; }",
+                "bool TypoDictionaryBuilt { get; init; }",
+                "int PendingApplied { get; init; }",
+                "required string Name { get; init; }",
+            ],
+            "what ran for one index, what is left, whether it failed and how long it took");
+
+        typeof(LuiInitializeException).IsSealed.ShouldBeTrue();
+        typeof(LuiInitializeException).BaseType.ShouldBe(typeof(LuiException));
+        typeof(LuiInitializeException).GetConstructors().ShouldBeEmpty("only the library throws it");
+        Properties(typeof(LuiInitializeException)).ShouldBe(
+            ["IReadOnlyDictionary<string, Exception> Errors { get; }", "LuiInitializeReport Report { get; }"],
+            "the complete report and the error of every failed index by name");
+
+        // the needs are flags, numbered: a renumbered value is a break (AGENTS.md)
+        typeof(LuiInitializationNeeds).GetCustomAttributes(typeof(FlagsAttribute), inherit: false).ShouldNotBeEmpty();
+        Enum.GetNames<LuiInitializationNeeds>().ShouldBe(["None", "Triggers", "StaleTriggers", "InitialSync", "InitialSyncRunningElsewhere", "TypoDictionary"]);
+        Enum.GetValues<LuiInitializationNeeds>().Select(value => (int)value).ShouldBe([0, 1, 2, 4, 8, 16]);
     }
 
     [Fact]
@@ -1155,9 +1254,30 @@ public sealed class PublicApiShapeTests
             .SelectMany(type => type.GetMethods(declared))
             .Where(method => method.Name.StartsWith("Add", StringComparison.Ordinal))
             .ToArray();
-        registrations.Length.ShouldBe(2, "AddLui and AddLuiWarmup — the hosting takes a factory (ADR-0066)");
-        registrations.ShouldAllBe(method => method.Name == "AddLui" || method.Name == "AddLuiWarmup");
+        // AddLui, AddLuiWarmup and the two overloads of AddLuiOutbox (#266, ADR-0076) — AddLuiWarmup goes with #268, and then there are three
+        registrations.Length.ShouldBe(4, "AddLui, AddLuiWarmup and two AddLuiOutbox — the hosting takes a factory (ADR-0066)");
+        registrations.ShouldAllBe(method => method.Name == "AddLui" || method.Name == "AddLuiWarmup" || method.Name == "AddLuiOutbox");
+        registrations.Count(method => string.Equals(method.Name, "AddLuiOutbox", StringComparison.Ordinal)).ShouldBe(2, "the interval, or the options (ADR-0076)");
         registrations.ShouldAllBe(method => method.ReturnType == typeof(IServiceCollection));
+    }
+
+    [Fact]
+    public void The_outbox_options_have_exactly_the_members_of_the_issue()
+    {
+        // ADR-0076, issue #266: AddLuiOutbox takes an interval (30 s) and a longest backoff (5 min) — and nothing else. The list is not filtered.
+        const BindingFlags declared = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static | BindingFlags.DeclaredOnly;
+        var type = Assembly.Load("Nordmann.LUI.Hosting").GetType("Nordmann.LUI.LuiOutboxOptions").ShouldNotBeNull();
+
+        type.IsSealed.ShouldBeTrue();
+        type.GetProperties(declared).Select(property => $"{TypeText(property.PropertyType)} {property.Name} {{ get; {(property.SetMethod is null ? string.Empty : "set; ")}}}")
+            .Order(StringComparer.Ordinal)
+            .ToArray()
+            .ShouldBe(["TimeSpan Interval { get; set; }", "TimeSpan MaxBackoff { get; set; }"]);
+        type.GetMethods(declared).Where(method => !method.IsSpecialName).ShouldBeEmpty();
+        type.GetFields(declared).ShouldBeEmpty();
+        var defaults = Activator.CreateInstance(type)!;
+        type.GetProperty("Interval")!.GetValue(defaults).ShouldBe(TimeSpan.FromSeconds(30));
+        type.GetProperty("MaxBackoff")!.GetValue(defaults).ShouldBe(TimeSpan.FromMinutes(5));
     }
 
     [Fact]

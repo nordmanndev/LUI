@@ -3,8 +3,8 @@ namespace Nordmann.LUI;
 /// <summary>
 /// What a catalog says about one of its indexes, by name (ADR-0076): what <see cref="LuiCatalog.Indexes"/> returns for a tool, an
 /// admin endpoint or a health check that knows neither the definitions of the application nor its payload types. The definition
-/// fields are what <c>lui_meta</c> stores and the catalog holds in memory (ADR-0075); the one state field, the typo dictionary, is
-/// read when <c>Indexes()</c> is called. It is a snapshot: it does not change when the index does. It is no handle — nothing can
+/// fields are what <c>lui_meta</c> stores and the catalog holds in memory (ADR-0075); the state fields — the typo dictionary and
+/// what the index needs to be initialized — are read when <c>Indexes()</c> is called. It is a snapshot: it does not change when the index does. It is no handle — nothing can
 /// be searched or written through it.
 /// </summary>
 public sealed record LuiIndexInfo
@@ -39,4 +39,12 @@ public sealed record LuiIndexInfo
     /// lives in the memory of the process, one per index and definition, so <c>NotBuilt</c> says that this catalog has not built it.
     /// </summary>
     public required LuiTypoDictionaryState TypoDictionaryState { get; init; }
+
+    /// <summary>
+    /// What the index still needs at the start of a process (ADR-0076) — <see cref="LuiInitializationNeeds.None"/> when it is ready. It is read from the state like
+    /// <see cref="LuiCatalog.Initialize"/> reads it: the triggers, the flag of the first sync and its lease (a linked index; a read of the file when
+    /// <c>Indexes()</c> is called) and the typo dictionary of this process. A readiness check says "not ready" while any index needs anything; on a catalog opened with
+    /// <see cref="LuiCatalog.OpenReadOnly"/> — which can build dictionaries and nothing else — it asks <c>NeedsInitialization.HasFlag(LuiInitializationNeeds.TypoDictionary)</c>.
+    /// </summary>
+    public required LuiInitializationNeeds NeedsInitialization { get; init; }
 }

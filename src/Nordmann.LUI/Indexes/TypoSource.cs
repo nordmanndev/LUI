@@ -11,14 +11,22 @@ internal static class TypoSource
     /// <summary>The texts and weights of the index, one row at a time, on a connection of their own.</summary>
     internal static IEnumerable<(string Text, int Weight)> Read(Database database, string sql)
     {
-        using var connection = database.OpenReadConnection();
-        using var command = connection.CreateCommand();
-        command.CommandText = sql;
-
-        using var reader = command.ExecuteReader();
-        while (reader.Read())
+        database.TypoTextsReading?.Invoke(true);
+        try
         {
-            yield return (reader.GetString(0), reader.GetInt32(1));
+            using var connection = database.OpenReadConnection();
+            using var command = connection.CreateCommand();
+            command.CommandText = sql;
+
+            using var reader = command.ExecuteReader();
+            while (reader.Read())
+            {
+                yield return (reader.GetString(0), reader.GetInt32(1));
+            }
+        }
+        finally
+        {
+            database.TypoTextsReading?.Invoke(false);
         }
     }
 }

@@ -8,7 +8,7 @@
   </PropertyGroup>
 
   <!--
-    The second package (ADR-0018): LUI in a .NET host — AddLui, AddLuiWarmup, and nothing else. The container holds the
+    The second package (ADR-0018): LUI in a .NET host — AddLui, AddLuiOutbox (ADR-0076), AddLuiWarmup, and nothing else. The container holds the
     catalog and no index (ADR-0033); the application asks the catalog for what it needs. The package knows only the
     public API of Nordmann.LUI and is released with it, with the same version (VersionPrefix in Directory.Build.props).
   -->

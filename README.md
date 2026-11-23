@@ -27,7 +27,7 @@ use Lucene, SeekStorm or FTS5 directly. Not a key–value store. Not a server wi
 ## Contents
 
 - [What LUI is](#what-lui-is) · [The problem](#the-problem) · [Highlights](#highlights) · [Install](#install) · [Quick start](#quick-start)
-- [Loading many entries](#loading-many-entries) · [Performance](#performance) · [The kinds of an index](#the-kinds-of-an-index) · [Embedded or linked](#embedded-or-linked) · [Linked indexes and the sync](#linked-indexes-and-the-sync)
+- [Loading many entries](#loading-many-entries) · [Performance](#performance) · [The kinds of an index](#the-kinds-of-an-index) · [Embedded or linked](#embedded-or-linked) · [Linked indexes and the sync](#linked-indexes-and-the-sync) · [Starting up](#starting-up-initialize-and-the-host-pattern)
 - [A payload](#a-payload) · [In an ASP.NET Core application](#in-an-aspnet-core-application) · [Only read](#only-read) · [The API](#the-api)
 - [The sample application](#the-sample-application) · [The documentation](#the-documentation) · [Status](#status) · [Working on LUI](#working-on-lui) · [Licence](#licence)
 
@@ -74,6 +74,8 @@ gedeckter
 ```
 
 `Create` writes — it belongs in the migration of your application; in the runtime path the index is **opened**: `lui.Index("recipes")` reads the definition out of the file and writes nothing.
+
+At the start of a real application the dictionary is one of several start steps — `catalog.Initialize()` does all of them for every index in one call: see [Starting up](#starting-up-initialize-and-the-host-pattern).
 
 ## Loading many entries
 
@@ -363,12 +365,47 @@ What the sync does, and what it does not:
   atomic — the index is partly old and partly new while it runs.
 - **One sync per index at a time**: a second `Sync()` of the same index — in this process or another — throws a
   `LuiSyncInProgressException`; a lease of a process that died expires after a minute.
-- Do the **first sync before the application accepts writes** — at startup, as above. A sync of a table of hundreds of thousands of rows
+- For a **very large table**, do the **first sync before the application accepts writes** — at startup, as above (a small or medium table can be initialized in the background: see "What not ready means" in [Starting up](#starting-up-initialize-and-the-host-pattern)). A sync of a table of hundreds of thousands of rows
   or more, beside an application that writes all the time, **can make the application's writes wait**: SQLite has no queue for its one
   write lock, a waiting writer polls (at most every 100 ms), and the sync takes the lock again right after each commit, so a writer can
   starve for a long time. Give the application a **generous busy timeout** (30 seconds, **set explicitly**: `Default Timeout=30` in the connection string of a `Microsoft.Data.Sqlite` connection — measured, a plain connection waits 30 s for a lock on its own, but a setting you do not state is one you do not control; LUI's own connections wait `LuiPragmas.BusyTimeout`, five seconds by default) and **retry** a write that
   fails with `SQLITE_BUSY`; open the application's own write transactions with **`BEGIN IMMEDIATE`** (in `Microsoft.Data.Sqlite`:
   `connection.BeginTransaction(deferred: false)`), so that a busy file is found at the start and not in the middle of a transaction.
+
+These two calls — the triggers first, then the first sync — are what `catalog.Initialize()` does for **every linked index** of a catalog, in this order and
+only where the state of the index needs it, together with the outbox and the typo dictionaries: see [Starting up](#starting-up-initialize-and-the-host-pattern).
+`NeedsInitialSync` stays the flag that says whether the first sync is still to be done, and `Triggers()` says what is on your table.
+
+## Starting up: `Initialize()` and the host pattern
+
+An application has four start steps to know and to put in order: the triggers and the first sync of a linked index, the rows of the outbox, and the typo
+dictionaries. Every forgotten one fails silently — an index that forgives typos but has no dictionary **never corrects** (a query never builds it; it answers
+with `CorrectionSkipped`). So `catalog.Initialize()` does all of them in **one explicit, synchronous call**, in LUI's order and by the state of each index:
+the triggers of every linked index first, then the first syncs one after the other, then the outbox, and last the typo dictionaries, one after the other. LUI never
+does it on its own — you decide **when** and **on which thread** — and there is no `InitializeAsync`: the work is synchronous SQLite, and a `Task.Run` around it would only
+pretend otherwise.
+
+```csharp
+// at the start of the process: everything every index of the catalog needs, in LUI's order — and nothing that is done already
+var initialized = articlesCatalog.Initialize(new LuiInitializeOptions { Sync = new LuiSyncOptions { BatchSize = 5_000 } });
+Console.WriteLine(initialized);
+
+// readiness: an index that needs something says so — a reader of a read-only catalog looks at the typo dictionary only
+var ready = articlesCatalog.Indexes().All(index => index.NeedsInitialization == LuiInitializationNeeds.None);
+Console.WriteLine(ready);
+```
+
+- **Only what the state needs, and a second call does nothing.** `Initialize()` reads `Triggers()`, `NeedsInitialSync`, the outbox and the dictionary of each index first.
+  `catalog.Indexes()` shows what is missing as `NeedsInitialization` — `Triggers`, `StaleTriggers`, `InitialSync`, `InitialSyncRunningElsewhere`, `TypoDictionary` — so forgetting
+  is visible, and a readiness check of your host is one line. Each option of `LuiInitializeOptions` switches one step off, and `Indexes = [SearchIndexes.Chefs]` limits the run to some indexes.
+- **Several processes.** The first sync of a linked index is guarded by a lease: if another process holds it, this call skips that sync, reports
+  `InitialSyncRunningElsewhere` and does not wait or fail; of two processes that start together exactly one runs it. A typo dictionary lives in memory, so every process builds its own,
+  and an index with a file step left gets none yet — it would miss the words of the sync that is still to come.
+- **One failing index does not stop the others.** The call throws a `LuiInitializeException` at the end, with the complete report and the error of each failed index by name — and
+  what was finished stays. Cancel it with the token: the batches that are committed stay, and the next call continues by state (a cancelled call throws only the `OperationCanceledException`; the errors of indexes that had failed by then are found again by the next call).
+- **A call that is not ready is repeated.** When another process runs the first sync (`InitialSyncRunningElsewhere`), this call neither waits nor fails, and the dictionary of that index waits too: call `Initialize()` again after a pause — see the host pattern below.
+- **A read-only catalog** builds the dictionaries and leaves the file steps to the process that writes.
+- **The cost:** each typo dictionary takes seconds and some hundred MB at the size of the German word list (194 MB for 685,739 words), so with several typo-tolerant indexes the time adds up.
 
 ## A payload
 
@@ -411,32 +448,102 @@ for a **view** of the index: `chips.As<TagChip>()` — and a fluent query ends i
 `Nordmann.LUI.Hosting` brings the dependency injection: `AddLui` puts the **catalog** into the container — and
 nothing else. An index is not registered and not injected; the application asks the catalog for it.
 
+**The host pattern.** The factory of `AddLui` only **opens** the catalog. Creating the indexes and initializing them are explicit steps after `Build()`, so that every
+configuration error — an invalid definition, a mismatch, an unregistered payload type, a missing table of a linked index — stops the start at a line of `Program.cs`, and not inside
+the resolution of a service. The initialization runs **in the background**, in a service of your own: the host comes up at once, your readiness check says "not ready" until
+`Initialize()` is done, and a long first sync does not fail a liveness probe and restart the container. LUI offers no hosted service that calls `Initialize()` and no
+`AddLuiIndex`.
+
 ```csharp
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 
 var builder = Host.CreateApplicationBuilder();
-builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"));
-builder.Services.AddLuiWarmup();     // optional: the dictionaries at the start, the outbox every 30 s, told to the logger
+builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"));       // the factory only opens the catalog
+builder.Services.AddLuiOutbox(TimeSpan.FromSeconds(10));               // the one background loop: ApplyPending() every 10 s — only with linked indexes and triggers
+builder.Services.AddHostedService<SearchInitializer>();                // your own background start: the host is up at once
 
 using var host = builder.Build();
+
+// after Build(): create the indexes — a configuration error stops the start here, at a line of Program.cs
+var catalog = host.Services.GetRequiredService<LuiCatalog>();
+catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord().TypoTolerance()));
 host.Start();
 
 // in an endpoint: the catalog is injected — the index is asked for
-var catalog = host.Services.GetRequiredService<LuiCatalog>();
 var suggest = catalog.Index("recipes");
 Console.WriteLine(suggest.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
 ```
 
-The hosting package carries the dependency injection — and, if you ask for it, the **warm-up**:
-`AddLuiWarmup()` registers a service of the host: the typo dictionaries of your indexes are built while the host starts
-(so the first query already corrects a typo — the host is ready when they are), and the outbox of a linked index — the
-rows the triggers noted — is applied every 30 seconds. A dictionary costs memory: name the indexes that correct typos
-with `AddLuiWarmup(options => options.TypoDictionaryIndexes.Add("recipes"))`. What the service did, and a round that
-failed, it tells the logger of the host. **Off by default**: without the call, the host starts nothing of LUI.
+```csharp
+// The types of the application — the background start of the host pattern
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-The library starts no thread of its own — the host runs the service, stops it and disposes it. And the library still
-carries no timer of its own: the rebuild of a dictionary stays with your application, because only you know when a
+sealed class SearchInitializer(LuiCatalog catalog, ILogger<SearchInitializer> logger, TimeProvider? time = null) : BackgroundService
+{
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        var clock = time ?? TimeProvider.System;
+        var pause = TimeSpan.FromSeconds(5);
+        try
+        {
+            // Initialize() is idempotent and safe to repeat: repeat it until the report says Ready — also after a failure, which may be transient
+            // (a busy file while another replica syncs), and while an index waits for a first sync that another process runs
+            while (true)
+            {
+                try
+                {
+                    var report = await Task.Run(() => catalog.Initialize(cancellationToken: stoppingToken), stoppingToken);
+                    if (report.Ready)
+                    {
+                        logger.LogInformation("Search initialized: {Report}", report);
+                        return;
+                    }
+
+                    logger.LogInformation("Search is not ready yet: {Report}", report);
+                    pause = TimeSpan.FromSeconds(5);
+                }
+                catch (Exception exception) when (!stoppingToken.IsCancellationRequested)
+                {
+                    // a LuiInitializeException, or the error of SQLite itself before the first step: never let it escape — an exception that leaves
+                    // ExecuteAsync stops the host. A permanent failure is logged again at every attempt
+                    pause = TimeSpan.FromTicks(Math.Min(pause.Ticks * 2, TimeSpan.FromMinutes(1).Ticks));
+                    logger.LogWarning(exception, "Search could not be initialized yet, trying again in {Pause}", pause);
+                }
+
+                await Task.Delay(pause, clock, stoppingToken);
+            }
+        }
+        catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
+        {
+            // the host stops
+        }
+    }
+}
+```
+
+**Repeat `Initialize()` until the report says `Ready`** — that is the rule of the pattern, and the service above does it **inside** its loop: `Initialize()` is idempotent and safe to repeat, and a call can end "not ready"
+without a failure — another process runs the first sync of a linked index (`InitialSyncRunningElsewhere`), and so does the lease of a replica that was killed in its first sync, which runs out after a minute. That call
+skips the index and its dictionary and does not wait; the **next call** does the rest. A call can also **fail** for a reason that passes — the file is busy while another replica runs its batches, a writer of your
+application holds the lock at the start: the service logs the `LuiInitializeException` as a warning, waits longer each time (10 s after the first failure, doubling up to a minute; 5 s after a call that is only not ready) and calls again until the host stops; a failure that is permanent
+is logged again at every attempt, so it is in the log and the host stays "not ready". An exception that escapes the initializer stops the host (the default of .NET), so none escapes it. An initializer that calls
+`Initialize()` once, or ends at the first failure, leaves the host "not ready" for good.
+
+**Which readiness for which process.** The loop above is for the process that **writes** the file, with the defaults. (1) A linked index kept **without triggers by choice** (`InstallTriggers = false`) never becomes `Ready`: it names `Triggers` for ever, `report.Ready` cannot be masked, and **a typo-tolerant one gets no dictionary** from `Initialize()` (it withholds it for an index with a file step left) — leave such an index out of the loop (`Indexes = […]` of the others), build its dictionary with `WarmUpTypoDictionary()` and check its readiness yourself (`NeedsInitialization & ~LuiInitializationNeeds.Triggers`). Its first sync runs **without triggers**, the order ADR-0077 says can lose a row written in between — switch the triggers off only for an index that you keep current with `Refresh` or `Sync()` yourself. (2) A process on a catalog opened with `OpenReadOnly` does not loop on `Ready`: the report names file steps only a writer can do, so one call builds its dictionaries and its readiness is "no index has `TypoDictionary`" (`!NeedsInitialization.HasFlag(LuiInitializationNeeds.TypoDictionary)`). **Start the readers after the writer is ready**: a dictionary that a reader builds from a table whose first sync is only half done is marked built and is not rebuilt by the writer's later rows (#287).
+
+**What "not ready" means, and the size of the table.** "Not ready" is a fact about the **search**: reads are served — without corrections, and with the batches that are synced so far. It does not stop your application's **own writes**: the triggers are installed first, so a row written during the first sync is noted in the outbox and applied — none is lost. What the first sync costs the writers is the write lock: SQLite has no queue, and a sync of hundreds of thousands of rows beside a busy application can make the application's writes wait (see "Linked indexes and the sync"). So the rule is by the size of the table. **A small or medium table** (the first sync takes seconds): the background initializer above is right — the host is up at once, readers wait for "ready", writers proceed. **A very large table** (hundreds of thousands of rows or more) **with a busy application**: run `Initialize()` — or just the first sync — **before the application accepts writes**: a startup step before `app.Run()`, before the listener opens, or the writer deployed as a step of its own; or keep the background initializer and give the application's writes a generous busy timeout (30 seconds, set explicitly) and a retry on `SQLITE_BUSY`. "Ready" means for readers that the search is complete; for writers it means nothing — they never wait for it.
+
+A small application or a tool needs no service: `catalog.Initialize();` right before `app.Run()` is the short form. While an index is not initialized, the search answers without corrections,
+and a linked index shows the batches that are synced so far.
+
+**`AddLuiOutbox`** registers the only background loop LUI needs (it competes with a long first sync for the write lock and logs warnings while the sync holds it, and its backoff can reach `MaxBackoff` — for a large table choose a longer interval, or register it after the first sync): it applies the outbox of your linked indexes every `Interval` (30 seconds by default) and stops with the host. It does nothing at
+the start — that is `Initialize()`. **A failing round never stops the host**: it is logged through the logger of the host (a warning, with the exception), the next round waits with exponential
+backoff up to `MaxBackoff` (5 minutes by default), and the first round that works goes back to the interval. Every process with the registration runs its own loop; that is safe, because the
+outbox is applied by one writer at a time. On a catalog opened with `OpenReadOnly` the host does not start: a read-only catalog cannot apply the outbox.
+
+`AddLuiWarmup()` of `0.3.0` still builds the dictionaries while the host starts and applies the outbox on an interval — it goes with the next change (#268), and `Initialize()` with `AddLuiOutbox`
+replace it. The library starts no thread of its own: the host runs the services, stops them and disposes them. The rebuild of a dictionary stays with your application, because only you know when a
 phase is quiet.
 
 ## Only read

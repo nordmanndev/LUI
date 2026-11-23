@@ -188,7 +188,7 @@ The batched sync (decisions 7–12) had alternatives too:
   timeout: 16 writes in a sync of ten seconds and a longest wait of 1.81 s without a pause; 83 writes and 0.90 s with a pause of 120 ms after every transaction (longer than the
   longest pause of SQLite's busy handler, so that every polling writer lands in it) — and the sync **56 % longer**. The reasons against: the cost on every sync for an edge
   case (a very large sync beside a write-heavy application), a new public option to explain, and it helps only writers that poll — those of the application; another process
-  with its own busy handler or none gets nothing from it. The way out for an application is its own: run the first sync before it accepts writes, a generous busy timeout
+  with its own busy handler or none gets nothing from it. The way out for an application is its own: run the first sync before it accepts writes (for a very large table; a small or medium one may be initialized in the background by the host pattern of ADR-0076, where "not ready" stops no write), a generous busy timeout
   (30 s, set explicitly — measured with the provider of this release, a plain connection waits 30 s for a lock by the retries of the provider, and `Default Timeout=3` waits 3 s; ADR-0066's "waits 0 ms" is SQLite's own busy handler, which the provider retries on top of) and a retry on `SQLITE_BUSY`, `BEGIN IMMEDIATE` for its write transactions — the README and `docs/api.md` say so. It is recorded so that a report from a real application can
   reopen it with the numbers above.
 - **An open item for #275: the merge step.** In the second run the longest merge step held the lock for 1.81 s (batches 0.54 s, removal steps 0.42 s) with `DefaultMergePages`

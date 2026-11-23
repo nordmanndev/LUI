@@ -93,8 +93,10 @@ foreach (var hit in articles.Search("apfelkuchen").Hits)
 
 The index starts empty — that holds after a `DropIndex` too. `Sync()` walks
 the table and fills the index; a row without a text is left out and counted,
-never refused. The sync works in batches, each in a transaction of its own; run the first one before your application accepts
+never refused. The sync works in batches, each in a transaction of its own; for a very large table run the first one before your application accepts
 writes, and give the writes of your application a generous busy timeout while a large sync runs — [the README says why](../../README.md#linked-indexes-and-the-sync).
+At the start of an application you do not call the first sync yourself: `catalog.Initialize()` creates the triggers first, then runs the first sync of every
+linked index that still needs one — and `NeedsInitialSync` and the lease of a sync that another process runs are what it reads ([the README](../../README.md#starting-up-initialize-and-the-host-pattern)).
 
 > **Why so?**
 > A linked index keeps no copy of the row: the search index holds the

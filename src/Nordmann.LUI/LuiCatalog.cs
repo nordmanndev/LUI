@@ -76,6 +76,13 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>The path of the file the catalog was opened with (ADR-0066).</summary>
     public string Path => Database.Path;
 
+    /// <summary>
+    /// Whether the catalog was opened with <see cref="OpenReadOnly"/> (ADR-0068): it reads, and what writes — the triggers, the syncs, the outbox — is a
+    /// <see cref="LuiReadOnlyException"/>. It is the way the catalog was opened and nothing else: there is no second switch. The hosting package asks it to refuse
+    /// <c>AddLuiOutbox</c> on a catalog that cannot apply an outbox (ADR-0076).
+    /// </summary>
+    public bool IsReadOnly => Database.Mode == SqliteOpenMode.ReadOnly;
+
     internal TimeProvider TimeProvider => _options.TimeProvider;
 
     /// <summary>
@@ -799,9 +806,11 @@ public sealed class LuiCatalog : IDisposable
     /// <b>The definition fields</b> (the source, the kind, the payload type and its format, the key type, the typo distance) come from the
     /// definitions in the memory of the catalog (ADR-0075): no statement reads them. The only statement of the call asks whether the
     /// SQLite schema counter of the file moved; only then the definitions are read again — so an index that another process created or
-    /// dropped is in the list. <b>The state field</b>, the state of the typo dictionary, is read from the dictionaries of this catalog
-    /// when the call is made: <c>NotBuilt</c> says that <i>this</i> catalog has not built it. Nothing else of the state is in the
-    /// list — <see cref="Count(string)"/> and <see cref="Check(string)"/> are asked by name, and cost what they cost.
+    /// dropped is in the list. <b>The state fields</b> are read when the call is made: the state of the typo dictionary, from the dictionaries
+    /// of this catalog — <c>NotBuilt</c> says that <i>this</i> catalog has not built it —, and <see cref="LuiIndexInfo.NeedsInitialization"/> (#266): the dictionary,
+    /// and for each <b>linked</b> index the triggers, the flag of the first sync and its lease, read from the file in one snapshot with the guard of every
+    /// operation (an embedded index costs no statement). Nothing else of the state is in the list — <see cref="Count(string)"/> and
+    /// <see cref="Check(string)"/> are asked by name, and cost what they cost.
     /// </para>
     /// </summary>
     /// <returns>One record per index; empty when the catalog holds none. It is a snapshot.</returns>
@@ -824,21 +833,90 @@ public sealed class LuiCatalog : IDisposable
 
             entry.EnsureReadable(name);
             var definition = entry.Definition;
+            var linked = string.Equals(entry.Source, LinkedSource.SourceName, StringComparison.Ordinal);
+            var typoState = TypoDictionaries.StateOf(name, definition.ToJson());
+
+            // what the index needs at its start (ADR-0076): the dictionary of this process — and for a linked index the state of the file, read by
+            // name with the guard of every operation. An index that was dropped under the call is not listed, as one dropped before it is not
+            LuiInitializationNeeds needs;
+            try
+            {
+                needs = NeedsOf(name, linked, definition.TypoDistance, typoState);
+            }
+            catch (LuiIndexNotFoundException)
+            {
+                continue;
+            }
+
             infos.Add(
                 new LuiIndexInfo
                 {
                     Name = name,
-                    Source = string.Equals(entry.Source, EmbeddedSource.SourceName, StringComparison.Ordinal) ? LuiIndexSource.Embedded : LuiIndexSource.Linked,
+                    Source = linked ? LuiIndexSource.Linked : LuiIndexSource.Embedded,
                     Kind = entry.Kind,
                     PayloadType = definition.PayloadTypeName,
                     PayloadFormat = definition.PayloadFormat,
                     KeyType = KeyCodec.TypeOf(definition.KeyType),
                     TypoDistance = definition.TypoDistance,
-                    TypoDictionaryState = TypoDictionaries.StateOf(name, definition.ToJson()),
+                    TypoDictionaryState = typoState,
+                    NeedsInitialization = needs,
                 });
         }
 
         return infos;
+    }
+
+    /// <summary>
+    /// Brings every index to the state an application needs at the start of a process (ADR-0076) — <b>one explicit, synchronous call</b> with good defaults, in LUI's order,
+    /// driven by the state of each index. LUI never does it on its own: without this call — or the single steps — a linked index has no triggers and no first sync, and a typo-tolerant
+    /// index never corrects (a query never builds its dictionary, ADR-0042), and <see cref="LuiIndexInfo.NeedsInitialization"/> says so. The application decides <b>when</b> and
+    /// <b>on which thread</b>; there is no <c>InitializeAsync</c> — the work is synchronous SQLite, and a <c>Task.Run</c> around it would only pretend otherwise.
+    /// <para>
+    /// <b>The order</b>, step by step across the selected indexes: (1) the triggers of every linked index whose triggers are missing or stale — <c>CreateTriggers()</c>, idempotent,
+    /// before the sync, so that a row written in between is noted (ADR-0077); (2) the first complete sync of every linked index that still needs one, one after the other and in batches;
+    /// (3) the outbox of every linked index, once; (4) the typo dictionaries, last — so that they know the words of the syncs and the outbox — and <b>one after the other</b>, so that the
+    /// peak memory is that of the largest dictionary and not the sum. Each step runs only for the index whose state needs it, read first: a second call right after the first does nothing.
+    /// A typo dictionary is built only for an index that has no file step left (no triggers missing, no first sync due or running elsewhere); the reason stays, and the next call builds it.
+    /// Typo dictionaries are per process: every process builds its own — expected work, not a repetition. Each takes seconds and some hundred MB at the size of the German word list, so with
+    /// several typo-tolerant indexes the time adds up.
+    /// </para>
+    /// <para>
+    /// <b>Several processes.</b> The first sync of a linked index is guarded by the lease of ADR-0077. When another process holds it, this call skips that sync — and the steps after
+    /// it for that index — and reports <see cref="LuiInitializationNeeds.InitialSyncRunningElsewhere"/>: it does not wait and does not fail. Of two processes that start together exactly
+    /// one runs the sync. The triggers are idempotent, and the outbox is applied by one writer at a time (ADR-0046).
+    /// </para>
+    /// <para>
+    /// <b>A failing index</b> does not stop the others: its failing step is recorded, its later steps are skipped, the other indexes go on, and at the end the call throws a
+    /// <see cref="LuiInitializeException"/> with the complete report and the error of every failed index. <b>Cancellation</b> is checked between the steps and inside the syncs; it throws
+    /// an <see cref="OperationCanceledException"/>, what was finished stays, and the next call continues by state.
+    /// </para>
+    /// <para>
+    /// <b>A catalog opened with <see cref="OpenReadOnly"/></b> builds the typo dictionaries and nothing else: the file steps cannot be done and are left to the writing process.
+    /// <see cref="LuiIndexInfo.NeedsInitialization"/> reports them, so a reader can tell "not ready yet" from "ready" — but its readiness looks only at
+    /// <see cref="LuiInitializationNeeds.TypoDictionary"/>.
+    /// </para>
+    /// </summary>
+    /// <param name="options">What to do and for which indexes; <see langword="null"/> is everything, for every index of the catalog.</param>
+    /// <param name="cancellationToken">Checked between the steps and inside the syncs.</param>
+    /// <returns>What was done, one line per index.</returns>
+    /// <exception cref="LuiIndexNotFoundException">A definition of <see cref="LuiInitializeOptions.Indexes"/> names an index that does not exist — before any step.</exception>
+    /// <exception cref="LuiInitializeException">One or more indexes failed, after every other index was initialized.</exception>
+    /// <exception cref="OperationCanceledException">The token was cancelled; what was finished stays. The errors of indexes that had failed by then are not carried: <see cref="LuiIndexInfo.NeedsInitialization"/> still names what they need, and the next call runs their steps again.</exception>
+    /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
+    public LuiInitializeReport Initialize(LuiInitializeOptions? options = null, CancellationToken cancellationToken = default)
+    {
+        Database.ThrowIfDisposed();
+        return new CatalogInitialization(this, options ?? new LuiInitializeOptions(), cancellationToken).Run();
+    }
+
+    /// <summary>
+    /// What an index needs at its start (ADR-0076): the dictionary of this process, and for a linked index the state of the file — the triggers, the flag of the first sync, the lease —
+    /// read by name with the guard of every operation.
+    /// </summary>
+    private LuiInitializationNeeds NeedsOf(string name, bool linked, LuiTypoDistance distance, LuiTypoDictionaryState typoState)
+    {
+        var needs = distance != LuiTypoDistance.None && typoState != LuiTypoDictionaryState.Current ? LuiInitializationNeeds.TypoDictionary : LuiInitializationNeeds.None;
+        return linked ? needs | Maintain(name, runtime => ((LinkedIndex)runtime.Index).ReadInitializationState().Needs) : needs;
     }
 
     /// <summary>
@@ -928,7 +1006,7 @@ public sealed class LuiCatalog : IDisposable
     /// <param name="work">The operation, on the internal index.</param>
     /// <param name="refuse">Whether the stored index is the wrong kind for the operation; the exception to throw, once the file has been looked at.</param>
     /// <returns>What the operation returned.</returns>
-    private T Maintain<T>(string name, Func<IndexRuntime, T> work, Func<IndexStoreEntry, Exception?>? refuse = null)
+    internal T Maintain<T>(string name, Func<IndexRuntime, T> work, Func<IndexStoreEntry, Exception?>? refuse = null)
     {
         var validated = Identifier.ValidateIndexName(name, nameof(name));
         Database.ThrowIfDisposed();

@@ -187,7 +187,8 @@ waits for the build and it never starts one — the application asks for the
 dictionary with `WarmUpTypoDictionary()` and builds it when it needs it.
 
 Call `WarmUpTypoDictionary()` once the entries are in — at the start of your
-application, or after a load. Without it the index answers every query, and
+application, or after a load; `catalog.Initialize()` does it for every index of the
+catalog together with the other start steps (step 5). Without it the index answers every query, and
 corrects none. The dictionary costs memory, and step 4 has the measured size.
 
 > **Why so?**

@@ -25,7 +25,7 @@ file into `0.4.0`.
 | 9 | #272 State of a linked index: `NeedsInitialSync`, idempotent `CreateTriggers()` (ADR-0077) | precondition of #271 and #266 | #262 | merged | #290 — NeedsInitialSync stored in lui_meta; triggers first, then the first sync |
 | 10 | #271 Linked `Sync()` in batches, generation, merge, lease (ADR-0077) | needs `NeedsInitialSync`; `Initialize()` needs the lease | #272 | merged | #291 — the linked sync in batches; option C: starvation documented, README section; the WAL grows one transaction at a time |
 | 11 | #273 Maintenance by name (ADR-0076) | needs `LuiKeyType` and the fingerprint; #266 adds to `LuiIndexInfo` | #271 | merged | #292 — maintenance by name; DropIndex of a damaged row drops by its readable source and refuses an unknown one; four rounds |
-| 12 | #266 `catalog.Initialize()`, `AddLuiOutbox`, host pattern (ADR-0076) | puts every step before it together | #273 | open | — |
+| 12 | #266 `catalog.Initialize()`, `AddLuiOutbox`, host pattern (ADR-0076) | puts every step before it together | #273 | merged | #294 — Initialize(), AddLuiOutbox, the host pattern (the documented initializer repeats until ready); four rounds |
 | 13 | #268 Remove every replaced member, move every caller (ADR-0073) | only when every replacement exists | #266 | open | — |
 | 14 | #263 Sample and documentation | describes the finished API | #268 | open | — |
 | 15 | #221 Align with the Nordmann standards | changes wiring, labels and the rule book — after the code | #263 | open | — |

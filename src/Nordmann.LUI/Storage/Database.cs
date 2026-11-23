@@ -210,6 +210,12 @@ internal sealed class Database : IDisposable
     internal Action<string>? AfterSyncTransaction { get; set; }
 
     /// <summary>
+    /// Runs with <see langword="true"/> when the build of a typo dictionary begins to read the texts of its index and with <see langword="false"/> when it is done —
+    /// on the thread of the build. A seam of the tests (ADR-0076): they see that two builds never run at once; <see langword="null"/> in production.
+    /// </summary>
+    internal Action<bool>? TypoTextsReading { get; set; }
+
+    /// <summary>
     /// SQLite's schema counter — what <c>PRAGMA schema_version</c> reads: a number in the header of the file that changes
     /// whenever a table, an index or a trigger is created or dropped, and not when content is written (ADR-0075). It is
     /// <b>not</b> the LUI format version of <c>lui_meta.schema_version</c> (ADR-0073). One statement on the connection of
