@@ -8,7 +8,7 @@ internal static class ContentSources
     /// none: the way out of a <see cref="LuiDefinitionMismatchException"/> works whatever the definition is. A source
     /// this version does not know is refused rather than guessed (review of pull request 14, N2).
     /// </summary>
-    internal static IReadOnlyList<string> DropStatements(string indexName, IndexDefinition? stored) => stored?.Source switch
+    internal static IReadOnlyList<string> DropStatements(string indexName, string? source) => source switch
     {
         null or EmbeddedSource.SourceName => EmbeddedSource.Drop(indexName),
         LinkedSource.SourceName => LinkedSource.Drop(indexName),

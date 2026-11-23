@@ -72,7 +72,7 @@ The owner decided on 2026-11-20: maintenance works by name, through the catalog,
      does not know, a kind it does not know, a definition of `null` or of malformed JSON) is a `LuiDefinitionMismatchException` that names
      it — the error of the parser is its inner exception — as `WarmUpTypoDictionaries()` already does, **for `Indexes()` and for every operation by
      name on that index**. `Indexes()` throws for one damaged row and does not list the others around it: a list with a hole would hide the one
-     row the operator has to `DropIndex`, which is the way out and reads such a row leniently. The other indexes stay usable by name.
+     row the operator has to `DropIndex`, which is the way out and reads such a row leniently, as what its `source` column says: a damaged **linked** row is dropped with the linked statements (its outbox, search index and entries) and with the refusal of its triggers unless `dropTriggers: true`, an embedded one with the embedded statements. A row whose source cannot be read either is a linked index when its outbox table `lui_<name>_pending` is there and an embedded one otherwise — the tables are LUI's own and are the evidence. The other indexes stay usable by name.
 6. **`Rebuild(name)` is for an embedded index only.** For a linked index it throws an `InvalidOperationException` before it touches the file:
    *"'chefs' is a linked index; rebuild it from its table with Sync() on its handle."* A linked index has no content of its own to rebuild
    the search index from: its content is the application's table, and `Sync()` is the call that reads it. The refusal is thrown only from a
@@ -101,7 +101,7 @@ Which check for what:
 - **`Indexes()` without the statement for the counter** (the snapshot as it is): free, and wrong as soon as another process creates an index —
   a tool that lists the indexes of a file that several processes write would list a stale file. One statement per call is the price of
   a list that is true, and no definition field costs a statement.
-- **A count and the state of the triggers in `LuiIndexInfo`:** they cost a statement per index, and the list is meant for every probe.
+- **A count and the state of the triggers in `LuiIndexInfo`:** they cost a statement per index, and the list is meant for frequent calls.
   `Count(name)` and `Check(name)` are asked by name when they are wanted; #266 adds the one state field that is cheap (`NeedsInitialization`).
 
 ## Consequences

@@ -63,7 +63,7 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 | `ILuiEmbeddedIndex Index(string name)` | opens an embedded index that exists, and **writes nothing**: the definition is read out of the file, no table, no write lock. |
 | `ILuiLinkedIndex LinkedIndex(string name)` | opens a linked index without payload columns. |
 | `ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)` | opens a linked index with payload columns; the map builds the payload from the row of the table. |
-| `IReadOnlyList<LuiIndexInfo> Indexes()` | describes **every** index of the catalog by what is stored, in the order of the names — without a definition and without a payload type ([maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type), ADR-0076). The definition fields come from the memory of the catalog, with no statement that reads them; the typo dictionary state is read when it is called. |
+| `IReadOnlyList<LuiIndexInfo> Indexes()` | describes **every** index of the catalog by what is stored, in the order of the names — **one row that cannot be read (another LUI format, `null` or malformed JSON) makes the whole call throw a `LuiDefinitionMismatchException` that names the index; `DropIndex` is the way out** — without a definition and without a payload type ([maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type), ADR-0076). The definition fields come from the memory of the catalog, with no statement that reads them; the typo dictionary state is read when it is called. |
 | `long Count(string name)` | the number of the entries of the index, embedded or linked; the check of the schema counter and the count are one step. A name that is not there is a `LuiIndexNotFoundException` that names it. |
 | `LuiIntegrityReport Check(string name)` | compares the index with itself (embedded) or with its table (linked); the report has no keys. **Structure only: it reads no payload and calls no map** (the payload *columns* of a linked index are stored, and are checked). It holds the **write lock of the file for the whole of FTS5's integrity check**, which reads the whole index (an insert that is rolled back): cheap in what it reads, not in the lock it takes — do not wire it into a liveness probe of a second on a large index (#275 measures it). For the same reason a catalog opened with `OpenReadOnly` refuses it with a `LuiReadOnlyException`. |
 | `void Optimize(string name)` | lets SQLite optimize the search index of the index, embedded or linked. A catalog opened with `OpenReadOnly` refuses it with a `LuiReadOnlyException` that names the index. |
@@ -108,7 +108,7 @@ Which check for what:
 
 | check | cost | use |
 |---|---|---|
-| `Check()` of a handle, `catalog.Check(name)` | cheap: structure only (definition, triggers, FTS5's integrity check, the counts against the table) | health endpoints, every probe |
+| `Check()` of a handle, `catalog.Check(name)` | structure only (definition, triggers, the payload columns of a linked index, FTS5's integrity check, the counts against the table); **holds the write lock of the file while FTS5 checks the index** and is refused on a read-only catalog | health checks on a schedule, not a liveness check of a second |
 | `catalog.Indexes()` → `NeedsInitialization` (#266) | cheap: state only | readiness, every probe |
 | `CheckPayloads()` of a typed handle with a payload (ADR-0074) | reads every stored payload | maintenance, after a change of the payload type |
 
@@ -480,7 +480,7 @@ entries that do not read — keyed by `TKey`, with the reason — in the order o
 maintenance and not for every probe: one read connection, one snapshot, the check of the handle inside it as for any operation (a
 dropped index is a `LuiIndexNotFoundException`, another definition a `LuiDefinitionMismatchException`), cancellable between the entries,
 and a catalog that was opened read-only may call it. `Check()` stays the **structural** check — a report without keys that reads **no
-payload** and calls **no map**, cheap enough for a health endpoint. A linked index has no `CheckPayloads()`: its payload is not stored.
+payload** and calls **no map** (it holds the write lock of the file for FTS5's integrity check, see [maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type)). A linked index has no `CheckPayloads()`: its payload is not stored.
 
 ```csharp
 var check = recipes.CheckPayloads(cancellationToken);

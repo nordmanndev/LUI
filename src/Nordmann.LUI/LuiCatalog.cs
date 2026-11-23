@@ -849,7 +849,7 @@ public sealed class LuiCatalog : IDisposable
     /// <returns>The count.</returns>
     /// <exception cref="ArgumentException">The name is no index name.</exception>
     /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database — or it was dropped under the call.</exception>
-    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding).</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding), or its stored definition cannot be read (<c>null</c>, malformed JSON): the exception names the index, and <see cref="DropIndex"/> is the way out.</exception>
     /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
     public long Count(string name) => Maintain(name, runtime => runtime.Index.Count());
 
@@ -857,7 +857,7 @@ public sealed class LuiCatalog : IDisposable
     /// Checks the structure of an index, by name (ADR-0076): an embedded one — its definition, its triggers and FTS5's integrity check
     /// against the content table; a linked one — its definition, its table and its entries against the rows of the table. The report
     /// carries no keys. <b>It reads no payload and calls no map</b> (the payload columns of a linked index are stored, and the table is checked to still have them): whether the stored payloads can be read is the question of
-    /// <c>CheckPayloads()</c> on a typed handle, which needs the payload type. It is cheap enough for a health endpoint.
+    /// <c>CheckPayloads()</c> on a typed handle, which needs the payload type.
     /// <para>
     /// FTS5's integrity check is an insert that is rolled back and reads the whole index, so the check holds the write lock of the file for as long as it takes, and it needs a connection that may write: a catalog opened with
     /// <see cref="OpenReadOnly"/> refuses it with a <see cref="LuiReadOnlyException"/>, as the check of a handle does.
@@ -867,7 +867,7 @@ public sealed class LuiCatalog : IDisposable
     /// <returns>The report.</returns>
     /// <exception cref="ArgumentException">The name is no index name.</exception>
     /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database — or it was dropped under the call.</exception>
-    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding).</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding), or its stored definition cannot be read (<c>null</c>, malformed JSON): the exception names the index, and <see cref="DropIndex"/> is the way out.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
     public LuiIntegrityReport Check(string name) => Maintain(name, runtime => runtime.Index.Check());
@@ -878,7 +878,7 @@ public sealed class LuiCatalog : IDisposable
     /// <param name="name">The name of the index.</param>
     /// <exception cref="ArgumentException">The name is no index name.</exception>
     /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database — or it was dropped under the call.</exception>
-    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding).</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding), or its stored definition cannot be read (<c>null</c>, malformed JSON): the exception names the index, and <see cref="DropIndex"/> is the way out.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written; the message names the index.</exception>
     /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
     public void Optimize(string name) =>
@@ -899,7 +899,7 @@ public sealed class LuiCatalog : IDisposable
     /// <exception cref="ArgumentException">The name is no index name.</exception>
     /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database — or it was dropped under the call.</exception>
     /// <exception cref="InvalidOperationException">The index is a linked one: "'chefs' is a linked index; rebuild it from its table with Sync() on its handle."</exception>
-    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding).</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The index was written by another version of the library (another LUI format, another folding), or its stored definition cannot be read (<c>null</c>, malformed JSON): the exception names the index, and <see cref="DropIndex"/> is the way out.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written; the message names the index.</exception>
     /// <exception cref="ObjectDisposedException">The catalog is disposed.</exception>
     public void Rebuild(string name) =>

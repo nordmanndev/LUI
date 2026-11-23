@@ -1191,6 +1191,16 @@ expect_caught "the-drop-cannot-take-a-damaged-row" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~MaintenanceByNameTests.A_row_that_cannot_be_read_is_a_mismatch_that_names_the_index_on_every_path_and_spoils_no_other_index" \
   "sed -i 's|        catch (System.Text.Json.JsonException)\$|        catch (System.Text.Json.JsonException) when (indexName is null)|' src/Nordmann.LUI/Indexes/IndexStore.cs"
 
+# 35zzq. A damaged row of a linked index is dropped as an embedded one (issue #273, review of pull request 292, round 2): the source column is not read, the outbox table stays and the next Create fails.
+expect_caught "a-damaged-linked-row-is-dropped-as-an-embedded-index" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.A_damaged_row_of_a_linked_index_is_dropped_as_a_linked_index_and_its_triggers_go_only_with_the_flag" \
+  "sed -i 's|        var source = stored?.Source ?? sourceName;|        var source = stored?.Source ?? EmbeddedSource.SourceName;|' src/Nordmann.LUI/Indexes/IndexStore.cs"
+
+# 35zzr. The drop of a damaged linked row removes the triggers of the application without dropTriggers (issue #273, review of pull request 292, round 2).
+expect_caught "a-damaged-linked-row-loses-its-triggers-without-the-flag" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.A_damaged_row_of_a_linked_index_is_dropped_as_a_linked_index_and_its_triggers_go_only_with_the_flag" \
+  "sed -i 's|        if (!dropTriggers \&\& string.Equals(source, LinkedSource.SourceName, StringComparison.Ordinal) \&\& HasTriggers|        if (false \&\& string.Equals(source, LinkedSource.SourceName, StringComparison.Ordinal) \&\& HasTriggers|' src/Nordmann.LUI/Indexes/IndexStore.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

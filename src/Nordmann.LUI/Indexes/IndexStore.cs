@@ -413,17 +413,27 @@ internal static class IndexStore
         using var connection = database.OpenConnection();
         using var transaction = connection.BeginTransaction(deferred: false);
 
-        var (stored, existed) = ReadForDrop(connection, transaction, name);
+        var (stored, sourceName, existed) = ReadForDrop(connection, transaction, name);
 
-        if (!dropTriggers && stored?.Link is { } link && HasTriggers(connection, transaction, name))
+        // a row whose definition cannot be read is dropped as what its source column says (ADR-0076): a linked index with its outbox, its
+        // search index and its entries — and with the refusal of its triggers; a source that cannot be read either is a linked index when
+        // its outbox table is there, as an embedded one otherwise: the tables are LUI's own and are the evidence
+        var source = stored?.Source ?? sourceName;
+        if (stored is null && source is not (LinkedSource.SourceName or EmbeddedSource.SourceName))
         {
+            source = PendingTableExists(connection, transaction, name) ? LinkedSource.SourceName : EmbeddedSource.SourceName;
+        }
+
+        if (!dropTriggers && string.Equals(source, LinkedSource.SourceName, StringComparison.Ordinal) && HasTriggers(connection, transaction, name))
+        {
+            var table = stored?.Link is { } link ? $" on the table '{link.Table}'" : " on the table of the application";
             throw new InvalidOperationException(
-                $"The linked index '{name}' has triggers on the table '{link.Table}'. They write into the tables of the index "
+                $"The linked index '{name}' has triggers{table}. They write into the tables of the index "
                 + "and go with it: call DropIndex(name, dropTriggers: true), and take them out of the application's migration "
                 + "too. After a new Create() the index is empty and has no triggers — create them again, then Sync() it (the triggers first, so that no row written in between is lost).");
         }
 
-        foreach (var statement in ContentSources.DropStatements(name, stored))
+        foreach (var statement in ContentSources.DropStatements(name, source))
         {
             Execute(connection, transaction, statement);
         }
@@ -580,25 +590,36 @@ internal static class IndexStore
     /// read (ADR-0076): a definition that is <c>null</c> or no JSON is no reason to keep the row — it is dropped with the statements of an
     /// embedded index, as a definition of no source always was.
     /// </summary>
-    private static (IndexDefinition? Stored, bool Existed) ReadForDrop(SqliteConnection connection, SqliteTransaction transaction, string indexName)
+    private static (IndexDefinition? Stored, string? Source, bool Existed) ReadForDrop(SqliteConnection connection, SqliteTransaction transaction, string indexName)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "SELECT definition FROM lui_meta WHERE index_name = $name;";
+        command.CommandText = "SELECT definition, source FROM lui_meta WHERE index_name = $name;";
         command.Parameters.AddWithValue("$name", indexName);
-        if (command.ExecuteScalar() is not string json)
+        using var reader = command.ExecuteReader();
+        if (!reader.Read())
         {
-            return (null, false);
+            return (null, null, false);
         }
 
+        var source = reader.IsDBNull(1) ? null : reader.GetString(1);
         try
         {
-            return (IndexDefinition.FromJson(json), true);
+            return (reader.IsDBNull(0) ? null : IndexDefinition.FromJson(reader.GetString(0)), source, true);
         }
         catch (System.Text.Json.JsonException)
         {
-            return (null, true);
+            return (null, source, true);
         }
+    }
+
+    private static bool PendingTableExists(SqliteConnection connection, SqliteTransaction transaction, string indexName)
+    {
+        using var command = connection.CreateCommand();
+        command.Transaction = transaction;
+        command.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = $name;";
+        command.Parameters.AddWithValue("$name", $"lui_{indexName}_pending");
+        return (long)command.ExecuteScalar()! > 0;
     }
 
     /// <summary>The stored definition of an index, or <see langword="null"/> when there is none.</summary>
