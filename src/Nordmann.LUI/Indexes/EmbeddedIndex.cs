@@ -36,7 +36,7 @@ internal sealed class EmbeddedIndex : IMaintainedIndex
     private readonly EmbeddedCheck _check;
 
     // asks, on the connection of every operation, whether the definition of the index is still the one in the file
-    // (ADR-0075); null for an index of the old path, which holds no definition
+    // (ADR-0075); null for an index that is built without a definition (the maintenance by name)
     private readonly IndexGuard? _guard;
 
     // The statements of the application's own connections, one set per connection.
@@ -195,7 +195,7 @@ internal sealed class EmbeddedIndex : IMaintainedIndex
             return null;
         }
 
-        // the payload is written by the serialisation of the index: the serializer of its declared payload type, or — on the old calls —
+        // the payload is written by the serialisation of the index: the serializer of its declared payload type —
         // the one of the catalog, with the type the payload has (ADR-0035, ADR-0072)
         return _payload.Serialize(payload, Name);
     }
@@ -414,8 +414,7 @@ internal sealed class EmbeddedIndex : IMaintainedIndex
 
     /// <summary>
     /// A write of LUI's own, in one transaction that holds the write lock from the check to the commit (ADR-0075): nobody can drop the
-    /// index, or create it again, between the schema counter and the statement. An index of the old path has no guard to ask and
-    /// writes as a single statement, as it did.
+    /// index, or create it again, between the schema counter and the statement. An index that is built without a definition (the maintenance by name) has no guard to ask.
     /// </summary>
     private OwnWrite BeginOwnWrite()
     {

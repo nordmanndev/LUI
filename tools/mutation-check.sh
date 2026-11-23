@@ -566,6 +566,18 @@ expect_caught "the-pragmas-are-applied-on-every-write" "${INTEGRATION_PROJECT}" 
   "FullyQualifiedName~WriteAllocationTests.A_write_takes_a_connection_of_the_pool_and_does_not_apply_its_pragmas_again" \
   "sed -i 's|if (handle is not null \&\& Configured.TryGetValue(handle, out var applied)|if (false \&\& handle is not null \&\& Configured.TryGetValue(handle, out var applied)|' src/Nordmann.LUI/Storage/Database.cs"
 
+# 26b3. The check of a guard begins an operation of its own again (#268): a dispose that waits for the operation makes the check at the end of a
+#       warm-up fail with ObjectDisposedException. The test of the dispose during a warm-up has to notice.
+expect_caught "a-guard-check-that-begins-its-own-operation" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_dispose_during_a_warm_up_ends_and_does_not_hang" \
+  "sed -i 's|^        using var connection = _stored.Database.OpenReadConnection();|        using var scope = _stored.Database.Begin();\n        using var connection = _stored.Database.OpenReadConnection();|' src/Nordmann.LUI/Indexes/IndexGuard.cs"
+
+# 26b4. A null string key reaches the file (#268): the provider answers with "Value must be set." and no index, or an internal exception —
+#       the rule of LuiKey.FromString(null) of 0.3.0 is gone.
+expect_caught "a-null-string-key-reaches-the-provider" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~A_null_string_key_is_refused_at_every_entry_point" \
+  "sed -i 's|        if (key is null)|        if (key is null) { return string.Empty; }\n        if (key is null)|' src/Nordmann.LUI/KeyConversion.cs"
+
 # 26c. The provider retries a busy command for thirty seconds again (issue #70, ADR-0046): without the timeout of
 #      the commands, a write waits 31 s whatever BusyTimeout says. The test of the wait has to notice.
 expect_caught "the-provider-retries-for-thirty-seconds" "${INTEGRATION_PROJECT}" \

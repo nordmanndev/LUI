@@ -10,11 +10,10 @@
 > **This page describes version 0.3.0.** The freeze of 0.1.0 was lifted once, for 0.3.0 ([ADR-0069](../.agents/adr/0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md)); the
 > members that moved are in the migration note of the [changelog](../CHANGELOG.md), and the API grows only additively again from here.
 
-> **0.4.0 (in progress) puts the index definition next to the old calls.** An index is declared **once**, as a definition
-> object, and the catalog hands out typed handles for it — see [the definition](#defining-an-index--the-definition) and
-> [the typed handles](#the-typed-handles--what-a-definition-opens). The calls of 0.3.0 keep working, as a thin layer over
-> the new ones, until [#268](https://github.com/nordmanndev/LUI/issues/268) removes them
-> ([ADR-0073](../.agents/adr/0073-the-index-definition-and-the-typed-handles.md)).
+> **0.4.0 declares an index once.** An index is declared **once**, as a definition object, and the catalog hands out typed handles for it —
+> see [the definition](#defining-an-index--the-definition) and [the typed handles](#the-typed-handles--what-a-definition-opens). The calls of
+> 0.3.0 that named an index by a string (`Create(name, …)`, `CreateLinked`, `Index(name)`, `LinkedIndex`) and the untyped handles are gone
+> ([ADR-0073](../.agents/adr/0073-the-index-definition-and-the-typed-handles.md); the migration note is in the [changelog](../CHANGELOG.md)).
 
 The table at the end is the whole surface. The sections before it explain what the parts are for.
 
@@ -689,7 +688,7 @@ Everything of the embedded builder except `LinkTo` — a linked index takes the 
 
 | Member | What it does |
 |---|---|
-| `LuiLinkedIndexBuilder<TPayload> WithPayload<TPayload>(IReadOnlyList<string> columns, Func<LuiPayloadRow, TPayload> map)` | the columns of the payload and the map that builds it from the row; `where TPayload : notnull`. The columns are read live; the map is code of the application, typed end to end. **It returns the typed builder** (not derived from this one): only a `LuiLinkedIndexDefinition<TKey, TPayload>` with the same `TPayload` — or the old `CreateLinked<TPayload>` — takes it, a `LuiLinkedIndexDefinition<TKey>` does not. |
+| `LuiLinkedIndexBuilder<TPayload> WithPayload<TPayload>(IReadOnlyList<string> columns, Func<LuiPayloadRow, TPayload> map)` | the columns of the payload and the map that builds it from the row; `where TPayload : notnull`. The columns are read live; the map is code of the application, typed end to end. **It returns the typed builder** (not derived from this one): only a `LuiLinkedIndexDefinition<TKey, TPayload>` with the same `TPayload` takes it, a `LuiLinkedIndexDefinition<TKey>` does not. |
 
 ### `LuiLinkedIndexBuilder<TPayload>`
 

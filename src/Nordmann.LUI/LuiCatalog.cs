@@ -65,9 +65,7 @@ public sealed class LuiCatalog : IDisposable
 
         // the serialisation of the indexes that have no declared payload type, and the read path by name: the registry resolves
         // the type the caller asks for (ADR-0072)
-        PayloadSerialization = payloads is not null
-            ? new RegistryPayloadSerialization(payloads)
-            : PayloadSerialization.None;
+        PayloadSerialization = PayloadSerialization.None;
         Database = new Database(this, path, mode, createdTheFile, options);
         StoredIndexes = new StoredIndexes(Database);
         Runtimes = new IndexRuntimes(Database, TypoDictionaries, PayloadSerialization, StoredIndexes);
@@ -86,8 +84,8 @@ public sealed class LuiCatalog : IDisposable
     internal TimeProvider TimeProvider => _options.TimeProvider;
 
     /// <summary>
-    /// How the payloads of the indexes that have no declared payload type become bytes and back (ADR-0035, ADR-0072): the registry of
-    /// the catalog, or the serialiser of the old calls, or none.
+    /// How the payloads of an index that has no declared payload type become bytes and back (ADR-0035, ADR-0072): not at all — an index with a
+    /// payload type brings the codec of its type.
     /// </summary>
     internal PayloadSerialization PayloadSerialization { get; }
 

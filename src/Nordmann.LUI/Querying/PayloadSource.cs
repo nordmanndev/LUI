@@ -2,8 +2,8 @@ namespace Nordmann.LUI.Querying;
 
 /// <summary>
 /// Where the payload of a hit comes from (ADR-0035): one per index, shared by all its hits. An embedded index hands out
-/// the stored bytes and reads them with the serialisation of the index — the serializer of its payload type, the registry of the
-/// catalog, or the serialiser of the old calls (ADR-0072); a linked index hands out what its map built.
+/// the stored bytes and reads them with the serialisation of the index — the
+/// codec of its type (ADR-0072); a linked index hands out what its map built.
 /// </summary>
 /// <param name="indexName">The index, for the message of an error.</param>
 /// <param name="serialization">How the stored bytes are read; <see langword="null"/> when the payload is already built.</param>

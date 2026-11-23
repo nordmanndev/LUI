@@ -33,7 +33,7 @@ internal sealed class LinkedIndex : IMaintainedIndex
     private readonly IReadOnlyList<string> _payloadColumns;
 
     // asks, on the connection of every operation, whether the definition of the index is still the one in the file
-    // (ADR-0075); null for an index of the old path, which holds no definition
+    // (ADR-0075); null for an index that is built without a definition (the maintenance by name)
     private readonly IndexGuard? _guard;
 
     internal LinkedIndex(

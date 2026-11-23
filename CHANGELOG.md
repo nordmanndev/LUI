@@ -172,11 +172,7 @@ minor version, a migration note and its own record, and no member is marked `[Ob
 
 - **A payload definition needs a payload registry** (#260, ADR-0072): `LuiIndexDefinition<TKey, TPayload>` is created and opened with the serializer
   that `LuiCatalogOptions.Payloads` holds for `TPayload`. It no longer uses `LuiCatalogOptions.PayloadSerializer` — a typed definition on a catalog
-  that has only that is a `LuiConfigurationException` at `Create` or `Index`, which says where to set the registry —, and setting `Payloads`
-  **and** `PayloadSerializer` is one when the catalog is opened. `PayloadSerializer` and the non-generic `ILuiPayloadSerializer` stay for the
-  old calls until #268 removes them. With a registry set, an index that was created with the old `Create(name, …)` cannot carry a payload
-  (there is no untyped payload), and `hit.GetPayload<T>()` on `catalog.Index(name)` resolves `T` through the registry — a type it does not
-  know is a `LuiConfigurationException`, not a `LuiPayloadException`.
+  that has only that is a `LuiConfigurationException` at `Create` or `Index`, which says where to set the registry —, and `LuiCatalogOptions.PayloadSerializer` with the non-generic `ILuiPayloadSerializer` is removed (#268): the registry is the one way to serialize.
 
   **Migration:**
 
@@ -201,9 +197,7 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   `LuiLinkedIndexBuilder`), and `TPayload` is `where TPayload : notnull`. The map stays typed end to end: the cast per hit and the
   "the map built an 'X'" error of the payload path are gone for a definition. A `LuiLinkedIndexDefinition<long>` (no payload) no
   longer takes a builder with `WithPayload`, and it is a compile error rather than a `LuiConfigurationException`. The old
-  `catalog.CreateLinked(name, index => index.….WithPayload(…))` keeps compiling: the new `CreateLinked<TPayload>(string,
-  Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>>)` takes the typed builder and goes through `Create(definition)`
-  (#268 removes it with the other old calls). Only a call that kept the result of `WithPayload` in a variable of the type
+  `catalog.CreateLinked(name, …)` is removed (#268): a linked definition with `WithPayload` is a `LuiLinkedIndexDefinition<TKey, TPayload>`. Only a call that kept the result of `WithPayload` in a variable of the type
   `LuiLinkedIndexBuilder` has to change its type.
 
 - **The builders describe, the catalog creates.** `LuiIndexKindBuilder`, `LuiEmbeddedIndexBuilder` and `LuiLinkedIndexBuilder`
@@ -252,8 +246,9 @@ used — and `DropIndex` is out of reach too, because the catalog does not open.
    tables `lui_<name>`, `lui_<name>_fts` (and, for a linked index, `lui_<name>_pending`) of every index; the triggers of a linked index on
    the application's table (`lui_<name>_ai`, `lui_<name>_au`, `lui_<name>_ad`) are dropped by the same migration. The application's own tables stay.
 
-The typed key is new, not a break: `LuiIndexDefinition<long>` and `LuiLinkedIndexDefinition<long>` keep working, and an index created by
-the calls of 0.3.0 with text keys (`WithKey(LuiKeyKind.Text)`) opens with `LuiIndexDefinition<string>`.
+The typed key is a break in how a key is written: `LuiKey` is gone and the key type is the type argument of the definition (see *Removed* below). The
+files of 0.3.0 are not read at all (see above): an index that 0.3.0 created with text keys (`WithKey(LuiKeyKind.Text)`) is created again, with
+`LuiIndexDefinition<string>`, after the file is recreated.
 
 **Removed (#268, [ADR-0073](.agents/adr/0073-the-index-definition-and-the-typed-handles.md)) — the members that the definitions and the
 typed handles replace.** There are no `[Obsolete]` bridges (ADR-0071): the compiler names every place. Where 0.3.0 had the left side, write the right side:
@@ -303,7 +298,7 @@ old index (`docs/api.md`, "Changing a definition").
 `hit.GetPayload<T>()` of an untyped hit, and declare the index with `LuiIndexDefinition<long, T>`. A payload that cannot be read now fails the
 whole query with a `LuiPayloadException` instead of throwing where the hit is read — find the entries with `CheckPayloads()` and write them
 again. A hit of an index without a payload type has no payload; `HasPayload` has no counterpart. A map of a linked index that throws is wrapped
-in a `LuiPayloadException` on a typed handle (the inner exception is the one the map threw); the old calls keep the exception of the map.
+in a `LuiPayloadException` on a typed handle (the inner exception is the one the map threw).
 
 A handle that was taken before the index was dropped and created again (by your code or another process) used to work on the new
 index; it throws now, and the open call gives a new handle. Take the handle from `catalog.Index(definition)` where you use it — it is

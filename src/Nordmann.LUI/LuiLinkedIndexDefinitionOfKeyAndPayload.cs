@@ -39,18 +39,5 @@ public sealed class LuiLinkedIndexDefinition<TKey, TPayload> : LuiIndexDefinitio
             typeof(TPayload))
     {
     }
-
-    /// <summary>The definition the old <c>CreateLinked</c> of the catalog builds: the name is validated, the description is made.</summary>
-    /// <param name="name">The validated name.</param>
-    /// <param name="description">What the builder chain described.</param>
-    internal LuiLinkedIndexDefinition(string name, IndexDescription description)
-        : base(
-            name,
-            LuiIndexSource.Linked,
-            typeof(TKey),
-            () => new ResolvedIndex(name, description, KeyTypes.Validate(typeof(TKey), LuiIndexSource.Linked)),
-            typeof(TPayload))
-    {
-    }
 }
 #pragma warning restore MA0048
