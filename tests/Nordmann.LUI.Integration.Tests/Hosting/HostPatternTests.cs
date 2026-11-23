@@ -257,6 +257,34 @@ public sealed class HostPatternTests
     }
 
     [Fact]
+    public async Task A_first_call_that_fails_before_any_step_with_a_plain_exception_is_repeated_too()
+    {
+        // not every failure is a LuiInitializeException: the read of the stored definitions that precedes the steps can throw the error of SQLite itself
+        // (lui_meta is not there for a moment — a migration of the application). Such an exception that escapes the initializer would stop the host
+        using var database = Written();
+        var clock = new SignallingClock(new DateTimeOffset(2026, 11, 23, 9, 0, 0, TimeSpan.Zero));
+        var logger = new RecordingLoggerProvider();
+        using var host = BuildDocs(database, clock, logger);
+        var catalog = host.Services.GetRequiredService<LuiCatalog>();
+        catalog.Create(Recipes, Chefs, Tags);
+        var initializer = host.Services.GetServices<IHostedService>().OfType<SearchInitializer>().Single();
+        Run(database, "ALTER TABLE lui_meta RENAME TO lui_meta_away;");
+
+        await host.StartAsync(TestContext.Current.CancellationToken);
+        await clock.Timers.WaitAsync(HangStop, TestContext.Current.CancellationToken);
+
+        logger.Entries.Count(entry => entry.Level == LogLevel.Warning).ShouldBe(1, "the failure is logged, and the initializer is still there");
+        initializer.ExecuteTask!.IsCompleted.ShouldBeFalse();
+
+        Run(database, "ALTER TABLE lui_meta_away RENAME TO lui_meta;");
+        clock.Advance(TimeSpan.FromSeconds(10));
+        await initializer.ExecuteTask.WaitAsync(HangStop, TestContext.Current.CancellationToken);
+
+        Ready(catalog).ShouldBeTrue();
+        await host.StopAsync(TestContext.Current.CancellationToken);
+    }
+
+    [Fact]
     public void The_initializer_the_tests_run_is_the_one_of_the_README_and_of_the_api_page()
     {
         // the docs show the initializer, and the package smoke test compiles the README's: this test says that the one the tests run — the one that

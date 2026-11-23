@@ -310,6 +310,19 @@ public sealed class InitializeTests
     }
 
     [Fact]
+    public void The_message_of_the_exception_counts_in_proper_grammar()
+    {
+        using var database = World();
+        using var catalog = database.Open();
+        Run(database, "DROP TABLE tag;");
+
+        var failure = Should.Throw<LuiInitializeException>(() => catalog.Initialize(new LuiInitializeOptions { Indexes = [Chefs] }));
+
+        failure.Message.ShouldContain("1 of 1 index ");
+        failure.Message.ShouldNotContain("1 of 1 indexes");
+    }
+
+    [Fact]
     public void A_failing_index_with_a_typo_dictionary_of_its_own_gets_none_and_does_not_block_the_next()
     {
         using var database = World(withCooks: true);
