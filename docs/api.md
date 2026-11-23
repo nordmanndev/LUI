@@ -139,8 +139,7 @@ The settings of the catalog. Every one of them has a default; none of them has t
 | Member | Default | What it is for |
 |---|---|---|
 | `LuiPragmas Pragmas` | `new LuiPragmas()` | the settings of the connections of the catalog — see below |
-| `LuiPayloadRegistry? Payloads` | none | the serializers of the payloads, **by payload type** ([the payload registry](#luipayloadregistry)): `new LuiPayloadRegistry().Use(AppJsonContext.Default)`. The registry is **frozen when the catalog is opened** — a later call on it changes nothing for that catalog. Setting it together with `PayloadSerializer` is a `LuiConfigurationException` at open. |
-| `ILuiPayloadSerializer? PayloadSerializer` | none | the serialiser of the payloads of the **old calls** — one for every index that was created with `Create(name, …)`; the issue #268 removes it with them. A definition with a payload does not use it: it needs a registry. |
+| `LuiPayloadRegistry? Payloads` | none | the serializers of the payloads, **by payload type** ([the payload registry](#luipayloadregistry)): `new LuiPayloadRegistry().Use(AppJsonContext.Default)`. The registry is **frozen when the catalog is opened** — a later call on it changes nothing for that catalog. |
 | `TimeProvider TimeProvider` | `TimeProvider.System` | the clock of the catalog: the `created_at` of an index and the **lease of a linked sync** (ADR-0077 — its expiry is read from this clock, in UTC), and a seam for tests |
 
 The file decides whether writing is allowed at all: a catalog opened with `OpenReadOnly` writes nothing, and SQLite refuses
@@ -887,13 +886,10 @@ One hit. It is a `readonly record struct` — no allocation per hit.
 | `LuiPriority Priority { get; init; }` | the priority of the entry |
 | `double Similarity { get; init; }` | how near the text was to the query, 0 to 1 |
 | `bool AtWordStart { get; init; }` | whether the query matched at the beginning of a word |
-| `bool HasPayload { get; }` | whether the hit carries a payload |
-| `T? GetPayload<T>()` | the payload, in the type where it is used. `default` when there is none. |
-| `bool TryGetPayload<T>(out T payload)` | the same, without the `null` |
 
 **The index knows no types** — there is no type parameter on the index, the hit, the result, the query or the entry.
-The type of the payload stands where the payload is used: `hit.GetPayload<TagChip>()`. A payload that cannot be read in
-the type asked for is a `LuiPayloadException`.
+The type of the payload is the type argument of the definition: `hit.Payload`. A payload that cannot be read
+in its type is a `LuiPayloadException`.
 
 ### `LuiTimings`
 
@@ -1035,7 +1031,6 @@ sealed class or record, or a sealed envelope that holds the variants.
 
 | Member | What it does |
 |---|---|
-| `static ILuiPayloadSerializer Json(JsonSerializerContext context)` | the serialiser of a source-generated JSON context for the **old calls** — safe for trimming and AOT; it writes the type a payload has and reads the type the caller asks for |
 | `static ILuiPayloadSerializer<TPayload> Json<TPayload>(JsonSerializerContext context)` | the strict JSON serializer of **one payload type**, the one `Use(context)` gives, with the format `json-strict-v1`. A type that is not in the context is a `LuiConfigurationException` that names both. `TPayload` is `where TPayload : notnull`. |
 
 Both read **strictly**: a member in the bytes that the type does not have, or a parameter of its constructor that the bytes do not
@@ -1046,18 +1041,8 @@ have, is a `JsonException` — not an object filled with defaults.
 The serializer of **one payload type** (ADR-0072): `string Format { get; }`, `byte[] Serialize(TPayload payload)` and
 `TPayload Deserialize(ReadOnlySpan<byte> bytes)`. `Format` is a name — `json-strict-v1`, `msgpack-v1` — that an embedded index
 stores and compares when it is opened; **a serializer that changes its wire format must change its `Format`**, LUI compares the name,
-not the bytes. An implementation is used from many threads at once. It does not derive from `ILuiPayloadSerializer`: there is no
+not the bytes. An implementation is used from many threads at once. There is no untyped serializer and no
 catch-all.
-
-### `ILuiPayloadSerializer`
-
-| Member | What it does |
-|---|---|
-| `byte[] Serialize(object payload)` | writes a payload |
-| `T Deserialize<T>(ReadOnlySpan<byte> bytes)` | reads a payload in the type asked for |
-
-The serialiser of the **old calls**: one for the catalog (`LuiCatalogOptions.PayloadSerializer`). A catalog without a serialiser
-writes entries without a payload. The issue #268 removes it with the old calls.
 
 ### `LuiPayloadNameAttribute`
 
@@ -1101,11 +1086,9 @@ name of its element type with `[]` (`[,]` for two dimensions). The name is the s
 
 **Errors.** A configuration that is wrong is a `LuiConfigurationException`, never a `LuiPayloadException`: a payload type that no
 registration knows, that two contexts know, a catalog without a registry — thrown by `Create` and `Index`, with the name of the
-definition, before anything is written —, both `Payloads` and `PayloadSerializer` set (when the catalog is opened), a type registered
-twice. `LuiPayloadException` stays for a payload that cannot be read. On the old read path (`catalog.Index(name)` and
-`hit.GetPayload<T>()`) `T` is resolved through the registry when `Payloads` is set; with a registry there is no untyped payload — an
-entry of an index without a declared payload type cannot carry one, and an index that was opened by name and stores a payload type and
-a format refuses every payload write (write through `Index(definition)`).
+definition, before anything is written —, a type registered
+twice. `LuiPayloadException` stays for a payload that cannot be read. There is no untyped payload: an
+entry of an index without a declared payload type cannot carry one.
 
 ### Changing a payload type
 

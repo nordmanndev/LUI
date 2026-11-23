@@ -63,11 +63,11 @@ public sealed class LuiCatalog : IDisposable
         _options = options;
         _payloads = payloads;
 
-        // the serialisation of the indexes that have no declared payload type — the old calls, and the read path by name: the
-        // registry resolves the type the caller asks for, or the serialiser of the old calls does (ADR-0072, until #268)
+        // the serialisation of the indexes that have no declared payload type, and the read path by name: the registry resolves
+        // the type the caller asks for (ADR-0072)
         PayloadSerialization = payloads is not null
             ? new RegistryPayloadSerialization(payloads)
-            : options.PayloadSerializer is { } serializer ? new LegacyPayloadSerialization(serializer) : PayloadSerialization.None;
+            : PayloadSerialization.None;
         Database = new Database(this, path, mode, createdTheFile, options);
         StoredIndexes = new StoredIndexes(Database);
         Runtimes = new IndexRuntimes(Database, TypoDictionaries, PayloadSerialization, StoredIndexes);
@@ -395,25 +395,10 @@ public sealed class LuiCatalog : IDisposable
         }
     }
 
-    /// <summary>
-    /// The registry of the payload types is frozen when the catalog is opened (ADR-0072): the catalog works on a copy. Both ways to
-    /// serialize — the registry and the serialiser of the old calls — set at once are refused <b>before</b> a file is touched.
-    /// </summary>
+    /// <summary>The registry of the payload types is frozen when the catalog is opened (ADR-0072): the catalog works on a copy.</summary>
     /// <param name="options">The options of the catalog.</param>
     /// <returns>The copy of the registry; <see langword="null"/> when there is none.</returns>
-    /// <exception cref="LuiConfigurationException">Both <see cref="LuiCatalogOptions.Payloads"/> and <see cref="LuiCatalogOptions.PayloadSerializer"/> are set.</exception>
-    private static FrozenPayloadRegistry? FreezePayloads(LuiCatalogOptions options)
-    {
-        if (options.Payloads is not null && options.PayloadSerializer is not null)
-        {
-            throw new LuiConfigurationException(
-                $"LuiCatalogOptions.{nameof(LuiCatalogOptions.Payloads)} and LuiCatalogOptions.{nameof(LuiCatalogOptions.PayloadSerializer)} are both set: "
-                + "a catalog has one way to serialize payloads. Register the payload types in the registry — "
-                + "Payloads = new LuiPayloadRegistry().Use(context) — and remove PayloadSerializer (the issue #268 removes it).");
-        }
-
-        return options.Payloads?.Freeze();
-    }
+    private static FrozenPayloadRegistry? FreezePayloads(LuiCatalogOptions options) => options.Payloads?.Freeze();
 
     /// <summary>
     /// The bounds of the settings of the connections (ADR-0066): the busy timeout is one second to ten minutes, the
@@ -715,7 +700,7 @@ public sealed class LuiCatalog : IDisposable
     /// that may not write.
     /// <para>
     /// No type is named (ADR-0035): the kind of the key comes from the file, and a payload is read where it is used,
-    /// with <see cref="LuiHit.GetPayload{T}"/> and the serialiser of the catalog. The index it hands out writes when the
+    /// with <c>hit.GetPayload</c> and the serialiser of the catalog. The index it hands out writes when the
     /// file allows it — the file decides, not the index.
     /// </para>
     /// </summary>
@@ -1164,7 +1149,7 @@ public sealed class LuiCatalog : IDisposable
     /// <summary>
     /// Opens an index over a table of the application that exists and has payload columns, and writes nothing
     /// (ADR-0033). The columns are in the definition; the map is code of the application and is handed over here — the
-    /// type of the payload follows from it, and the hit gives it back with <see cref="LuiHit.GetPayload{T}"/>.
+    /// type of the payload follows from it, and the hit gives it back with <c>hit.GetPayload</c>.
     /// </summary>
     /// <typeparam name="TPayload">What the map builds.</typeparam>
     /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
@@ -1246,10 +1231,7 @@ public sealed class LuiCatalog : IDisposable
             throw new LuiConfigurationException(
                 $"The index definition '{resolved.Name}' has the payload type '{definition.PayloadType.FullName}', and the catalog has no payload "
                 + "registry: set LuiCatalogOptions.Payloads = new LuiPayloadRegistry().Use(context), with the type listed in the JSON context "
-                + "([JsonSerializable]) or registered with Use<T>(serializer)."
-                + (_options.PayloadSerializer is null
-                    ? string.Empty
-                    : " LuiCatalogOptions.PayloadSerializer serves the old calls only (until #268): a payload type of a definition has no catch-all serializer."));
+                + "([JsonSerializable]) or registered with Use<T>(serializer).");
         }
 
         codec = definition.ResolveCodec(_payloads, resolved.Name);

@@ -1,4 +1,3 @@
-using System.Diagnostics.CodeAnalysis;
 using System.Runtime.InteropServices;
 using Nordmann.LUI.Querying;
 
@@ -29,23 +28,11 @@ public readonly record struct LuiHit
     /// <summary>Whether the input stands at the beginning of a word of the text (ADR-0008).</summary>
     public bool AtWordStart { get; init; }
 
-    /// <summary>Whether the entry has a payload.</summary>
-    public bool HasPayload => StoredPayload is not null;
-
     /// <summary>The payload as it came out of the file: the bytes, or what the map of a linked index built.</summary>
     internal object? StoredPayload { get; init; }
 
     /// <summary>Where the payload came from: the index and its serialiser.</summary>
     internal PayloadSource? PayloadSource { get; init; }
-
-    /// <summary>
-    /// The payload, read as <typeparamref name="T"/>; the default when the entry has none. It is deserialised on every
-    /// call — keep the result when it is used twice.
-    /// </summary>
-    /// <typeparam name="T">The type of the payload — the application's to know.</typeparam>
-    /// <returns>The payload, or the default of <typeparamref name="T"/>.</returns>
-    /// <exception cref="LuiPayloadException">The payload cannot be read as <typeparamref name="T"/>.</exception>
-    public T? GetPayload<T>() => TryGetPayload<T>(out var payload) ? payload : default;
 
     /// <summary>
     /// Whether two hits are the same (review of PR 60, M4): the key, the text, the weight, the priority, the similarity,
@@ -83,23 +70,6 @@ public readonly record struct LuiHit
         }
 
         return hash.ToHashCode();
-    }
-
-    /// <summary>The payload, read as <typeparamref name="T"/>, if the entry has one.</summary>
-    /// <typeparam name="T">The type of the payload — the application's to know.</typeparam>
-    /// <param name="payload">The payload.</param>
-    /// <returns><see langword="true"/> when the entry has a payload.</returns>
-    /// <exception cref="LuiPayloadException">The payload cannot be read as <typeparamref name="T"/>.</exception>
-    public bool TryGetPayload<T>([MaybeNullWhen(false)] out T payload)
-    {
-        if (StoredPayload is null || PayloadSource is null)
-        {
-            payload = default;
-            return false;
-        }
-
-        payload = PayloadSource.Read<T>(StoredPayload, Key);
-        return true;
     }
 
     /// <summary>The payload for the hit of a handle with a payload type: set when the query returns, and a failure fails the query (ADR-0074).</summary>

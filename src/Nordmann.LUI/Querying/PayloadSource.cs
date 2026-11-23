@@ -43,7 +43,7 @@ internal sealed class PayloadSource(string indexName, PayloadSerialization? seri
         if (serialization is not { CanRead: true })
         {
             throw new LuiPayloadException(
-                indexName, key.ToString(), typeof(T), "the catalog has no serialiser — set LuiCatalogOptions.Payloads (or, for the old calls, PayloadSerializer).");
+                indexName, key.ToString(), typeof(T), "the catalog has no serialiser — set LuiCatalogOptions.Payloads.");
         }
 
         try

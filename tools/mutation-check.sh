@@ -934,15 +934,17 @@ expect_caught "the-format-is-not-part-of-the-fingerprint" "${INTEGRATION_PROJECT
   "FullyQualifiedName~PayloadFingerprintTests.The_same_type_in_another_format_throws_a_mismatch_naming_both_formats" \
   "sed -i 's|PayloadFormat: payload?.Format)|PayloadFormat: null)|' src/Nordmann.LUI/Schema/IndexDescription.cs"
 
-# 35v. The registry and the serializer of the old calls are both accepted (issue #260, ADR-0072): a catalog has one way to serialize.
-expect_caught "the-registry-and-the-old-serializer-are-both-accepted" "${INTEGRATION_PROJECT}" \
-  "FullyQualifiedName~PayloadFingerprintTests.Setting_Payloads_and_PayloadSerializer_throws" \
-  "sed -i 's|if (options.Payloads is not null \&\& options.PayloadSerializer is not null)|if (options.Payloads is not null \&\& options.PayloadSerializer is null)|' src/Nordmann.LUI/LuiCatalog.cs"
+# 35v. A second way to serialize appears in the options (issue #260, ADR-0072, #268): a catalog has one way to serialize payloads, the registry.
+expect_caught "a-second-serializer-option-appears" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~PayloadFingerprintTests.The_registry_is_the_only_way_to_serialize_payloads" \
+  "sed -i 's|    public LuiPragmas Pragmas { get; init; } = new();|    public LuiPragmas Pragmas { get; init; } = new();\n\n    /// <summary>x</summary>\n    public object? PayloadSerializer { get; init; }|' src/Nordmann.LUI/LuiCatalogOptions.cs"
 
-# 35w. A type the registry does not know is made a payload error on the read path (issue #260, ADR-0072): a configuration error is not a payload error.
-expect_caught "a-configuration-error-is-wrapped-as-a-payload-error" "${INTEGRATION_PROJECT}" \
-  "FullyQualifiedName~PayloadFingerprintTests.The_old_read_path_asks_the_registry_for_the_type_and_a_missing_one_is_a_configuration_error_not_a_payload_error" \
-  "sed -i 's|when (exception is not (OperationCanceledException or LuiConfigurationException))|when (exception is not OperationCanceledException)|' src/Nordmann.LUI/Querying/PayloadSource.cs"
+# 35w. A payload that cannot be read is made a configuration error (issue #260, ADR-0072): a payload error is not a configuration error.
+#      (The other direction — a type the registry does not know wrapped as a payload error — cannot happen any more: the type is
+#      asked of the registry when the index is created or opened.)
+expect_caught "a-payload-error-is-made-a-configuration-error" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~PayloadFingerprintTests.A_payload_that_cannot_be_read_is_a_payload_exception_and_not_a_configuration_exception" \
+  "sed -i 's|throw new LuiPayloadException(indexName, key.ToString(), typeof(T), exception.Message, exception);|throw new LuiConfigurationException(exception.Message, exception);|' src/Nordmann.LUI/Querying/PayloadSource.cs"
 
 # 35x. The name of a payload type carries the assembly version (issue #260, ADR-0072): a rebuild with another version is a changed definition.
 expect_caught "the-name-of-a-payload-type-carries-the-assembly-version" "${UNIT_PROJECT}" \

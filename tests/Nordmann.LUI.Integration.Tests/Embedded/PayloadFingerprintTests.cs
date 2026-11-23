@@ -113,6 +113,11 @@ public sealed class PayloadFingerprintTests
     [Fact]
     public void The_registry_is_the_only_way_to_serialize_payloads()
     {
+        // the serializer of the catalog (LuiCatalogOptions.PayloadSerializer) is gone (#268): there is nothing that can be set beside the
+        // registry, so "both set" cannot happen — the options carry the registry, and nothing else that serializes
+        typeof(LuiCatalogOptions).GetProperties().Select(property => property.Name).Order(StringComparer.Ordinal)
+            .ShouldBe([nameof(LuiCatalogOptions.Payloads), nameof(LuiCatalogOptions.Pragmas), nameof(LuiCatalogOptions.TimeProvider)]);
+
         using var database = new TestDatabase();
         using var catalog = LuiCatalog.OpenOrCreate(database.FilePath, new LuiCatalogOptions { Payloads = Json() });
         catalog.Create(Chips).Upsert(1, "vegan", new Chip("one"));

@@ -812,7 +812,6 @@ public sealed class PublicApiShapeTests
             ],
             ["LuiPayloadSerializer"] =
             [
-                "ILuiPayloadSerializer Json(JsonSerializerContext context)",
                 "ILuiPayloadSerializer<TPayload> Json(JsonSerializerContext context)",
             ],
         };
@@ -1127,13 +1126,10 @@ public sealed class PublicApiShapeTests
         [
             typeof(ILuiIndex), typeof(ILuiEmbeddedIndex), typeof(ILuiLinkedIndex), typeof(LuiEntry), typeof(LuiHit),
             typeof(LuiResult), typeof(LuiQuery), typeof(LuiEmbeddedIndexBuilder), typeof(LuiLinkedIndexBuilder),
-            typeof(ILuiPayloadSerializer),
         ];
         untyped.Where(type => type.IsGenericType).Select(type => type.Name).ShouldBeEmpty();
 
-        // the payload is read with the type the caller asks for, on the hit
-        typeof(LuiHit).GetMethod(nameof(LuiHit.GetPayload))!.IsGenericMethodDefinition.ShouldBeTrue();
-        typeof(LuiHit).GetProperty("Payload").ShouldBeNull("the payload is a method that deserialises, not a property");
+        typeof(LuiHit).GetProperty("Payload").ShouldBeNull("the untyped hit has no payload");
 
         // ADR-0074: a hit that knows its payload type carries the payload as a plain value, set when the query returns — and a hit
         // that does not know one has none
@@ -1143,10 +1139,7 @@ public sealed class PublicApiShapeTests
         payload.GetMethod!.IsPublic.ShouldBeTrue();
         payload.SetMethod!.ReturnParameter.GetRequiredCustomModifiers().ShouldContain(typeof(System.Runtime.CompilerServices.IsExternalInit), "init only: the payload never changes");
 
-        // the serialiser of the old path stays one per catalog until #268 removes it; the typed path binds the serializer to the
-        // payload type through the registry (ADR-0072)
-        typeof(LuiCatalogOptions).GetProperty(nameof(LuiCatalogOptions.PayloadSerializer))!.PropertyType
-            .ShouldBe(typeof(ILuiPayloadSerializer));
+        // the serializer is bound to the payload type through the registry (ADR-0072)
         typeof(LuiCatalogOptions).GetProperty(nameof(LuiCatalogOptions.Payloads))!.PropertyType
             .ShouldBe(typeof(LuiPayloadRegistry));
     }
@@ -1175,8 +1168,7 @@ public sealed class PublicApiShapeTests
         // ADR-0072: a serializer is bound to ONE payload type; the registry has no way to register one for every type. The members are
         // in `The_typed_handles_have_exactly_the_members_of_the_release`; here is what a list of signatures cannot say.
         typeof(ILuiPayloadSerializer<>).IsInterface.ShouldBeTrue();
-        typeof(ILuiPayloadSerializer<>).GetInterfaces().ShouldBeEmpty("the typed serializer is no ILuiPayloadSerializer: there is no catch-all");
-        typeof(ILuiPayloadSerializer).IsAssignableFrom(typeof(ILuiPayloadSerializer<>)).ShouldBeFalse();
+        typeof(ILuiPayloadSerializer<>).GetInterfaces().ShouldBeEmpty("the typed serializer has no untyped base: there is no catch-all");
         typeof(LuiPayloadRegistry).IsSealed.ShouldBeTrue();
         typeof(LuiPayloadRegistry).GetConstructors().ShouldHaveSingleItem().GetParameters().ShouldBeEmpty();
 
