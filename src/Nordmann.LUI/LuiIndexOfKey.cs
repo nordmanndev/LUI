@@ -71,7 +71,7 @@ public abstract class LuiIndex<TKey>
     {
         try
         {
-            return LuiResult<TKey>.From(_inner.Search(text, options, cancellationToken));
+            return LuiResult<TKey>.From(_inner.Search(text, options, cancellationToken), Name);
         }
         catch (Exception exception) when (IsDropped(exception))
         {

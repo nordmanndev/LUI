@@ -42,7 +42,7 @@ using Nordmann.LUI;
 using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // An index of single words: tags, hashtags, names of things.
-var tags = catalog.Create("tags", index => index.SingleWord());
+var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
 tags.Upsert(1, "vegan", weight: 120);
 tags.Upsert(2, "vegetarisch", weight: 80);
@@ -70,7 +70,7 @@ by), the text (what is searched and shown) and the weight (the popularity). A
 fourth value — the priority — decides where an entry stands when the text
 matches equally well; the README has the order.
 
-The key is a `LuiKey`: a number or a text, and it is made from a `long` or a
+The key has the type of the definition: a `long` or an `int`, a `string` or a `Guid`, and it is
 `string` without a cast. `1` and `"1"` are two different keys.
 
 ## The first query
@@ -84,7 +84,7 @@ using Nordmann.LUI;
 using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // The index of the step before — the runtime path opens it.
-var tags = catalog.Index("tags");
+var tags = catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
 var result = tags
     .Query("veg")
@@ -155,7 +155,7 @@ using Nordmann.LUI;
 using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // An index that forgives one typo in an input that no word begins with.
-var places = catalog.Create("places", index => index.SingleWord().TypoTolerance());
+var places = catalog.Create(new LuiIndexDefinition<long>("places", index => index.SingleWord().TypoTolerance()));
 
 places.Upsert(1, "Bahnhof", weight: 10);
 places.Upsert(2, "Hauptbahnhof", weight: 20);
@@ -215,10 +215,10 @@ using Nordmann.LUI;
 using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // The migration of the application creates the index.
-var created = catalog.Create("tags", index => index.SingleWord());
+var created = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
 // The runtime path opens it — and writes nothing.
-var opened = catalog.Index("tags");
+var opened = catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
 Console.WriteLine($"{created.Count()} entries, opened: {opened.Count()}");
 ```
@@ -249,7 +249,7 @@ using Nordmann.LUI;
 using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // A key that is not a number: a slug, a ULID, a GUID as text.
-var slugs = catalog.Create("slugs", index => index.SingleWord().WithKey(LuiKeyKind.Text));
+var slugs = catalog.Create(new LuiIndexDefinition<string>("slugs", index => index.SingleWord()));
 
 slugs.Upsert("01JX8V5M9T", "Apfelkuchen");
 

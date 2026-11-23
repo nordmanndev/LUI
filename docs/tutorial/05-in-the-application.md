@@ -33,11 +33,11 @@ builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"));
 var app = builder.Build();
 
 app.MapGet("/suggest", (LuiCatalog catalog, string q) =>
-    Results.Ok(catalog.Index("tags").Search(q).Hits.Select(hit => hit.Text)));
+    Results.Ok(catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Search(q).Hits.Select(hit => hit.Text)));
 
 // The catalog is injected — the index is asked for.
 var catalog = app.Services.GetRequiredService<LuiCatalog>();
-Console.WriteLine(catalog.Index("tags").Search("veg").Hits[0].Text);
+Console.WriteLine(catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Search("veg").Hits[0].Text);
 
 app.Run();
 ```
@@ -93,7 +93,7 @@ host.Start();
 
 // The catalog is injected — the index is asked for.
 var catalog = host.Services.GetRequiredService<LuiCatalog>();
-var tags = catalog.Index("tags");
+var tags = catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
 Console.WriteLine(tags.Search("veg").Hits[0].Text);
 ```
@@ -111,7 +111,7 @@ using Nordmann.LUI;
 // The migration of the application creates the index.
 using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
-var tags = catalog.Create("tags", index => index.SingleWord());
+var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 tags.Upsert(1, "vegan", weight: 120);
 tags.Upsert(2, "vegetarisch", weight: 80);
 ```
@@ -128,7 +128,7 @@ using Nordmann.LUI;
 // The file decides what may happen — not the index.
 using var catalog = LuiCatalog.OpenReadOnly("app.db");
 
-var tags = catalog.Index("tags");
+var tags = catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
 Console.WriteLine(tags.Search("veg").Hits[0].Text);
 
@@ -179,61 +179,29 @@ app.Run();
 `AddLuiOutbox` applies the outbox of your linked indexes every `Interval` and stops with the host; a round that fails is logged as a warning and retried with
 backoff up to `MaxBackoff`, and on a read-only catalog the host does not start. It does nothing at the start — that is `Initialize()`. **Repeat `Initialize()` until the report says `Ready`**: it is idempotent, and a call ends "not ready" when another replica runs the first sync of a linked index (`InitialSyncRunningElsewhere`) or the lease of a killed one has not run out yet (a minute); the next call does the rest. The loop is inside the service and covers a failure too (a busy file while another replica syncs): catch and log the `LuiInitializeException` there, wait, call again — an exception that escapes the initializer stops the host. A reader on a read-only catalog calls it once and starts after the writer is ready. The sections of the
 [README](../../README.md#starting-up-initialize-and-the-host-pattern) and of the [API page](../api.md#initializing--the-start-of-a-process) have the whole pattern;
-what follows is the way of `0.3.0`, which `Initialize()` and `AddLuiOutbox` replace.
+the warm-up service of `0.3.0` (`AddLuiWarmup`) is gone.
 
-## The background work is yours — or LUI's, if you ask
+## The background work is yours
 
 Two things repeat in every application that searches with LUI, and both are
 the application's business:
 
-- **The warm-up of the typo dictionary.** `WarmUpTypoDictionary()` at the
-  start builds it — a query never does. Until it is built, a query that would
-  need a correction answers without it and says `CorrectionSkipped`.
+- **The warm-up of the typo dictionary.** `Initialize()` at the start builds
+  it — a query never does. Until it is built, a query that would need a
+  correction answers without it and says `CorrectionSkipped`.
 - **The outbox of a linked index.** `ApplyPending()` brings the rows the
-  triggers noted into the index — after your writes, or on a timer.
+  triggers noted into the index — `AddLuiOutbox` runs it on a timer.
 
-The hosting package offers both as one service — **off by default**. The host
-asks for it, and the library starts nothing on its own:
-
-```csharp
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Hosting;
-using Nordmann.LUI;
-
-var builder = Host.CreateApplicationBuilder(args);
-
-builder.Services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"));
-
-// The dictionaries are built while the host starts; the outbox is applied every 30 seconds.
-builder.Services.AddLuiWarmup(options => options.TypoDictionaryIndexes.Add("tags"));
-
-using var host = builder.Build();
-host.Run();
-```
-
-`AddLuiWarmup()` registers a service of the host: the host starts it, stops it
-and disposes it. The typo dictionaries of your indexes are built at the start —
-after the outbox, so that the dictionary knows the words of the rows that came
-in — and the outbox of every linked index is applied on an interval (30 s by
-default, `options.OutboxInterval = TimeSpan.FromSeconds(5)` says otherwise).
-
-- **Name the indexes that correct typos.** A dictionary costs memory — 194 MB
-  for 685,829 words. `TypoDictionaryIndexes` names the indexes that get one;
-  left empty, every index does. `WarmUpTypoDictionaries = false` leaves only
-  the outbox to the service.
-- **The host waits for the dictionaries.** It is ready when they are built —
-  seconds for a large index — so that the first query already corrects.
-- **The logger of the host hears what happened**: the dictionaries it built,
-  and a round of the outbox that failed (a `Warning`, with the exception). The
-  rows of a failed round stay in the outbox; the next round tries again.
+**The logger of the host hears what happened**: a round of the outbox that
+failed (a `Warning`, with the exception). The rows of a failed round stay in the
+outbox; the next round tries again.
 
 **The rebuild stays yours.** A dictionary only grows: what was removed lingers
 in it until `RebuildTypoDictionary()` (ADR-0025). Only your application knows
 when a phase is quiet enough for it.
 
-Without the call, nothing of LUI runs in the background: the container holds
+Without the calls, nothing of LUI runs in the background: the container holds
 the catalog, and the application asks it for what it needs.
-
 
 ## What you have now
 

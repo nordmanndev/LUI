@@ -7,7 +7,7 @@
   [0013](./0013-the-api-shape-before-the-first-release.md) (the shape of the public API before the first release),
   [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (the freeze begins with the tag `v0.1.0`),
   [0032](./0032-the-allocation-of-a-query.md) (the allocation of a query — the measurement of the option)
-- **Affects:** `src/Nordmann.LUI/LuiQueryOptions.cs`, `src/Nordmann.LUI/LuiQuery.cs`,
+- **Affects:** `src/Nordmann.LUI/LuiQueryOptions.cs`, `src/Nordmann.LUI/LuiQueryOfKey.cs`,
   `src/Nordmann.LUI/Querying/CandidateReader.cs`, `src/Nordmann.LUI/Querying/Scored.cs`,
   `src/Nordmann.LUI/Querying/TypoCorrection.cs`, `samples/Lui.Sample/Api/SuggestParameters.cs`,
   `samples/Lui.Sample/wwwroot/js/`, `docs/api.md`, `docs/tutorial/01-first-index.md`, `README.md`,

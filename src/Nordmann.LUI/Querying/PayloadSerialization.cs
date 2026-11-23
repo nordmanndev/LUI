@@ -37,8 +37,7 @@ internal abstract class PayloadSerialization
         internal override byte[] Serialize(object payload, string indexName) =>
             throw new InvalidOperationException(
                 $"The entry of the index '{indexName}' has a payload, and the catalog has no serialiser: declare the payload type with a "
-                + "LuiIndexDefinition<TKey, TPayload> and register it in LuiCatalogOptions.Payloads — or, for an index of the old calls, "
-                + "set LuiCatalogOptions.PayloadSerializer (LuiPayloadSerializer.Json(context)).");
+                + "LuiIndexDefinition<TKey, TPayload> and register it in LuiCatalogOptions.Payloads.");
 
         internal override T Deserialize<T>(ReadOnlySpan<byte> bytes, string indexName) =>
             throw new InvalidOperationException($"The catalog has no payload serializer: the payload of the index '{indexName}' cannot be read.");

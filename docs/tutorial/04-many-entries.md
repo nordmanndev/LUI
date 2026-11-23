@@ -21,11 +21,11 @@ written, or — on an error or a cancellation — none.
 using Nordmann.LUI;
 
 using var catalog = LuiCatalog.OpenOrCreate("app.db");
-var recipes = catalog.Create("recipes", index => index.MultiWord());
+var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
 
 // Ten thousand entries in one transaction — not ten thousand transactions.
 var written = recipes.UpsertMany(
-    Enumerable.Range(1, 10_000).Select(i => new LuiEntry(100 + i, $"Rezept Nummer {i}") { Weight = i }));
+    Enumerable.Range(1, 10_000).Select(i => new LuiEntry<long>(100 + i, $"Rezept Nummer {i}") { Weight = i }));
 
 Console.WriteLine($"{written} entries written");
 ```
@@ -58,10 +58,10 @@ get a chance between them. The batch size and the progress are yours to set.
 using Nordmann.LUI;
 
 using var catalog = LuiCatalog.OpenOrCreate("app.db");
-var recipes = catalog.Create("recipes", index => index.MultiWord());
+var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
 
 var report = recipes.Sync(
-    Enumerable.Range(1, 10_000).Select(i => new LuiEntry(100 + i, $"Rezept Nummer {i}") { Weight = i }),
+    Enumerable.Range(1, 10_000).Select(i => new LuiEntry<long>(100 + i, $"Rezept Nummer {i}") { Weight = i }),
     new LuiSyncOptions
     {
         BatchSize = 100_000,
@@ -110,10 +110,10 @@ sound and what is wrong; `Rebuild` repairs what is below the content table.
 using Nordmann.LUI;
 
 using var catalog = LuiCatalog.OpenOrCreate("app.db");
-var recipes = catalog.Create("recipes", index => index.MultiWord());
+var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord()));
 
 var report = recipes.Check(
-    Enumerable.Range(1, 10_000).Select(i => new LuiEntry(100 + i, $"Rezept Nummer {i}") { Weight = i }));
+    Enumerable.Range(1, 10_000).Select(i => new LuiEntry<long>(100 + i, $"Rezept Nummer {i}") { Weight = i }));
 
 Console.WriteLine($"healthy: {report.IsHealthy}");
 
@@ -140,7 +140,7 @@ Every limit is checked where it is set, and the exception names the property.
 | `LuiQueryOptions.MaxResults` | 20 | 1,000 | how many hits come back — they are read in one statement |
 | `LuiQueryOptions.Candidates` | 500 | 100,000 | how many candidates are ranked; what is not among them is not ranked |
 | `LuiSyncOptions.BatchSize` | 10,000 | 1,000,000 | the entries per batch, each in a transaction of its own |
-| `LuiEntry.Weight` | 0 | 536,870,911 | the popularity |
+| `LuiEntry<long>.Weight` | 0 | 536,870,911 | the popularity |
 | `LuiPriority` | `Normal` | — | `System`, `High`, `Elevated`, `Normal`; a smaller number ranks first |
 
 The candidate budget is the one to watch: it is the price of a query. A query

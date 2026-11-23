@@ -86,9 +86,8 @@ public sealed class LuiLinkedIndexBuilder<TPayload>
             _kind,
             _options,
             _link with { PayloadColumns = _columns },
-            KeyKind: null,
-            row => map(row),
-            typeof(TPayload));
+            PayloadMap: row => map(row),
+            PayloadType: typeof(TPayload));
     }
 }
 #pragma warning restore MA0048

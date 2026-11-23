@@ -41,7 +41,7 @@ public sealed record LuiEntry<TKey>
     } = LuiPriority.Normal;
 
     /// <summary>The entry the index below the handle writes.</summary>
-    internal LuiEntry ToEntry() =>
-        new(KeyConversion.ToKey(Key), Text) { Weight = Weight, Priority = Priority };
+    internal RawEntry ToEntry() =>
+        new(KeyConversion.ToText(Key), Text, Weight, Priority, Payload: null);
 }
 #pragma warning restore MA0048

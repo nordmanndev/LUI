@@ -114,7 +114,7 @@ public abstract class LuiIndexDefinitionBase
         {
             var validated = Identifier.ValidateIndexName(name!, nameof(name));
             var storedKey = KeyTypes.Validate(keyType, source);
-            return new ResolvedIndex(validated, describe(new LuiIndexKindBuilder(oldPath: false)), storedKey);
+            return new ResolvedIndex(validated, describe(new LuiIndexKindBuilder()), storedKey);
         }
         catch (Exception exception) when (exception is not (OutOfMemoryException or StackOverflowException or ThreadAbortException))
         {

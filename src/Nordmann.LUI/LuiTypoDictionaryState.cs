@@ -8,13 +8,13 @@ public enum LuiTypoDictionaryState
 {
     /// <summary>
     /// Not built — in this process: a query never builds it (ADR-0042), <c>Initialize()</c> or <c>WarmUpTypoDictionary()</c> does. An index that forgives
-    /// typos and has no dictionary answers without corrections and says so (<see cref="LuiResult.CorrectionSkipped"/>).
+    /// typos and has no dictionary answers without corrections and says so (<see cref="LuiResult{TKey}.CorrectionSkipped"/>).
     /// </summary>
     NotBuilt,
 
     /// <summary>
     /// Being built. A query that needs a correction does not wait for it: it answers without the correction and says so
-    /// (<see cref="LuiResult.CorrectionSkipped"/>). A rebuild of a built dictionary keeps the old one
+    /// (<see cref="LuiResult{TKey}.CorrectionSkipped"/>). A rebuild of a built dictionary keeps the old one
     /// in use until the new one is ready.
     /// </summary>
     Building,

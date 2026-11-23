@@ -20,30 +20,30 @@ internal sealed class PayloadSource(string indexName, PayloadSerialization? seri
     /// The payload of a hit of an index with a payload type (ADR-0074): it has to be there, and it has to be readable. An entry whose
     /// payload is not stored, and a map that returned <see langword="null"/>, are as much a failure as bytes that cannot be read.
     /// </summary>
-    internal T Require<T>(object? stored, LuiKey key) =>
+    internal T Require<T>(object? stored, string key) =>
         stored is null
             ? throw new LuiPayloadException(
                 indexName,
-                key.ToString(),
+                key,
                 typeof(T),
                 serialized ? "the entry has no stored payload." : "the map of the linked index returned null.")
             : Read<T>(stored, key);
 
     /// <summary>Reads a stored payload as <typeparamref name="T"/>.</summary>
-    internal T Read<T>(object stored, LuiKey key)
+    internal T Read<T>(object stored, string key)
     {
         if (!serialized)
         {
             return stored is T built
                 ? built
                 : throw new LuiPayloadException(
-                    indexName, key.ToString(), typeof(T), $"the map of the linked index built a '{stored.GetType().FullName}'.");
+                    indexName, key, typeof(T), $"the map of the linked index built a '{stored.GetType().FullName}'.");
         }
 
         if (serialization is not { CanRead: true })
         {
             throw new LuiPayloadException(
-                indexName, key.ToString(), typeof(T), "the catalog has no serialiser — set LuiCatalogOptions.Payloads.");
+                indexName, key, typeof(T), "the catalog has no serialiser — set LuiCatalogOptions.Payloads.");
         }
 
         try
@@ -55,7 +55,7 @@ internal sealed class PayloadSource(string indexName, PayloadSerialization? seri
             // whatever the serialiser throws — LUI's own or one of the application — the caller gets one exception
             // that names the index, the key and the type (review of PR 60, I1). A type that the registry does not know is no payload
             // that cannot be read but a configuration that is wrong (ADR-0072): it stays a LuiConfigurationException
-            throw new LuiPayloadException(indexName, key.ToString(), typeof(T), exception.Message, exception);
+            throw new LuiPayloadException(indexName, key, typeof(T), exception.Message, exception);
         }
     }
 }

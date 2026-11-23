@@ -4,23 +4,20 @@ namespace Nordmann.LUI.Schema;
 
 /// <summary>
 /// What a builder chain describes (ADR-0073): the kind, the options and — for a linked index — the link. The builders
-/// hold nothing else; the catalog creates from it. <see cref="KeyKind"/> is set only by the old <c>WithKey</c>: a
-/// definition takes its key type from its type argument. <see cref="PayloadMap"/> is the map of the old
-/// <c>WithPayload</c> — code of the application, runtime only, never stored and never compared.
+/// hold nothing else; the catalog creates from it. A definition takes its key type from its type argument.
+/// <see cref="PayloadMap"/> is the map of <c>WithPayload</c> — code of the application, runtime only, never stored and never compared.
 /// </summary>
 /// <param name="Source">Embedded or linked.</param>
 /// <param name="Kind">Single word or multi word.</param>
 /// <param name="Options">The options, the similarity (runtime only) among them.</param>
 /// <param name="Link">The link, with the payload columns; <see langword="null"/> for an embedded index.</param>
-/// <param name="KeyKind">The kind of the key the old <c>WithKey</c> chose; <see langword="null"/> when nothing chose one.</param>
-/// <param name="PayloadMap">The map of the old <c>WithPayload</c>; <see langword="null"/> for none.</param>
+/// <param name="PayloadMap">The map of <c>WithPayload</c>; <see langword="null"/> for none.</param>
 /// <param name="PayloadType">The type the map builds, for the message of a payload that cannot be built (ADR-0074); <see langword="null"/> for none.</param>
 internal sealed record IndexDescription(
     LuiIndexSource Source,
     LuiIndexKind Kind,
     IndexOptions Options,
     LinkDefinition? Link,
-    LuiKeyKind? KeyKind = null,
     Func<LuiPayloadRow, object?>? PayloadMap = null,
     Type? PayloadType = null)
 {

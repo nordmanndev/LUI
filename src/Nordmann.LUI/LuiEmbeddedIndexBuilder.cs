@@ -10,54 +10,26 @@ namespace Nordmann.LUI;
 /// returns a builder, and the builder only <b>describes</b> (ADR-0073): the catalog creates from the description. An index
 /// over a table of the application starts here too, with <see cref="LinkTo"/>.
 /// <para>
-/// The key type of an index comes from its definition, <c>LuiIndexDefinition&lt;long&gt;</c> (ADR-0073); <see cref="WithKey"/>
-/// is the old way and only the old calls of the catalog allow it.
+/// The key type of an index comes from its definition, <c>LuiIndexDefinition&lt;long&gt;</c> (ADR-0073).
 /// </para>
 /// <para>
-/// The builder is the parameter of <see cref="LuiIndexDefinition{TKey}"/> (and of the old
-/// <see cref="LuiCatalog.Create(string, Func{LuiIndexKindBuilder, LuiEmbeddedIndexBuilder})"/>): it is the description of an
+/// The builder is the parameter of <see cref="LuiIndexDefinition{TKey}"/>: it is the description of an
 /// index, not the way into it. It holds no catalog and no name.
 /// </para>
 /// </summary>
 public sealed class LuiEmbeddedIndexBuilder
 {
     private readonly LuiIndexKind _kind;
-    private readonly bool _oldPath;
-    private LuiKeyKind? _keyKind;
     private IndexOptions _options;
 
-    internal LuiEmbeddedIndexBuilder(LuiIndexKind kind, bool oldPath)
+    internal LuiEmbeddedIndexBuilder(LuiIndexKind kind)
     {
         _kind = kind;
-        _oldPath = oldPath;
         _options = IndexOptions.Default;
     }
 
     /// <summary>The options made so far — what <c>LinkTo</c> passes on.</summary>
     internal IndexOptions Options => _options;
-
-    /// <summary>
-    /// What the keys are: numbers (<see cref="LuiKeyKind.Number"/>, the default) or texts (<see cref="LuiKeyKind.Text"/>)
-    /// for anything else that names an entry — a slug, a ULID, a <see cref="Guid"/> as text. Part of the definition. It
-    /// is the way of the old calls of the catalog: <b>inside an index definition it throws</b>
-    /// <see cref="LuiConfigurationException"/> — the key type follows from the type argument, <c>LuiIndexDefinition&lt;TKey&gt;</c>.
-    /// </summary>
-    /// <param name="kind">The kind of the keys.</param>
-    /// <returns>The builder.</returns>
-    /// <exception cref="ArgumentOutOfRangeException"><paramref name="kind"/> is not a kind.</exception>
-    /// <exception cref="LuiConfigurationException">The builder belongs to an index definition.</exception>
-    public LuiEmbeddedIndexBuilder WithKey(LuiKeyKind kind)
-    {
-        if (!_oldPath)
-        {
-            throw new LuiConfigurationException(
-                "WithKey is not part of an index definition: the key type is the type argument of the definition, "
-                + "LuiIndexDefinition<TKey>.");
-        }
-
-        _keyKind = Setting.Defined(kind, nameof(kind));
-        return this;
-    }
 
     /// <summary>
     /// Links the index to a table of the application instead (<c>Linked</c>, ADR-0015): it searches the table's
@@ -86,12 +58,6 @@ public sealed class LuiEmbeddedIndexBuilder
         string? weight = null,
         string? priority = null)
     {
-        if (_keyKind == LuiKeyKind.Text)
-        {
-            throw new InvalidOperationException(
-                "A linked index has the keys of its table — its INTEGER PRIMARY KEY: leave WithKey(LuiKeyKind.Text) out.");
-        }
-
         var link = new LinkDefinition(
             Identifier.ValidateApplicationName(table, nameof(table)),
             Identifier.ValidateApplicationName(key, nameof(key)),
@@ -153,21 +119,8 @@ public sealed class LuiEmbeddedIndexBuilder
         return this;
     }
 
-    /// <summary>
-    /// Not a way to create an index (ADR-0073): the builder describes, the catalog creates. Kept until the old calls are
-    /// removed (issue #268); it throws.
-    /// </summary>
-    /// <returns>Never: it throws.</returns>
-    /// <exception cref="InvalidOperationException">Always — pass a definition to <c>catalog.Create</c>.</exception>
-#pragma warning disable CA1822 // an instance member on purpose: `builder.Create()` stays callable until the old calls go (issue #268)
-    public ILuiEmbeddedIndex Create() =>
-        throw new InvalidOperationException(
-            "A builder describes an index and creates nothing: pass a definition to catalog.Create — "
-            + "catalog.Create(new LuiIndexDefinition<long>(name, index => …)).");
-#pragma warning restore CA1822
-
     /// <summary>What the chain described so far — what the catalog creates from.</summary>
     /// <returns>The description.</returns>
     internal IndexDescription Describe() =>
-        new(LuiIndexSource.Embedded, _kind, _options, Link: null, _keyKind);
+        new(LuiIndexSource.Embedded, _kind, _options, Link: null);
 }

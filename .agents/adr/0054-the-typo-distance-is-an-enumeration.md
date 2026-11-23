@@ -12,7 +12,7 @@
   [0021](./0021-a-stale-typo-dictionary-and-a-query-that-does-not-wait.md) (the dictionary and its memory),
   [0025](./0025-the-typo-dictionary-only-grows.md) (one dictionary per index),
   [0026](./0026-the-public-api-from-0-1-0-on-grows-only-additively.md) (the freeze begins with the tag `v0.1.0`)
-- **Affects:** `src/Nordmann.LUI/LuiTypoDistance.cs` (the new type), `src/Nordmann.LUI/ILuiIndex.cs`,
+- **Affects:** `src/Nordmann.LUI/LuiTypoDistance.cs` (the new type), `src/Nordmann.LUI/LuiIndexOfKey.cs`,
   `src/Nordmann.LUI/LuiEmbeddedIndexBuilder.cs`, `src/Nordmann.LUI/LuiLinkedIndexBuilder.cs`,
   `src/Nordmann.LUI/Schema/IndexOptions.cs`, `src/Nordmann.LUI/Schema/IndexDefinition.cs`,
   `src/Nordmann.LUI/LuiCatalog.cs`, `src/Nordmann.LUI/Typos/TypoDictionary.cs`,

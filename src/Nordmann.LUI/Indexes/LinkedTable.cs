@@ -26,8 +26,8 @@ internal static class LinkedTable
         {
             throw new LuiLinkedTableException(
                 $"The key '{link.Key}' of the table '{link.Table}' must be its INTEGER PRIMARY KEY — the rowid of the table, "
-                + "which is the document id of the index. A table with another key can be indexed as Embedded with "
-                + "WithKey(LuiKeyKind.Text).");
+                + "which is the document id of the index. A table with another key can be indexed as an embedded index with "
+                + "a LuiIndexDefinition<string>.");
         }
 
         string[] named = [link.Text, .. new[] { link.Weight, link.Priority }.OfType<string>(), .. payloadColumns];

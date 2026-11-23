@@ -149,7 +149,7 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     {
         try
         {
-            return _index.Remove(KeyConversion.ToKey(key), transaction);
+            return _index.Remove(KeyConversion.ToText(key), transaction);
         }
         catch (Exception exception) when (IsDropped(exception))
         {
@@ -168,7 +168,7 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     {
         try
         {
-            return _index.UpdateWeight(KeyConversion.ToKey(key), weight, transaction);
+            return _index.UpdateWeight(KeyConversion.ToText(key), weight, transaction);
         }
         catch (Exception exception) when (IsDropped(exception))
         {
@@ -187,7 +187,7 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     {
         try
         {
-            return _index.UpdatePriority(KeyConversion.ToKey(key), priority, transaction);
+            return _index.UpdatePriority(KeyConversion.ToText(key), priority, transaction);
         }
         catch (Exception exception) when (IsDropped(exception))
         {
@@ -229,14 +229,23 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
     {
         try
         {
-            return new LuiPayloadCheck<TKey>
-            {
-                Unreadable =
-                [
-                    .. _index.UnreadablePayloads<TPayload>(cancellationToken)
-                        .Select(entry => new LuiUnreadablePayload<TKey> { Key = KeyConversion.FromKey<TKey>(entry.Key), Message = entry.Message }),
-                ],
-            };
+            // the index hands over what the file holds; the handle reads it in its types
+            var payloads = _index.Payloads;
+            var unreadable = new List<LuiUnreadablePayload<TKey>>();
+            _index.ReadPayloads(
+                (key, bytes) =>
+                {
+                    try
+                    {
+                        _ = payloads.Require<TPayload>(bytes, key);
+                    }
+                    catch (LuiPayloadException exception)
+                    {
+                        unreadable.Add(new LuiUnreadablePayload<TKey> { Key = KeyConversion.FromText<TKey>(key, Name), Message = exception.Message });
+                    }
+                },
+                cancellationToken);
+            return new LuiPayloadCheck<TKey> { Unreadable = unreadable };
         }
         catch (Exception exception) when (IsDropped(exception))
         {
@@ -259,7 +268,7 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
         }
     }
 
-    private static IEnumerable<LuiEntry> Convert(IEnumerable<LuiEntry<TKey, TPayload>> entries) =>
+    private static IEnumerable<RawEntry> Convert(IEnumerable<LuiEntry<TKey, TPayload>> entries) =>
         entries.Select(entry => (entry ?? throw new ArgumentNullException(nameof(entries))).ToEntry());
 }
 #pragma warning restore MA0048

@@ -51,11 +51,11 @@ public sealed class IndexBuilderTests
 
         // the builder is the description of an index, not the way into it (ADR-0033, ADR-0073): it holds no catalog and no
         // name, and the test asks for it directly to look at the settings of every step.
-        var described = new LuiIndexKindBuilder(oldPath: true).SingleWord().Similarity(similarity).GermanTransliteration(false).TypoTolerance();
+        var described = new LuiIndexKindBuilder().SingleWord().Similarity(similarity).GermanTransliteration(false).TypoTolerance();
 
         // the default, pinned: comparing with IndexOptions.Default alone would let a wrong constant pass (review of PR 45, M3)
         IndexOptions.Default.ShouldBe(new IndexOptions(Similarity: null, GermanTransliteration: true, TypoDistance: LuiTypoDistance.None));
-        new LuiIndexKindBuilder(oldPath: true).SingleWord().Options.ShouldBe(IndexOptions.Default);
+        new LuiIndexKindBuilder().SingleWord().Options.ShouldBe(IndexOptions.Default);
         described.Options.ShouldBe(expected);
 
         var linked = described.LinkTo("tag", "id", "name");

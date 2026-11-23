@@ -68,7 +68,7 @@ public sealed class LuiLinkedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
         ArgumentNullException.ThrowIfNull(keys);
         try
         {
-            return _index.RefreshMany(keys.Select(key => KeyConversion.ToKey(key).ToInt64()), transaction, cancellationToken);
+            return _index.RefreshMany(keys.Select(key => KeyConversion.ToInt64(key)), transaction, cancellationToken);
         }
         catch (Exception exception) when (IsDropped(exception))
         {

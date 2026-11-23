@@ -15,7 +15,7 @@ namespace Nordmann.LUI.Indexes;
 /// </para>
 /// </summary>
 #pragma warning disable CA1001 // see TypoDictionary: the lock of the dictionary needs no disposal, and an index lives as long as its catalog
-internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
+internal sealed class LinkedIndex : IMaintainedIndex
 #pragma warning restore CA1001
 {
     /// <summary>The keys of the outbox that <c>ApplyPending</c> brings in step per transaction.</summary>
@@ -58,8 +58,6 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
     public string Name { get; }
 
     public LuiIndexKind Kind { get; }
-
-    public LuiKeyKind KeyKind => LuiKeyKind.Number;
 
     public LuiTypoDistance TypoDistance => _runner.TypoDistance;
 
@@ -159,9 +157,7 @@ internal sealed class LinkedIndex : ILuiLinkedIndex, IMaintainedIndex
             : LuiTriggerState.Stale;
     }
 
-    public LuiQuery Query(string text) => new(this, text);
-
-    public LuiResult Search(
+    public RawResult Search(
         string text,
         LuiQueryOptions? options = null,
         CancellationToken cancellationToken = default) =>
