@@ -1443,11 +1443,17 @@ public sealed class LuiCatalog : IDisposable
     /// (review of pull request 16, M3). <b>After the drop and a new <c>Create()</c> a linked index is empty and has no
     /// triggers</b>: <c>CreateTriggers()</c> — or the migration — sets them again, <b>first</b>, and then <c>Sync()</c> fills it: a row written in between is noted by the triggers and not lost.
     /// </para>
+    /// <para>
+    /// <b>A row that cannot be read</b> — a definition of <c>null</c> or of malformed JSON — is dropped as what its source column says (ADR-0076):
+    /// a <c>Linked</c> row with its outbox, search index and entries, and with the refusal of its triggers; an <c>Embedded</c> row as an embedded
+    /// index. A row whose source is neither is refused, and nothing is removed.
+    /// </para>
     /// </summary>
     /// <param name="name">The name of the index.</param>
     /// <param name="dropTriggers">Removes the triggers of a linked index on the application's table, too.</param>
     /// <returns><see langword="true"/> when the index existed.</returns>
-    /// <exception cref="InvalidOperationException">A linked index has triggers, and <paramref name="dropTriggers"/> is not set.</exception>
+    /// <exception cref="InvalidOperationException">A linked index has triggers, and <paramref name="dropTriggers"/> is not set; or an embedded index has triggers of its names on a table that is not its own.</exception>
+    /// <exception cref="LuiDefinitionMismatchException">The row of the index cannot be read, and its source column is neither <c>Embedded</c> nor <c>Linked</c>: nothing is removed.</exception>
     /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
     public bool DropIndex(string name, bool dropTriggers = false)
     {

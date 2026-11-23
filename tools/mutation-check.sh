@@ -1201,6 +1201,17 @@ expect_caught "a-damaged-linked-row-loses-its-triggers-without-the-flag" "${INTE
   "FullyQualifiedName~MaintenanceByNameTests.A_damaged_row_of_a_linked_index_is_dropped_as_a_linked_index_and_its_triggers_go_only_with_the_flag" \
   "sed -i 's|        if (!dropTriggers \&\& string.Equals(source, LinkedSource.SourceName, StringComparison.Ordinal) \&\& HasTriggers|        if (false \&\& string.Equals(source, LinkedSource.SourceName, StringComparison.Ordinal) \&\& HasTriggers|' src/Nordmann.LUI/Indexes/IndexStore.cs"
 
+# 35zzs. A row whose source cannot be read is guessed instead of refused (issue #273, review of pull request 292, round 3): DropIndex runs the statements of an embedded index and takes the
+#        triggers of the application's table without dropTriggers.
+expect_caught "a-row-of-an-unknown-source-is-dropped-by-a-guess" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.A_row_whose_source_cannot_be_read_is_refused_and_nothing_is_dropped" \
+  "sed -i 's|        if (existed \&\& stored is null \&\& source is not (|        if (false \&\& existed \&\& stored is null \&\& source is not (|' src/Nordmann.LUI/Indexes/IndexStore.cs"
+
+# 35zzt. The drop of an embedded index takes triggers of its names on another table without dropTriggers (issue #273, review of pull request 292, round 3).
+expect_caught "an-embedded-drop-takes-triggers-of-another-table" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~MaintenanceByNameTests.An_embedded_drop_does_not_take_triggers_that_sit_on_another_table_without_the_flag" \
+  "sed -i 's|        if (!dropTriggers \&\& string.Equals(source, EmbeddedSource.SourceName, StringComparison.Ordinal) \&\& HasTriggersOnAnotherTable|        if (false \&\& string.Equals(source, EmbeddedSource.SourceName, StringComparison.Ordinal) \&\& HasTriggersOnAnotherTable|' src/Nordmann.LUI/Indexes/IndexStore.cs"
+
 # 36. The clean trees stay green.
 expect_pass "clean-tree-architecture" "${ARCHITECTURE_PROJECT}" "FullyQualifiedName~RepositoryLayoutTests"
 expect_pass "clean-tree-unit" "${UNIT_PROJECT}" "FullyQualifiedName~NormalizerTests"

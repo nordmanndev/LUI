@@ -416,12 +416,18 @@ internal static class IndexStore
         var (stored, sourceName, existed) = ReadForDrop(connection, transaction, name);
 
         // a row whose definition cannot be read is dropped as what its source column says (ADR-0076): a linked index with its outbox, its
-        // search index and its entries — and with the refusal of its triggers; a source that cannot be read either is a linked index when
-        // its outbox table is there, as an embedded one otherwise: the tables are LUI's own and are the evidence
+        // search index and its entries — and with the refusal of its triggers. A source that is not 'Embedded' or 'Linked' — the column
+        // is NOT NULL, so it is a value this version does not know — is refused, as a source always was (review of pull request 14, N2):
+        // nothing is guessed, and no statement runs
         var source = stored?.Source ?? sourceName;
-        if (stored is null && source is not (LinkedSource.SourceName or EmbeddedSource.SourceName))
+        if (existed && stored is null && source is not (LinkedSource.SourceName or EmbeddedSource.SourceName))
         {
-            source = PendingTableExists(connection, transaction, name) ? LinkedSource.SourceName : EmbeddedSource.SourceName;
+            throw new LuiDefinitionMismatchException(
+                name,
+                $"a definition that cannot be read, and the content source '{source}', which this version does not know",
+                $"the content source {EmbeddedSource.SourceName} or {LinkedSource.SourceName}",
+                "Neither the definition nor the source column of the row of the index can be read, so LUI does not know what it would remove "
+                + "and removes nothing: repair the row, or remove it by hand.");
         }
 
         if (!dropTriggers && string.Equals(source, LinkedSource.SourceName, StringComparison.Ordinal) && HasTriggers(connection, transaction, name))
@@ -431,6 +437,15 @@ internal static class IndexStore
                 $"The linked index '{name}' has triggers{table}. They write into the tables of the index "
                 + "and go with it: call DropIndex(name, dropTriggers: true), and take them out of the application's migration "
                 + "too. After a new Create() the index is empty and has no triggers — create them again, then Sync() it (the triggers first, so that no row written in between is lost).");
+        }
+
+        // the triggers of an embedded index sit on its own table and go with it; a trigger of the same name on another table is the
+        // application's table's — whatever the row says, it goes only with the flag
+        if (!dropTriggers && string.Equals(source, EmbeddedSource.SourceName, StringComparison.Ordinal) && HasTriggersOnAnotherTable(connection, transaction, name))
+        {
+            throw new InvalidOperationException(
+                $"The index '{name}' has triggers named like its own on a table that is not its own. They go with the index only with "
+                + "DropIndex(name, dropTriggers: true): take them out of the application's migration too.");
         }
 
         foreach (var statement in ContentSources.DropStatements(name, source))
@@ -586,9 +601,9 @@ internal static class IndexStore
                 + "it again.");
 
     /// <summary>
-    /// The definition of an index that is about to be dropped, and whether the row is there. The drop is the way out of a row that cannot be
-    /// read (ADR-0076): a definition that is <c>null</c> or no JSON is no reason to keep the row — it is dropped with the statements of an
-    /// embedded index, as a definition of no source always was.
+    /// The definition of an index that is about to be dropped, its source column, and whether the row is there. The drop is the way out of a
+    /// row that cannot be read (ADR-0076): a definition that is <c>null</c> or no JSON is no reason to keep the row when its source column is
+    /// one this version knows — it is dropped as that source; a source it does not know is refused by the caller.
     /// </summary>
     private static (IndexDefinition? Stored, string? Source, bool Existed) ReadForDrop(SqliteConnection connection, SqliteTransaction transaction, string indexName)
     {
@@ -613,12 +628,12 @@ internal static class IndexStore
         }
     }
 
-    private static bool PendingTableExists(SqliteConnection connection, SqliteTransaction transaction, string indexName)
+    private static bool HasTriggersOnAnotherTable(SqliteConnection connection, SqliteTransaction transaction, string indexName)
     {
         using var command = connection.CreateCommand();
         command.Transaction = transaction;
-        command.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = $name;";
-        command.Parameters.AddWithValue("$name", $"lui_{indexName}_pending");
+        command.CommandText = LinkedSource.TriggerCountSql(indexName).TrimEnd(';') + " AND tbl_name <> $own;";
+        command.Parameters.AddWithValue("$own", $"lui_{indexName}");
         return (long)command.ExecuteScalar()! > 0;
     }
 

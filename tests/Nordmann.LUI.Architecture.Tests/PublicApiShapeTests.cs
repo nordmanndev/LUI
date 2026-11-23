@@ -252,7 +252,7 @@ public sealed class PublicApiShapeTests
         // nothing is hidden: the setter is init-only, and the properties that a caller has to set are required
         static string Written(PropertyInfo property) =>
             (property.GetCustomAttributes(typeof(System.Runtime.CompilerServices.RequiredMemberAttribute), inherit: false).Length > 0 ? "required " : string.Empty)
-            + $"{TypeText(property.PropertyType)}{(new NullabilityInfoContext().Create(property).WriteState == NullabilityState.Nullable ? "?" : string.Empty)} {property.Name} {{ get; "
+            + $"{TypeText(property.PropertyType)}{(Nullable.GetUnderlyingType(property.PropertyType) is null && new NullabilityInfoContext().Create(property).WriteState == NullabilityState.Nullable ? "?" : string.Empty)} {property.Name} {{ get; "
             + (property.SetMethod is null ? string.Empty
                 : property.SetMethod.ReturnParameter.GetRequiredCustomModifiers().Contains(typeof(System.Runtime.CompilerServices.IsExternalInit)) ? "init; " : "set; ")
             + "}";

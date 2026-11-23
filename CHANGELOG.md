@@ -122,13 +122,21 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   `TypoDistance`, `TypoDictionaryState` — in the order of the names; the definition fields come from the memory of the catalog, with no statement that reads them (one statement asks whether the
   schema counter moved), and the state of the typo dictionary is read when it is called. `Count(name)`, `Check(name)` (structure only: **it reads no payload and calls no map**) and
   `Optimize(name)` work for embedded and linked indexes; `Rebuild(name)` for an embedded index only — for a linked one it throws an `InvalidOperationException`
-  (`'chefs' is a linked index; rebuild it from its table with Sync() on its handle.`). A stored definition that cannot be read (`null`, malformed JSON) is a `LuiDefinitionMismatchException` that names the index — also for `DropIndex`, which now takes such a row. None of them returns a handle or writes an entry. They meet the guards of every operation
+  (`'chefs' is a linked index; rebuild it from its table with Sync() on its handle.`). None of them returns a handle or writes an entry. They meet the guards of every operation
   (ADR-0075): the check of the schema counter and the work are one step, an index that is gone is a `LuiIndexNotFoundException` that names it, and a call by name declares no definition, so
   an index that another process created again with another definition is used as it is stored. A name that is not known reloads the definitions once and is remembered as missing until the
-  schema counter changes. A catalog opened with `OpenReadOnly` lists and counts; `Optimize`, `Rebuild` and `Check` are a `LuiReadOnlyException` that names the index. **Migration: none for the new members; two details of existing ones change** — a stored definition that cannot be read now throws `LuiDefinitionMismatchException` (naming the index, the parser error as inner exception) where it threw an `InvalidOperationException` or a bare `JsonException`, and `DropIndex` of such a row now removes it and returns `true` (it returned `false` for a `null` definition and threw for malformed JSON), a linked row as a linked index with the refusal of its triggers unless `dropTriggers: true`. Which check for what: `Check()` / `catalog.Check(name)` reads no payload but holds the write lock of the file while FTS5 checks the index, and a linked index's payload columns are checked (health checks on a schedule), `CheckPayloads()` reads every stored payload (maintenance, after a change
+  schema counter changes. A catalog opened with `OpenReadOnly` lists and counts; `Optimize`, `Rebuild` and `Check` are a `LuiReadOnlyException` that names the index. **Migration: none — the members are new** (two existing members change a detail: see *Changed*). Which check for what: `Check()` / `catalog.Check(name)` reads no payload but holds the write lock of the file while FTS5 checks the index, and a linked index's payload columns are checked (health checks on a schedule), `CheckPayloads()` reads every stored payload (maintenance, after a change
   of the payload type). New public type: `LuiIndexInfo`.
 
 ### Changed
+
+- **A stored definition that cannot be read is a `LuiDefinitionMismatchException` that names the index; `DropIndex` takes such a row** (ADR-0076, #273): a row of `lui_meta`
+  whose definition is `null` or malformed JSON used to surface as an `InvalidOperationException` or as the bare `JsonException` of the parser, naming no index; now every read of it —
+  `Indexes()`, `Count`, `Check`, `Optimize`, `Rebuild(name)`, the open calls — throws `LuiDefinitionMismatchException` with the parser error as inner exception, and `Indexes()` throws for
+  one damaged row instead of listing around it. **Migration:** where you caught the old exception types for a damaged row, catch `LuiDefinitionMismatchException` and call
+  `DropIndex(name)`. `DropIndex` of such a row now removes it and returns `true` (it returned `false` for a `null` definition and threw for malformed JSON): a row whose source column
+  says `Linked` is dropped as a linked index — its outbox, search index and entries, and its triggers only with `dropTriggers: true` —, one that says `Embedded` as an embedded index
+  (also refused without `dropTriggers` when a trigger of its names sits on another table), and a row whose source is neither is refused with a `LuiDefinitionMismatchException` and nothing is removed.
 
 - **A payload definition needs a payload registry** (#260, ADR-0072): `LuiIndexDefinition<TKey, TPayload>` is created and opened with the serializer
   that `LuiCatalogOptions.Payloads` holds for `TPayload`. It no longer uses `LuiCatalogOptions.PayloadSerializer` — a typed definition on a catalog
