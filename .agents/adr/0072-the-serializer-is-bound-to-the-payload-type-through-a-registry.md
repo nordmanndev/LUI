@@ -48,15 +48,15 @@ payload, there is no untyped payload, and a configuration error is not a payload
    `TPayload Deserialize(ReadOnlySpan<byte>)`. The format is a name — `json-strict-v1`, `msgpack-v1` — that is stored and compared;
    **a serializer that changes its wire format must change its `Format`**, LUI compares the name and not the bytes. It is read once,
    when the serializer is registered. `LuiPayloadSerializer.Json<TPayload>(context)` is the strict JSON serializer of one type, the
-   one `Use(context)` gives (format `json-strict-v1`); the old non-generic `ILuiPayloadSerializer` and `Json(context)` stay until #268.
+   one `Use(context)` gives (format `json-strict-v1`); the old non-generic `ILuiPayloadSerializer` and `Json(context)` are removed (#268).
 3. **No silent precedence.** An explicit `Use<TPayload>` wins over the contexts. Registering the same type twice with it throws a
    `LuiConfigurationException` at the registration. Two contexts that both know a type that an index needs throw a
    `LuiConfigurationException` when the index is created or opened, naming both — the order of the `Use` calls never decides. The same
    context registered twice is one registration.
 4. **The registry is frozen when the catalog is opened.** `Open`, `OpenOrCreate` and `OpenReadOnly` copy it (before any file is touched);
    a call on the registry afterwards changes nothing for that catalog, and a catalog opened later sees it. Registration is
-   thread-safe. Setting `Payloads` **and** `PayloadSerializer` is a `LuiConfigurationException` at open — a catalog has one way to
-   serialize; `PayloadSerializer` stays until #268 for the old calls.
+   thread-safe. `LuiCatalogOptions.PayloadSerializer` is removed (#268): a catalog has one way to
+   serialize, the registry.
 5. **The lookup happens once, and fails fast.** `catalog.Create(definition)` and `catalog.Index(definition)` of an embedded definition with
    a payload look up `TPayload` before anything is written or opened: an unregistered type (no registry, a registry that does not know
    the type, or two contexts that do) is a `LuiConfigurationException` that names the definition and the type and says how to register
@@ -84,11 +84,8 @@ payload, there is no untyped payload, and a configuration error is not a payload
    index stored without one only with a `LuiIndexDefinition<TKey>` — both ways are a mismatch that says which to use. A handle of an index
    that another process dropped and created again in another format is stale, like any other (0075): the guard of its operation finds the
    changed definition and throws a mismatch, so it never writes through the old serializer into the new index.
-10. **Until #268 removes the old calls.** The read path by name (`catalog.Index(name)` and `hit.GetPayload<T>()`) resolves `T` through the
-    registry when `Payloads` is set — a type that the registry does not know is a `LuiConfigurationException`, not a payload error — and
-    through `PayloadSerializer` otherwise. With a registry there is **no untyped payload**: an entry of an index without a declared payload
-    type cannot carry one (`LuiConfigurationException`). The read path by name does not compare the fingerprint — it names no type; the
-    format of the registry's serializer for `T` is what reads the bytes.
+10. **The old calls are removed (#268).** The read path by name (`catalog.Index(name)`, `hit.GetPayload<T>()`) is gone; there is **no untyped payload** — an
+    entry of an index without a declared payload type cannot carry one, and a payload is read only through the handle of its definition.
 
 11. **A payload type is one concrete type.** `object`, an interface and an abstract class stand for many types, so an index of one would hold
     the payloads of any type — the untyped payload under another name (a source-generated context answers for `System.Object` whatever it

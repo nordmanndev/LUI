@@ -235,13 +235,15 @@ public sealed class LuiEmbeddedIndex<TKey, TPayload> : LuiIndex<TKey, TPayload>
             _index.ReadPayloads(
                 (key, bytes) =>
                 {
+                    // the key of every row is converted before its payload is read, as the query does: a damaged key is a LuiKeyException
+                    var typedKey = KeyConversion.FromText<TKey>(key, Name);
                     try
                     {
                         _ = payloads.Require<TPayload>(bytes, key);
                     }
                     catch (LuiPayloadException exception)
                     {
-                        unreadable.Add(new LuiUnreadablePayload<TKey> { Key = KeyConversion.FromText<TKey>(key, Name), Message = exception.Message });
+                        unreadable.Add(new LuiUnreadablePayload<TKey> { Key = typedKey, Message = exception.Message });
                     }
                 },
                 cancellationToken);

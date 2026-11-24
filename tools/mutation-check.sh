@@ -487,6 +487,12 @@ expect_caught "a-handle-without-a-payload-type-reads-the-payload-column" "${INTE
   "FullyQualifiedName~HitPayloadTests" \
   "sed -i 's|hitPayload: codec is null ? new NoPayload(name) : null),|hitPayload: null),|' src/Nordmann.LUI/Indexes/IndexRuntimes.cs"
 
+# 24b10. CheckPayloads converts the key only of an unreadable payload (ADR-0074, #268): a damaged stored key of a readable entry is reported healthy,
+#       while the query throws a LuiKeyException. The test of the damaged key has to notice.
+expect_caught "check-payloads-skips-the-key-of-a-readable-entry" "${INTEGRATION_PROJECT}" \
+  "FullyQualifiedName~CheckPayloadsTests.A_damaged_stored_key_fails_CheckPayloads" \
+  "sed -i 's|                    var typedKey = KeyConversion.FromText<TKey>(key, Name);|                    var typedKey = default(TKey)!;|' src/Nordmann.LUI/LuiEmbeddedIndexOfKeyAndPayload.cs"
+
 # 24b8. CheckPayloads reads without the guard of the handle (ADR-0075, ADR-0074): an index that was created again with
 #       another definition is read as if it were the old one.
 expect_caught "check-payloads-skips-the-guard" "${INTEGRATION_PROJECT}" \
@@ -496,18 +502,23 @@ expect_caught "check-payloads-skips-the-guard" "${INTEGRATION_PROJECT}" \
 # 24b9. CheckPayloads stops at the first entry it cannot read (ADR-0074): the list is not every entry.
 expect_caught "check-payloads-stops-at-the-first-unreadable-entry" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~CheckPayloadsTests" \
-  "sed -i 's|                        unreadable.Add(new LuiUnreadablePayload<TKey> { Key = KeyConversion.FromText<TKey>(key, Name), Message = exception.Message });|                        if (unreadable.Count == 0) { unreadable.Add(new LuiUnreadablePayload<TKey> { Key = KeyConversion.FromText<TKey>(key, Name), Message = exception.Message }); }|' src/Nordmann.LUI/LuiEmbeddedIndexOfKeyAndPayload.cs"
+  "sed -i 's|                        unreadable.Add(new LuiUnreadablePayload<TKey> { Key = typedKey, Message = exception.Message });|                        if (unreadable.Count == 0) { unreadable.Add(new LuiUnreadablePayload<TKey> { Key = typedKey, Message = exception.Message }); }|' src/Nordmann.LUI/LuiEmbeddedIndexOfKeyAndPayload.cs"
 
-# 24b3. The index layer holds a type parameter (ADR-0035, ADR-0073): the way an application type enters it. The tree builds, and only the
+# 24d1. The index layer holds a type parameter (ADR-0035, ADR-0073): the way an application type enters it. The tree builds, and only the
 #       guard of the layer can react.
 expect_caught "the-index-layer-gets-a-type-parameter" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_index_layer_references_no_application_types" \
   "printf 'namespace Nordmann.LUI.Indexes;\n\ninternal sealed class PayloadHolder<TPayload>\n{\n    internal TPayload? Value { get; set; }\n}\n' > src/Nordmann.LUI/Indexes/PayloadHolder.cs"
 
-# 24b4. The index layer names a serializer (ADR-0072, ADR-0073): a field of the registry in a type of the layer.
+# 24d2. The index layer names a serializer (ADR-0072, ADR-0073): a field of the registry in a type of the layer.
 expect_caught "the-index-layer-names-a-serializer" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_index_layer_references_no_application_types" \
   "sed -i 's|^internal sealed record IndexRuntime(IMaintainedIndex Index, IndexGuard Guard);|internal sealed record IndexRuntime(IMaintainedIndex Index, IndexGuard Guard)\n{\n    internal LuiPayloadRegistry? Registry { get; init; }\n}|' src/Nordmann.LUI/Indexes/IndexRuntime.cs"
+
+# 24d3. The index layer gets a generic method (ADR-0073, #268): the guard of the layer reads the methods too, not only the types.
+expect_caught "the-index-layer-gets-a-generic-method" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_index_layer_references_no_application_types" \
+  "printf 'namespace Nordmann.LUI.Indexes;\n\ninternal static class PayloadReading\n{\n    internal static TPayload? Read<TPayload>(byte[] bytes) => default;\n}\n' > src/Nordmann.LUI/Indexes/PayloadReading.cs"
 
 # 24c. A text that is no GUID in the form D is read as a GUID key (ADR-0073): a damaged key would read as another key instead of
 #      failing the read. (A key of the other kind can no longer be written: the type argument of the definition is the key type.)
@@ -737,7 +748,7 @@ expect_caught "the-correction-always-forgives-one-error" "${INTEGRATION_PROJECT}
 expect_caught "a-rebuild-that-forgives-nothing-builds-a-dictionary" "${INTEGRATION_PROJECT}" \
   "FullyQualifiedName~A_rebuild_of_an_index_that_forgives_nothing_builds_no_dictionary" \
   "sed -i 's|        if (_distance == LuiTypoDistance.None)|        if (IsBuilt \&\& _distance == LuiTypoDistance.None)|' src/Nordmann.LUI/Typos/TypoDictionary.cs"
-# 26y. The query path drops a duplicate again (ADR-0055): the uniqueness of a text belongs to the data, so the
+# 26y2. The query path drops a duplicate again (ADR-0055): the uniqueness of a text belongs to the data, so the
 #      library answers with one hit per entry — a candidate whose search form was seen is dropped again, and the
 #      four restated tests notice.
 expect_caught "a-duplicate-of-a-text-is-dropped-again" "${INTEGRATION_PROJECT}" \

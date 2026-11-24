@@ -116,7 +116,7 @@ export function mountIndexesPanel({ root, bus, meta }) {
         const text = el('input', { type: 'text', placeholder: 'text', 'aria-label': 'text', required: true });
         const weight = el('input', { type: 'number', min: 0, max: 536870911, value: 100, 'aria-label': 'weight' });
         const priority = el('select', { 'aria-label': 'priority' }, ...meta.priority.map(name => el('option', { value: name, text: name, selected: name === 'Normal' })));
-        const payload = info.payload === 'none' ? null : el('input', { type: 'text', value: '{"category":"Kuchen","minutes":30,"emoji":"🍰"}', 'aria-label': 'payload JSON' });
+        const payload = info.payload === 'none' ? null : el('input', { type: 'text', value: '{"category":"Kuchen","minutes":30,"emoji":"🍰"}', required: true, 'aria-label': 'payload JSON' });
         const key = el('input', { type: 'number', placeholder: 'key', 'aria-label': 'key' });
         const newWeight = el('input', { type: 'number', min: 0, max: 536870911, placeholder: 'weight', 'aria-label': 'new weight' });
         const newPriority = el('select', { 'aria-label': 'priority' }, el('option', { value: '', text: '(priority)' }), ...meta.priority.map(name => el('option', { value: name, text: name })));

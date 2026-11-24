@@ -18,6 +18,12 @@ internal static class IndexCheck
     /// <summary>
     /// Whether the index is stored with the definition of this instance. A finding when it is not stored at all — it was
     /// dropped — or stored with another definition.
+    /// <para>
+    /// Since #268 every handle holds a guard that asks the same question first, in the same transaction, and throws
+    /// (<see cref="LuiIndexNotFoundException"/>, <see cref="LuiDefinitionMismatchException"/>): these findings are a second line that no
+    /// public call reaches any more, so no test can provoke them; the tests of the guard (<c>SyncCheckRebuildTests</c>,
+    /// <c>TypedPayloadHandleTests</c>) hold the rule.
+    /// </para>
     /// </summary>
     /// <returns><see langword="true"/> when the definition is stored and the same; the rest of a check needs that.</returns>
     internal static bool Definition(SqliteConnection connection, SqliteTransaction transaction, ContentSource source, List<string> problems)
