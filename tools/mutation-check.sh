@@ -921,11 +921,11 @@ expect_caught "an-unreadable-row-thrown-without-a-look-at-the-file" "${INTEGRATI
   "FullyQualifiedName~OpenCallTests.A_stale_snapshot_whose_row_is_of_another_fold_is_looked_at_against_the_file_and_does_not_fail_for_ever" \
   "sed -i 's|            if (!StoredIndexes.Refresh(snapshot))|            if (unreadable is not null \|\| !StoredIndexes.Refresh(snapshot))|' src/Nordmann.LUI/LuiCatalog.cs"
 
-# 35q. The registry gets a catch-all (issue #260, ADR-0072): a method that takes the serializer of the old calls registers one serializer for
+# 35q. The registry gets a catch-all (issue #260, ADR-0072): a method that takes any serializer (an `object`, since the untyped serializer interface is gone) registers one serializer for
 #       every type — the owner's rule is that there is none. It builds; only the guard of the shape can react.
 expect_caught "the-registry-gets-a-catch-all" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_payload_registry_has_no_catch_all_and_binds_the_serializer_to_the_type" \
-  "sed -i 's|    /// <summary>The copy the catalog works on: what is registered now, and nothing that is registered later.</summary>|    /// <summary>x</summary>\n    public LuiPayloadRegistry Use(ILuiPayloadSerializer serializer) => this;\n\n    /// <summary>The copy the catalog works on: what is registered now, and nothing that is registered later.</summary>|' src/Nordmann.LUI/LuiPayloadRegistry.cs"
+  "sed -i 's|    /// <summary>The copy the catalog works on: what is registered now, and nothing that is registered later.</summary>|    /// <summary>x</summary>\n    public LuiPayloadRegistry Use(object serializer) => this;\n\n    /// <summary>The copy the catalog works on: what is registered now, and nothing that is registered later.</summary>|' src/Nordmann.LUI/LuiPayloadRegistry.cs"
 
 # 35r. Two contexts that know a type: the first one wins (issue #260, ADR-0072): the order of the Use calls decides — the silent precedence the
 #       registry refuses.
