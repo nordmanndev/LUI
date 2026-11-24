@@ -1159,13 +1159,14 @@ public sealed class PublicApiShapeTests
         referenced.ShouldBeEmpty("the index and storage layers name only types of the BCL, of the provider and of the library");
 
         // 3. no serializer, in a signature or in a body (the dependencies are read from the IL). The definition of an index is stored as JSON
-        //    (Schema.LuiJsonContext) — that is no payload serializer
+        //    (Schema.LuiJsonContext, read with JsonException and the context of the library) — the layers name no JSON serializer, context or type description of their own
         var result = Types.InAssembly(LibraryAssembly)
             .That().ResideInNamespaceStartingWith("Nordmann.LUI.Indexes")
             .Or().ResideInNamespaceStartingWith("Nordmann.LUI.Storage")
             .ShouldNot().HaveDependencyOnAny(
                 "Nordmann.LUI.ILuiPayloadSerializer`1", "Nordmann.LUI.LuiPayloadSerializer", "Nordmann.LUI.LuiPayloadRegistry",
-                "Nordmann.LUI.Querying.FrozenPayloadRegistry", "Nordmann.LUI.Querying.PayloadCodec`1")
+                "Nordmann.LUI.Querying.FrozenPayloadRegistry", "Nordmann.LUI.Querying.PayloadCodec`1",
+                "System.Text.Json.JsonSerializer", "System.Text.Json.Serialization.JsonSerializerContext", "System.Text.Json.Serialization.Metadata.JsonTypeInfo")
             .GetResult();
         result.IsSuccessful.ShouldBeTrue("The index and storage layers reference no serializer. Failing types: " + string.Join(", ", result.FailingTypeNames ?? []));
     }
