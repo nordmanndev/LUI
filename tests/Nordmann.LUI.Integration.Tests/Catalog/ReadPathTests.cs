@@ -69,6 +69,7 @@ public sealed class ReadPathTests
         var exception = Should.Throw<LuiFormatException>(() => database.Open());
 
         exception.Message.ShouldContain("99");
+        exception.Message.ShouldContain(Path.GetFileName(database.FilePath), Case.Sensitive);   // the file is named — no IndexName: the catalog does not open
     }
 
     [Fact]
