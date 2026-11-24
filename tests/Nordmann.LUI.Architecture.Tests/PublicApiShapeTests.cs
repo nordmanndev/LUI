@@ -1116,6 +1116,101 @@ public sealed class PublicApiShapeTests
                 || string.Equals(name, "netstandard", StringComparison.Ordinal) || string.Equals(name, "mscorlib", StringComparison.Ordinal)
                 || string.Equals(name, "Nordmann.LUI", StringComparison.Ordinal));
 
+    private static readonly string[] SerializerNames =
+    [
+        "Nordmann.LUI.ILuiPayloadSerializer`1", "Nordmann.LUI.LuiPayloadSerializer", "Nordmann.LUI.LuiPayloadRegistry",
+        "Nordmann.LUI.Querying.FrozenPayloadRegistry", "Nordmann.LUI.Querying.PayloadCodec`1",
+        "System.Text.Json.JsonSerializer", "System.Text.Json.Serialization.JsonSerializerContext", "System.Text.Json.Serialization.Metadata.JsonTypeInfo",
+        "System.Text.Json.Serialization.JsonConverter",
+    ];
+
+    /// <summary>
+    /// The types the members, the fields, the base types and the IL of every type of the given namespaces name — read with Cecil, nested types
+    /// of any accessibility included (a nested type has no namespace of its own: it belongs to the one of its outer type).
+    /// </summary>
+    private static IEnumerable<(string Type, string Dependency)> DependenciesOfTheLayers(string[] layers)
+    {
+        using var module = Mono.Cecil.ModuleDefinition.ReadModule(LibraryAssembly.Location);
+        foreach (var type in module.GetTypes())
+        {
+            var outer = type;
+            while (outer.DeclaringType is not null)
+            {
+                outer = outer.DeclaringType;
+            }
+
+            if (!layers.Any(layer => string.Equals(outer.Namespace, layer, StringComparison.Ordinal)
+                || outer.Namespace.StartsWith(layer + ".", StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            foreach (var reference in ReferencesOf(type))
+            {
+                yield return (type.FullName, reference);
+            }
+        }
+    }
+
+    private static IEnumerable<string> ReferencesOf(Mono.Cecil.TypeDefinition type)
+    {
+        var types = new List<Mono.Cecil.TypeReference>();
+        if (type.BaseType is not null)
+        {
+            types.Add(type.BaseType);
+        }
+
+        types.AddRange(type.Interfaces.Select(i => i.InterfaceType));
+        types.AddRange(type.Fields.Select(f => f.FieldType));
+        types.AddRange(type.Properties.Select(p => p.PropertyType));
+        foreach (var method in type.Methods)
+        {
+            types.Add(method.ReturnType);
+            types.AddRange(method.Parameters.Select(p => p.ParameterType));
+            types.AddRange(method.Body?.Variables.Select(v => v.VariableType) ?? []);
+            foreach (var operand in method.Body?.Instructions.Select(i => i.Operand) ?? [])
+            {
+                switch (operand)
+                {
+                    case Mono.Cecil.MethodReference called:
+                        types.Add(called.DeclaringType);
+                        types.Add(called.ReturnType);
+                        types.AddRange(called.Parameters.Select(p => p.ParameterType));
+                        break;
+                    case Mono.Cecil.FieldReference field:
+                        types.Add(field.DeclaringType);
+                        types.Add(field.FieldType);
+                        break;
+                    case Mono.Cecil.TypeReference named:
+                        types.Add(named);
+                        break;
+                }
+            }
+        }
+
+        return types.SelectMany(Flatten).Select(t => t.FullName).Distinct(StringComparer.Ordinal);
+    }
+
+    private static IEnumerable<Mono.Cecil.TypeReference> Flatten(Mono.Cecil.TypeReference type)
+    {
+        yield return type;
+        if (type is Mono.Cecil.TypeSpecification specification)
+        {
+            foreach (var inner in Flatten(specification.ElementType))
+            {
+                yield return inner;
+            }
+        }
+
+        if (type is Mono.Cecil.GenericInstanceType generic)
+        {
+            foreach (var inner in generic.GenericArguments.SelectMany(Flatten))
+            {
+                yield return inner;
+            }
+        }
+    }
+
     [Fact]
     public void The_index_layer_references_no_application_types()
     {
@@ -1158,17 +1253,16 @@ public sealed class PublicApiShapeTests
             .ToArray();
         referenced.ShouldBeEmpty("the index and storage layers name only types of the BCL, of the provider and of the library");
 
-        // 3. no serializer, in a signature or in a body (the dependencies are read from the IL). The definition of an index is stored as JSON
-        //    (Schema.LuiJsonContext, read with JsonException and the context of the library) — the layers name no JSON serializer, context or type description of their own
-        var result = Types.InAssembly(LibraryAssembly)
-            .That().ResideInNamespaceStartingWith("Nordmann.LUI.Indexes")
-            .Or().ResideInNamespaceStartingWith("Nordmann.LUI.Storage")
-            .ShouldNot().HaveDependencyOnAny(
-                "Nordmann.LUI.ILuiPayloadSerializer`1", "Nordmann.LUI.LuiPayloadSerializer", "Nordmann.LUI.LuiPayloadRegistry",
-                "Nordmann.LUI.Querying.FrozenPayloadRegistry", "Nordmann.LUI.Querying.PayloadCodec`1",
-                "System.Text.Json.JsonSerializer", "System.Text.Json.Serialization.JsonSerializerContext", "System.Text.Json.Serialization.Metadata.JsonTypeInfo")
-            .GetResult();
-        result.IsSuccessful.ShouldBeTrue("The index and storage layers reference no serializer. Failing types: " + string.Join(", ", result.FailingTypeNames ?? []));
+        // 3. no serializer, in a signature or in a body: every type of the layers — nested ones of any accessibility included, which NetArchTest's
+        //    namespace selection drops — is read with Cecil, and what its members, its IL and its fields name is compared with the deny list.
+        //    The definition of an index is stored as JSON (Schema.LuiJsonContext): the layers use JsonException and nothing else of System.Text.Json.
+        var denied = DependenciesOfTheLayers(layers)
+            .Where(entry => SerializerNames.Any(name => entry.Dependency.StartsWith(name, StringComparison.Ordinal)))
+            .Select(entry => $"{entry.Type} names {entry.Dependency}")
+            .Distinct(StringComparer.Ordinal)
+            .Order(StringComparer.Ordinal)
+            .ToArray();
+        denied.ShouldBeEmpty("The index and storage layers reference no serializer.");
     }
 
     [Fact]
