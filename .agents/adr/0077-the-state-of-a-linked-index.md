@@ -15,7 +15,7 @@
   - `src/Nordmann.LUI/LuiSyncInProgressException.cs` (new, #271), `src/Nordmann.LUI/LuiLinkedSyncReport.cs` — `Batches`, `Removed`, `LongestLock`
   - `src/Nordmann.LUI/Indexes/IndexStore.cs` — the flag is written with a new row (1 for a linked index, 0 for an embedded one), read in a given snapshot and cleared in a given transaction
   - `src/Nordmann.LUI/Indexes/LinkedIndex.cs` — `NeedsInitialSync`, the flag cleared in the transaction of `Sync`, `CreateTriggers` as a state
-  - `src/Nordmann.LUI/LuiLinkedIndexOfKey.cs`, `src/Nordmann.LUI/LuiLinkedIndexOfKeyAndPayload.cs`, `src/Nordmann.LUI/LuiLinkedIndexOfKey.cs`, `src/Nordmann.LUI/LuiCatalog.cs` — the property and the words of the documentation
+  - `src/Nordmann.LUI/LuiLinkedIndexOfKey.cs`, `src/Nordmann.LUI/LuiLinkedIndexOfKeyAndPayload.cs`, `src/Nordmann.LUI/LuiCatalog.cs` — the property and the words of the documentation
   - `tests/TestData/golden/embedded-schema.txt` — the golden DDL of `lui_meta`
   - `docs/api.md`, `docs/testing.md`, `CHANGELOG.md`, `.agents/adr/README.md`
   - `tests/Nordmann.LUI.Integration.Tests/Linked/LinkedStateTests.cs`, `tests/Nordmann.LUI.Integration.Tests/Linked/LinkedTriggerTests.cs`, `tests/Nordmann.LUI.Architecture.Tests/PublicApiShapeTests.cs`, `tools/mutation-check.sh` — the rules and the guards

@@ -40,16 +40,18 @@ public sealed class TypoDistanceTests
             words.Upsert(1, "Kartoffel", 10);
         }
 
-        // a new process, the same file: the distance is in the definition, so the index knows it
+        // a new process, the same file, no definition: the distance can only come from the file
         using var reopened = database.Open();
-        var index = reopened.Index(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors)));
+        var info = reopened.Indexes().ShouldHaveSingleItem();
+        info.TypoDistance.ShouldBe(LuiTypoDistance.TwoErrors);
+        info.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
 
-        index.TypoDistance.ShouldBe(LuiTypoDistance.TwoErrors);
-
-        // the application asks for the build (ADR-0042): a query never does
-        index.WarmUpTypoDictionary();
+        // the application asks for the build, by name (ADR-0042): the dictionary is built with the distance of the file
+        reopened.WarmUpTypoDictionaries();
+        reopened.Indexes().ShouldHaveSingleItem().TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
 
         // the query does not ask for a correction either: the index forgives two errors, so it corrects them
+        var index = reopened.Index(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance(LuiTypoDistance.TwoErrors)));
         var result = index.Search("krttoffel");
 
         result.CorrectedQuery.ShouldBe("kartoffel");

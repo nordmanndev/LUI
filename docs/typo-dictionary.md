@@ -109,7 +109,7 @@ of 685,739 words is in the file, and the file is not in the heap.
 
 The dictionary is **not** built by a query — the application asks for it
 (ADR-0042),
-with `WarmUpTypoDictionary()` or through the warm-up of the host (ADR-0043).
+with `WarmUpTypoDictionary()`, or with `catalog.Initialize()` at the start of the application (ADR-0076).
 
 - **A distance of `None` pays nothing.** There is no dictionary, and the state
   of the dictionary stays `NotBuilt` — the proof is that the source of the

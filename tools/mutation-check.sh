@@ -515,6 +515,11 @@ expect_caught "the-index-layer-names-a-serializer" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_index_layer_references_no_application_types" \
   "sed -i 's|^internal sealed record IndexRuntime(IMaintainedIndex Index, IndexGuard Guard);|internal sealed record IndexRuntime(IMaintainedIndex Index, IndexGuard Guard)\n{\n    internal LuiPayloadRegistry? Registry { get; init; }\n}|' src/Nordmann.LUI/Indexes/IndexRuntime.cs"
 
+# 24d2b. The index layer names a JSON serializer (ADR-0072, ADR-0073): the untyped shape that #268 removed — a payload read with a context in the layer.
+expect_caught "the-index-layer-names-a-json-serializer" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_index_layer_references_no_application_types" \
+  "printf 'using System.Text.Json;\nusing System.Text.Json.Serialization;\n\nnamespace Nordmann.LUI.Indexes;\n\ninternal static class JsonReading\n{\n    internal static object? Read(byte[] bytes, Type type, JsonSerializerContext context) => JsonSerializer.Deserialize(bytes, type, context);\n}\n' > src/Nordmann.LUI/Indexes/JsonReading.cs"
+
 # 24d3. The index layer gets a generic method (ADR-0073, #268): the guard of the layer reads the methods too, not only the types.
 expect_caught "the-index-layer-gets-a-generic-method" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_index_layer_references_no_application_types" \
