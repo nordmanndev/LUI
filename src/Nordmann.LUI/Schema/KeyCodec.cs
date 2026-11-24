@@ -50,7 +50,7 @@ internal static class KeyCodec
     /// <param name="text">The stored key.</param>
     /// <param name="keyType">The key type of the index.</param>
     /// <param name="indexName">The index, for the message.</param>
-    /// <returns>The key as the file writes it.</returns>
+    /// <returns>The stored text, checked: unchanged for a number or a string (<c>+05</c> stays <c>+05</c>), the canonical lower-case form for a GUID.</returns>
     internal static string FromText(string text, LuiKeyType keyType, string indexName)
     {
         switch (keyType)

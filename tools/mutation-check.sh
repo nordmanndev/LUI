@@ -520,6 +520,12 @@ expect_caught "the-index-layer-names-a-json-serializer" "${ARCHITECTURE_PROJECT}
   "FullyQualifiedName~The_index_layer_references_no_application_types" \
   "printf 'using System.Text.Json;\nusing System.Text.Json.Serialization;\n\nnamespace Nordmann.LUI.Indexes;\n\ninternal static class JsonReading\n{\n    internal static object? Read(byte[] bytes, Type type, JsonSerializerContext context) => JsonSerializer.Deserialize(bytes, type, context);\n}\n' > src/Nordmann.LUI/Indexes/JsonReading.cs"
 
+# 24d2c. The index layer names a JSON serializer in a nested internal type (ADR-0073): NetArchTest's namespace selection does not see a nested type that is
+#        not private; the guard reads every type with Cecil.
+expect_caught "the-index-layer-names-a-json-serializer-in-a-nested-type" "${ARCHITECTURE_PROJECT}" \
+  "FullyQualifiedName~The_index_layer_references_no_application_types" \
+  "printf 'using System.Text.Json;\nusing System.Text.Json.Serialization;\n\nnamespace Nordmann.LUI.Indexes;\n\ninternal sealed class NestedReading\n{\n    internal static class Inner\n    {\n        internal static object? Read(byte[] bytes, Type type, JsonSerializerContext context) => JsonSerializer.Deserialize(bytes, type, context);\n    }\n}\n' > src/Nordmann.LUI/Indexes/NestedReading.cs"
+
 # 24d3. The index layer gets a generic method (ADR-0073, #268): the guard of the layer reads the methods too, not only the types.
 expect_caught "the-index-layer-gets-a-generic-method" "${ARCHITECTURE_PROJECT}" \
   "FullyQualifiedName~The_index_layer_references_no_application_types" \
