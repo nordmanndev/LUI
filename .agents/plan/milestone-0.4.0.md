@@ -53,6 +53,12 @@ stays small because of the batches — the owner's main concern. A second millio
 by 40 ms); the removal step fell from 3.14 s to 0.42 s once FTS5's automerge was off there. The longest merge step (1.81 s)
 and `DefaultMergePages` are measured again in #275.
 
+**Paused (2026-11-24, #268 / PR #295):** the owner asked to stop after this issue. Round 1 of the review (five blockers) is
+answered; the allocation bounds of `WriteAllocationTests` were raised on the owner's decision; CI found one mutation refused
+by the build and it is fixed (`9119a62`). **Round 2 of the review (a fresh Opus reviewer) is still to run** — the weekly usage
+limit stopped the sub-agents until 2026-11-29 01:00 UTC. Then merge `#295` on LUI's green CI and continue with #263, #221,
+#275, #276.
+
 Risks of the whole run:
 
 - **The SDK.** `global.json` pins SDK `10.0.403` (`rollForward: latestPatch`); the image ships only `10.0.114`. The
