@@ -33,12 +33,12 @@ public sealed class LuiResult<TKey, TPayload>
     public LuiTimings? Timings { get; init; }
 
     /// <summary>The result of the index below the handle, with typed keys.</summary>
-    internal static LuiResult<TKey, TPayload> From(LuiResult result)
+    internal static LuiResult<TKey, TPayload> From(RawResult result, string indexName)
     {
         var hits = new LuiHit<TKey, TPayload>[result.Hits.Count];
         for (var i = 0; i < hits.Length; i++)
         {
-            hits[i] = LuiHit<TKey, TPayload>.From(result.Hits[i]);
+            hits[i] = LuiHit<TKey, TPayload>.From(result.Hits[i], indexName);
         }
 
         return new LuiResult<TKey, TPayload>

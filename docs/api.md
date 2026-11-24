@@ -10,11 +10,10 @@
 > **This page describes version 0.3.0.** The freeze of 0.1.0 was lifted once, for 0.3.0 ([ADR-0069](../.agents/adr/0069-the-freeze-of-0-1-0-is-lifted-for-0-3-0.md)); the
 > members that moved are in the migration note of the [changelog](../CHANGELOG.md), and the API grows only additively again from here.
 
-> **0.4.0 (in progress) puts the index definition next to the old calls.** An index is declared **once**, as a definition
-> object, and the catalog hands out typed handles for it — see [the definition](#defining-an-index--the-definition) and
-> [the typed handles](#the-typed-handles--what-a-definition-opens). The calls of 0.3.0 keep working, as a thin layer over
-> the new ones, until [#268](https://github.com/nordmanndev/LUI/issues/268) removes them
-> ([ADR-0073](../.agents/adr/0073-the-index-definition-and-the-typed-handles.md)).
+> **0.4.0 declares an index once.** An index is declared **once**, as a definition object, and the catalog hands out typed handles for it —
+> see [the definition](#defining-an-index--the-definition) and [the typed handles](#the-typed-handles--what-a-definition-opens). The calls of
+> 0.3.0 that named an index by a string (`Create(name, …)`, `CreateLinked`, `Index(name)`, `LinkedIndex`) and the untyped handles are gone
+> ([ADR-0073](../.agents/adr/0073-the-index-definition-and-the-typed-handles.md); the migration note is in the [changelog](../CHANGELOG.md)).
 
 The table at the end is the whole surface. The sections before it explain what the parts are for.
 
@@ -57,12 +56,6 @@ blocks the writes of the application). LUI never switches the mode of a file aga
 | `LuiLinkedIndex<TKey> Index<TKey>(LuiLinkedIndexDefinition<TKey> definition)` | the same for a linked definition. **One name for both sources** — there is no `LinkedIndex(definition)` and no `CreateLinked(definition)`. |
 | `LuiEmbeddedIndex<TKey, TPayload> Index<TKey,TPayload>(LuiIndexDefinition<TKey, TPayload> definition)` | opens the index of an embedded definition with a payload that exists, and **writes nothing**; compared like a definition without payload — the name of the payload type and the format of its serializer are two of the compared fields. The serializer of `TPayload` is looked up at the first call, once for the runtime of the index; an unregistered type is a `LuiConfigurationException` at that call. |
 | `LuiLinkedIndex<TKey, TPayload> Index<TKey,TPayload>(LuiLinkedIndexDefinition<TKey, TPayload> definition)` | the same for a linked definition with a payload: the stored payload columns are compared, the map of the definition is code and takes effect. |
-| `ILuiEmbeddedIndex Create(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)` | the old call, a thin layer over `Create(definition)` until #268: creates an **embedded** index — the content lives in the library's own table. It is the write path and belongs in the migration of the application. |
-| `ILuiLinkedIndex CreateLinked(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)` | creates a **linked** index — the content stays in the table of the application. The route is named in the call, as it is on the side of opening (`Index` / `LinkedIndex`). |
-| `ILuiLinkedIndex CreateLinked<TPayload>(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>> index)` | the old call for a linked index **with a payload** — `CreateLinked(name, index => index.LinkTo(…).WithPayload(…))` keeps compiling, because `WithPayload` ends in a typed builder and this overload takes it. A thin layer over `Create(definition)` until #268; `where TPayload : notnull`. |
-| `ILuiEmbeddedIndex Index(string name)` | opens an embedded index that exists, and **writes nothing**: the definition is read out of the file, no table, no write lock. |
-| `ILuiLinkedIndex LinkedIndex(string name)` | opens a linked index without payload columns. |
-| `ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)` | opens a linked index with payload columns; the map builds the payload from the row of the table. |
 | `IReadOnlyList<LuiIndexInfo> Indexes()` | describes **every** index of the catalog by what is stored, in the order of the names — **one row that cannot be read (another LUI format, `null` or malformed JSON) makes the whole call throw a `LuiDefinitionMismatchException` that names the index; `DropIndex` is the way out** — without a definition and without a payload type ([maintenance by name](#maintenance-by-name--without-a-definition-or-a-payload-type), ADR-0076). The definition fields come from the memory of the catalog, with no statement that reads them; the typo dictionary state and `NeedsInitialization` are read when it is called (for a linked index that is one read of the file). |
 | `LuiInitializeReport Initialize(LuiInitializeOptions? options = null, CancellationToken cancellationToken = default)` | **the one explicit, synchronous start call** (ADR-0076): brings every index to the state an application needs at the start of a process, in LUI's order and driven by the state of each index — the triggers of every linked index, then the first sync of every linked index that needs one, the outbox, and the typo dictionaries last and one after the other. A second call right after the first does nothing. See [Initializing](#initializing--the-start-of-a-process). There is no `InitializeAsync`: the work is synchronous SQLite. |
 | `bool IsReadOnly { get; }` | whether the catalog was opened with `OpenReadOnly` — the way it was opened and no second switch (ADR-0068). The hosting package asks it to refuse `AddLuiOutbox` on a catalog that cannot apply an outbox. |
@@ -81,11 +74,11 @@ The path is a **file path** (ADR-0066): LUI builds every connection itself — p
 method that opened it. The application never sees a connection string. An empty path, `:memory:` and a URI (`file:…`) are
 refused with an `ArgumentException`.
 
-`Create` and `CreateLinked` — and `Create(definition)` — are **idempotent**: they create the index if it is missing, and compare the stored
+`Create(definition)` is **idempotent**: they create the index if it is missing, and compare the stored
 definition with the one that was described if it is there. A difference is a `LuiDefinitionMismatchException` — never a
 silent change.
 
-`Index` and `LinkedIndex` are the read path. They never write, whatever the file allows afterwards: the file decides
+`Index(definition)` is the read path. They never write, whatever the file allows afterwards: the file decides
 what may happen.
 
 ### Maintenance by name — without a definition or a payload type
@@ -139,8 +132,7 @@ The settings of the catalog. Every one of them has a default; none of them has t
 | Member | Default | What it is for |
 |---|---|---|
 | `LuiPragmas Pragmas` | `new LuiPragmas()` | the settings of the connections of the catalog — see below |
-| `LuiPayloadRegistry? Payloads` | none | the serializers of the payloads, **by payload type** ([the payload registry](#luipayloadregistry)): `new LuiPayloadRegistry().Use(AppJsonContext.Default)`. The registry is **frozen when the catalog is opened** — a later call on it changes nothing for that catalog. Setting it together with `PayloadSerializer` is a `LuiConfigurationException` at open. |
-| `ILuiPayloadSerializer? PayloadSerializer` | none | the serialiser of the payloads of the **old calls** — one for every index that was created with `Create(name, …)`; the issue #268 removes it with them. A definition with a payload does not use it: it needs a registry. |
+| `LuiPayloadRegistry? Payloads` | none | the serializers of the payloads, **by payload type** ([the payload registry](#luipayloadregistry)): `new LuiPayloadRegistry().Use(AppJsonContext.Default)`. The registry is **frozen when the catalog is opened** — a later call on it changes nothing for that catalog. |
 | `TimeProvider TimeProvider` | `TimeProvider.System` | the clock of the catalog: the `created_at` of an index and the **lease of a linked sync** (ADR-0077 — its expiry is read from this clock, in UTC), and a seam for tests |
 
 The file decides whether writing is allowed at all: a catalog opened with `OpenReadOnly` writes nothing, and SQLite refuses
@@ -670,7 +662,7 @@ statements, its query runner — built once. **Content and state are never cache
 
 ## Creating an index — the description
 
-The builder chain is the **parameter** of an index definition (and of the old `Create` and `CreateLinked`), not the way in:
+The builder chain is the **parameter** of an index definition (`new LuiIndexDefinition<long>("tags", index => index.SingleWord())`), not the way in:
 the builders **describe**, the catalog creates (ADR-0073). A builder holds no catalog and no name. Every builder method
 returns the builder, so the chain reads as one sentence.
 
@@ -685,21 +677,18 @@ returns the builder, so the chain reads as one sentence.
 
 | Member | What it does |
 |---|---|
-| `LuiEmbeddedIndexBuilder WithKey(LuiKeyKind kind)` | the kind of the key — **the old calls only**: `Number` (the default) or `Text`. Inside an index definition it throws a `LuiConfigurationException`: the key type is the type argument of the definition. |
 | `LuiLinkedIndexBuilder LinkTo(string table, string key, string text, string? weight = null, string? priority = null)` | turns the description into a linked one: the table of the application, its `INTEGER PRIMARY KEY`, the column with the text, and — optional — the columns with the weight and the priority |
 | `LuiEmbeddedIndexBuilder Similarity(ILuiSimilarity similarity)` | the measure of the ranking. The default of the kind is used when it is left out. |
 | `LuiEmbeddedIndexBuilder GermanTransliteration(bool enabled)` | `ä` → `ae`, `ü` → `ue`, `ß` → `ss`. On by default. |
 | `LuiEmbeddedIndexBuilder TypoTolerance(LuiTypoDistance distance = LuiTypoDistance.OneError)` | how many errors are forgiven: `None`, `OneError` or `TwoErrors`. Off by default — the dictionary of the word beginnings costs 194 MB for 685,739 words with one error (the list of the repository has 685,829 words; the measurement uses the ones of three letters or more, without a digit), and more with two ([`docs/typo-dictionary.md`](./typo-dictionary.md)). The distance is part of the stored definition: an index that is opened again forgives what it forgave before. |
-| `ILuiEmbeddedIndex Create()` | does not create anything any more: it throws an `InvalidOperationException` ("pass a definition to catalog.Create") until #268 removes it. |
 
 ### `LuiLinkedIndexBuilder`
 
-Everything of the embedded builder except `WithKey` and `LinkTo` — a linked index takes the keys of its table — plus:
+Everything of the embedded builder except `LinkTo` — a linked index takes the keys of its table — plus:
 
 | Member | What it does |
 |---|---|
-| `LuiLinkedIndexBuilder<TPayload> WithPayload<TPayload>(IReadOnlyList<string> columns, Func<LuiPayloadRow, TPayload> map)` | the columns of the payload and the map that builds it from the row; `where TPayload : notnull`. The columns are read live; the map is code of the application, typed end to end. **It returns the typed builder** (not derived from this one): only a `LuiLinkedIndexDefinition<TKey, TPayload>` with the same `TPayload` — or the old `CreateLinked<TPayload>` — takes it, a `LuiLinkedIndexDefinition<TKey>` does not. |
-| `ILuiLinkedIndex Create()` | throws an `InvalidOperationException`, like the embedded builder's. |
+| `LuiLinkedIndexBuilder<TPayload> WithPayload<TPayload>(IReadOnlyList<string> columns, Func<LuiPayloadRow, TPayload> map)` | the columns of the payload and the map that builds it from the row; `where TPayload : notnull`. The columns are read live; the map is code of the application, typed end to end. **It returns the typed builder** (not derived from this one): only a `LuiLinkedIndexDefinition<TKey, TPayload>` with the same `TPayload` takes it, a `LuiLinkedIndexDefinition<TKey>` does not. |
 
 ### `LuiLinkedIndexBuilder<TPayload>`
 
@@ -714,101 +703,12 @@ same option methods, so the order of `WithPayload` and the options is free. It d
 
 ---
 
-## The index — what the catalog hands out
-
-An index is a **view**, not a resource: it holds no connection and no native handle, and it is not disposable. Every
-operation borrows a connection from the pool of the catalog for the time it takes.
-
-### `ILuiIndex` — what both kinds have
-
-| Member | What it is |
-|---|---|
-| `string Name { get; }` | the name of the index |
-| `LuiIndexKind Kind { get; }` | `SingleWord` or `MultiWord` |
-| `LuiKeyKind KeyKind { get; }` | `Number` or `Text` |
-| `LuiTypoDistance TypoDistance { get; }` | how many errors the index forgives: `None`, `OneError` or `TwoErrors`. It belongs to the index, not to the query — a query switches the correction on or off (`Query(text).TypoTolerance(…)`), but it cannot widen the distance. |
-| `LuiTypoDictionaryState TypoDictionaryState { get; }` | `NotBuilt`, `Building` or `Current` |
-| `long Count()` | the number of the entries |
-| `LuiQuery Query(string text)` | a query that is configured step by step and then executed |
-| `LuiResult Search(string text, LuiQueryOptions? options = null, CancellationToken cancellationToken = default)` | a query in one call |
-
-### `ILuiEmbeddedIndex` — the write path of an embedded index
-
-| Member | What it does |
-|---|---|
-| `void Upsert(LuiEntry entry, SqliteTransaction? transaction = null)` | writes one entry |
-| `void Upsert(LuiKey key, string text, int weight = 0, LuiPriority priority = LuiPriority.Normal, SqliteTransaction? transaction = null)` | writes one entry, without an object |
-| `int UpsertMany(IEnumerable<LuiEntry> entries, SqliteTransaction? transaction = null, CancellationToken cancellationToken = default)` | writes many entries in one transaction; returns how many were written |
-| `bool UpdateWeight(LuiKey key, int weight, SqliteTransaction? transaction = null)` | changes the weight of an entry; `false` when there is no such entry |
-| `bool UpdatePriority(LuiKey key, LuiPriority priority, SqliteTransaction? transaction = null)` | changes the priority of an entry |
-| `bool Remove(LuiKey key, SqliteTransaction? transaction = null)` | removes an entry |
-| `LuiSyncReport Sync(IEnumerable<LuiEntry> entries, LuiSyncOptions? options = null, CancellationToken cancellationToken = default)` | makes the index equal to the given entries — **the bulk path** |
-| `LuiSyncReport Sync(IAsyncEnumerable<LuiEntry> entries, LuiSyncOptions? options = null, CancellationToken cancellationToken = default)` | the same, from a stream |
-| `LuiIntegrityReport Check()` | compares the index with itself: the schema, the counts, the fold table |
-| `LuiIntegrityReport Check(IEnumerable<LuiEntry> entries, CancellationToken cancellationToken = default)` | compares the index with a set of entries |
-| `void Rebuild()` | rebuilds the index from its content table |
-| `void Optimize()` | lets SQLite optimize the file |
-| `void WarmUpTypoDictionary(CancellationToken cancellationToken = default)` | builds the dictionary of the typos before a query needs it |
-| `void RebuildTypoDictionary(CancellationToken cancellationToken = default)` | builds it again, from scratch |
-
-### `ILuiLinkedIndex` — the write path of a linked index
-
-A linked index keeps **no copy of the row**: the text of a hit is read from the table of the application when the hit is
-read. The write path belongs to the application.
-
-| Member | What it does |
-|---|---|
-| `bool Refresh(long key, SqliteTransaction? transaction = null)` | takes one row of the table into the index |
-| `int RefreshMany(IEnumerable<long> keys, SqliteTransaction? transaction = null, CancellationToken cancellationToken = default)` | takes many rows into the index |
-| `LuiLinkedSyncReport Sync(CancellationToken cancellationToken = default)` | takes the whole table into the index, in batches of 10,000 rows (ADR-0077; the typed handle takes `LuiSyncOptions`): see [the sync of a linked index](#the-sync-of-a-linked-index) |
-| `int ApplyPending(CancellationToken cancellationToken = default)` | applies the changes a trigger collected — the outbox |
-| `long Pending()` | how many changes are waiting |
-| `string TriggerScript()` | the SQL of the triggers, for the application that wants to install them itself — pure: no database is read, it also answers on a handle whose index was dropped |
-| `void CreateTriggers()` | brings the triggers on the table of the application to the current ones — only when the application asks for it; idempotent (ADR-0077): `None` creates, `Stale` replaces, `Current` does nothing |
-| `void DropTriggers()` | drops them again |
-| `LuiTriggerState Triggers()` | `None`, `Current` or `Stale` |
-| `LuiIntegrityReport Check()` | compares the index with its table |
-| `void Optimize()` | lets SQLite optimize the file |
-| `void WarmUpTypoDictionary(CancellationToken cancellationToken = default)` | builds the dictionary of the typos before a query needs it |
-| `void RebuildTypoDictionary(CancellationToken cancellationToken = default)` | builds it again, from scratch |
-
----
-
 ## Writing — the entry and the key
 
-### `LuiEntry`
-
-What is written: a key, a text, a weight, a priority and — optionally — a payload.
-
-```csharp
-new LuiEntry(1, "Gedeckter Apfelkuchen") { Weight = 9000, Priority = LuiPriority.High }
-```
-
-| Member | What it is |
-|---|---|
-| `LuiEntry(LuiKey key, string text)` | the two members that every entry has. The text may not be empty. |
-| `LuiKey Key { get; init; }` | the key of the entry |
-| `string Text { get; init; }` | the text of the entry — what the search finds |
-| `int Weight { get; init; }` | the weight: 0 to 536,870,911. The default is 0. |
-| `LuiPriority Priority { get; init; }` | the priority: `System`, `High`, `Elevated`, `Normal`. The default is `Normal`. |
-| `object? Payload { get; init; }` | the payload of the application — any type the serialiser of the catalog writes |
-
-### `LuiKey`
-
-The key of the application: a number or a text. `1` and `"1"` are **different** keys.
-
-```csharp
-LuiKey key = 42;          // implicit
-LuiKey ulid = "01H...";   // implicit
-long number = key;        // explicit — throws for a text key
-string text = key;        // explicit — throws for a number key
-```
-
-| Member | What it is |
-|---|---|
-| `static LuiKey FromInt64(long number)` / `static LuiKey FromString(string text)` | the same, without the implicit conversion |
-| `LuiKeyKind Kind { get; }` | `Number` or `Text` |
-| `long ToInt64()` / `string ToText()` | the value back; a conversion into the other kind throws |
+An entry is `LuiEntry<TKey>` — or `LuiEntry<TKey, TPayload>` for a definition with a payload type — and its key is a `TKey`: `long`,
+`int`, `string` or `Guid`, **stored exactly** (ADR-0073). There is no key type of its own, no implicit conversion and no entry without
+a type argument: `1` and `"1"` are different keys because they have different types. The members are in
+[the typed handles](#the-typed-handles--what-a-definition-opens).
 
 ---
 
@@ -874,7 +774,6 @@ its own column, with its own rule** — a rule that is not the fold of the libra
 | `string? CorrectedQuery { get; init; }` | the query after the correction of a typo — `null` when there was none |
 | `bool CorrectionSkipped { get; init; }` | whether a correction was skipped because the dictionary was not built — a query never builds it (ADR-0042) — or is being built |
 | `LuiTimings? Timings { get; init; }` | the phases of the query, when `TrackTimings` was on |
-| `LuiTypedResult<TPayload> As<TPayload>()` | the same answer, with the payload in the type of the application — the end of the fluent path: `index.Query("veg").Take(5).Execute().As<TagChip>()` (ADR-0044) |
 
 ### `LuiHit`
 
@@ -882,55 +781,33 @@ One hit. It is a `readonly record struct` — no allocation per hit.
 
 | Member | What it is |
 |---|---|
-| `LuiKey Key { get; init; }` | the key of the entry |
+| `TKey Key { get; init; }` | the key of the entry |
 | `string Text { get; init; }` | the text of the entry |
 | `int Weight { get; init; }` | the weight of the entry |
 | `LuiPriority Priority { get; init; }` | the priority of the entry |
 | `double Similarity { get; init; }` | how near the text was to the query, 0 to 1 |
 | `bool AtWordStart { get; init; }` | whether the query matched at the beginning of a word |
-| `bool HasPayload { get; }` | whether the hit carries a payload |
-| `T? GetPayload<T>()` | the payload, in the type where it is used. `default` when there is none. |
-| `bool TryGetPayload<T>(out T payload)` | the same, without the `null` |
 
-**The index knows no types** — there is no type parameter on the index, the hit, the result, the query or the entry.
-The type of the payload stands where the payload is used: `hit.GetPayload<TagChip>()`. A payload that cannot be read in
-the type asked for is a `LuiPayloadException`.
+**The handle knows the types, the index layer does not** (ADR-0035, ADR-0073): the key and the payload type are the type arguments of the
+definition, and the file stores text and bytes. The payload of a hit is `hit.Payload`. A payload that cannot be read
+in its type is a `LuiPayloadException`.
 
 ### `LuiTimings`
 
 The phases of a query: `CandidateRead`, `Correction`, `Ranking`, `Payload` and `Total` — each a `TimeSpan`.
 
-### The typed view — the payload in the type of the application
+### The payload in the type of the application
 
-The index knows no type (ADR-0035) — the type of the payload stands where the payload is used. An application that
-wants the type checked by the compiler asks for a **view** of the index: `index.As<TagChip>()`. The view is a view — it
-opens nothing, writes nothing, and holds no index of its own. The untyped way stays: `hit.GetPayload<TagChip>()` is
-still there.
+A handle with a payload type — `catalog.Index(definition)` of a `LuiIndexDefinition<TKey, TPayload>` — answers in the type of the
+application: `hit.Payload` is a plain value of `TPayload`, loaded with the query (ADR-0074). There is no view over an index and no
+`As<T>()` (they were removed in 0.4.0, ADR-0073): the definition names the type once, and the compiler knows it everywhere.
 
 ```csharp
-var chips = catalog.Index("tags").As<TagChip>().Search("veg").Hits;
-foreach (var chip in chips)
+foreach (var hit in catalog.Index(Chips).Search("veg").Hits)
 {
-    Console.WriteLine(chip.GetPayload()?.Colour);   // TagChip — the compiler knows it
+    Console.WriteLine(hit.Payload.Colour);   // TagChip — the compiler knows it
 }
-
-// the fluent path ends in the same typed answer
-var first = catalog.Index("tags").Query("veg").Take(5).Execute().As<TagChip>().Hits[0];
 ```
-
-| Type | What it is |
-|---|---|
-| `LuiIndexExtensions` | the class that holds `As<TPayload>()` — an extension method, so the type stays out of the index |
-| `LuiTypedIndex<TPayload>` | the view of an index: `Name`, `Kind`, `KeyKind`, `TypoDistance`, `TypoDictionaryState`, `Count()` and `Search(...)` |
-| `LuiTypedResult<TPayload>` | the answer: `Query`, `Hits`, `CandidatesConsidered`, `Truncated`, `CorrectedQuery`, `CorrectionSkipped`, `Timings` |
-| `LuiTypedHit<TPayload>` | the hit: `Key`, `Text`, `Weight`, `Priority`, `Similarity`, `AtWordStart`, `HasPayload`, `GetPayload()` and `TryGetPayload(out TPayload payload)` |
-
-`LuiTypedIndex<TPayload>.Search(string text, LuiQueryOptions? options = null, CancellationToken cancellationToken =
-default)` answers like the index does — the same query, the same hits, the same corrections — and the payload of a hit
-is read in `TPayload`. The payload is **not** cached: `GetPayload()` deserialises on every call, exactly like
-`GetPayload<T>()` — which is why it is a method and not a property: it does work, and it can fail with a
-`LuiPayloadException`. Keep the result when it is used twice. `LuiResult.As<TPayload>()` makes the same typed answer
-out of the answer of a fluent query.
 
 ---
 
@@ -1055,7 +932,6 @@ sealed class or record, or a sealed envelope that holds the variants.
 
 | Member | What it does |
 |---|---|
-| `static ILuiPayloadSerializer Json(JsonSerializerContext context)` | the serialiser of a source-generated JSON context for the **old calls** — safe for trimming and AOT; it writes the type a payload has and reads the type the caller asks for |
 | `static ILuiPayloadSerializer<TPayload> Json<TPayload>(JsonSerializerContext context)` | the strict JSON serializer of **one payload type**, the one `Use(context)` gives, with the format `json-strict-v1`. A type that is not in the context is a `LuiConfigurationException` that names both. `TPayload` is `where TPayload : notnull`. |
 
 Both read **strictly**: a member in the bytes that the type does not have, or a parameter of its constructor that the bytes do not
@@ -1066,18 +942,8 @@ have, is a `JsonException` — not an object filled with defaults.
 The serializer of **one payload type** (ADR-0072): `string Format { get; }`, `byte[] Serialize(TPayload payload)` and
 `TPayload Deserialize(ReadOnlySpan<byte> bytes)`. `Format` is a name — `json-strict-v1`, `msgpack-v1` — that an embedded index
 stores and compares when it is opened; **a serializer that changes its wire format must change its `Format`**, LUI compares the name,
-not the bytes. An implementation is used from many threads at once. It does not derive from `ILuiPayloadSerializer`: there is no
+not the bytes. An implementation is used from many threads at once. There is no untyped serializer and no
 catch-all.
-
-### `ILuiPayloadSerializer`
-
-| Member | What it does |
-|---|---|
-| `byte[] Serialize(object payload)` | writes a payload |
-| `T Deserialize<T>(ReadOnlySpan<byte> bytes)` | reads a payload in the type asked for |
-
-The serialiser of the **old calls**: one for the catalog (`LuiCatalogOptions.PayloadSerializer`). A catalog without a serialiser
-writes entries without a payload. The issue #268 removes it with the old calls.
 
 ### `LuiPayloadNameAttribute`
 
@@ -1121,11 +987,9 @@ name of its element type with `[]` (`[,]` for two dimensions). The name is the s
 
 **Errors.** A configuration that is wrong is a `LuiConfigurationException`, never a `LuiPayloadException`: a payload type that no
 registration knows, that two contexts know, a catalog without a registry — thrown by `Create` and `Index`, with the name of the
-definition, before anything is written —, both `Payloads` and `PayloadSerializer` set (when the catalog is opened), a type registered
-twice. `LuiPayloadException` stays for a payload that cannot be read. On the old read path (`catalog.Index(name)` and
-`hit.GetPayload<T>()`) `T` is resolved through the registry when `Payloads` is set; with a registry there is no untyped payload — an
-entry of an index without a declared payload type cannot carry one, and an index that was opened by name and stores a payload type and
-a format refuses every payload write (write through `Index(definition)`).
+definition, before anything is written —, a type registered
+twice. `LuiPayloadException` stays for a payload that cannot be read. There is no untyped payload: an
+entry of an index without a declared payload type cannot carry one.
 
 ### Changing a payload type
 
@@ -1198,7 +1062,6 @@ The four measures of the library — all of them its own, without a dictionary p
 | `LuiIndexKind` | `SingleWord`, `MultiWord` | the kind of an index |
 | `LuiInitializationNeeds` | `None`, `Triggers`, `StaleTriggers`, `InitialSync`, `InitialSyncRunningElsewhere`, `TypoDictionary` | what an index still needs at the start of a process (flags) — [Initializing](#initializing--the-start-of-a-process) |
 | `LuiInitializeStep` | `ReadState`, `Triggers`, `InitialSync`, `Outbox`, `TypoDictionary` | a step of the call `catalog.Initialize`, in the order it takes them; `ReadState` only names where a failure happened |
-| `LuiKeyKind` | `Number`, `Text` | the kind of a key — the old calls; it goes with them (#268) |
 | `LuiKeyType` | `Long`, `Int`, `String`, `Guid` | the exact type of the keys of an index, as the stored definition names it (long, int, string, guid); the exception for a damaged key carries it |
 | `LuiPriority` | `System`, `High`, `Elevated`, `Normal` | the priority of an entry |
 | `LuiPriorityMode` | `First`, `CandidatesOnly` | how the priority enters the ranking |
@@ -1220,7 +1083,7 @@ library.
 | `LuiEnvironmentException` | the environment is not what the library needs — the SQLite is too old, or it folds differently than the one the library was measured with |
 | `LuiDefinitionMismatchException` | the index in the file was written with another definition, another LUI format (an index that changes under an open catalog — a file that is opened with another format is rejected at once, with the exception for a wrong format), another key type, another folding, another payload type or another payload format. It carries `IndexName`, `Stored` and `Requested`; for a definition, the message names the fields that differ and the way to change a definition. |
 | `LuiIndexNotFoundException` | there is no index of that name in the database — or the handle belongs to an index that was dropped. It carries `IndexName`. |
-| `LuiConfigurationException` | the configuration is wrong: an index definition that is not valid (a name that is no name, a key type that is not allowed, a step the definition does not know) — thrown on the **first use** of the definition by a catalog, never in the initializer of its field —, or the payload registry (a payload type that no registration knows or that two contexts know, a type registered twice, the registry and the serializer of the old calls both set). The message names the definition. An invalid argument of a call stays an argument error. |
+| `LuiConfigurationException` | the configuration is wrong: an index definition that is not valid (a name that is no name, a key type that is not allowed, a step the definition does not know) — thrown on the **first use** of the definition by a catalog, never in the initializer of its field —, or the payload registry (a payload type that no registration knows or that two contexts know, a type registered twice). The message names the definition. An invalid argument of a call stays an argument error. |
 | `LuiCatalogNotFoundException` | there is no catalog at the path: the file is missing, it is no SQLite database, or it has no lui_meta table. The ways to open a catalog that is there do not create one; the way that creates one refuses a file that is no SQLite database. It carries `Path`. |
 | `LuiLinkedTableException` | the table of the application is missing, or a column of it, or its key is not the `INTEGER PRIMARY KEY` |
 | `LuiFormatException` | the file was written in another LUI format than this version reads — thrown when the catalog is **opened** (Open, OpenReadOnly and OpenOrCreate of a file that has indexes). Format 2 is the format of 0.4.0; a file of 0.3.0 has format 1 and is not read (no migration): "The file 'app.db' was written by LUI 0.3.0 (format 1); this version reads format 2. Recreate the indexes." A newer format is rejected the same way. It carries `Path`, `FoundFormat` and `SupportedFormat`. |
@@ -1235,8 +1098,8 @@ library.
 ## The hosting package
 
 `Nordmann.LUI.Hosting` carries the dependency injection — and, only if the application asks for them, the **outbox loop**
-(`AddLuiOutbox`, ADR-0076) and the **warm-up** (`AddLuiWarmup`, ADR-0043, which #268 removes — `catalog.Initialize()` replaces it). Each is one service of
-the host and tells the logger of the host what it did and what failed (ADR-0045).
+(`AddLuiOutbox`, ADR-0076). It is one service of the host and tells the logger of the host what it did and what failed (ADR-0045). The start of the search is
+`catalog.Initialize()` — the application's own call (ADR-0076); the warm-up service of `0.3.0` (`AddLuiWarmup`) is gone.
 
 ### `LuiServiceCollectionExtensions`
 
@@ -1245,7 +1108,6 @@ the host and tells the logger of the host what it did and what failed (ADR-0045)
 | `IServiceCollection AddLui(this IServiceCollection services, Func<IServiceProvider, LuiCatalog> open)` | puts the **catalog** into the container: it opens it when it is first needed and disposes it with the container. The way the catalog is opened is the caller's — `services.AddLui(_ => LuiCatalog.OpenOrCreate("app.db"))` (ADR-0066). Once per container: a second call throws. |
 | `IServiceCollection AddLuiOutbox(this IServiceCollection services, TimeSpan interval)` | registers **the one background loop LUI needs** (ADR-0076): it calls `catalog.ApplyPending()` every `interval` and stops with the host. It does **nothing at the start** — that is `catalog.Initialize()`, which the application calls; LUI offers **no hosted service that calls `Initialize()`**. Only with linked indexes that have triggers. Once per container: a second call, with either overload, throws. |
 | `IServiceCollection AddLuiOutbox(this IServiceCollection services, Action<LuiOutboxOptions> configure)` | the same with the settings (`Interval`, `MaxBackoff`). **A failing round never stops the host**: it is logged through the host's `ILogger` (a warning, with the exception), the next round waits with exponential backoff up to `MaxBackoff`, and the first round that works goes back to `Interval`. **On a catalog opened with `OpenReadOnly` the host does not start**: `InvalidOperationException` — "a read-only catalog cannot apply the outbox". |
-| `IServiceCollection AddLuiWarmup(this IServiceCollection services, Action<LuiWarmupOptions>? configure = null)` | registers the **warm-up** as a service of the host: the outbox of every linked index is applied and the typo dictionaries are built at the start of the host, and the outbox is applied again on an interval. **Off by default** — without this call the host starts nothing of LUI (ADR-0043). Once per container: a second call throws. |
 
 ### `LuiOutboxOptions`
 
@@ -1338,41 +1200,18 @@ fail a liveness probe and restart the pod. For a small application or a tool the
 that wants it in parts says `Initialize(new LuiInitializeOptions { Indexes = [SearchIndexes.Chefs] })`. While an index is not initialized, the search answers without
 corrections, and a linked index shows the batches synced so far. `IsReadOnly` tells a reader-only process which readiness it has: the dictionaries alone.
 
-### `LuiWarmupOptions`
-
-| Member | Default | What it says |
-|---|---|---|
-| `bool WarmUpTypoDictionaries { get; set; }` | `true` | whether the start of the host builds typo dictionaries at all — `false` leaves only the outbox to the service |
-| `ICollection<string> TypoDictionaryIndexes { get; }` | empty | the indexes whose dictionary is built; **empty builds every index's**. A name the catalog does not know fails the start of the host |
-| `TimeSpan OutboxInterval { get; set; }` | 30 s | the time between two rounds of the outbox; positive |
-
-```csharp
-builder.Services.AddLuiWarmup(options =>
-{
-    options.TypoDictionaryIndexes.Add("recipes");   // the tag index corrects no typos — it gets no dictionary
-    options.OutboxInterval = TimeSpan.FromSeconds(10);
-});
-```
-
-**The start of the host waits for the dictionaries** — so that the first query already corrects a typo. In an ASP.NET
-Core application the server listens once they are built: seconds for a large index.
-
-**The logger of the host** hears what the service did: the dictionaries it built and how long that took
-(`Information`), the rows of the outbox it applied (`Debug`), and **a round that failed** (`Warning`, with the
-exception). A failed round does not take the host with it: the rows stay in the outbox, and the next round tries again.
-
-The container holds the catalog and — if the application asks for it — the warm-up: **an index is not registered and
+The container holds the catalog and — if the application asks for it — the outbox loop: **an index is not registered and
 not injected**. The application asks the catalog for the index it needs. A second `AddLui` throws — the catalog is the
 one thing of LUI in the container.
 
-The warm-up is a service of the host, not a thread of the library: the host starts it, stops it and disposes it
-(ADR-0043). The library starts nothing on its own.
+The outbox loop is a service of the host, not a thread of the library: the host starts it, stops it and disposes it
+(ADR-0076). The library starts nothing on its own.
 
 ---
 
 ## The whole surface
 
-Seventy public type names in `Nordmann.LUI` (eighty-five types: a generic type counts once for each number of type parameters), three in `Nordmann.LUI.Hosting`. Nothing else is public.
+Sixty-one public type names in `Nordmann.LUI` (seventy-one types: a generic type counts once for each number of type parameters), two in `Nordmann.LUI.Hosting`. Nothing else is public.
 
 | Type | Kind | Where it is described |
 |---|---|---|
@@ -1394,29 +1233,18 @@ Seventy public type names in `Nordmann.LUI` (eighty-five types: a generic type c
 | `LuiIndex` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
 | `LuiEmbeddedIndex` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
 | `LuiLinkedIndex` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
-| `LuiEntry` | record | [the typed handles](#the-typed-handles--what-a-definition-opens) |
 | `LuiQuery` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
 | `LuiResult` | class | [the typed handles](#the-typed-handles--what-a-definition-opens) |
 | `LuiHit` | record | [the typed handles](#the-typed-handles--what-a-definition-opens) |
 | `LuiIndexKindBuilder` | class | [creating an index](#creating-an-index--the-description) |
 | `LuiEmbeddedIndexBuilder` | class | [creating an index](#creating-an-index--the-description) |
 | `LuiLinkedIndexBuilder` | class | [creating an index](#creating-an-index--the-description) |
-| `ILuiIndex` | interface | [the index](#the-index--what-the-catalog-hands-out) |
-| `ILuiEmbeddedIndex` | interface | [the index](#the-index--what-the-catalog-hands-out) |
-| `ILuiLinkedIndex` | interface | [the index](#the-index--what-the-catalog-hands-out) |
-| `LuiEntry` | record | [writing](#writing--the-entry-and-the-key) |
-| `LuiKey` | struct | [writing](#writing--the-entry-and-the-key) |
-| `LuiKeyKind` | enum | [the enumerations](#the-enumerations) |
 | `LuiKeyType` | enum | [the enumerations](#the-enumerations) |
 | `LuiQuery` | class | [reading](#reading--the-query-the-result-the-hit) |
 | `LuiQueryOptions` | record | [reading](#reading--the-query-the-result-the-hit) |
 | `LuiResult` | record | [reading](#reading--the-query-the-result-the-hit) |
 | `LuiHit` | struct | [reading](#reading--the-query-the-result-the-hit) |
 | `LuiTimings` | record | [reading](#reading--the-query-the-result-the-hit) |
-| `LuiIndexExtensions` | class | [reading](#the-typed-view--the-payload-in-the-type-of-the-application) |
-| `LuiTypedIndex` | class | [reading](#the-typed-view--the-payload-in-the-type-of-the-application) |
-| `LuiTypedResult` | record | [reading](#the-typed-view--the-payload-in-the-type-of-the-application) |
-| `LuiTypedHit` | struct | [reading](#the-typed-view--the-payload-in-the-type-of-the-application) |
 | `LuiSyncOptions` | record | [the bulk path](#the-bulk-path--loading-many-entries) |
 | `LuiSyncReport` | record | [the bulk path](#the-bulk-path--loading-many-entries) |
 | `LuiLinkedSyncReport` | record | [the bulk path](#the-bulk-path--loading-many-entries) |
@@ -1451,7 +1279,6 @@ Seventy public type names in `Nordmann.LUI` (eighty-five types: a generic type c
 | `LuiInitializeException` | class | [the exceptions](#the-exceptions) |
 | `LuiConfigurationException` | class | [the exceptions](#the-exceptions) |
 | `LuiServiceCollectionExtensions` | class | [the hosting package](#the-hosting-package) |
-| `LuiWarmupOptions` | class | [the hosting package](#the-hosting-package) |
 | `LuiOutboxOptions` | class | [the hosting package](#the-hosting-package) |
 
 ---

@@ -31,22 +31,8 @@ public sealed record LuiCatalogOptions
     /// opened: a call on it afterwards changes nothing for that catalog. Default: <see langword="null"/> — the catalog has
     /// no payload type registered, and an index with a payload cannot be created. A <c>Linked</c> index does not use it: it
     /// builds its payload from the columns of its table.
-    /// <para>
-    /// <b>Not together with <see cref="PayloadSerializer"/></b>: both set is a <see cref="LuiConfigurationException"/> when the
-    /// catalog is opened.
-    /// </para>
     /// </summary>
     public LuiPayloadRegistry? Payloads { get; init; }
-
-    /// <summary>
-    /// The serialiser of the payloads of the <b>old calls</b> (ADR-0035) — one for every index of the catalog that was created with
-    /// <c>Create(name, …)</c>: it writes a payload with the type it has and reads it with the type the caller asks for
-    /// (<see cref="LuiHit.GetPayload{T}"/>). Default: <see langword="null"/> — the indexes store no payloads, and an entry that has
-    /// one is refused. <see cref="LuiPayloadSerializer.Json(System.Text.Json.Serialization.JsonSerializerContext)"/> with the JSON
-    /// context of the application is the usual one. <b>An index with a declared payload type does not use it</b> — it uses
-    /// <see cref="Payloads"/>; the issue #268 removes this property with the old calls. A <c>Linked</c> index does not use it either.
-    /// </summary>
-    public ILuiPayloadSerializer? PayloadSerializer { get; init; }
 
     /// <summary>
     /// The clock of the catalog: <c>created_at</c> in <c>lui_meta</c>, and the lease of a linked sync (ADR-0077) — its expiry is a point in

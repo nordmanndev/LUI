@@ -37,7 +37,7 @@ public sealed class ReleaseThreeTests
     {
         var names = typeof(LuiCatalogOptions).GetProperties(Declared).Select(p => p.Name).Order(StringComparer.Ordinal).ToArray();
 
-        names.ShouldBe(["PayloadSerializer", "Payloads", "Pragmas", "TimeProvider"]);  // WriteAheadLog, MemoryMapMegabytes, BusyTimeout and CacheSizeMegabytes are gone
+        names.ShouldBe(["Payloads", "Pragmas", "TimeProvider"]);  // WriteAheadLog, MemoryMapMegabytes, BusyTimeout and CacheSizeMegabytes are gone
 
         typeof(LuiPragmas).GetProperties(Declared).Select(p => p.Name).Order(StringComparer.Ordinal)
             .ShouldBe(["BusyTimeout", "CacheSizeMegabytes", "Synchronous"]);  // the three settings that make sense, and no more

@@ -134,7 +134,7 @@ public sealed class LuiEmbeddedIndex<TKey> : LuiIndex<TKey>
     {
         try
         {
-            return _index.Remove(KeyConversion.ToKey(key), transaction);
+            return _index.Remove(KeyConversion.ToText(key, Name), transaction);
         }
         catch (Exception exception) when (IsDropped(exception))
         {
@@ -153,7 +153,7 @@ public sealed class LuiEmbeddedIndex<TKey> : LuiIndex<TKey>
     {
         try
         {
-            return _index.UpdateWeight(KeyConversion.ToKey(key), weight, transaction);
+            return _index.UpdateWeight(KeyConversion.ToText(key, Name), weight, transaction);
         }
         catch (Exception exception) when (IsDropped(exception))
         {
@@ -172,7 +172,7 @@ public sealed class LuiEmbeddedIndex<TKey> : LuiIndex<TKey>
     {
         try
         {
-            return _index.UpdatePriority(KeyConversion.ToKey(key), priority, transaction);
+            return _index.UpdatePriority(KeyConversion.ToText(key, Name), priority, transaction);
         }
         catch (Exception exception) when (IsDropped(exception))
         {
@@ -213,7 +213,7 @@ public sealed class LuiEmbeddedIndex<TKey> : LuiIndex<TKey>
         }
     }
 
-    private static IEnumerable<LuiEntry> Convert(IEnumerable<LuiEntry<TKey>> entries) =>
+    private static IEnumerable<RawEntry> Convert(IEnumerable<LuiEntry<TKey>> entries) =>
         entries.Select(entry => (entry ?? throw new ArgumentNullException(nameof(entries))).ToEntry());
 }
 #pragma warning restore MA0048

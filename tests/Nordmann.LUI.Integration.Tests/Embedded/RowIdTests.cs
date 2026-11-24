@@ -60,7 +60,7 @@ public sealed class RowIdTests
         // the generated column and the C# encoder must agree, or the decoded weight is wrong
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         tags.Upsert(1, "vegan", weight: 5, priority: LuiPriority.System);
         tags.Upsert(2, "organ", weight: 123_456);

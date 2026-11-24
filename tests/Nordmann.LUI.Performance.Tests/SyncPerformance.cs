@@ -29,7 +29,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
 
         var random = new Random(42);
         var source = Enumerable.Range(1, entries)
-            .Select(i => new LuiEntry(i, words[(i - 1) % words.Count])
+            .Select(i => new LuiEntry<long>(i, words[(i - 1) % words.Count])
             {
                 Weight = corpus.Weights[(i - 1) % corpus.Weights.Count],
             })
@@ -39,7 +39,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
-        var wordIndex = catalog.Create("words", index => index.SingleWord());
+        var wordIndex = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord()));
 
         var report = Timed("sync, empty index", () => wordIndex.Sync(source, options));
         Report($"  {report}");
@@ -68,7 +68,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
             return 0;
         });
 
-        var upserted = catalog.Create("upserted", index => index.SingleWord());
+        var upserted = catalog.Create(new LuiIndexDefinition<long>("upserted", index => index.SingleWord()));
         Timed("UpsertMany of the same entries", () => upserted.UpsertMany(source));
         var (upserted50, upserted95) = QueryTimes(upserted, Inputs(source, random));
         Report($"query after the first sync p50/p95 {synced50:F2}/{synced95:F2} ms · after UpsertMany {upserted50:F2}/{upserted95:F2} ms");
@@ -90,7 +90,7 @@ public sealed class SyncPerformance(ITestOutputHelper output)
 
         using var database = new TestDatabase();
         using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
-        var wordIndex = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var wordIndex = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         Timed("sync, empty index", () => wordIndex.Sync(source, new LuiSyncOptions { BatchSize = 1_000_000 }));
         Timed("warm-up of the typo dictionary", () =>
         {
@@ -110,8 +110,8 @@ public sealed class SyncPerformance(ITestOutputHelper output)
         wordIndex.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
     }
 
-    private static IEnumerable<LuiEntry> CancelAt(
-        List<LuiEntry> source,
+    private static IEnumerable<LuiEntry<long>> CancelAt(
+        List<LuiEntry<long>> source,
         int count,
         CancellationTokenSource cancellation)
     {
@@ -126,14 +126,14 @@ public sealed class SyncPerformance(ITestOutputHelper output)
         }
     }
 
-    private static List<string> Inputs(List<LuiEntry> source, Random random) =>
+    private static List<string> Inputs(List<LuiEntry<long>> source, Random random) =>
         [.. Enumerable.Range(0, Queries).Select(_ =>
         {
             var text = source[random.Next(source.Count)].Text;
             return text[..Math.Min(text.Length, random.Next(1, 9))];
         })];
 
-    private static (double P50, double P95) QueryTimes(ILuiIndex index, List<string> inputs)
+    private static (double P50, double P95) QueryTimes(LuiIndex<long> index, List<string> inputs)
     {
         foreach (var input in inputs.Take(200))
         {

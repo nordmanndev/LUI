@@ -22,7 +22,7 @@ use Lucene, SeekStorm or FTS5 directly. Not a key–value store. Not a server wi
 - **Your rows stay yours.** A `Linked` index keeps no copy of your table and never changes your schema.
 - **One typo forgiven.** The correction is per index, off by default, and a query never waits for it.
 - **Measured, not promised.** Every performance number has a run behind it, with the machine named.
-- **No types in the index.** The type of a payload stands where you use it: `hit.GetPayload<TagChip>()`.
+- **Typed from the definition.** The key type and the payload type are declared once, in the definition of the index: `hit.Key`, `hit.Payload`.
 
 ## Contents
 
@@ -49,7 +49,8 @@ using Nordmann.LUI;
 using var lui = LuiCatalog.OpenOrCreate("app.db");
 
 // an index of titles: the words in any order, the spaces optional, one typo forgiven
-var recipes = lui.Create("recipes", index => index.MultiWord().TypoTolerance());
+var recipesIndex = new LuiIndexDefinition<long>("recipes", index => index.MultiWord().TypoTolerance());
+var recipes = lui.Create(recipesIndex);
 
 recipes.Upsert(1, "Gedeckter Apfelkuchen", weight: 9000);
 recipes.Upsert(3, "Bratapfelkuchen", weight: 800);
@@ -73,7 +74,7 @@ Gedeckter Apfelkuchen
 gedeckter
 ```
 
-`Create` writes — it belongs in the migration of your application; in the runtime path the index is **opened**: `lui.Index("recipes")` reads the definition out of the file and writes nothing.
+`Create` writes — it belongs in the migration of your application; in the runtime path the index is **opened**: `lui.Index(recipesIndex)` compares the definition with the one in the file and writes nothing.
 
 At the start of a real application the dictionary is one of several start steps — `catalog.Initialize()` does all of them for every index in one call: see [Starting up](#starting-up-initialize-and-the-host-pattern).
 
@@ -85,10 +86,10 @@ to a set of entries: it reads them in batches, writes them in one transaction pe
 ```csharp
 // many records at once: Sync makes the index equal to the entries, in batches
 using var bulkCatalog = LuiCatalog.OpenOrCreate("bulk.db");
-var words = bulkCatalog.Create("words", index => index.SingleWord());
+var words = bulkCatalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord()));
 
 var report = words.Sync(
-    Enumerable.Range(0, 50_000).Select(i => new LuiEntry(i, $"Wort {i}")),
+    Enumerable.Range(0, 50_000).Select(i => new LuiEntry<long>(i, $"Wort {i}")),
     new LuiSyncOptions { BatchSize = 10_000 });
 
 Console.WriteLine($"{report.Read} read, {report.Added} added, {report.Batches} batches");
@@ -409,23 +410,22 @@ Console.WriteLine(ready);
 
 ## A payload
 
-A hit can carry a payload of your own: a category, a colour, an id of yours. It is any type of the JSON context of
-your application, written by the **serialiser of the catalog** — source-generated, and so safe for trimming and AOT.
+A hit can carry a payload of your own: a category, a colour, an id of yours. Its type is the second type argument of the definition,
+`LuiIndexDefinition<TKey, TPayload>`, and it is written by the serializer that the **registry of the catalog** holds for that type —
+source-generated, and so safe for trimming and AOT.
 
 ```csharp
 using Nordmann.LUI;
 using var withChips = LuiCatalog.OpenOrCreate("chips.db", new LuiCatalogOptions
 {
-    PayloadSerializer = LuiPayloadSerializer.Json(TagJson.Default),   // one serialiser for every index of the catalog
+    Payloads = new LuiPayloadRegistry().Use(TagJson.Default),   // one serializer per payload type
 });
 
-var chips = withChips.Create("chips", index => index.SingleWord());
-chips.Upsert(new LuiEntry(1, "vegan") { Weight = 120, Payload = new TagChip("#3a3", "System") });
+var chips = withChips.Create(new LuiIndexDefinition<long, TagChip>("chips", index => index.SingleWord()));
+chips.Upsert(new LuiEntry<long, TagChip>(1, "vegan", new TagChip("#3a3", "System")) { Weight = 120 });
 
-var chip = chips.Search("veg").Hits[0].GetPayload<TagChip>();   // the type stands where the payload is used
-var typed = chips.As<TagChip>().Search("veg").Hits[0].GetPayload();  // the same, through a view — the compiler checks the type
-Console.WriteLine(chip!.Colour);                                     // #3a3
-Console.WriteLine(typed!.Colour);                                    // #3a3
+var chip = chips.Search("veg").Hits[0].Payload;   // a plain value, loaded with the query
+Console.WriteLine(chip.Colour);                   // #3a3
 ```
 
 ```csharp
@@ -438,10 +438,8 @@ public sealed record TagChip(string Colour, string Group);
 public sealed partial class TagJson : JsonSerializerContext;
 ```
 
-The index knows no types: the file stores the payload as bytes, and the type stands where the payload is used — a
-payload that cannot be read is a `LuiPayloadException`. An application that wants the type checked by the compiler asks
-for a **view** of the index: `chips.As<TagChip>()` — and a fluent query ends in the same typed answer with
-`.Execute().As<TagChip>()`. The view is a view — it opens nothing, writes nothing, and holds no index of its own.
+The file stores the payload as bytes; the handle of the definition reads it in its type, and a payload that cannot be read fails the query with a
+`LuiPayloadException`.
 
 ## In an ASP.NET Core application
 
@@ -467,11 +465,11 @@ using var host = builder.Build();
 
 // after Build(): create the indexes — a configuration error stops the start here, at a line of Program.cs
 var catalog = host.Services.GetRequiredService<LuiCatalog>();
-catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord().TypoTolerance()));
+catalog.Create(recipesIndex);
 host.Start();
 
 // in an endpoint: the catalog is injected — the index is asked for
-var suggest = catalog.Index("recipes");
+var suggest = catalog.Index(recipesIndex);
 Console.WriteLine(suggest.Search("apfelkuch").Hits[0].Text);   // Gedeckter Apfelkuchen
 ```
 
@@ -542,8 +540,7 @@ the start — that is `Initialize()`. **A failing round never stops the host**: 
 backoff up to `MaxBackoff` (5 minutes by default), and the first round that works goes back to the interval. Every process with the registration runs its own loop; that is safe, because the
 outbox is applied by one writer at a time. On a catalog opened with `OpenReadOnly` the host does not start: a read-only catalog cannot apply the outbox.
 
-`AddLuiWarmup()` of `0.3.0` still builds the dictionaries while the host starts and applies the outbox on an interval — it goes with the next change (#268), and `Initialize()` with `AddLuiOutbox`
-replace it. The library starts no thread of its own: the host runs the services, stops them and disposes them. The rebuild of a dictionary stays with your application, because only you know when a
+`AddLuiWarmup()` of `0.3.0` is gone: `Initialize()` with `AddLuiOutbox` replace it. The library starts no thread of its own: the host runs the services, stops them and disposes them. The rebuild of a dictionary stays with your application, because only you know when a
 phase is quiet.
 
 ## Only read
@@ -554,7 +551,7 @@ Sometimes an application may only read: a replica, a file that is read-only. A c
 ```csharp
 // the same file, opened for reading only: it reads and searches, and it writes nothing
 using var reader = LuiCatalog.OpenReadOnly("app.db");
-var opened = reader.Index("recipes");
+var opened = reader.Index(recipesIndex);
 
 foreach (var hit in opened.Search("apfelkuch").Hits)
 {
@@ -562,21 +559,21 @@ foreach (var hit in opened.Search("apfelkuch").Hits)
 }
 ```
 
-`Index` reads the definition out of the file and writes nothing — no table, no definition, no write lock. The file
+`Index(definition)` compares the definition with the one in the file and writes nothing — no table, no definition, no write lock. The file
 decides what may happen.
 
 ## The API
 
 | Type | What it is |
 |---|---|
-| `LuiCatalog` | the entry point: `Open`, `Create`, `CreateLinked`, `Index`, `LinkedIndex`, `DropIndex` |
-| `LuiEntry` | what is written: a key, a text, a weight, a priority, a payload |
-| `LuiKey` | the key of the application: a number or a text — `1` and `"1"` are different keys |
-| `LuiQuery` | a query that is configured step by step: `Take`, `Candidates`, `Rank`, `PriorityMode`, `Similarity`, `TypoTolerance`, `TrackTimings` |
+| `LuiCatalog` | the entry point: `Open`, `Create`, `Index`, `DropIndex` |
+| `LuiIndexDefinition<TKey>` | the declaration of an index: the name, the kind and the type of its keys — `LuiIndexDefinition<TKey, TPayload>` adds the payload type; the linked forms are `LuiLinkedIndexDefinition` |
+| `LuiEntry<TKey>` | what is written: a key, a text, a weight, a priority — `LuiEntry<TKey, TPayload>` adds the payload |
+| `LuiQuery<TKey>` | a query that is configured step by step: `Take`, `Candidates`, `Rank`, `PriorityMode`, `Similarity`, `TypoTolerance`, `TrackTimings` |
 | `LuiQueryOptions` | the same settings as a record, for the configuration of an application |
-| `LuiResult` | the answer of a query: the hits, the candidates it considered, the query it corrected |
-| `LuiHit` | one hit: the key, the text, the weight, the priority, the similarity — and `GetPayload<T>()` |
-| `LuiCatalogOptions` | the settings of the catalog: the pragmas of the connections (busy timeout, synchronous, cache size), the payload serialiser, the clock |
+| `LuiResult<TKey>` | the answer of a query: the hits, the candidates it considered, the query it corrected |
+| `LuiHit<TKey>` | one hit: the key, the text, the weight, the priority, the similarity — and, with `LuiHit<TKey, TPayload>`, the `Payload` |
+| `LuiCatalogOptions` | the settings of the catalog: the pragmas of the connections (busy timeout, synchronous, cache size), the payload registry, the clock |
 
 One catalogue is one file: the file of your application becomes a catalogue with `OpenOrCreate`, and its tables lie beside
 the tables of LUI. LUI sets write-ahead logging only when `OpenOrCreate` creates the file itself; a file that is already there, with tables

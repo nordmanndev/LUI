@@ -46,57 +46,22 @@ internal static class KeyCodec
                 $"The key type '{keyType}' of a definition is none of 'long', 'int', 'string' and 'guid' (ADR-0073)."),
         };
 
-    /// <summary>Whether the keys of a type are numbers or texts in the file: <c>long</c> and <c>int</c> are numbers.</summary>
-    internal static LuiKeyKind KindOf(LuiKeyType keyType) =>
-        keyType is LuiKeyType.Long or LuiKeyType.Int ? LuiKeyKind.Number : LuiKeyKind.Text;
-
-    /// <summary>The kind of the keys of a name in the definition; a name this version does not know is refused.</summary>
-    internal static LuiKeyKind KindOf(string keyType) => KindOf(TypeOf(keyType));
-
-    /// <summary>
-    /// The stored text of a key; a key of the other kind, an <c>int</c> key outside the <c>int</c> range and a text that is no
-    /// GUID in the form <c>"D"</c> are refused. A GUID is stored in lower case.
-    /// </summary>
-    internal static string ToText(LuiKey key, LuiKeyType keyType, string indexName)
-    {
-        var kind = KindOf(keyType);
-        if (key.Kind != kind)
-        {
-            throw new ArgumentException(
-                $"The index '{indexName}' has keys that are {Describe(kind)}; the key '{key}' is {Describe(key.Kind)}.",
-                nameof(key));
-        }
-
-        switch (keyType)
-        {
-            case LuiKeyType.Int when key.ToInt64() is < int.MinValue or > int.MaxValue:
-                throw new ArgumentException(
-                    $"The index '{indexName}' has keys of type int; the key '{key}' is outside {int.MinValue} … {int.MaxValue}.",
-                    nameof(key));
-            case LuiKeyType.Guid:
-                return Guid.TryParseExact(key.ToText(), "D", out var guid)
-                    ? guid.ToString("D", CultureInfo.InvariantCulture)
-                    : throw new ArgumentException(
-                        $"The index '{indexName}' has keys that are GUIDs; the key '{key}' is not one in the form 'D' (00000000-0000-0000-0000-000000000000).",
-                        nameof(key));
-            default:
-                return key.ToString();
-        }
-    }
-
-    /// <summary>The key of a stored text; a text that does not convert is a damaged file.</summary>
-    /// <exception cref="LuiKeyException">The stored text is no key of the type.</exception>
-    internal static LuiKey FromText(string text, LuiKeyType keyType, string indexName)
+    /// <summary>The stored key as text, checked against its type: a Guid in the canonical form; a text that is not a key of the type is a <see cref="LuiKeyException"/>.</summary>
+    /// <param name="text">The stored key.</param>
+    /// <param name="keyType">The key type of the index.</param>
+    /// <param name="indexName">The index, for the message.</param>
+    /// <returns>The stored text, checked: unchanged for a number or a string (<c>+05</c> stays <c>+05</c>), the canonical lower-case form for a GUID.</returns>
+    internal static string FromText(string text, LuiKeyType keyType, string indexName)
     {
         switch (keyType)
         {
             case LuiKeyType.Long:
-                return long.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var number)
-                    ? number
+                return long.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _)
+                    ? text
                     : throw new LuiKeyException(indexName, text, keyType, "it is not a whole number in the range of a long.");
             case LuiKeyType.Int:
-                return int.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var small)
-                    ? small
+                return int.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out _)
+                    ? text
                     : throw new LuiKeyException(indexName, text, keyType, "it is not a whole number in the range of an int.");
             case LuiKeyType.Guid:
                 return Guid.TryParseExact(text, "D", out var guid)
@@ -106,6 +71,4 @@ internal static class KeyCodec
                 return text;
         }
     }
-
-    private static string Describe(LuiKeyKind kind) => kind == LuiKeyKind.Text ? "texts" : "numbers";
 }

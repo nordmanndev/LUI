@@ -1,58 +1,118 @@
+using System.Globalization;
+using Nordmann.LUI.Schema;
+
 namespace Nordmann.LUI;
 
 /// <summary>
-/// The edge between the typed handles and the index below them (ADR-0073): the handle speaks <c>TKey</c>, the index speaks
-/// <see cref="LuiKey"/> — a number for <c>long</c> and <c>int</c>, a text for <c>string</c> and <see cref="Guid"/> (in the canonical
-/// form <c>"D"</c>, lower case). The key type of a definition is checked before a handle exists (<c>KeyTypes.Validate</c>), so
-/// the checks of the type are folded away by the compiler for each closed type.
+/// The key between the application and the file (ADR-0073): the file stores every key as text — the invariant text of a number, the text
+/// of a string, a GUID in the form <c>D</c> in lower case — and the handles of the definitions convert at the border. Everything below the
+/// handles speaks the text.
 /// </summary>
 internal static class KeyConversion
 {
-    internal static LuiKey ToKey<TKey>(TKey key)
+    /// <summary>The key type a type argument stands for.</summary>
+    /// <typeparam name="TKey">The type argument of a definition.</typeparam>
+    /// <returns>The key type.</returns>
+    internal static LuiKeyType TypeOf<TKey>()
         where TKey : notnull
     {
         if (typeof(TKey) == typeof(long))
         {
-            return LuiKey.FromInt64((long)(object)key);
+            return LuiKeyType.Long;
         }
 
         if (typeof(TKey) == typeof(int))
         {
-            return LuiKey.FromInt64((int)(object)key);
+            return LuiKeyType.Int;
         }
 
         if (typeof(TKey) == typeof(string))
         {
-            return LuiKey.FromString((string)(object)key);
+            return LuiKeyType.String;
         }
 
         return typeof(TKey) == typeof(Guid)
-            ? LuiKey.FromString(((Guid)(object)key).ToString("D", System.Globalization.CultureInfo.InvariantCulture))
+            ? LuiKeyType.Guid
             : throw new NotSupportedException($"The key type {typeof(TKey).Name} is not supported.");
     }
 
-    internal static TKey FromKey<TKey>(LuiKey key)
+    /// <summary>The text of a key, as the file stores it.</summary>
+    /// <typeparam name="TKey">The key type.</typeparam>
+    /// <param name="key">The key.</param>
+    /// <param name="indexName">The index the handle belongs to, for the message; <see langword="null"/> where the entry does not know it.</param>
+    /// <returns>The text.</returns>
+    /// <exception cref="ArgumentNullException">A <see langword="null"/> string key: a null text is not a key.</exception>
+    internal static string ToText<TKey>(TKey key, string? indexName = null)
         where TKey : notnull
     {
+        if (key is null)
+        {
+            throw new ArgumentNullException(
+                nameof(key),
+                indexName is null ? "A key may not be null." : $"The key of the index '{indexName}' may not be null.");
+        }
+
         if (typeof(TKey) == typeof(long))
         {
-            return (TKey)(object)key.ToInt64();
+            return ((long)(object)key).ToString(CultureInfo.InvariantCulture);
         }
 
         if (typeof(TKey) == typeof(int))
         {
-            // the stored key was checked against the int range when it was read (KeyCodec.FromText), and a linked index leaves
-            // the rows outside it out: a key that gets here fits
-            return (TKey)(object)checked((int)key.ToInt64());
+            return ((int)(object)key).ToString(CultureInfo.InvariantCulture);
         }
 
         if (typeof(TKey) == typeof(string))
         {
-            return (TKey)(object)key.ToText();
+            return (string)(object)key;
         }
 
         return typeof(TKey) == typeof(Guid)
-            ? (TKey)(object)Guid.ParseExact(key.ToText(), "D")
+            ? ((Guid)(object)key).ToString("D", CultureInfo.InvariantCulture)
+            : throw new NotSupportedException($"The key type {typeof(TKey).Name} is not supported.");
+    }
+
+    /// <summary>The number a key of a linked index is: its <c>long</c> or <c>int</c> (the keys of a linked index are the rowids of its table).</summary>
+    /// <typeparam name="TKey">The key type, <c>long</c> or <c>int</c>.</typeparam>
+    /// <param name="key">The key.</param>
+    /// <returns>The number.</returns>
+    internal static long ToInt64<TKey>(TKey key)
+        where TKey : notnull =>
+        typeof(TKey) == typeof(long) ? (long)(object)key
+        : typeof(TKey) == typeof(int) ? (int)(object)key
+        : throw new NotSupportedException($"The key type {typeof(TKey).Name} is not a number.");
+
+    /// <summary>The key of a stored text; a text that is not a key of the type is a <see cref="LuiKeyException"/>.</summary>
+    /// <typeparam name="TKey">The key type.</typeparam>
+    /// <param name="text">The stored key.</param>
+    /// <param name="indexName">The index, for the message.</param>
+    /// <returns>The key.</returns>
+    internal static TKey FromText<TKey>(string text, string indexName)
+        where TKey : notnull
+    {
+        if (typeof(TKey) == typeof(long))
+        {
+            return long.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var number)
+                ? (TKey)(object)number
+                : throw new LuiKeyException(indexName, text, LuiKeyType.Long, "it is not a whole number in the range of a long.");
+        }
+
+        if (typeof(TKey) == typeof(int))
+        {
+            return int.TryParse(text, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out var small)
+                ? (TKey)(object)small
+                : throw new LuiKeyException(indexName, text, LuiKeyType.Int, "it is not a whole number in the range of an int.");
+        }
+
+        if (typeof(TKey) == typeof(string))
+        {
+            return (TKey)(object)text;
+        }
+
+        return typeof(TKey) == typeof(Guid)
+            ? Guid.TryParseExact(text, "D", out var guid)
+                ? (TKey)(object)guid
+                : throw new LuiKeyException(indexName, text, LuiKeyType.Guid, "it is not a GUID in the form 'D'.")
             : throw new NotSupportedException($"The key type {typeof(TKey).Name} is not supported.");
     }
 }

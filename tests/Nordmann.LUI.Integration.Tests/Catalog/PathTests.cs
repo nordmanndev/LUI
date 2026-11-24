@@ -15,12 +15,12 @@ public sealed class PathTests
         using var database = new TestDatabase();
         using (var created = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            created.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+            created.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
         }
 
         using var catalog = LuiCatalog.Open(database.FilePath);
 
-        catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
+        catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Search("vegan").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
     }
 
     [Fact]

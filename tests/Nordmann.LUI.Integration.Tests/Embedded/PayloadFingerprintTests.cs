@@ -65,17 +65,13 @@ public sealed class PayloadFingerprintTests
     public void A_catalog_without_a_registry_refuses_a_payload_definition_and_says_where_to_set_it()
     {
         using var database = new TestDatabase();
-        using var none = LuiCatalog.OpenOrCreate(database.FilePath);
-        using var legacy = LuiCatalog.OpenOrCreate(database.FilePath, new LuiCatalogOptions { PayloadSerializer = LuiPayloadSerializer.Json(ChipJsonContext.Default) });
+        using var catalog = LuiCatalog.OpenOrCreate(database.FilePath);
 
-        foreach (var catalog in new[] { none, legacy })
-        {
-            var exception = Should.Throw<LuiConfigurationException>(() => catalog.Create(Chips));
+        var exception = Should.Throw<LuiConfigurationException>(() => catalog.Create(Chips));
 
-            exception.Message.ShouldContain("'chips'", Case.Sensitive);
-            exception.Message.ShouldContain(nameof(LuiCatalogOptions.Payloads));
-            Should.Throw<LuiConfigurationException>(() => catalog.Index(Chips)).Message.ShouldContain(nameof(LuiCatalogOptions.Payloads));
-        }
+        exception.Message.ShouldContain("'chips'", Case.Sensitive);
+        exception.Message.ShouldContain(nameof(LuiCatalogOptions.Payloads));
+        Should.Throw<LuiConfigurationException>(() => catalog.Index(Chips)).Message.ShouldContain(nameof(LuiCatalogOptions.Payloads));
 
         database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(0);
     }
@@ -115,18 +111,16 @@ public sealed class PayloadFingerprintTests
     }
 
     [Fact]
-    public void Setting_Payloads_and_PayloadSerializer_throws()
+    public void The_registry_is_the_only_way_to_serialize_payloads()
     {
+        // the serializer of the catalog (LuiCatalogOptions.PayloadSerializer) is gone (#268): there is nothing that can be set beside the
+        // registry, so "both set" cannot happen — the options carry the registry, and nothing else that serializes
+        typeof(LuiCatalogOptions).GetProperties().Select(property => property.Name).Order(StringComparer.Ordinal)
+            .ShouldBe([nameof(LuiCatalogOptions.Payloads), nameof(LuiCatalogOptions.Pragmas), nameof(LuiCatalogOptions.TimeProvider)]);
+
         using var database = new TestDatabase();
-        var options = new LuiCatalogOptions { Payloads = Json(), PayloadSerializer = LuiPayloadSerializer.Json(ChipJsonContext.Default) };
-
-        var exception = Should.Throw<LuiConfigurationException>(() => LuiCatalog.OpenOrCreate(database.FilePath, options));
-
-        exception.Message.ShouldContain(nameof(LuiCatalogOptions.Payloads));
-        exception.Message.ShouldContain(nameof(LuiCatalogOptions.PayloadSerializer));
-        File.Exists(database.FilePath).ShouldBeFalse("a configuration that is refused touches no file");
-        Should.Throw<LuiConfigurationException>(() => LuiCatalog.Open(database.FilePath, options));
-        Should.Throw<LuiConfigurationException>(() => LuiCatalog.OpenReadOnly(database.FilePath, options));
+        using var catalog = LuiCatalog.OpenOrCreate(database.FilePath, new LuiCatalogOptions { Payloads = Json() });
+        catalog.Create(Chips).Upsert(1, "vegan", new Chip("one"));
     }
 
     // ---- two formats in one catalog -----------------------------------------------------------------------------------
@@ -148,10 +142,10 @@ public sealed class PayloadFingerprintTests
         System.Text.Encoding.UTF8.GetString(Payload(database, "notes")).ShouldBe("NOTE:milk");
 
         // and each is read with the serializer of its own type
-        var chipHit = catalog.Index("chips").Search("vegan").Hits.ShouldHaveSingleItem();
-        var noteHit = catalog.Index("notes").Search("remember").Hits.ShouldHaveSingleItem();
-        chipHit.GetPayload<Chip>().ShouldBe(new Chip("one", "green"));
-        noteHit.GetPayload<Note>().ShouldBe(new Note("milk"));
+        var chipHit = catalog.Index(Chips).Search("vegan").Hits.ShouldHaveSingleItem();
+        var noteHit = catalog.Index(Notes).Search("remember").Hits.ShouldHaveSingleItem();
+        chipHit.Payload.ShouldBe(new Chip("one", "green"));
+        noteHit.Payload.ShouldBe(new Note("milk"));
 
         var stored = Definition(database, "chips") + Definition(database, "notes");
         stored.ShouldContain("\"payloadFormat\":\"json-strict-v1\"");
@@ -242,7 +236,7 @@ public sealed class PayloadFingerprintTests
 
         renamed.Count().ShouldBe(1);
         Definition(database, "recipes").ShouldContain("\"payloadTypeName\":\"recipe\"");
-        catalog.Index("recipes").Search("kuchen").Hits.ShouldHaveSingleItem().GetPayload<NewRecipe>().ShouldBe(new NewRecipe("cake"));
+        catalog.Index(new LuiIndexDefinition<long, NewRecipe>("recipes", index => index.SingleWord())).Search("kuchen").Hits.ShouldHaveSingleItem().Payload.ShouldBe(new NewRecipe("cake"));
     }
 
     [Fact]
@@ -337,48 +331,52 @@ public sealed class PayloadFingerprintTests
 
         Definition(database, "linked_chips").ShouldNotContain("payloadTypeName");
         Definition(database, "linked_chips").ShouldNotContain("payloadFormat");
-        catalog.LinkedIndex("linked_chips", row => new Chip(row.GetString("slug"))).Search("vegan").Hits
-            .ShouldHaveSingleItem().GetPayload<Chip>().ShouldBe(new Chip("v"));
+        catalog.Index(linked).Search("vegan").Hits
+            .ShouldHaveSingleItem().Payload.ShouldBe(new Chip("v"));
         catalog.Index(linked).ShouldBeSameAs(handle);
     }
 
-    // ---- the old untyped path ---------------------------------------------------------------------------------------------
+    // ---- the read path resolves through the registry --------------------------------------------------------------------
 
     [Fact]
-    public void The_old_read_path_resolves_through_the_registry()
+    public void The_read_path_resolves_through_the_registry()
     {
         using var database = new TestDatabase();
         var lines = new LinesChipSerializer();
         using var catalog = database.Open(With(new LuiPayloadRegistry().Use(lines)));
         catalog.Create(Chips).Upsert(1, "vegan", new Chip("one", "green"));
 
-        var hit = catalog.Index("chips").Search("vegan").Hits.ShouldHaveSingleItem();
+        var hit = catalog.Index(Chips).Search("vegan").Hits.ShouldHaveSingleItem();
 
-        hit.GetPayload<Chip>().ShouldBe(new Chip("one", "green"));
+        hit.Payload.ShouldBe(new Chip("one", "green"));
         lines.Deserialized.ShouldBe(1, "the serializer of the registry read it");
-        hit.TryGetPayload<Chip>(out var payload).ShouldBeTrue();
-        payload.ShouldBe(new Chip("one", "green"));
     }
 
     [Fact]
-    public void The_old_read_path_asks_the_registry_for_the_type_and_a_missing_one_is_a_configuration_error_not_a_payload_error()
+    public void A_type_the_registry_does_not_know_is_a_configuration_error_not_a_payload_error()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open(With(Json()));
         catalog.Create(Chips).Upsert(1, "vegan", new Chip("one"));
-        var hit = catalog.Index("chips").Search("vegan").Hits.ShouldHaveSingleItem();
 
-        var missing = Should.Throw<LuiConfigurationException>(() => hit.GetPayload<Uri>());
+        // the type of the payload is asked of the registry when the index is opened: a missing one is a configuration error
+        var missing = Should.Throw<LuiConfigurationException>(() => catalog.Index(new LuiIndexDefinition<long, Uri>("chips", index => index.SingleWord())));
 
         missing.Message.ShouldContain("'chips'", Case.Sensitive);
         missing.Message.ShouldContain("System.Uri");
-        Should.Throw<LuiConfigurationException>(() => hit.TryGetPayload<Uri>(out _));
 
         // a type that is registered and cannot read the bytes is a payload error, and says which index, key and type
-        var unreadable = Should.Throw<LuiPayloadException>(() => hit.GetPayload<RecipeCard>());
+        using (var connection = database.Connect())
+        using (var command = connection.CreateCommand())
+        {
+            command.CommandText = "UPDATE lui_chips SET payload = x'00ff00';";
+            command.ExecuteNonQuery();
+        }
+
+        var unreadable = Should.Throw<LuiPayloadException>(() => catalog.Index(Chips).Search("vegan"));
         unreadable.IndexName.ShouldBe("chips");
-        unreadable.Key.ShouldBe((LuiKey)1);
-        unreadable.RequestedType.ShouldBe(typeof(RecipeCard));
+        unreadable.Key.ShouldBe("1");
+        unreadable.RequestedType.ShouldBe(typeof(Chip));
     }
 
     [Fact]
@@ -394,27 +392,23 @@ public sealed class PayloadFingerprintTests
             command.ExecuteNonQuery();
         }
 
-        var hit = catalog.Index("chips").Search("vegan").Hits.ShouldHaveSingleItem();
-
-        var exception = Should.Throw<LuiPayloadException>(() => hit.GetPayload<Chip>());
+        var exception = Should.Throw<LuiPayloadException>(() => catalog.Index(Chips).Search("vegan"));
         exception.IndexName.ShouldBe("chips");
         exception.RequestedType.ShouldBe(typeof(Chip));
     }
 
     [Fact]
-    public void With_a_registry_an_untyped_entry_cannot_carry_a_payload()
+    public void With_a_registry_an_entry_of_an_index_without_a_payload_type_cannot_carry_a_payload()
     {
-        // there is no untyped payload: an index has a declared, registered payload type, or none
+        // there is no untyped payload: an index has a declared, registered payload type, or none — and the entry of an index without
+        // one has no property to put a payload in
+        typeof(LuiEntry<>).GetProperty("Payload").ShouldBeNull();
         using var database = new TestDatabase();
         using var catalog = database.Open(With(Json()));
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
-        var exception = Should.Throw<LuiConfigurationException>(() => tags.Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("v") }));
-
-        exception.Message.ShouldContain("'tags'", Case.Sensitive);
-        exception.Message.ShouldContain("LuiIndexDefinition<TKey, TPayload>");
-        tags.Count().ShouldBe(0);
         Should.NotThrow(() => tags.Upsert(2, "ohne"), "an entry without a payload needs no serializer");
+        tags.Count().ShouldBe(1);
     }
 
     // ---- no catch-all: a payload type is one single type ---------------------------------------------------------------
@@ -459,10 +453,10 @@ public sealed class PayloadFingerprintTests
         database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(0);
     }
 
-    // ---- the old write path by name never writes into an index that has a fingerprint -------------------------------
+    // ---- a definition without a payload type never writes into an index that has a fingerprint -------------------------
 
     [Fact]
-    public void The_old_write_path_by_name_refuses_a_payload_for_an_index_that_stores_a_format()
+    public void A_definition_without_a_payload_type_does_not_open_an_index_that_stores_a_format()
     {
         using var database = new TestDatabase();
         using (var typed = database.Open(With(Json().Use(new LinesChipSerializer()))))
@@ -470,21 +464,16 @@ public sealed class PayloadFingerprintTests
             typed.Create(Chips).Upsert(1, "vegan", new Chip("one"));
         }
 
-        using var legacy = LuiCatalog.OpenOrCreate(database.FilePath, new LuiCatalogOptions { PayloadSerializer = LuiPayloadSerializer.Json(ChipJsonContext.Default) });
-        using var registry = database.Open(With(Json().Use(new LinesChipSerializer())));
+        using var lines = database.Open(With(Json().Use(new LinesChipSerializer())));
+        using var json = database.Open(With(Json()));
 
-        foreach (var catalog in new[] { legacy, registry })
+        foreach (var catalog in new[] { lines, json })
         {
-            var chips = catalog.Index("chips");
-            var before = chips.Count();
-            var exception = Should.Throw<LuiConfigurationException>(() => chips.Upsert(new LuiEntry(2, "vegane") { Payload = new Chip("two") }));
+            var exception = Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(PlainChips));
 
-            exception.Message.ShouldContain("'chips'", Case.Sensitive);
-            exception.Message.ShouldContain("Index(definition)");
-            exception.Message.ShouldContain("lines-v1");
-            exception.Message.ShouldNotContain("no declared payload type");
-            chips.Count().ShouldBe(before, "nothing was written");
-            Should.NotThrow(() => chips.Upsert(3, "ohne"), "an entry without a payload needs no serializer");
+            exception.IndexName.ShouldBe("chips");
+            exception.ShouldDifferIn("payloadTypeName");
+            catalog.Count("chips").ShouldBe(1, "nothing was written");
         }
     }
 
@@ -504,7 +493,7 @@ public sealed class PayloadFingerprintTests
         }
 
         chips.Sync([new LuiEntry<long, Chip>(100, "vegan hundred", new Chip("c100"))]);
-        _ = catalog.Index("chips").Search("vegan").Hits[0].GetPayload<Chip>();
+        _ = catalog.Index(Chips).Search("vegan").Hits[0].Payload;
 
         catalog.PayloadLookups.ShouldBe(1, "one type, looked up once, however often it is written or read");
     }

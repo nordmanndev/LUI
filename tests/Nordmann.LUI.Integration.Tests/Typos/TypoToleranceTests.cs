@@ -86,7 +86,7 @@ public sealed class TypoToleranceTests
         // ADR-0005: „muller" is not „mueller" in the index, and one edit away from it
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var people = catalog.Create("people", index => index.MultiWord().TypoTolerance());
+        var people = catalog.Create(new LuiIndexDefinition<long>("people", index => index.MultiWord().TypoTolerance()));
         people.Upsert(1, "Anna Müller", 10);
         people.Upsert(2, "Hans Schmidt", 20);
 
@@ -105,7 +105,7 @@ public sealed class TypoToleranceTests
         // „apflekuchen" has a hit in the middle of another word — 34 % of the typos do (ADR-0012)
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         words.Upsert(1, "Apfelkuchen", 10);
         words.Upsert(2, "Teigapflekuchen", 20);
 
@@ -125,7 +125,7 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         words.Upsert(1, "Apfelkuchen", 10);
 
         // the application asks for the build (ADR-0042): a query never does — the query asks for the
@@ -183,7 +183,7 @@ public sealed class TypoToleranceTests
         // apfel and kuchen, and no word apfelkuchen
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var titles = catalog.Create("titles", index => index.MultiWord().TypoTolerance());
+        var titles = catalog.Create(new LuiIndexDefinition<long>("titles", index => index.MultiWord().TypoTolerance()));
         titles.Upsert(1, "Apfel Kuchen", 10);
 
         // the application asks for the build (ADR-0042): a query never does
@@ -215,7 +215,7 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         words.Upsert(1, "Donaudampfschifffahrtsgesellschaft", 10);
 
         // the application asks for the build (ADR-0042): a query never does
@@ -266,7 +266,7 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance().TypoTolerance(LuiTypoDistance.None));
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance().TypoTolerance(LuiTypoDistance.None)));
         words.Upsert(1, "Apfelkuchen", 10);
 
         words.Query("apflekuchen").Execute().CorrectedQuery.ShouldBeNull();
@@ -277,7 +277,7 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord().TypoTolerance()));
         tags.Upsert(1, "vegan", 0, priority: LuiPriority.System);
         tags.Upsert(2, "veganer kuchen", 900);
 
@@ -345,7 +345,7 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         for (var i = 1; i <= 10; i++)
         {
             words.Upsert(i, $"Teigapfle{i:00}", 1_000);
@@ -369,7 +369,7 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var titles = catalog.Create("titles", index => index.MultiWord().TypoTolerance());
+        var titles = catalog.Create(new LuiIndexDefinition<long>("titles", index => index.MultiWord().TypoTolerance()));
         titles.Upsert(1, "Bratapfle Apfel", 10);
         titles.Upsert(2, "bratapfle apfel", 10);
 
@@ -391,7 +391,7 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var titles = catalog.Create("titles", index => index.SingleWord().TypoTolerance());
+        var titles = catalog.Create(new LuiIndexDefinition<long>("titles", index => index.SingleWord().TypoTolerance()));
         titles.Upsert(1, "Teigapfle", 10);
         titles.Upsert(2, "teigapfle", 20);
         titles.Upsert(3, "Apfelkuchen", 5);
@@ -413,8 +413,8 @@ public sealed class TypoToleranceTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var on = catalog.Create("a", index => index.SingleWord().TypoTolerance());
-        var off = catalog.Create("b", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError).TypoTolerance(LuiTypoDistance.None));
+        var on = catalog.Create(new LuiIndexDefinition<long>("a", index => index.SingleWord().TypoTolerance()));
+        var off = catalog.Create(new LuiIndexDefinition<long>("b", index => index.SingleWord().TypoTolerance(LuiTypoDistance.OneError).TypoTolerance(LuiTypoDistance.None)));
         on.Upsert(1, "Apfelkuchen", 1);
         off.Upsert(1, "Apfelkuchen", 1);
 
@@ -429,7 +429,7 @@ public sealed class TypoToleranceTests
     private static Fixture Recipes(TestDatabase database)
     {
         var catalog = database.Open();
-        var recipes = catalog.Create("recipes", index => index.MultiWord().TypoTolerance());
+        var recipes = catalog.Create(new LuiIndexDefinition<long>("recipes", index => index.MultiWord().TypoTolerance()));
         recipes.Upsert(1, "Apfelkuchen", 900);
         recipes.Upsert(2, "Gedeckter Apfelkuchen", 800);
         recipes.Upsert(3, "Apfel Kuchen", 700);
@@ -444,9 +444,9 @@ public sealed class TypoToleranceTests
         return new Fixture(recipes);
     }
 
-    private sealed class Fixture(ILuiEmbeddedIndex index) : IDisposable
+    private sealed class Fixture(LuiEmbeddedIndex<long> index) : IDisposable
     {
-        internal ILuiEmbeddedIndex Index => index;
+        internal LuiEmbeddedIndex<long> Index => index;
 
         public void Dispose()
         {

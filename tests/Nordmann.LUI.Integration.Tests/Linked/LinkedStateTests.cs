@@ -101,7 +101,7 @@ public sealed class LinkedStateTests
     [Fact]
     public void The_old_handle_shares_the_state_its_sync_clears_the_flag_and_its_triggers_are_idempotent()
     {
-        // ADR-0077, decision 6: ILuiLinkedIndex has no property, but its Sync() and CreateTriggers() are the same implementation
+        // ADR-0077, decision 6: LuiLinkedIndex<long> has no property, but its Sync() and CreateTriggers() are the same implementation
         using var database = new TestDatabase();
         Run(database, Table);
         Insert(database, (1, "vegan", 5));

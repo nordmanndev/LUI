@@ -25,9 +25,9 @@ namespace Nordmann.LUI;
 /// dictionaries <see cref="Typos.TypoDictionaries"/>. No layer below the public API knows the catalog.
 /// </para>
 /// <para>
-/// It has two ways into an index (ADR-0033): <c>Create</c> creates one — once, in the migration of the application —
-/// and <see cref="Index(string)"/> or <see cref="LinkedIndex(string)"/> opens one that is there, without writing
-/// anything. Neither names a type (ADR-0035): the payload is read where it is used. Which of them may write is decided by the file: a catalog that was opened
+/// It has two ways into an index (ADR-0033, ADR-0073), both with a definition: <c>Create(definition)</c> creates one — once, after
+/// <c>Build()</c> or in the migration of the application — and <c>Index(definition)</c> opens one that is there, without writing
+/// anything; the definition names the types, once. Which of them may write is decided by the file: a catalog that was opened
 /// read-only refuses every write with a <see cref="LuiReadOnlyException"/>.
 /// </para>
 /// </summary>
@@ -63,11 +63,9 @@ public sealed class LuiCatalog : IDisposable
         _options = options;
         _payloads = payloads;
 
-        // the serialisation of the indexes that have no declared payload type — the old calls, and the read path by name: the
-        // registry resolves the type the caller asks for, or the serialiser of the old calls does (ADR-0072, until #268)
-        PayloadSerialization = payloads is not null
-            ? new RegistryPayloadSerialization(payloads)
-            : options.PayloadSerializer is { } serializer ? new LegacyPayloadSerialization(serializer) : PayloadSerialization.None;
+        // the serialisation of the indexes that have no declared payload type, and the read path by name: the registry resolves
+        // the type the caller asks for (ADR-0072)
+        PayloadSerialization = PayloadSerialization.None;
         Database = new Database(this, path, mode, createdTheFile, options);
         StoredIndexes = new StoredIndexes(Database);
         Runtimes = new IndexRuntimes(Database, TypoDictionaries, PayloadSerialization, StoredIndexes);
@@ -86,8 +84,8 @@ public sealed class LuiCatalog : IDisposable
     internal TimeProvider TimeProvider => _options.TimeProvider;
 
     /// <summary>
-    /// How the payloads of the indexes that have no declared payload type become bytes and back (ADR-0035, ADR-0072): the registry of
-    /// the catalog, or the serialiser of the old calls, or none.
+    /// How the payloads of an index that has no declared payload type become bytes and back (ADR-0035, ADR-0072): not at all — an index with a
+    /// payload type brings the codec of its type.
     /// </summary>
     internal PayloadSerialization PayloadSerialization { get; }
 
@@ -395,25 +393,10 @@ public sealed class LuiCatalog : IDisposable
         }
     }
 
-    /// <summary>
-    /// The registry of the payload types is frozen when the catalog is opened (ADR-0072): the catalog works on a copy. Both ways to
-    /// serialize — the registry and the serialiser of the old calls — set at once are refused <b>before</b> a file is touched.
-    /// </summary>
+    /// <summary>The registry of the payload types is frozen when the catalog is opened (ADR-0072): the catalog works on a copy.</summary>
     /// <param name="options">The options of the catalog.</param>
     /// <returns>The copy of the registry; <see langword="null"/> when there is none.</returns>
-    /// <exception cref="LuiConfigurationException">Both <see cref="LuiCatalogOptions.Payloads"/> and <see cref="LuiCatalogOptions.PayloadSerializer"/> are set.</exception>
-    private static FrozenPayloadRegistry? FreezePayloads(LuiCatalogOptions options)
-    {
-        if (options.Payloads is not null && options.PayloadSerializer is not null)
-        {
-            throw new LuiConfigurationException(
-                $"LuiCatalogOptions.{nameof(LuiCatalogOptions.Payloads)} and LuiCatalogOptions.{nameof(LuiCatalogOptions.PayloadSerializer)} are both set: "
-                + "a catalog has one way to serialize payloads. Register the payload types in the registry — "
-                + "Payloads = new LuiPayloadRegistry().Use(context) — and remove PayloadSerializer (the issue #268 removes it).");
-        }
-
-        return options.Payloads?.Freeze();
-    }
+    private static FrozenPayloadRegistry? FreezePayloads(LuiCatalogOptions options) => options.Payloads?.Freeze();
 
     /// <summary>
     /// The bounds of the settings of the connections (ADR-0066): the busy timeout is one second to ten minutes, the
@@ -433,84 +416,6 @@ public sealed class LuiCatalog : IDisposable
         {
             Setting.InRange(cache, 1, 1024, nameof(LuiPragmas.CacheSizeMegabytes));
         }
-    }
-
-    /// <summary>
-    /// Creates an <c>Embedded</c> index: <c>catalog.Create("tags", index =&gt; index.SingleWord())</c>. It is the write
-    /// path, and it belongs in the migration of the application: the index is created if it is missing, and the stored
-    /// definition is compared with the one that was described if it is there.
-    /// <para>
-    /// The builder chain is the <b>parameter</b>, not the way in: the catalog takes a description and does the
-    /// creating itself. The builder is not reachable from the catalog otherwise — the runtime path cannot create an
-    /// index (ADR-0033). No type is named (ADR-0035): an entry carries a payload of any type the serialiser of the
-    /// catalog writes.
-    /// </para>
-    /// </summary>
-    /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
-    /// <param name="index">The description of the index: the kind and, if they are texts, the kind of the key.</param>
-    /// <returns>The index; it reads and writes.</returns>
-    /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
-    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
-    public ILuiEmbeddedIndex Create(string name, Func<LuiIndexKindBuilder, LuiEmbeddedIndexBuilder> index)
-    {
-        ArgumentNullException.ThrowIfNull(index);
-
-        // a thin layer over the definition (ADR-0073): the builder chain is described, and the definition is created
-        var description = index(KindBuilder(name, out var validated)).Describe();
-        LuiIndexDefinitionBase definition = description.KeyKind == LuiKeyKind.Text
-            ? new LuiIndexDefinition<string>(validated, description)
-            : new LuiIndexDefinition<long>(validated, description);
-        return (EmbeddedIndex)CreateFrom(definition);
-    }
-
-    /// <summary>
-    /// Creates a <c>Linked</c> index — over a table of the application: the description starts with
-    /// <c>LinkTo(…)</c>, and the index reads the table of the application instead of a table of the library.
-    /// <para>
-    /// The route is named in the call, as it is on the side of opening: <c>Create</c> creates an embedded index,
-    /// <c>CreateLinked</c> a linked one (ADR-0062). The compiler does not choose the route.
-    /// </para>
-    /// <para>
-    /// The index starts empty: fill it with <c>Sync()</c>. That holds after a <c>DropIndex</c> too — a new linked
-    /// index is empty and has no triggers until <c>CreateTriggers()</c>, if wanted — first — and <c>Sync()</c>.
-    /// </para>
-    /// </summary>
-    /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
-    /// <param name="index">The description of the index: the kind, the table, the payload columns.</param>
-    /// <returns>The index; it reads and writes.</returns>
-    /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
-    /// <exception cref="LuiLinkedTableException">The table or a column is missing, or the key is not the table's INTEGER PRIMARY KEY.</exception>
-    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
-    public ILuiLinkedIndex CreateLinked(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder> index)
-    {
-        ArgumentNullException.ThrowIfNull(index);
-
-        var description = index(KindBuilder(name, out var validated)).Describe();
-        return (LinkedIndex)CreateFrom(new LuiLinkedIndexDefinition<long>(validated, description));
-    }
-
-    /// <summary>
-    /// Creates a <c>Linked</c> index with a payload — the old path, for the calls
-    /// <c>CreateLinked(name, index =&gt; index.LinkTo(…).WithPayload(…))</c>: <c>WithPayload</c> now ends in a typed
-    /// <see cref="LuiLinkedIndexBuilder{TPayload}"/>, and this overload takes it, so the existing calls keep compiling. It
-    /// describes, builds a <see cref="LuiLinkedIndexDefinition{TKey, TPayload}"/> and goes through
-    /// <see cref="Create{TKey, TPayload}(LuiLinkedIndexDefinition{TKey, TPayload})"/> — the same creation, the same checks (ADR-0073).
-    /// The issue #268 removes it with the other old calls; use a definition.
-    /// </summary>
-    /// <typeparam name="TPayload">What the map of the payload builds.</typeparam>
-    /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
-    /// <param name="index">The description of the index: the kind, the table and the payload.</param>
-    /// <returns>The index; it reads and writes.</returns>
-    /// <exception cref="LuiDefinitionMismatchException">The index exists with another definition.</exception>
-    /// <exception cref="LuiLinkedTableException">The table or a column is missing, or the key is not the table's INTEGER PRIMARY KEY.</exception>
-    /// <exception cref="LuiReadOnlyException">The file may not be written.</exception>
-    public ILuiLinkedIndex CreateLinked<TPayload>(string name, Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>> index)
-        where TPayload : notnull
-    {
-        ArgumentNullException.ThrowIfNull(index);
-
-        var description = index(KindBuilder(name, out var validated)).Describe();
-        return (LinkedIndex)CreateFrom(new LuiLinkedIndexDefinition<long, TPayload>(validated, description));
     }
 
     /// <summary>
@@ -709,32 +614,6 @@ public sealed class LuiCatalog : IDisposable
         HandleOf(definition, static (runtime, catalog) => new LuiLinkedIndex<TKey, TPayload>(catalog.Database, (LinkedIndex)runtime.Index));
 
     /// <summary>
-    /// Opens an embedded index that exists, and writes nothing (ADR-0033): the definition is read out of
-    /// <c>lui_meta</c>, the index is rebuilt from it, and the file is not touched — no table, no definition, no write
-    /// lock. It is the way into a database that is written elsewhere: a replica, a file that is read-only, a service
-    /// that may not write.
-    /// <para>
-    /// No type is named (ADR-0035): the kind of the key comes from the file, and a payload is read where it is used,
-    /// with <see cref="LuiHit.GetPayload{T}"/> and the serialiser of the catalog. The index it hands out writes when the
-    /// file allows it — the file decides, not the index.
-    /// </para>
-    /// </summary>
-    /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
-    /// <returns>The index; it reads, and it writes if the file allows it.</returns>
-    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
-    /// <exception cref="LuiDefinitionMismatchException">
-    /// The index was written by another version of the library (another LUI format, another folding), or it is a
-    /// linked index — open that with <see cref="LinkedIndex(string)"/>.
-    /// </exception>
-    public ILuiEmbeddedIndex Index(string name)
-    {
-        var entry = ReadEntry(name);
-        EnsureEmbedded(name, entry.Definition);
-
-        return OpenEmbedded(name, entry);
-    }
-
-    /// <summary>
     /// Builds the typo dictionary of every index of the catalog (ADR-0043) — the warm-up of a host in one call.
     /// <para>
     /// The dictionary belongs to the index of the catalog, not to the instance of it: an index that the application
@@ -742,8 +621,8 @@ public sealed class LuiCatalog : IDisposable
     /// </para>
     /// <para>
     /// The build takes seconds and needs memory — 194 MB for 685,739 words (ADR-0021). A host that wants corrections
-    /// from its first query warms the catalog at the start; the registration <c>AddLuiWarmup()</c> of the hosting
-    /// package does it for the host (ADR-0043).
+    /// from its first query warms the catalog at the start; <see cref="Initialize"/> does it, with the rest of the start
+    /// (ADR-0076).
     /// </para>
     /// </summary>
     /// <param name="cancellationToken">Checked between the indexes.</param>
@@ -1128,75 +1007,9 @@ public sealed class LuiCatalog : IDisposable
             Database,
             TypoDictionaries,
             source,
-            entry.Definition is { PayloadTypeName: { } storedType, PayloadFormat: { } storedFormat }
-                ? new StoredFormatPayloadSerialization(PayloadSerialization, storedType, storedFormat)
-                : PayloadSerialization,
+            PayloadSerialization,
             similarity ?? source.Rules.DefaultSimilarity,
             typoDistance: entry.Definition.TypoDistance);
-    }
-
-    /// <summary>
-    /// Opens an index over a table of the application that exists and has no payload columns, and writes nothing
-    /// (ADR-0033). A linked index keeps no copy of the row: the text of a hit is read from the table of the application
-    /// when the hit is read.
-    /// </summary>
-    /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
-    /// <returns>The index; it reads, and it writes if the file allows it.</returns>
-    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
-    /// <exception cref="LuiDefinitionMismatchException">
-    /// The index is an embedded one, or it has payload columns — open that with a map,
-    /// <see cref="LinkedIndex{TPayload}(string, Func{LuiPayloadRow, TPayload})"/>.
-    /// </exception>
-    public ILuiLinkedIndex LinkedIndex(string name)
-    {
-        var definition = ReadEntry(name).Definition;
-        EnsureLinked(name, definition);
-
-        var columns = definition.Link?.PayloadColumns ?? [];
-        if (columns.Count > 0)
-        {
-            throw Mismatch(name, $"the payload columns ({string.Join(", ", columns)})", "no payload");
-        }
-
-        return OpenLinked(name, definition, new NoPayload(name));
-    }
-
-    /// <summary>
-    /// Opens an index over a table of the application that exists and has payload columns, and writes nothing
-    /// (ADR-0033). The columns are in the definition; the map is code of the application and is handed over here — the
-    /// type of the payload follows from it, and the hit gives it back with <see cref="LuiHit.GetPayload{T}"/>.
-    /// </summary>
-    /// <typeparam name="TPayload">What the map builds.</typeparam>
-    /// <param name="name">The name of the index: <c>^[a-z][a-z0-9_]{0,40}$</c>.</param>
-    /// <param name="map">Builds the payload from the row of the table; it sees only the columns of the definition.</param>
-    /// <returns>The index; it reads, and it writes if the file allows it.</returns>
-    /// <exception cref="LuiIndexNotFoundException">There is no index of that name in the database.</exception>
-    /// <exception cref="LuiDefinitionMismatchException">The index is an embedded one, or it has no payload columns.</exception>
-    public ILuiLinkedIndex LinkedIndex<TPayload>(string name, Func<LuiPayloadRow, TPayload> map)
-    {
-        ArgumentNullException.ThrowIfNull(map);
-
-        var definition = ReadEntry(name).Definition;
-        EnsureLinked(name, definition);
-
-        var columns = definition.Link?.PayloadColumns ?? [];
-        if (columns.Count == 0)
-        {
-            throw Mismatch(name, "no payload columns", "the columns of the payload");
-        }
-
-        return OpenLinked(name, definition, new ColumnPayload(name, columns, row => map(row)));
-    }
-
-    /// <summary>The first step of the description of an index: the kind of it.</summary>
-    /// <param name="name">The name of the index.</param>
-    /// <param name="validated">The name, validated.</param>
-    /// <returns>The builder of the kind.</returns>
-    private LuiIndexKindBuilder KindBuilder(string name, out string validated)
-    {
-        Database.ThrowIfDisposed();
-        validated = Identifier.ValidateIndexName(name, nameof(name));
-        return new LuiIndexKindBuilder(oldPath: true);
     }
 
     /// <summary>
@@ -1209,16 +1022,6 @@ public sealed class LuiCatalog : IDisposable
         Database.ThrowIfDisposed();
         var resolved = definition.Resolve();
         _ = CreateInFile(resolved.Name, resolved.Description, DeclaredOf(definition, resolved, out _));
-    }
-
-    /// <summary>Creates the index of a definition — every way of creating goes through here (ADR-0073).</summary>
-    /// <param name="definition">The declaration of the index.</param>
-    /// <returns>The index below the handle: an <c>EmbeddedIndex</c> or a <c>LinkedIndex</c>.</returns>
-    private IMaintainedIndex CreateFrom(LuiIndexDefinitionBase definition)
-    {
-        Database.ThrowIfDisposed();
-        var resolved = definition.Resolve();
-        return CreateCore(resolved.Name, resolved.Description, DeclaredOf(definition, resolved, out _));
     }
 
     /// <summary>
@@ -1246,40 +1049,11 @@ public sealed class LuiCatalog : IDisposable
             throw new LuiConfigurationException(
                 $"The index definition '{resolved.Name}' has the payload type '{definition.PayloadType.FullName}', and the catalog has no payload "
                 + "registry: set LuiCatalogOptions.Payloads = new LuiPayloadRegistry().Use(context), with the type listed in the JSON context "
-                + "([JsonSerializable]) or registered with Use<T>(serializer)."
-                + (_options.PayloadSerializer is null
-                    ? string.Empty
-                    : " LuiCatalogOptions.PayloadSerializer serves the old calls only (until #268): a payload type of a definition has no catch-all serializer."));
+                + "([JsonSerializable]) or registered with Use<T>(serializer).");
         }
 
         codec = definition.ResolveCodec(_payloads, resolved.Name);
         return resolved.Description.ToStored(resolved.KeyType, codec is null ? null : new PayloadFingerprint(codec.TypeName, codec.Format));
-    }
-
-    /// <summary>
-    /// Creates the index of a description, or opens it if it exists with the same definition — what the builders did when
-    /// they were bound to the catalog, now in one place (ADR-0073).
-    /// </summary>
-    /// <param name="name">The validated name.</param>
-    /// <param name="description">What the builder chain described.</param>
-    /// <param name="declared">The definition as it is declared, in the form it is stored.</param>
-    /// <returns>The index.</returns>
-    private IMaintainedIndex CreateCore(string name, IndexDescription description, IndexDefinition declared)
-    {
-        var source = CreateInFile(name, description, declared);
-
-        var similarity = description.Options.Similarity ?? source.Rules.DefaultSimilarity;
-        if (source is EmbeddedSource embedded)
-        {
-            return new EmbeddedIndex(Database, TypoDictionaries, embedded, PayloadSerialization, similarity, description.Options.TypoDistance);
-        }
-
-        var columns = description.Link?.PayloadColumns ?? [];
-        PayloadReader payload = description.PayloadMap is null
-            ? new NoPayload(name)
-            : new ColumnPayload(name, columns, description.PayloadMap);
-
-        return new LinkedIndex(Database, TypoDictionaries, (LinkedSource)source, payload, similarity, description.Options.TypoDistance);
     }
 
     /// <summary>
@@ -1487,23 +1261,6 @@ public sealed class LuiCatalog : IDisposable
             payload,
             similarity ?? source.Rules.DefaultSimilarity,
             typoDistance: definition.TypoDistance);
-    }
-
-    private static void EnsureEmbedded(string name, IndexDefinition definition)
-    {
-        if (!string.Equals(definition.Source, EmbeddedSource.SourceName, StringComparison.Ordinal))
-        {
-            throw Mismatch(name, $"the content source {definition.Source}", $"the content source {EmbeddedSource.SourceName}");
-        }
-    }
-
-    /// <summary>The linked path opens a linked index.</summary>
-    private static void EnsureLinked(string name, IndexDefinition definition)
-    {
-        if (!string.Equals(definition.Source, LinkedSource.SourceName, StringComparison.Ordinal))
-        {
-            throw Mismatch(name, $"the content source {definition.Source}", $"the content source {LinkedSource.SourceName}");
-        }
     }
 
     /// <summary>The key type of the caller against the key type of the file.</summary>

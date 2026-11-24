@@ -62,13 +62,13 @@ public sealed class SyncCheckRebuildTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
-        tags.Sync([new LuiEntry(1, "vegan") { Payload = new Chip("v", "green") }]);
+        var tags = catalog.Create(new LuiIndexDefinition<long, Chip>("tags", index => index.SingleWord()));
+        tags.Sync([new LuiEntry<long, Chip>(1, "vegan", new Chip("v", "green"))]);
 
-        var report = tags.Sync([new LuiEntry(1, "vegan") { Payload = new Chip("v", "red") }]);
+        var report = tags.Sync([new LuiEntry<long, Chip>(1, "vegan", new Chip("v", "red"))]);
 
         report.Changed.ShouldBe(1);
-        tags.Search("vegan").Hits.ShouldHaveSingleItem().GetPayload<Chip>().ShouldBe(new Chip("v", "red"));
+        tags.Search("vegan").Hits.ShouldHaveSingleItem().Payload.ShouldBe(new Chip("v", "red"));
     }
 
     [Fact]
@@ -171,8 +171,8 @@ public sealed class SyncCheckRebuildTests
         var entries = Enumerable.Range(1, 600)
             .Select(i => Entry(i, $"{(char)('a' + random.Next(5))}{(char)('a' + random.Next(5))}wort{i}", random.Next(0, 50), (LuiPriority)random.Next(0, 4)))
             .ToList();
-        var synced = catalog.Create("synced", index => index.SingleWord());
-        var upserted = catalog.Create("upserted", index => index.SingleWord());
+        var synced = catalog.Create(new LuiIndexDefinition<long>("synced", index => index.SingleWord()));
+        var upserted = catalog.Create(new LuiIndexDefinition<long>("upserted", index => index.SingleWord()));
 
         synced.Sync(entries, new LuiSyncOptions { BatchSize = 97 });
         foreach (var entry in entries)
@@ -218,10 +218,10 @@ public sealed class SyncCheckRebuildTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var slugs = catalog.Create("slugs", index => index.SingleWord().WithKey(LuiKeyKind.Text));
+        var slugs = catalog.Create(new LuiIndexDefinition<string>("slugs", index => index.SingleWord()));
         slugs.Upsert("alt", "alt");
 
-        var report = slugs.Sync([new LuiEntry("vegan", "vegan")]);
+        var report = slugs.Sync([new LuiEntry<string>("vegan", "vegan")]);
 
         report.Added.ShouldBe(1);
         report.Removed.ShouldBe(1);
@@ -266,11 +266,11 @@ public sealed class SyncCheckRebuildTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var slugs = catalog.Create("slugs", index => index.SingleWord().WithKey(LuiKeyKind.Text));
+        var slugs = catalog.Create(new LuiIndexDefinition<string>("slugs", index => index.SingleWord()));
         slugs.Upsert(string.Empty, "leer");
         slugs.Upsert("a", "voll");
 
-        slugs.Sync([new LuiEntry("a", "voll")]).Removed.ShouldBe(1);
+        slugs.Sync([new LuiEntry<string>("a", "voll")]).Removed.ShouldBe(1);
 
         slugs.Search("leer").Hits.ShouldBeEmpty();
         slugs.Count().ShouldBe(1);
@@ -281,7 +281,7 @@ public sealed class SyncCheckRebuildTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         words.Sync(Entries("kartoffel"));
         words.WarmUpTypoDictionary();
 
@@ -330,7 +330,7 @@ public sealed class SyncCheckRebuildTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var words = Words(catalog);
-        LuiEntry[] source = [Entry(1, "erste"), Entry(1, "zweite"), Entry(2, "tofu")];
+        LuiEntry<long>[] source = [Entry(1, "erste"), Entry(1, "zweite"), Entry(2, "tofu")];
         words.Sync(source);
 
         var report = words.Check(source);
@@ -426,12 +426,16 @@ public sealed class SyncCheckRebuildTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var old = Words(catalog);
+        using var observer = database.Open();
+        var other = Words(observer);
 
+        // a handle of an index that was dropped says so: it throws (ADR-0075)
         catalog.DropIndex("words");
-        old.Check().Problems.ShouldHaveSingleItem().ShouldContain("dropped");
+        Should.Throw<LuiIndexNotFoundException>(() => old.Check()).IndexName.ShouldBe("words");
 
-        catalog.Create("words", index => index.MultiWord());
-        old.Check().Problems.ShouldHaveSingleItem().ShouldContain("another definition");
+        // a handle of another catalog (another process) on an index that was ensured anew with another definition says so, too
+        catalog.Create(new LuiIndexDefinition<long>("words", index => index.MultiWord()));
+        Should.Throw<LuiDefinitionMismatchException>(() => other.Check()).IndexName.ShouldBe("words");
     }
 
     [Fact]
@@ -528,19 +532,19 @@ public sealed class SyncCheckRebuildTests
 
     private const string TagTable = "CREATE TABLE tag (id INTEGER PRIMARY KEY, name TEXT, usage_count INTEGER NOT NULL DEFAULT 0);";
 
-    private static ILuiEmbeddedIndex Words(LuiCatalog catalog) => catalog.Create("words", index => index.SingleWord());
+    private static LuiEmbeddedIndex<long> Words(LuiCatalog catalog) => catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord()));
 
-    private static ILuiLinkedIndex Tags(LuiCatalog catalog) =>
-        catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
+    private static LuiLinkedIndex<long> Tags(LuiCatalog catalog) =>
+        catalog.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count")));
 
-    private static LuiEntry Entry(long key, string text, int weight = 0, LuiPriority priority = LuiPriority.Normal) =>
+    private static LuiEntry<long> Entry(long key, string text, int weight = 0, LuiPriority priority = LuiPriority.Normal) =>
         new(key, text) { Weight = weight, Priority = priority };
 
-    private static List<LuiEntry> Entries(params string[] texts) =>
+    private static List<LuiEntry<long>> Entries(params string[] texts) =>
         [.. texts.Select((text, i) => Entry(i + 1, text))];
 
-    private static IEnumerable<LuiEntry> CancelAfter(
-        IEnumerable<LuiEntry> source,
+    private static IEnumerable<LuiEntry<long>> CancelAfter(
+        IEnumerable<LuiEntry<long>> source,
         int count,
         CancellationTokenSource cancellation)
     {
@@ -556,7 +560,7 @@ public sealed class SyncCheckRebuildTests
         }
     }
 
-    private static IEnumerable<LuiEntry> Failing(IEnumerable<LuiEntry> source)
+    private static IEnumerable<LuiEntry<long>> Failing(IEnumerable<LuiEntry<long>> source)
     {
         foreach (var entry in source)
         {
@@ -566,7 +570,7 @@ public sealed class SyncCheckRebuildTests
         throw new InvalidOperationException("the source failed");
     }
 
-    private static async IAsyncEnumerable<LuiEntry> Asynchronous(IEnumerable<LuiEntry> source)
+    private static async IAsyncEnumerable<LuiEntry<long>> Asynchronous(IEnumerable<LuiEntry<long>> source)
     {
         foreach (var entry in source)
         {

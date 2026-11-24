@@ -8,16 +8,15 @@ namespace Nordmann.LUI.Sample.Data;
 /// </summary>
 internal static class SampleSeed
 {
-    internal static IReadOnlyList<LuiEntry> Recipes() =>
-        [.. RecipeData.All.Select((recipe, i) => new LuiEntry(i + 1, recipe.Text)
+    internal static IReadOnlyList<LuiEntry<long, RecipePayload>> Recipes() =>
+        [.. RecipeData.All.Select((recipe, i) => new LuiEntry<long, RecipePayload>(i + 1, recipe.Text, new RecipePayload(recipe.Category, recipe.Minutes, recipe.Emoji))
         {
             Weight = recipe.Weight,
             Priority = recipe.Priority,
-            Payload = new RecipePayload(recipe.Category, recipe.Minutes, recipe.Emoji),
         })];
 
-    internal static IReadOnlyList<LuiEntry> Names() =>
-        [.. NameData.All.Select((name, i) => new LuiEntry(i + 1, name.Text) { Weight = name.Weight })];
+    internal static IReadOnlyList<LuiEntry<long>> Names() =>
+        [.. NameData.All.Select((name, i) => new LuiEntry<long>(i + 1, name.Text) { Weight = name.Weight })];
 
     /// <summary>Fills what is empty, once, and lets the application create the triggers of its linked index — on purpose (ADR-0015).</summary>
     internal static void Apply(SampleIndexes indexes)

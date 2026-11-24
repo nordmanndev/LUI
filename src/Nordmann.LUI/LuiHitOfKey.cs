@@ -28,10 +28,10 @@ public sealed record LuiHit<TKey>
     public bool AtWordStart { get; init; }
 
     /// <summary>The hit of the index below the handle, with a typed key.</summary>
-    internal static LuiHit<TKey> From(LuiHit hit) =>
+    internal static LuiHit<TKey> From(RawHit hit, string indexName) =>
         new()
         {
-            Key = KeyConversion.FromKey<TKey>(hit.Key),
+            Key = KeyConversion.FromText<TKey>(hit.Key, indexName),
             Text = hit.Text,
             Weight = hit.Weight,
             Priority = hit.Priority,

@@ -34,7 +34,7 @@ which describe *application shape* — and therefore do not".
 
 | The shape of an application | Why it does not apply to a library | Where it would have hurt |
 |---|---|---|
-| Domain aggregates, a command bus | LUI has no domain, no commands, no handlers. Its API is `LuiCatalog → ILuiIndex → Query`. | a source generator in every consumer's build, for no behaviour |
+| Domain aggregates, a command bus | LUI has no domain, no commands, no handlers. Its API is `LuiCatalog → LuiIndex<TKey> → Query`. | a source generator in every consumer's build, for no behaviour |
 | A persistence layer above the database | LUI *is* the persistence layer, over raw `Microsoft.Data.Sqlite`. ADR-0008 is explicit SQL. | a second ORM hiding the SQL the design depends on |
 | Events and a `BackgroundService` | LUI has no events and no process. | a queue for a library that has one long operation with a `CancellationToken` |
 | Its own identifier type | `TKey` is the *application's* key (`long` or `string`, ADR-0035). | imposing an ID type on consumers |

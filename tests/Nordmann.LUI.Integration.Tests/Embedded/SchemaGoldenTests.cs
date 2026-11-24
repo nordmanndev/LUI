@@ -16,8 +16,8 @@ public sealed class SchemaGoldenTests
         using var database = new TestDatabase();
         using (var catalog = database.Open())
         {
-            catalog.Create("one", index => index.SingleWord());
-            catalog.Create("many", index => index.MultiWord().WithKey(LuiKeyKind.Text).GermanTransliteration(false));
+            catalog.Create(new LuiIndexDefinition<long>("one", index => index.SingleWord()));
+            catalog.Create(new LuiIndexDefinition<string>("many", index => index.MultiWord().GermanTransliteration(false)));
         }
 
         var golden = File.ReadAllText(TestFiles.GoldenSchemaPath);

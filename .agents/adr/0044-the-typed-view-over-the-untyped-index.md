@@ -1,8 +1,8 @@
 # 0044 — The typed view over the untyped index
 
 > **Superseded in part by [ADR-0074](./0074-the-hit-carries-its-payload.md) (2026-11-22):** for the hits of a handle with a payload type the payload is a
-> property, loaded with the query — *it is not cached* and *it is read by a method* no longer hold there. The typed view of an index that was opened
-> by name keeps them until #268.
+> property, loaded with the query — *it is not cached* and *it is read by a method* no longer hold there. The typed view itself — `LuiTypedIndex<T>`, `index.As<T>()` — is
+> removed (#268, [ADR-0073](./0073-the-index-definition-and-the-typed-handles.md)).
 
 - **Status:** Accepted
 - **Date:** 2026-11-07

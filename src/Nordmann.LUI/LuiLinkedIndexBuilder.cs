@@ -19,8 +19,7 @@ namespace Nordmann.LUI;
 /// <c>Sync</c> or the triggers.
 /// </para>
 /// <para>
-/// The builder is the parameter of <see cref="LuiLinkedIndexDefinition{TKey}"/> (and of the old
-/// <c>LuiCatalog.CreateLinked(name, index =&gt; index.LinkTo(…))</c>): it is the description of an index, not the way into it.
+/// The builder is the parameter of <see cref="LuiLinkedIndexDefinition{TKey}"/>: it is the description of an index, not the way into it.
 /// </para>
 /// </summary>
 public sealed class LuiLinkedIndexBuilder
@@ -103,19 +102,6 @@ public sealed class LuiLinkedIndexBuilder
         return this;
     }
 
-    /// <summary>
-    /// Not a way to create an index (ADR-0073): the builder describes, the catalog creates. Kept until the old calls are
-    /// removed (issue #268); it throws.
-    /// </summary>
-    /// <returns>Never: it throws.</returns>
-    /// <exception cref="InvalidOperationException">Always — pass a definition to <c>catalog.Create</c>.</exception>
-#pragma warning disable CA1822 // an instance member on purpose: `builder.Create()` stays callable until the old calls go (issue #268)
-    public ILuiLinkedIndex Create() =>
-        throw new InvalidOperationException(
-            "A builder describes an index and creates nothing: pass a definition to catalog.Create — "
-            + "catalog.Create(new LuiLinkedIndexDefinition<long>(name, index => …)).");
-#pragma warning restore CA1822
-
     /// <summary>What the chain described so far — what the catalog creates from.</summary>
     /// <returns>The description.</returns>
     internal IndexDescription Describe() =>
@@ -123,6 +109,5 @@ public sealed class LuiLinkedIndexBuilder
             LuiIndexSource.Linked,
             _kind,
             _options,
-            _link,
-            KeyKind: null);
+            _link);
 }

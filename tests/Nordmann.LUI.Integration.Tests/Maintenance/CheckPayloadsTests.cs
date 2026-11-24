@@ -127,6 +127,25 @@ public sealed class CheckPayloadsTests
     }
 
     [Fact]
+    public void A_damaged_stored_key_fails_CheckPayloads_as_it_fails_the_query_also_with_a_readable_payload()
+    {
+        // 0.4.0 converted the key of every row before it read the payload: a damaged key is a LuiKeyException, not a healthy index
+        using var database = new TestDatabase();
+        using var catalog = database.Open(Json());
+        var numbers = catalog.Create(Chips);
+        numbers.Upsert(1, "vegan", new Chip("one"));
+        var ids = catalog.Create(new LuiIndexDefinition<Guid, Chip>("guid_chips", index => index.SingleWord()));
+        ids.Upsert(Guid.NewGuid(), "vegan", new Chip("two"));
+        Execute(database, "UPDATE lui_chips SET key = 'abc';");
+        Execute(database, "UPDATE lui_guid_chips SET key = 'abc';");
+
+        Should.Throw<LuiKeyException>(() => numbers.Search("vegan")).IndexName.ShouldBe("chips");
+        Should.Throw<LuiKeyException>(() => numbers.CheckPayloads()).StoredKey.ShouldBe("abc");
+        Should.Throw<LuiKeyException>(() => ids.Search("vegan"));
+        Should.Throw<LuiKeyException>(() => ids.CheckPayloads()).IndexName.ShouldBe("guid_chips");
+    }
+
+    [Fact]
     public void After_a_rewrite_the_entry_is_gone_from_the_list_and_the_query_succeeds()
     {
         using var database = new TestDatabase();

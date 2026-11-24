@@ -123,7 +123,7 @@ public sealed class IndexDefinitionTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("b", index => index.SingleWord());
+        catalog.Create(new LuiIndexDefinition<long>("b", index => index.SingleWord()));
 
         var a = new LuiIndexDefinition<long>("a", index => index.SingleWord());
         var b = new LuiIndexDefinition<long>("b", index => index.MultiWord());
@@ -295,7 +295,7 @@ public sealed class IndexDefinitionTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord().WithKey(LuiKeyKind.Text));
+        catalog.Create(new LuiIndexDefinition<string>("tags", index => index.SingleWord()));
 
         Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(Tags)).ShouldDifferIn("keyType");
         Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(Tags)).ShouldDifferIn("keyType");
@@ -307,9 +307,9 @@ public sealed class IndexDefinitionTests
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
-        catalog.CreateLinked("linked_tags", index => index.SingleWord()
+        catalog.Create(new LuiLinkedIndexDefinition<long, string>("linked_tags", index => index.SingleWord()
             .LinkTo("tag", "id", "name", weight: "usage_count")
-            .WithPayload(["slug"], row => row.GetString("slug")));
+            .WithPayload(["slug"], row => row.GetString("slug"))));
 
         Should.Throw<LuiDefinitionMismatchException>(() => catalog.Index(LinkedTags)).ShouldDifferIn("link.payloadColumns");
         Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(LinkedTags)).ShouldDifferIn("link.payloadColumns");
@@ -367,8 +367,8 @@ public sealed class IndexDefinitionTests
 
         using (var catalog = old.Open())
         {
-            catalog.Create("tags", index => index.MultiWord().GermanTransliteration(false).TypoTolerance());
-            catalog.CreateLinked("linked_tags", index => index.SingleWord().LinkTo("tag", "id", "name", "usage_count", "priority"));
+            catalog.Create(new LuiIndexDefinition<long>("tags", index => index.MultiWord().GermanTransliteration(false).TypoTolerance()));
+            catalog.Create(new LuiLinkedIndexDefinition<long>("linked_tags", index => index.SingleWord().LinkTo("tag", "id", "name", "usage_count", "priority")));
         }
 
         using (var catalog = current.Open())
@@ -387,35 +387,20 @@ public sealed class IndexDefinitionTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+        catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
 
         catalog.Create(Tags).Search("vegan").Hits.ShouldHaveSingleItem().Text.ShouldBe("vegan");
         catalog.Index(Tags).Count().ShouldBe(1);
     }
 
     [Fact]
-    public void A_builders_Create_throws()
+    public void A_builder_describes_and_the_catalog_creates()
     {
         using var database = new TestDatabase();
         Run(database, Table);
         using var catalog = database.Open();
-        var thrown = new List<Exception>();
-
-        catalog.Create("tags", index =>
-        {
-            var builder = index.SingleWord();
-            thrown.Add(Record.Exception(() => builder.Create())!);
-            return builder;
-        });
-        catalog.CreateLinked("linked_tags", index =>
-        {
-            var builder = index.SingleWord().LinkTo("tag", "id", "name");
-            thrown.Add(Record.Exception(() => builder.Create())!);
-            return builder;
-        });
-
-        thrown.Count.ShouldBe(2);
-        thrown.ShouldAllBe(exception => exception is InvalidOperationException && exception.Message.Contains("pass a definition to catalog.Create", StringComparison.Ordinal));
+        catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Name.ShouldBe("tags");
+        catalog.Create(new LuiLinkedIndexDefinition<long>("linked_tags", index => index.SingleWord().LinkTo("tag", "id", "name"))).Name.ShouldBe("linked_tags");
     }
 
     // ---- an invalid definition fails on first use, not at the field ------------------------------------------------
@@ -432,7 +417,6 @@ public sealed class IndexDefinitionTests
 
         Should.Throw<LuiConfigurationException>(() => catalog.Create(InvalidFields.BadName)).ShouldBeAssignableTo<LuiException>();
         Should.Throw<LuiConfigurationException>(() => catalog.Create(InvalidFields.UnsupportedKey));
-        Should.Throw<LuiConfigurationException>(() => catalog.Create(InvalidFields.WithKeyInside));
         Should.Throw<LuiConfigurationException>(() => catalog.Index(InvalidFields.BadName));
         Should.Throw<LuiConfigurationException>(() => catalog.Create(InvalidFields.BadLink));
         database.Scalar<long>("SELECT count(*) FROM lui_meta").ShouldBe(0);
@@ -471,7 +455,7 @@ public sealed class IndexDefinitionTests
         LuiIndexDefinitionBase[] broken =
         [
             new LuiIndexDefinition<double>("doubles", index => index.SingleWord()),
-            new LuiIndexDefinition<long>("with_key", index => index.SingleWord().WithKey(LuiKeyKind.Text)),
+            new LuiLinkedIndexDefinition<long>("bad_link", index => index.SingleWord().LinkTo("1table", "id", "name")),
             // `WithPayload` inside a LuiLinkedIndexDefinition<long> no longer compiles (issue #269); the payload variants are
             // definitions of their own, and a key type that is not allowed fails there, too
             new LuiLinkedIndexDefinition<double, string>(
@@ -646,9 +630,6 @@ public sealed class IndexDefinitionTests
         public static readonly LuiIndexDefinition<long> BadName = new("Bad Name", index => index.SingleWord());
 
         public static readonly LuiIndexDefinition<double> UnsupportedKey = new("doubles", index => index.SingleWord());
-
-        public static readonly LuiIndexDefinition<long> WithKeyInside =
-            new("texts", index => index.SingleWord().WithKey(LuiKeyKind.Text));
 
         public static readonly LuiLinkedIndexDefinition<long> BadLink =
             new("links", index => index.SingleWord().LinkTo("1table", "id", "name"));

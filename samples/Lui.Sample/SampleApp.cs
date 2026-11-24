@@ -65,8 +65,8 @@ public static class SampleApp
             {
                 Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 },
 
-                // one serialiser for the payloads of every embedded index (ADR-0035)
-                PayloadSerializer = LuiPayloadSerializer.Json(SampleJsonContext.Default),
+                // the serializers of the payload types of the embedded indexes: one registry (ADR-0072)
+                Payloads = new LuiPayloadRegistry().Use(SampleJsonContext.Default),
             }));
 
         services.AddSingleton<RequestStats>();
@@ -85,36 +85,27 @@ public static class SampleApp
 
         // The application creates its own indexes (ADR-0033): the catalog is the entry point, and the container knows
         // only the catalog.
-        var recipes = catalog.Create(
-            "recipes",
-            index => index.MultiWord().TypoTolerance());
-        var names = catalog.Create("names", index => index.MultiWord().TypoTolerance());
-        var tags = catalog.CreateLinked(
-            "tags",
+        var recipes = catalog.Create(new LuiIndexDefinition<long, RecipePayload>("recipes", index => index.MultiWord().TypoTolerance()));
+        var names = catalog.Create(new LuiIndexDefinition<long>("names", index => index.MultiWord().TypoTolerance()));
+        var tags = catalog.Create(new LuiLinkedIndexDefinition<long, TagPayload>("tags",
             index => index.SingleWord()
                 .LinkTo(SampleDatabase.TagTable, key: "id", text: "name", weight: "usage_count", priority: "rank")
                 .WithPayload(["kind", "color"], row => new TagPayload(row.GetString("kind"), row.GetString("color")))
-                .TypoTolerance());
+                .TypoTolerance()));
 
         return
         [
-            new EmbeddedSampleIndex(
+            new EmbeddedPayloadSampleIndex(
                 recipes,
                 SampleSeed.Recipes,
-                new SamplePayload(
-                    json => json.Deserialize(SampleJsonContext.Default.RecipePayload)!,
-                    hit => hit.GetPayload<RecipePayload>()),
                 payloadDescription: "JSON {category, minutes, emoji}, stored by LUI",
                 description: "Cookbook. Several words, so 'kuchen' finds 'Gedeckter Apfelkuchen' by its second word."),
             new EmbeddedSampleIndex(
                 names,
                 SampleSeed.Names,
-                payload: null,
-                payloadDescription: "none",
                 description: "People. Typo tolerance with a dictionary of its own: 'megn' becomes 'megan' here, and in 'tags' it finds nothing."),
             new LinkedSampleIndex(
                 tags,
-                hit => hit.GetPayload<TagPayload>(),
                 path,
                 payloadDescription: "columns kind, color — read from the table",
                 description: "Tags in the application's own table. 'vegan' has the priority System and comes first for every input it matches."),

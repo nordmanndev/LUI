@@ -29,16 +29,4 @@ public sealed class LuiIndexDefinition<TKey> : LuiIndexDefinitionBase
             () => Describe(name, LuiIndexSource.Embedded, typeof(TKey), kind => (index ?? throw new LuiConfigurationException("The description of the index is null.")).Invoke(kind).Describe()))
     {
     }
-
-    /// <summary>The definition the old calls of the catalog build: the name is validated, the description is made.</summary>
-    /// <param name="name">The validated name.</param>
-    /// <param name="description">What the builder chain described.</param>
-    internal LuiIndexDefinition(string name, IndexDescription description)
-        : base(
-            name,
-            LuiIndexSource.Embedded,
-            typeof(TKey),
-            () => new ResolvedIndex(name, description, KeyTypes.Validate(typeof(TKey), LuiIndexSource.Embedded)))
-    {
-    }
 }

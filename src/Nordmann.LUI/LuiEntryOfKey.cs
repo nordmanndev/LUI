@@ -12,10 +12,11 @@ public sealed record LuiEntry<TKey>
     where TKey : notnull
 {
     /// <summary>Creates an entry.</summary>
-    /// <param name="key">The key of the entry.</param>
+    /// <param name="key">The key of the entry; a string key may not be <see langword="null"/>.</param>
     /// <param name="text">The text of the entry — what the search finds. It may not be empty.</param>
     public LuiEntry(TKey key, string text)
     {
+        ArgumentNullException.ThrowIfNull(key);
         Key = key;
         Text = Setting.NotEmpty(text, nameof(text));
     }
@@ -41,7 +42,7 @@ public sealed record LuiEntry<TKey>
     } = LuiPriority.Normal;
 
     /// <summary>The entry the index below the handle writes.</summary>
-    internal LuiEntry ToEntry() =>
-        new(KeyConversion.ToKey(Key), Text) { Weight = Weight, Priority = Priority };
+    internal RawEntry ToEntry() =>
+        new(KeyConversion.ToText(Key), Text, Weight, Priority, Payload: null);
 }
 #pragma warning restore MA0048

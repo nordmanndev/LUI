@@ -26,8 +26,8 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         using var database = new TestDatabase(string.IsNullOrEmpty(Scenario.Database) ? null : Scenario.Database);
         using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { CacheSizeMegabytes = 512 } });
         var tags = multi
-            ? catalog.Create("tags", index => index.MultiWord())
-            : catalog.Create("tags", index => index.SingleWord());
+            ? catalog.Create(new LuiIndexDefinition<long>("tags", index => index.MultiWord()))
+            : catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         if (Scenario.Optimize)
         {
@@ -63,7 +63,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         }
     }
 
-    private (double[] Latencies, double[] Allocations) MeasureQueries(ILuiEmbeddedIndex index, List<string> inputs)
+    private (double[] Latencies, double[] Allocations) MeasureQueries(LuiEmbeddedIndex<long> index, List<string> inputs)
     {
         // warm the page cache and the JIT, as a running application would be
         foreach (var input in inputs.Take(500))
@@ -105,7 +105,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
         return (latencies, allocations);
     }
 
-    private void MeasureWrites(ILuiEmbeddedIndex index, List<string> texts, int entries)
+    private void MeasureWrites(LuiEmbeddedIndex<long> index, List<string> texts, int entries)
     {
         var writes = new double[500];
         var random = new Random(11);
@@ -160,7 +160,7 @@ public sealed class QueryPerformance(ITestOutputHelper output)
     /// made words out of words is gone — a corpus that is built from another corpus is a different corpus, and a
     /// measurement on two corpora is no comparison.
     /// </summary>
-    private static List<string> Build(LuiCatalog catalog, ILuiEmbeddedIndex index, Corpus corpus, int entries)
+    private static List<string> Build(LuiCatalog catalog, LuiEmbeddedIndex<long> index, Corpus corpus, int entries)
     {
         var texts = new List<string>(entries);
         // the build runs on a connection with the catalog's cache, as an application would set it up

@@ -3,94 +3,92 @@ using Shouldly;
 namespace Nordmann.LUI.Integration.Tests.Querying;
 
 /// <summary>
-/// The typed view of an index (issue #59, ADR-0044): <c>index.As&lt;Chip&gt;()</c> gives the answer in the type of the
-/// application — the payload is read where it is used, and the compiler checks the type. The untyped way stays:
-/// <c>hit.GetPayload&lt;Chip&gt;()</c> is still there, and still the one way for the application that does not want a
-/// view.
+/// The answer in the type of the application (issue #59, ADR-0044, ADR-0073): the handle of a definition with a payload type answers
+/// with <c>hit.Payload</c> in the type of the application, as the handle of a definition without one answers with the same data —
+/// the typed view over an untyped index (<c>index.As&lt;Chip&gt;()</c>) is gone, the definition names the type once.
 /// </summary>
 public sealed class TypedIndexTests
 {
+    private static readonly LuiIndexDefinition<long, Chip> Chips = new("tags", index => index.SingleWord());
+
     [Fact]
-    public void The_typed_view_reads_the_payload_in_the_type_of_the_application()
+    public void The_handle_of_a_payload_definition_reads_the_payload_in_the_type_of_the_application()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
-        tags.Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("vegan", "#0a0") });
+        var tags = catalog.Create(Chips);
+        tags.Upsert(new LuiEntry<long, Chip>(1, "vegan", new Chip("vegan", "#0a0")));
 
-        var view = tags.As<Chip>();
-        view.Name.ShouldBe("tags");
-        view.Count().ShouldBe(1);
+        var opened = catalog.Index(Chips);
+        opened.Name.ShouldBe("tags");
+        opened.Count().ShouldBe(1);
 
-        var hit = view.Search("vegan").Hits.ShouldHaveSingleItem();
-        hit.GetPayload().ShouldBe(new Chip("vegan", "#0a0"));
-        hit.HasPayload.ShouldBeTrue();
+        var hit = opened.Search("vegan").Hits.ShouldHaveSingleItem();
+        hit.Payload.ShouldBe(new Chip("vegan", "#0a0"));
         hit.Key.ShouldBe(1);
     }
 
     [Fact]
-    public void The_typed_view_answers_as_the_index_answers()
+    public void The_handle_with_a_payload_answers_as_the_handle_without_one_answers()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
-        tags.Upsert(new LuiEntry(1, "vegan") { Payload = new Chip("vegan") });
-        tags.Upsert(new LuiEntry(2, "vegetarian"));
+        var withPayload = catalog.Create(Chips);
+        var without = catalog.Create(new LuiIndexDefinition<long>("plain", index => index.SingleWord()));
+        withPayload.Upsert(new LuiEntry<long, Chip>(1, "vegan", new Chip("vegan")));
+        withPayload.Upsert(new LuiEntry<long, Chip>(2, "vegetarian", new Chip("vegetarian")));
+        without.Upsert(new LuiEntry<long>(1, "vegan"));
+        without.Upsert(new LuiEntry<long>(2, "vegetarian"));
 
-        var untyped = tags.Search("vegan");
-        var typed = tags.As<Chip>().Search("vegan");
+        var plain = without.Search("vegan");
+        var typed = withPayload.Search("vegan");
 
-        typed.Query.ShouldBe(untyped.Query);
-        typed.CandidatesConsidered.ShouldBe(untyped.CandidatesConsidered);
-        typed.Truncated.ShouldBe(untyped.Truncated);
-        typed.CorrectedQuery.ShouldBe(untyped.CorrectedQuery);
-        typed.CorrectionSkipped.ShouldBe(untyped.CorrectionSkipped);
-        typed.Hits.Count.ShouldBe(untyped.Hits.Count);
-        typed.Hits.Select(hit => hit.Key).ShouldBe(untyped.Hits.Select(hit => hit.Key));
-        typed.Hits.Select(hit => hit.Text).ShouldBe(untyped.Hits.Select(hit => hit.Text));
-        typed.Hits.Select(hit => hit.Weight).ShouldBe(untyped.Hits.Select(hit => hit.Weight));
-        typed.Hits.Select(hit => hit.Priority).ShouldBe(untyped.Hits.Select(hit => hit.Priority));
-        typed.Hits.Select(hit => hit.Similarity).ShouldBe(untyped.Hits.Select(hit => hit.Similarity));
-        typed.Hits.Select(hit => hit.AtWordStart).ShouldBe(untyped.Hits.Select(hit => hit.AtWordStart));
+        typed.Query.ShouldBe(plain.Query);
+        typed.CandidatesConsidered.ShouldBe(plain.CandidatesConsidered);
+        typed.Truncated.ShouldBe(plain.Truncated);
+        typed.CorrectedQuery.ShouldBe(plain.CorrectedQuery);
+        typed.CorrectionSkipped.ShouldBe(plain.CorrectionSkipped);
+        typed.Hits.Count.ShouldBe(plain.Hits.Count);
+        typed.Hits.Select(hit => hit.Key).ShouldBe(plain.Hits.Select(hit => hit.Key));
+        typed.Hits.Select(hit => hit.Text).ShouldBe(plain.Hits.Select(hit => hit.Text));
+        typed.Hits.Select(hit => hit.Weight).ShouldBe(plain.Hits.Select(hit => hit.Weight));
+        typed.Hits.Select(hit => hit.Priority).ShouldBe(plain.Hits.Select(hit => hit.Priority));
+        typed.Hits.Select(hit => hit.Similarity).ShouldBe(plain.Hits.Select(hit => hit.Similarity));
+        typed.Hits.Select(hit => hit.AtWordStart).ShouldBe(plain.Hits.Select(hit => hit.AtWordStart));
     }
 
     [Fact]
-    public void The_typed_view_describes_the_index_as_the_index_does()
+    public void The_handle_with_a_payload_describes_the_index_as_the_catalog_does()
     {
-        // issue #107 (the coverage of #80, G5): the pass-throughs of the view were read by no test. The index differs from
-        // the defaults in every one of them, so that a view that answered a constant would show.
+        // issue #107 (the coverage of #80, G5): the pass-throughs of the handle were read by no test. The index differs from
+        // the defaults in every one of them, so that a handle that answered a constant would show.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var titles = catalog.Create("titles", index => index.MultiWord().WithKey(LuiKeyKind.Text).TypoTolerance());
-        titles.Upsert(new LuiEntry("a", "Apfelkuchen mit Sahne"));
+        var titles = catalog.Create(new LuiIndexDefinition<string, Chip>("titles", index => index.MultiWord().TypoTolerance()));
+        titles.Upsert(new LuiEntry<string, Chip>("a", "Apfelkuchen mit Sahne", new Chip("apfel")));
         titles.WarmUpTypoDictionary();
 
-        var typed = titles.As<Chip>();
-
-        typed.Name.ShouldBe("titles");
-        typed.Kind.ShouldBe(LuiIndexKind.MultiWord);
-        typed.KeyKind.ShouldBe(LuiKeyKind.Text);
-        typed.TypoDistance.ShouldBe(LuiTypoDistance.OneError);
-        typed.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
-        typed.Count().ShouldBe(1);
+        titles.Name.ShouldBe("titles");
+        titles.Kind.ShouldBe(LuiIndexKind.MultiWord);
+        catalog.Indexes().ShouldHaveSingleItem().KeyType.ShouldBe(LuiKeyType.String);
+        titles.TypoDistance.ShouldBe(LuiTypoDistance.OneError);
+        titles.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
+        titles.Count().ShouldBe(1);
     }
 
     [Fact]
-    public void The_fluent_path_ends_in_the_typed_answer_too()
+    public void The_fluent_path_ends_in_the_answer_with_the_payload_too()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
-        tags.Upsert(new LuiEntry(1, "vegan") { Weight = 10, Payload = new Chip("vegan", "#0a0") });
-        tags.Upsert(new LuiEntry(2, "vegetarian") { Weight = 5 });
+        var tags = catalog.Create(Chips);
+        tags.Upsert(new LuiEntry<long, Chip>(1, "vegan", new Chip("vegan", "#0a0")) { Weight = 10 });
+        tags.Upsert(new LuiEntry<long, Chip>(2, "vegetarian", new Chip("vegetarian")) { Weight = 5 });
 
-        // the fluent query ends in an untyped answer — and the answer names the type where it is used (ADR-0044)
-        var typed = tags.Query("veg").Take(2).Execute().As<Chip>();
+        var typed = tags.Query("veg").Take(2).Execute();
 
         typed.Hits.Select(hit => hit.Text).ShouldBe(["vegan", "vegetarian"]);
-        typed.Hits[0].TryGetPayload(out var chip).ShouldBeTrue();
-        chip.ShouldBe(new Chip("vegan", "#0a0"));
-        typed.Hits[1].TryGetPayload(out _).ShouldBeFalse("the entry has no payload");
-        typed.Hits[1].GetPayload().ShouldBeNull();
+        typed.Hits[0].Payload.ShouldBe(new Chip("vegan", "#0a0"));
+        typed.Hits[1].Payload.ShouldBe(new Chip("vegetarian"));
     }
 }

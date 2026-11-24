@@ -26,7 +26,7 @@ file into `0.4.0`.
 | 10 | #271 Linked `Sync()` in batches, generation, merge, lease (ADR-0077) | needs `NeedsInitialSync`; `Initialize()` needs the lease | #272 | merged | #291 — the linked sync in batches; option C: starvation documented, README section; the WAL grows one transaction at a time |
 | 11 | #273 Maintenance by name (ADR-0076) | needs `LuiKeyType` and the fingerprint; #266 adds to `LuiIndexInfo` | #271 | merged | #292 — maintenance by name; DropIndex of a damaged row drops by its readable source and refuses an unknown one; four rounds |
 | 12 | #266 `catalog.Initialize()`, `AddLuiOutbox`, host pattern (ADR-0076) | puts every step before it together | #273 | merged | #294 — Initialize(), AddLuiOutbox, the host pattern (the documented initializer repeats until ready); four rounds |
-| 13 | #268 Remove every replaced member, move every caller (ADR-0073) | only when every replacement exists | #266 | open | — |
+| 13 | #268 Remove every replaced member, move every caller (ADR-0073) | only when every replacement exists | #266 | merged | #295 — every replaced member removed, every caller moved; five rounds; the allocation bounds of a write raised on the owner's decision |
 | 14 | #263 Sample and documentation | describes the finished API | #268 | open | — |
 | 15 | #221 Align with the Nordmann standards | changes wiring, labels and the rule book — after the code | #263 | open | — |
 | 16 | #275 Performance analysis: the budget against the baseline | the budget is read at the end of the release | #221 | open | — |
@@ -52,6 +52,10 @@ beside a very large sync is documented (README section "Linked indexes and the s
 stays small because of the batches — the owner's main concern. A second million-row run passed (0 of 45 writes failed,
 by 40 ms); the removal step fell from 3.14 s to 0.42 s once FTS5's automerge was off there. The longest merge step (1.81 s)
 and `DefaultMergePages` are measured again in #275.
+
+**Done (2026-11-24, #268 / PR #295):** merged after five review rounds (the owner asked to finish the issue). Round 5 was LGTM.
+The allocation bounds of `WriteAllocationTests` were raised on the owner's decision. The pause the owner asked for after this
+issue starts with the merge: next are #263, #221, #275, #276.
 
 Risks of the whole run:
 

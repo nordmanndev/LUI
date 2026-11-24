@@ -20,7 +20,7 @@ public sealed class TypoDictionaryLifecycleTests
         // found and says that it skipped the correction — the build belongs to the application, which asks for it.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         words.Upsert(1, "kartoffel");
 
         var result = words.Search("kartofel");
@@ -42,7 +42,7 @@ public sealed class TypoDictionaryLifecycleTests
         // the file has a table of its own, so LUI keeps its journal mode (ADR-0066)
         database.PrepareWithATable();
         using var catalog = database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(2) } });
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         words.Upsert(1, "kartoffel");
 
         // the writer waits for the lock of the query
@@ -66,7 +66,7 @@ public sealed class TypoDictionaryLifecycleTests
         // the dictionary of "words" is the catalog's, one per index: made here first, with a source that blocks, the index
         // takes this one
         catalog.TypoDictionaries.For("words", new NormalizationOptions(), () => Blocking(reading, release), LuiTypoDistance.OneError);
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         words.Upsert(1, "kartoffel");
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.NotBuilt);
 
@@ -97,7 +97,7 @@ public sealed class TypoDictionaryLifecycleTests
         using var catalog = database.Open();
         var fail = true;
         catalog.TypoDictionaries.For("words", new NormalizationOptions(), () => fail ? Failing() : [("kartoffel", 1)], LuiTypoDistance.OneError);
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         words.Upsert(1, "kartoffel");
 
         Should.Throw<InvalidOperationException>(() => words.WarmUpTypoDictionary());
@@ -123,7 +123,7 @@ public sealed class TypoDictionaryLifecycleTests
         // and a query does not build it either.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         words.Upsert(1, "kartoffel");
 
         using var cancelled = new CancellationTokenSource();
@@ -146,7 +146,7 @@ public sealed class TypoDictionaryLifecycleTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         words.Sync(Entries("kartoffel"));
         words.WarmUpTypoDictionary();
         words.TypoDictionaryState.ShouldBe(LuiTypoDictionaryState.Current);
@@ -172,8 +172,8 @@ public sealed class TypoDictionaryLifecycleTests
         // owner's requirement (#48): a search among tags corrects no name, and a search among names corrects no tag
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance());
-        var names = catalog.Create("names", index => index.SingleWord().TypoTolerance());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord().TypoTolerance()));
+        var names = catalog.Create(new LuiIndexDefinition<long>("names", index => index.SingleWord().TypoTolerance()));
         tags.Sync(Entries("vegan", "glutenfrei"));
         names.Sync(Entries("megan", "mueller"));
 
@@ -199,7 +199,7 @@ public sealed class TypoDictionaryLifecycleTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord()));
         words.Sync(Entries("kartoffel"));
 
         words.Search("kartofel").CorrectionSkipped.ShouldBeFalse();
@@ -354,12 +354,12 @@ public sealed class TypoDictionaryLifecycleTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var reader = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var reader = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         reader.Upsert(1, "Apfelkuchen", 10);
         reader.WarmUpTypoDictionary();   // the application builds the dictionary (ADR-0042)
 
         // the distance is part of the definition: the second instance describes the index the same way
-        var importer = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var importer = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         importer.Upsert(2, "Zwetschge", 5);
 
         var result = reader.Query("zwetchge").Execute();
@@ -373,13 +373,13 @@ public sealed class TypoDictionaryLifecycleTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var first = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var first = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         first.Upsert(1, "Apfelkuchen", 10);
         first.WarmUpTypoDictionary();
         first.Query("apflekuchen").Execute().CorrectedQuery.ShouldBe("apfelkuchen");
 
         catalog.DropIndex("words");
-        var second = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var second = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         second.Upsert(1, "Birnentorte", 10);
 
         var result = second.Query("apflekuchen").Execute();
@@ -393,7 +393,7 @@ public sealed class TypoDictionaryLifecycleTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var words = catalog.Create("words", index => index.SingleWord().TypoTolerance());
+        var words = catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord().TypoTolerance()));
         words.Upsert(1, "Apfelkuchen", 10);
 
         using var cancelled = new CancellationTokenSource();
@@ -414,7 +414,7 @@ public sealed class TypoDictionaryLifecycleTests
         // application and learns its words when they are written. The rollback itself is correct.
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var titles = catalog.Create("titles", index => index.MultiWord().TypoTolerance());
+        var titles = catalog.Create(new LuiIndexDefinition<long>("titles", index => index.MultiWord().TypoTolerance()));
         titles.Upsert(1, "Schifffahrt", 10);
         titles.WarmUpTypoDictionary();
         titles.Search("schiffb").CorrectedQuery.ShouldBe("schifff");
@@ -422,7 +422,7 @@ public sealed class TypoDictionaryLifecycleTests
         using (var connection = database.Connect())
         using (var transaction = connection.BeginTransaction())
         {
-            titles.UpsertMany([new LuiEntry(2, "Schiffbruecke")], transaction);
+            titles.UpsertMany([new LuiEntry<long>(2, "Schiffbruecke")], transaction);
             transaction.Rollback();
         }
 
@@ -438,8 +438,8 @@ public sealed class TypoDictionaryLifecycleTests
         rebuilt.Hits.ShouldHaveSingleItem().Key.ShouldBe(1);
     }
 
-    private static IEnumerable<LuiEntry> Entries(params string[] texts) =>
-        texts.Select((text, i) => new LuiEntry(i + 1, text));
+    private static IEnumerable<LuiEntry<long>> Entries(params string[] texts) =>
+        texts.Select((text, i) => new LuiEntry<long>(i + 1, text));
 
     private static IEnumerable<(string Text, int Weight)> Failing()
     {

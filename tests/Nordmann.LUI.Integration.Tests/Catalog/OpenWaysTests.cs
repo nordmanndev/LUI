@@ -20,7 +20,7 @@ public sealed class OpenWaysTests
 
         using (var catalog = LuiCatalog.Open(database.FilePath))
         {
-            catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
+            catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Search("vegan").Hits.ShouldHaveSingleItem();
         }
 
         Hash(database).ShouldBe(before, "Open writes nothing");
@@ -77,7 +77,7 @@ public sealed class OpenWaysTests
 
         using (var catalog = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+            catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
         }
 
         database.Scalar<long>("SELECT count(*) FROM sqlite_master WHERE name = 'lui_meta'").ShouldBe(1);
@@ -106,7 +106,7 @@ public sealed class OpenWaysTests
         MakeCatalogue(database, inDeleteMode: false);
 
         using var reader = LuiCatalog.OpenReadOnly(database.FilePath);
-        var index = reader.Index("tags");
+        var index = reader.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         var exception = Should.Throw<LuiReadOnlyException>(() => index.Upsert(2, "vegetarisch"));
 
@@ -124,7 +124,7 @@ public sealed class OpenWaysTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var index = catalog.Create("tags", i => i.SingleWord());
+        var index = catalog.Create(new LuiIndexDefinition<long>("tags", i => i.SingleWord()));
 
         // the file may not be written: SQLite refuses (query_only answers like a file without rights, and as root too)
         using (var connection = catalog.Database.OpenConnection())
@@ -148,11 +148,11 @@ public sealed class OpenWaysTests
         MakeCatalogue(database, inDeleteMode: false);
 
         using var reader = LuiCatalog.OpenReadOnly(database.FilePath);
-        var index = reader.Index("tags");
+        var index = reader.Index(new LuiIndexDefinition<long>("tags", i => i.SingleWord()));
         using var connection = database.Connect();
         using var transaction = connection.BeginTransaction();
 
-        Should.Throw<LuiReadOnlyException>(() => index.Upsert(new LuiEntry(2, "vegetarisch"), transaction));
+        Should.Throw<LuiReadOnlyException>(() => index.Upsert(new LuiEntry<long>(2, "vegetarisch"), transaction));
 
         transaction.Rollback();
     }
@@ -186,7 +186,7 @@ public sealed class OpenWaysTests
 
         using (var reader = LuiCatalog.OpenReadOnly(database.FilePath))
         {
-            reader.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
+            reader.Index(new LuiIndexDefinition<long>("tags", i => i.SingleWord())).Search("vegan").Hits.ShouldHaveSingleItem();
         }
 
         Hash(database).ShouldBe(before);
@@ -207,26 +207,26 @@ public sealed class OpenWaysTests
 
         using (var writer = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            writer.CreateLinked("linked", index => index.SingleWord().LinkTo("tag", "id", "name"));
+            writer.Create(new LuiLinkedIndexDefinition<long>("linked", index => index.SingleWord().LinkTo("tag", "id", "name")));
         }
 
         SqliteConnection.ClearAllPools();
 
         using var reader = LuiCatalog.OpenReadOnly(database.FilePath);
-        var tags = reader.Index("tags");
-        var linked = reader.LinkedIndex("linked");
+        var tags = reader.Index(new LuiIndexDefinition<long>("tags", i => i.SingleWord()));
+        var linked = reader.Index(new LuiLinkedIndexDefinition<long>("linked", index => index.SingleWord().LinkTo("tag", "id", "name")));
         var writes = new Dictionary<string, Action>(StringComparer.Ordinal)
         {
             ["Upsert"] = () => tags.Upsert(2, "vegetarisch"),
-            ["UpsertMany"] = () => tags.UpsertMany([new LuiEntry(3, "vollkorn")]),
-            ["Sync"] = () => tags.Sync([new LuiEntry(4, "bio")]),
+            ["UpsertMany"] = () => tags.UpsertMany([new LuiEntry<long>(3, "vollkorn")]),
+            ["Sync"] = () => tags.Sync([new LuiEntry<long>(4, "bio")]),
             ["Remove"] = () => tags.Remove(1),
             ["UpdateWeight"] = () => tags.UpdateWeight(1, 5),
             ["UpdatePriority"] = () => tags.UpdatePriority(1, LuiPriority.High),
             ["Rebuild"] = tags.Rebuild,
             ["Optimize"] = tags.Optimize,
             ["Check"] = () => tags.Check(),
-            ["Create"] = () => reader.Create("other", index => index.SingleWord()),
+            ["Create"] = () => reader.Create(new LuiIndexDefinition<long>("other", index => index.SingleWord())),
             ["DropIndex"] = () => reader.DropIndex("tags"),
             ["linked Sync"] = () => linked.Sync(),
             ["linked Optimize"] = linked.Optimize,
@@ -249,11 +249,11 @@ public sealed class OpenWaysTests
         MakeCatalogue(database, inDeleteMode: false);
 
         using var reader = LuiCatalog.OpenReadOnly(database.FilePath);
-        var index = reader.Index("tags");
+        var index = reader.Index(new LuiIndexDefinition<long>("tags", i => i.SingleWord()));
         using var connection = database.Connect();
         using var transaction = connection.BeginTransaction();
 
-        Should.Throw<LuiReadOnlyException>(() => index.UpsertMany([new LuiEntry(2, "vegetarisch")], transaction));
+        Should.Throw<LuiReadOnlyException>(() => index.UpsertMany([new LuiEntry<long>(2, "vegetarisch")], transaction));
         Should.Throw<LuiReadOnlyException>(() => index.Remove(1, transaction));
         Should.Throw<LuiReadOnlyException>(() => index.UpdateWeight(1, 5, transaction));
         Should.Throw<LuiReadOnlyException>(() => index.UpdatePriority(1, LuiPriority.High, transaction));
@@ -321,7 +321,7 @@ public sealed class OpenWaysTests
             {
                 using (var catalog = LuiCatalog.OpenOrCreate(FilePath))
                 {
-                    catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+                    catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
                 }
 
                 SqliteConnection.ClearAllPools();
@@ -352,7 +352,7 @@ public sealed class OpenWaysTests
     {
         using (var catalog = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+            catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
         }
 
         if (inDeleteMode)

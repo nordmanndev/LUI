@@ -18,8 +18,8 @@ internal static class LinkedTable
             color       TEXT);
         """;
 
-    internal static ILuiLinkedIndex Tags(LuiCatalog catalog) =>
-        catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count"));
+    internal static LuiLinkedIndex<long> Tags(LuiCatalog catalog) =>
+        catalog.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", "name", weight: "usage_count")));
 
     internal static void Insert(TestDatabase database, params (long Id, string? Name, int Weight)[] rows)
     {

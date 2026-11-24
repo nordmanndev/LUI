@@ -150,25 +150,25 @@ try
 {
     using (var catalog = LuiCatalog.OpenOrCreate(path))
     {
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         tags.Upsert(1, "Apfelkuchen", weight: 10);
         tags.Upsert(2, "Bratapfelkuchen", weight: 1000);
         tags.Upsert(3, "vegan", weight: 5, priority: LuiPriority.System);
 
-        var first = tags.Query("apfelkuch").Execute().Hits.FirstOrDefault().Text;
-        var system = tags.Query("gan").Execute().Hits.FirstOrDefault().Text;
+        var first = tags.Query("apfelkuch").Execute().Hits.FirstOrDefault()?.Text;
+        var system = tags.Query("gan").Execute().Hits.FirstOrDefault()?.Text;
         Console.WriteLine($"apfelkuch -> {first}; gan -> {system}");
 
         // and a multi-word index: the order of the words and the spaces do not matter
-        var titles = catalog.Create("titles", index => index.MultiWord().TypoTolerance());
+        var titles = catalog.Create(new LuiIndexDefinition<long>("titles", index => index.MultiWord().TypoTolerance()));
         titles.Upsert(1, "Apfel Kuchen", weight: 10);
         titles.Upsert(2, "Bratapfelkuchen", weight: 1000);
 
         // the application asks for the dictionary of the typos — a query never does
         titles.WarmUpTypoDictionary();
 
-        var reordered = titles.Query("kuchen apfel").Execute().Hits.FirstOrDefault().Text;
-        var compact = titles.Query("apfelkuch").Execute().Hits.FirstOrDefault().Text;
+        var reordered = titles.Query("kuchen apfel").Execute().Hits.FirstOrDefault()?.Text;
+        var compact = titles.Query("apfelkuch").Execute().Hits.FirstOrDefault()?.Text;
         Console.WriteLine($"kuchen apfel -> {reordered}; apfelkuch -> {compact}");
 
         // and a typo

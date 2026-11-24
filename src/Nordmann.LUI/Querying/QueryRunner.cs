@@ -46,7 +46,7 @@ internal sealed class QueryRunner
     /// <summary>How many errors a query of this instance forgives unless its options say otherwise.</summary>
     internal LuiTypoDistance TypoDistance => _typoDefault;
 
-    internal LuiResult Execute(string input, LuiQueryOptions options, CancellationToken cancellationToken)
+    internal RawResult Execute(string input, LuiQueryOptions options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(input);
         ArgumentNullException.ThrowIfNull(options);
@@ -57,7 +57,7 @@ internal sealed class QueryRunner
         var query = PreparedQuery.Create(input, _source.Normalization, _source.Rules);
         if (query.IsEmpty)
         {
-            return new LuiResult { Query = input, Hits = [], Timings = Timings(options, started, started, started, started, started) };
+            return new RawResult { Query = input, Hits = [], Timings = Timings(options, started, started, started, started, started) };
         }
 
         using var connection = _database.OpenReadConnection();
@@ -138,9 +138,9 @@ internal sealed class QueryRunner
     /// <summary>
     /// The result of a query: the hits and what the query did.
     /// </summary>
-    private static LuiResult Result(
+    private static RawResult Result(
         string input,
-        IReadOnlyList<LuiHit> hits,
+        IReadOnlyList<RawHit> hits,
         int count,
         bool truncated,
         string? corrected,

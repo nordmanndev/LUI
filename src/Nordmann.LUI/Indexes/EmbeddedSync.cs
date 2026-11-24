@@ -20,7 +20,6 @@ namespace Nordmann.LUI.Indexes;
 internal sealed class EmbeddedSync(
     Database database,
     EmbeddedSource source,
-    Func<LuiKey, string> keyText,
     Func<object?, byte[]?> payloadBytes,
     TypoDictionary typos,
     IConnectionGuard? guard = null)
@@ -30,7 +29,7 @@ internal sealed class EmbeddedSync(
 
     private static long _startTables;
 
-    internal LuiSyncReport Run(IEnumerable<LuiEntry> entries, LuiSyncOptions options, CancellationToken cancellationToken)
+    internal LuiSyncReport Run(IEnumerable<RawEntry> entries, LuiSyncOptions options, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(entries);
         ArgumentNullException.ThrowIfNull(options);
@@ -72,7 +71,7 @@ internal sealed class EmbeddedSync(
     }
 
     /// <summary>Writes one batch: what is missing or different, in the order of the search index.</summary>
-    private LuiSyncReport WriteBatch(SqliteConnection writer, LuiEntry[] chunk, string start, LuiSyncReport report, CancellationToken cancellationToken)
+    private LuiSyncReport WriteBatch(SqliteConnection writer, RawEntry[] chunk, string start, LuiSyncReport report, CancellationToken cancellationToken)
     {
         var batch = Prepare(chunk);
         var learned = new List<(string Text, int Weight)>();
@@ -129,13 +128,13 @@ internal sealed class EmbeddedSync(
     /// The entries of a batch, each key once — the last one stays, as in <c>UpsertMany</c> — and in the order of the
     /// search index: priority, then weight descending.
     /// </summary>
-    private List<(string Key, LuiEntry Entry, byte[]? Payload)> Prepare(LuiEntry[] chunk)
+    private List<(string Key, RawEntry Entry, byte[]? Payload)> Prepare(RawEntry[] chunk)
     {
-        var last = new Dictionary<string, LuiEntry>(chunk.Length, StringComparer.Ordinal);
+        var last = new Dictionary<string, RawEntry>(chunk.Length, StringComparer.Ordinal);
         foreach (var entry in chunk)
         {
             ArgumentNullException.ThrowIfNull(entry, "source");
-            last[keyText(entry.Key)] = entry;
+            last[entry.Key] = entry;
         }
 
         return
@@ -273,7 +272,7 @@ internal sealed class EmbeddedSync(
         }
 
         /// <summary>Whether the stored entry of the key is the same; <see langword="null"/> when there is none.</summary>
-        internal bool? Compare(string key, LuiEntry entry, byte[]? payload)
+        internal bool? Compare(string key, RawEntry entry, byte[]? payload)
         {
             Bind(_compare, key, entry, payload);
             using var reader = _compare.ExecuteReader();
@@ -281,7 +280,7 @@ internal sealed class EmbeddedSync(
         }
 
         /// <summary>Writes the entry.</summary>
-        internal void Upsert(string key, LuiEntry entry, byte[]? payload)
+        internal void Upsert(string key, RawEntry entry, byte[]? payload)
         {
             Bind(_upsert, key, entry, payload);
             _upsert.ExecuteNonQuery();
@@ -300,7 +299,7 @@ internal sealed class EmbeddedSync(
             _found.Dispose();
         }
 
-        private static void Bind(SqliteCommand command, string key, LuiEntry entry, byte[]? payload)
+        private static void Bind(SqliteCommand command, string key, RawEntry entry, byte[]? payload)
         {
             command.Parameters[0].Value = key;
             command.Parameters[1].Value = entry.Text;

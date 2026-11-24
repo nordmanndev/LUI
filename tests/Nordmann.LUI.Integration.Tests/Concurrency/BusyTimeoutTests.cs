@@ -30,14 +30,14 @@ public sealed class BusyTimeoutTests(ITestOutputHelper output)
         database.PrepareWithATable();
         using var reader = database.Open();
         var blocking = new BlockingSimilarity();
-        var tags = reader.Create("tags", index => index.SingleWord().Similarity(blocking));
+        var tags = reader.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord().Similarity(blocking)));
         tags.Upsert(1, "vegan");
 
         using var writer = database.Open(new LuiCatalogOptions
         {
             Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromMilliseconds(busyMilliseconds) },
         });
-        var written = writer.Index("tags");
+        var written = writer.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord().Similarity(blocking)));
 
         var reading = new Thread(() => tags.Search("vegan")) { IsBackground = true };
         reading.Start();

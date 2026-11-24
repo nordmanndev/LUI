@@ -57,8 +57,10 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        var exception = Should.Throw<ArgumentException>(() => catalog.Create(name, index => index.SingleWord()));
+        // a definition that is not valid is a configuration error that names the definition (ADR-0073); the rule of the name is the cause
+        var exception = Should.Throw<LuiConfigurationException>(() => catalog.Create(new LuiIndexDefinition<long>(name, index => index.SingleWord())));
         exception.Message.ShouldContain("^[a-z][a-z0-9_]{0,40}$");
+        exception.InnerException.ShouldBeOfType<ArgumentException>().ParamName.ShouldBe("name");
     }
 
     [Theory]
@@ -73,7 +75,7 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.Throw<ArgumentException>(() => catalog.Create(name, index => index.SingleWord())).Message.ShouldContain("reserved");
+        Should.Throw<LuiConfigurationException>(() => catalog.Create(new LuiIndexDefinition<long>(name, index => index.SingleWord()))).Message.ShouldContain("reserved");
     }
 
     [Theory]
@@ -86,17 +88,17 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.NotThrow(() => catalog.Create(name, index => index.SingleWord()));
+        Should.NotThrow(() => catalog.Create(new LuiIndexDefinition<long>(name, index => index.SingleWord())));
     }
 
     [Fact]
-    public void A_kind_of_key_that_is_neither_number_nor_text_is_refused()
+    public void A_key_type_that_is_none_of_the_four_is_refused()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.Throw<ArgumentOutOfRangeException>(
-            () => catalog.Create("tags", index => index.SingleWord().WithKey((LuiKeyKind)2)));
+        Should.Throw<LuiConfigurationException>(
+            () => catalog.Create(new LuiIndexDefinition<decimal>("tags", index => index.SingleWord())));
     }
 
     [Fact]
@@ -104,14 +106,14 @@ public sealed class CatalogTests
     {
         using var database = new TestDatabase();
         var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         tags.Upsert(1, "vegan", 5);
 
         catalog.Dispose();
 
         Should.Throw<ObjectDisposedException>(() => tags.Query("veg").Execute());
         Should.Throw<ObjectDisposedException>(() => tags.Upsert(2, "vegetarisch", 5));
-        Should.Throw<ObjectDisposedException>(() => catalog.Index("other"));
+        Should.Throw<ObjectDisposedException>(() => catalog.Index(new LuiIndexDefinition<long>("other", index => index.SingleWord())));
     }
 
     [Fact]
@@ -132,8 +134,8 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         var catalog = database.Open();
         var blocking = new BlockingSimilarity();
-        var tags = catalog.Create("tags", index => index.SingleWord().Similarity(blocking));
-        tags.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan") });
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord().Similarity(blocking)));
+        tags.Upsert(new LuiEntry<long>(1, "vegan") { Weight = 5 });
 
         var query = Task.Run(() => tags.Query("vegan").Execute());
         blocking.Entered.Wait(TimeSpan.FromSeconds(10)).ShouldBeTrue("the query reached the ranking");
@@ -157,7 +159,7 @@ public sealed class CatalogTests
         var clock = new Microsoft.Extensions.Time.Testing.FakeTimeProvider(new DateTimeOffset(2026, 11, 2, 12, 0, 0, TimeSpan.Zero));
         using var catalog = database.Open(new LuiCatalogOptions { TimeProvider = clock });
 
-        catalog.Create("tags", index => index.SingleWord());
+        catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         database.Scalar<string>("SELECT created_at FROM lui_meta WHERE index_name = 'tags'")
             .ShouldStartWith("2026-11-02T12:00:00");
@@ -176,7 +178,7 @@ public sealed class CatalogTests
         }
 
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         tags.Upsert(1, "vegan", 5);
 
         database.Scalar<string>("PRAGMA journal_mode").ShouldBe("delete", "a file with tables keeps its mode");
@@ -204,7 +206,7 @@ public sealed class CatalogTests
         using var catalog = LuiCatalog.OpenOrCreate(database.FilePath);
 
         database.Scalar<string>("PRAGMA journal_mode").ShouldBe("delete", "LUI did not create the file, so it leaves the mode");
-        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+        catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
     }
 
     // ADR-0066: Open opens a file that is there and never creates one
@@ -285,12 +287,12 @@ public sealed class CatalogTests
         database.PrepareWithATable();
         using (var setUp = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            setUp.Create("tags", index => index.SingleWord());
+            setUp.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         }
 
         using (var catalog = LuiCatalog.Open(database.FilePath))
         {
-            catalog.Index("tags").Upsert(1, "vegan");
+            catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
         }
 
         database.Scalar<string>("PRAGMA journal_mode").ShouldBe("delete", "Open never sets the journal mode");
@@ -302,12 +304,12 @@ public sealed class CatalogTests
         using var database = new TestDatabase();
         using (var created = LuiCatalog.OpenOrCreate(database.FilePath))
         {
-            created.Create("tags", index => index.SingleWord()).Upsert(1, "vegan");
+            created.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan");
         }
 
         using var catalog = LuiCatalog.Open(database.FilePath);
 
-        catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
+        catalog.Index(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Search("vegan").Hits.ShouldHaveSingleItem();
         database.Scalar<string>("PRAGMA journal_mode").ShouldBe("wal", "the file LUI created stays in the mode LUI gave it");
     }
 
@@ -354,9 +356,9 @@ public sealed class CatalogTests
         Should.Throw<ArgumentOutOfRangeException>(
             () => database.Open(new LuiCatalogOptions { Pragmas = new LuiPragmas { BusyTimeout = TimeSpan.FromSeconds(-1) } })).ParamName.ShouldBe("BusyTimeout");
         Should.Throw<ArgumentNullException>(() => new LuiCatalogOptions { TimeProvider = null! }).ParamName.ShouldBe("TimeProvider");
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry(1, "a") { Weight = -1 }).ParamName.ShouldBe("Weight");
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry(1, "a") { Priority = (LuiPriority)7 }).ParamName.ShouldBe("Priority");
-        Should.Throw<ArgumentException>(() => new LuiEntry(1, string.Empty)).ParamName.ShouldBe("Text");
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry<long>(1, "a") { Weight = -1 }).ParamName.ShouldBe("Weight");
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry<long>(1, "a") { Priority = (LuiPriority)7 }).ParamName.ShouldBe("Priority");
+        Should.Throw<ArgumentException>(() => new LuiEntry<long>(1, string.Empty)).ParamName.ShouldBe("text");
     }
 
     // the shape of the API before 0.1.0 (ADR-0013), the options
@@ -384,9 +386,9 @@ public sealed class CatalogTests
         // Review of 2026-11-04, A.8: a caller that separates LUI's conditions from its own errors had no type for it
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("words", index => index.SingleWord());
+        catalog.Create(new LuiIndexDefinition<long>("words", index => index.SingleWord()));
 
-        var mismatch = Record.Exception(() => catalog.Create("words", index => index.MultiWord()));
+        var mismatch = Record.Exception(() => catalog.Create(new LuiIndexDefinition<long>("words", index => index.MultiWord())));
 
         mismatch.ShouldBeOfType<LuiDefinitionMismatchException>();
         mismatch.ShouldBeAssignableTo<LuiException>();
@@ -401,7 +403,7 @@ public sealed class CatalogTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        catalog.Create("tags", index => index.SingleWord()).Upsert(1, "vegan", 5);
+        catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord())).Upsert(1, "vegan", 5);
 
         catalog.DropIndex("tags").ShouldBeTrue();
         catalog.DropIndex("tags").ShouldBeFalse();

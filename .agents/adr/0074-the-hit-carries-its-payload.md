@@ -10,7 +10,7 @@
   [0032](./0032-the-allocation-of-a-query.md) (the allocation budget of a query),
   [0071](./0071-the-freeze-comes-with-1-0-0.md) (a break before 1.0.0 needs a reason, a migration note and a record)
 - **Affects:**
-  - `src/Nordmann.LUI/LuiHitOfKeyAndPayload.cs`, `src/Nordmann.LUI/LuiHit.cs` — `Payload`, set when the result is built
+  - `src/Nordmann.LUI/LuiHitOfKeyAndPayload.cs`, `src/Nordmann.LUI/RawHit.cs` — the stored payload, set when the result is built
   - `src/Nordmann.LUI/Querying/PayloadSource.cs`, `src/Nordmann.LUI/Querying/ColumnPayload.cs` — a payload that is missing, a map that throws or returns null
   - `src/Nordmann.LUI/Indexes/IndexRuntimes.cs`, `src/Nordmann.LUI/Indexes/EmbeddedIndex.cs` — a handle without a payload type selects no payload column
   - `src/Nordmann.LUI/LuiEmbeddedIndexOfKeyAndPayload.cs`, `src/Nordmann.LUI/Indexes/EmbeddedCheck.cs`, `src/Nordmann.LUI/Schema/EmbeddedSource.cs` — `CheckPayloads`

@@ -62,7 +62,7 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   `LuiDefinitionMismatchException` naming `keyType`. A `Guid` is stored in the canonical form `"D"`, lower case. A linked `int` index leaves
   the rows whose key is outside the `int` range out of `Sync`, `Refresh` and `ApplyPending` and counts them in
   `LuiLinkedSyncReport.KeyOutOfRange`. Any other key type is a `LuiConfigurationException` on first use that names the allowed types.
-  New: `LuiKeyType` (`Long`, `Int`, `String`, `Guid`; `LuiKeyKind` stays until #268), `LuiKeyException` (a stored key that does not convert — a
+  New: `LuiKeyType` (`Long`, `Int`, `String`, `Guid`; `LuiKeyKind` is removed in #268), `LuiKeyException` (a stored key that does not convert — a
   damaged file; it names the index and the key; there is no `CheckKeys()`, because a stored key always converts) and `LuiFormatException`.
 
 - **`hit.Payload` — the hit carries its payload, loaded with the query** ([ADR-0074](.agents/adr/0074-the-hit-carries-its-payload.md), #262):
@@ -74,7 +74,7 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   returning a partial result, and accessing a hit never throws. What "unreadable" means is the serializer's verdict: the strict JSON of LUI
   refuses a payload of an old shape, a tolerant serializer may read it. The cost is bounded by `MaxResults`; **"a payload that is never read
   costs nothing" (ADR-0035) no longer holds** for an index with a payload — and a hit of an index **without** a payload type has none and
-  its query selects no payload column. The untyped `LuiHit` keeps `GetPayload<T>()` until #268.
+  its query selects no payload column. The untyped `LuiHit` and its `GetPayload<T>()` are removed in #268.
 
 - **`CheckPayloads()` — finding the payloads that cannot be read** (ADR-0074, #262): `LuiEmbeddedIndex<TKey, TPayload>.CheckPayloads(ct)` returns a
   `LuiPayloadCheck<TKey>` (`Unreadable`, `IsHealthy`) of `LuiUnreadablePayload<TKey>` (`Key`, `Message`): **a full read of the index** — every stored
@@ -151,8 +151,8 @@ minor version, a migration note and its own record, and no member is marked `[Ob
 - **`AddLuiOutbox` — the one background loop LUI needs** (ADR-0076, #266): `AddLuiOutbox(TimeSpan interval)` or `AddLuiOutbox(Action<LuiOutboxOptions>)` (`Interval`, 30 s by default; `MaxBackoff`, 5 minutes by
   default) registers a service of the host that calls `catalog.ApplyPending()` every `Interval` and stops with the host. **It does nothing at the start** — that is `Initialize()`, which the application calls; LUI
   offers no hosted service that calls it. **A failing round never stops the host**: it is logged through the logger of the host (a warning, with the exception), the next round waits with exponential backoff up to
-  `MaxBackoff`, and the first round that works goes back to the interval. On a catalog opened with `OpenReadOnly` the host does not start (`a read-only catalog cannot apply the outbox`). `AddLuiWarmup` stays until #268
-  removes it; `Initialize()` with `AddLuiOutbox` replaces it. **Migration: none — the members are new.** New public type: `LuiOutboxOptions`.
+  `MaxBackoff`, and the first round that works goes back to the interval. On a catalog opened with `OpenReadOnly` the host does not start (`a read-only catalog cannot apply the outbox`). `AddLuiWarmup` is removed (#268);
+  `Initialize()` with `AddLuiOutbox` replaces it. **Migration: none — the members are new.** New public type: `LuiOutboxOptions`.
 
 - **The host pattern** (ADR-0076, #266; README "Starting up", `docs/api.md`): the factory of `AddLui` only **opens** the catalog; `catalog.Create(…)` and `catalog.Initialize()` are explicit steps after `Build()`, so that
   every configuration error stops the start at a line of `Program.cs`. The documented default for a container is a background service of the application that **repeats `Initialize()` until the report says `Ready`** (also after a failure that may pass, with a growing pause; an exception that escapes it would stop the host): the host is up at once, a readiness check says
@@ -172,11 +172,7 @@ minor version, a migration note and its own record, and no member is marked `[Ob
 
 - **A payload definition needs a payload registry** (#260, ADR-0072): `LuiIndexDefinition<TKey, TPayload>` is created and opened with the serializer
   that `LuiCatalogOptions.Payloads` holds for `TPayload`. It no longer uses `LuiCatalogOptions.PayloadSerializer` — a typed definition on a catalog
-  that has only that is a `LuiConfigurationException` at `Create` or `Index`, which says where to set the registry —, and setting `Payloads`
-  **and** `PayloadSerializer` is one when the catalog is opened. `PayloadSerializer` and the non-generic `ILuiPayloadSerializer` stay for the
-  old calls until #268 removes them. With a registry set, an index that was created with the old `Create(name, …)` cannot carry a payload
-  (there is no untyped payload), and `hit.GetPayload<T>()` on `catalog.Index(name)` resolves `T` through the registry — a type it does not
-  know is a `LuiConfigurationException`, not a `LuiPayloadException`.
+  that has only that is a `LuiConfigurationException` at `Create` or `Index`, which says where to set the registry —, and `LuiCatalogOptions.PayloadSerializer` with the non-generic `ILuiPayloadSerializer` is removed (#268): the registry is the one way to serialize.
 
   **Migration:**
 
@@ -201,9 +197,7 @@ minor version, a migration note and its own record, and no member is marked `[Ob
   `LuiLinkedIndexBuilder`), and `TPayload` is `where TPayload : notnull`. The map stays typed end to end: the cast per hit and the
   "the map built an 'X'" error of the payload path are gone for a definition. A `LuiLinkedIndexDefinition<long>` (no payload) no
   longer takes a builder with `WithPayload`, and it is a compile error rather than a `LuiConfigurationException`. The old
-  `catalog.CreateLinked(name, index => index.….WithPayload(…))` keeps compiling: the new `CreateLinked<TPayload>(string,
-  Func<LuiIndexKindBuilder, LuiLinkedIndexBuilder<TPayload>>)` takes the typed builder and goes through `Create(definition)`
-  (#268 removes it with the other old calls). Only a call that kept the result of `WithPayload` in a variable of the type
+  `catalog.CreateLinked(name, …)` is removed (#268): a linked definition with `WithPayload` is a `LuiLinkedIndexDefinition<TKey, TPayload>`. Only a call that kept the result of `WithPayload` in a variable of the type
   `LuiLinkedIndexBuilder` has to change its type.
 
 - **The builders describe, the catalog creates.** `LuiIndexKindBuilder`, `LuiEmbeddedIndexBuilder` and `LuiLinkedIndexBuilder`
@@ -239,7 +233,7 @@ minor version, a migration note and its own record, and no member is marked `[Ob
 
 **The start of an application** (#266): replace the sequence you wrote yourself — `CreateTriggers()`, `if (NeedsInitialSync) Sync()`, `ApplyPending()`, `WarmUpTypoDictionary()` of every index, or `AddLuiWarmup()` of the host —
 with one call after `Create`: `catalog.Initialize();` (in the background in a container: see the host pattern in the README). A host that applied the outbox on an interval with `AddLuiWarmup()` adds
-`AddLuiOutbox(TimeSpan.FromSeconds(10))` for the loop. `AddLuiWarmup` is removed with #268, before 0.4.0 is released. A readiness check reads `catalog.Indexes()` — `NeedsInitialization == None` for every index —
+`AddLuiOutbox(TimeSpan.FromSeconds(10))` for the loop. `AddLuiWarmup` and `LuiWarmupOptions` are removed (#268). A readiness check reads `catalog.Indexes()` — `NeedsInitialization == None` for every index —
 instead of asking each index.
 
 **A break the compiler does not see — read it first: files of 0.3.0 are not read.** A catalog file that holds an index written by 0.3.0
@@ -252,22 +246,50 @@ used — and `DropIndex` is out of reach too, because the catalog does not open.
    tables `lui_<name>`, `lui_<name>_fts` (and, for a linked index, `lui_<name>_pending`) of every index; the triggers of a linked index on
    the application's table (`lui_<name>_ai`, `lui_<name>_au`, `lui_<name>_ad`) are dropped by the same migration. The application's own tables stay.
 
-The typed key is new, not a break: `LuiIndexDefinition<long>` and `LuiLinkedIndexDefinition<long>` keep working, and an index created by
-the old calls with text keys (`WithKey(LuiKeyKind.Text)`) opens with `LuiIndexDefinition<string>`.
+The typed key is a break in how a key is written: `LuiKey` is gone and the key type is the type argument of the definition (see *Removed* below). The
+files of 0.3.0 are not read at all (see above): an index that 0.3.0 created with text keys (`WithKey(LuiKeyKind.Text)`) is created again, with
+`LuiIndexDefinition<string>`, after the file is recreated.
 
-The rest is additive in this version: every call of 0.3.0 still works (`Create(name, …)`, `CreateLinked`, `Index(name)`, `LinkedIndex`,
-`As<T>()`) and is now a thin layer over the definition. They are removed with #268, before 0.4.0 is released. Move a call site
-over like this:
+**Removed (#268, [ADR-0073](.agents/adr/0073-the-index-definition-and-the-typed-handles.md)) — the members that the definitions and the
+typed handles replace.** There are no `[Obsolete]` bridges (ADR-0071): the compiler names every place. Where 0.3.0 had the left side, write the right side:
+
+| removed in 0.4.0 | replacement |
+|---|---|
+| `ILuiIndex`, `ILuiEmbeddedIndex`, `ILuiLinkedIndex` — with their `Sync(IAsyncEnumerable<LuiEntry>)` | `LuiIndex<TKey>`, `LuiEmbeddedIndex<TKey>`, `LuiLinkedIndex<TKey>` (and the `<TKey, TPayload>` forms); the same synchronous overload `Sync(IAsyncEnumerable<LuiEntry<TKey>>, LuiSyncOptions?, CancellationToken)` on the handle — the API stays synchronous |
+| the non-generic `LuiHit`, `LuiResult`, `LuiEntry`, `LuiQuery` | `LuiHit<TKey[, TPayload]>`, `LuiResult<TKey[, TPayload]>`, `LuiEntry<TKey[, TPayload]>`, `LuiQuery<TKey[, TPayload]>` |
+| `LuiTypedIndex<T>`, `LuiTypedResult<T>`, `LuiTypedHit<T>`, `index.As<T>()`, `LuiResult.As<T>()` | declare `LuiIndexDefinition<TKey, T>` and use `catalog.Index(definition)` |
+| `catalog.Create(name, …)`, `CreateLinked(name, …)`, `CreateLinked<TPayload>(name, …)`, `Index(name)`, `LinkedIndex(name)`, `LinkedIndex<T>(name, map)` | `catalog.Create(definition)`, `catalog.Index(definition)`; the maintenance by name (`Indexes()`, `Count(name)`, `Check(name)`, `Optimize(name)`, `Rebuild(name)`) needs no definition |
+| the builders' `Create()` and `WithKey(LuiKeyKind)` | the definition (`LuiIndexDefinition<string>` for text keys) |
+| `LuiKey`, `LuiKeyKind` | the type argument `TKey` of the definition (`long`, `int`, `string`, `Guid`) and `LuiKeyType` (the report of `Indexes()`); `LuiPayloadException.Key` is now the stored key as a `string` |
+| `LuiCatalogOptions.PayloadSerializer`, the non-generic `ILuiPayloadSerializer`, `LuiPayloadSerializer.Json(context)` | `LuiCatalogOptions.Payloads = new LuiPayloadRegistry().Use(context)`, `ILuiPayloadSerializer<T>`, `LuiPayloadSerializer.Json<T>(context)`; an entry with a payload is a `LuiEntry<TKey, TPayload>` |
+| `hit.GetPayload<T>()`, `TryGetPayload<T>(…)`, `HasPayload`, the typed `GetPayload()` / `TryGetPayload(…)` | `hit.Payload` |
+| `AddLuiWarmup`, `LuiWarmupOptions` (hosting) | `catalog.Initialize()` and `AddLuiOutbox` |
+
+Before and after — the code compiles on both sides, with a `static readonly` definition and the registry of the catalog:
 
 ```csharp
-// before (0.3.0) — the name and the type repeat at every call site
-catalog.Create("tags", index => index.SingleWord());
-var tags = catalog.Index("tags");
+// before (0.3.0)
+using var catalog = LuiCatalog.OpenOrCreate("app.db", new LuiCatalogOptions { PayloadSerializer = LuiPayloadSerializer.Json(AppJson.Default) });
+var recipes = catalog.Create("recipes", index => index.MultiWord());
+recipes.Upsert(new LuiEntry(1, "Apfelkuchen") { Weight = 900, Payload = new Recipe("Kuchen", 90) });
+var minutes = catalog.Index("recipes").Search("apfel").Hits[0].GetPayload<Recipe>()!.Minutes;
 
-// after — declared once, used everywhere
-public static readonly LuiIndexDefinition<long> Tags = new("tags", index => index.SingleWord());
-var tags = catalog.Create(Tags);          // at the start; or catalog.Index(Tags) where it is only read
+// after (0.4.0)
+public static readonly LuiIndexDefinition<long, Recipe> Recipes = new("recipes", index => index.MultiWord());
+
+using var catalog = LuiCatalog.OpenOrCreate("app.db", new LuiCatalogOptions { Payloads = new LuiPayloadRegistry().Use(AppJson.Default) });
+var recipes = catalog.Create(Recipes);
+recipes.Upsert(new LuiEntry<long, Recipe>(1, "Apfelkuchen", new Recipe("Kuchen", 90)) { Weight = 900 });
+var minutes = catalog.Index(Recipes).Search("apfel").Hits[0].Payload.Minutes;
 ```
+
+**Changed, not removed (#269):** `WithPayload<TPayload>(columns, map)` returns `LuiLinkedIndexBuilder<TPayload>` — a linked definition with a payload is a
+`LuiLinkedIndexDefinition<TKey, TPayload>`, and the map is part of the definition (no call takes a map when an index is opened). **The equality of a hit with
+a payload includes the payload:** two `LuiHit<TKey, TPayload>` are equal when their values and their payloads are equal by the payload's own equality (a hit of 0.3.0
+compared the stored bytes).
+
+A definition that is not valid is a `LuiConfigurationException` that names the definition (its cause is the `ArgumentException` the old call threw); a handle of an index
+that was dropped or created again with another definition throws `LuiIndexNotFoundException` / `LuiDefinitionMismatchException` instead of reporting a problem in `Check()`.
 
 A changed definition is still not migrated: `DropIndex(name)`, `Create(definition)`, fill it again — or a new name next to the
 old index (`docs/api.md`, "Changing a definition").
@@ -276,7 +298,7 @@ old index (`docs/api.md`, "Changing a definition").
 `hit.GetPayload<T>()` of an untyped hit, and declare the index with `LuiIndexDefinition<long, T>`. A payload that cannot be read now fails the
 whole query with a `LuiPayloadException` instead of throwing where the hit is read — find the entries with `CheckPayloads()` and write them
 again. A hit of an index without a payload type has no payload; `HasPayload` has no counterpart. A map of a linked index that throws is wrapped
-in a `LuiPayloadException` on a typed handle (the inner exception is the one the map threw); the old calls keep the exception of the map.
+in a `LuiPayloadException` on a typed handle (the inner exception is the one the map threw).
 
 A handle that was taken before the index was dropped and created again (by your code or another process) used to work on the new
 index; it throws now, and the open call gives a new handle. Take the handle from `catalog.Index(definition)` where you use it — it is

@@ -1,10 +1,10 @@
 namespace Nordmann.LUI.Querying;
 
 /// <summary>
-/// How the payloads of an index become bytes and back (ADR-0035, ADR-0072). There are four ways, and the catalog picks one per index:
+/// How the payloads of an index become bytes and back (ADR-0035, ADR-0072). There are three ways, and the catalog picks one per index:
 /// the <b>codec</b> of a declared payload type (the typed path: the serializer the registry holds for the type), the
 /// <b>registry</b> of the catalog for the read path of an index that was opened by name (it resolves the type the caller asks
-/// for), the <b>serializer of the old path</b> (<see cref="LuiCatalogOptions.PayloadSerializer"/>, until #268), and none.
+/// for), and none.
 /// </summary>
 internal abstract class PayloadSerialization
 {
@@ -37,8 +37,7 @@ internal abstract class PayloadSerialization
         internal override byte[] Serialize(object payload, string indexName) =>
             throw new InvalidOperationException(
                 $"The entry of the index '{indexName}' has a payload, and the catalog has no serialiser: declare the payload type with a "
-                + "LuiIndexDefinition<TKey, TPayload> and register it in LuiCatalogOptions.Payloads — or, for an index of the old calls, "
-                + "set LuiCatalogOptions.PayloadSerializer (LuiPayloadSerializer.Json(context)).");
+                + "LuiIndexDefinition<TKey, TPayload> and register it in LuiCatalogOptions.Payloads.");
 
         internal override T Deserialize<T>(ReadOnlySpan<byte> bytes, string indexName) =>
             throw new InvalidOperationException($"The catalog has no payload serializer: the payload of the index '{indexName}' cannot be read.");

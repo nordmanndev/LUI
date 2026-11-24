@@ -35,18 +35,18 @@ public sealed class TypedHandleTests
     }
 
     [Fact]
-    public void The_typed_handle_and_the_old_handle_see_the_same_index()
+    public void The_handle_of_Create_and_the_handle_of_Index_see_the_same_index()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
         var tags = catalog.Create(Tags);
         tags.Upsert(7, "vegan", 9);
 
-        var hit = catalog.Index("tags").Search("vegan").Hits.ShouldHaveSingleItem();
+        var hit = catalog.Index(Tags).Search("vegan").Hits.ShouldHaveSingleItem();
         hit.Key.ShouldBe(7);
         hit.Weight.ShouldBe(9);
 
-        catalog.Index("tags").Upsert(8, "veganer");
+        catalog.Index(Tags).Upsert(8, "veganer");
         tags.Search("vegan").Hits.Count.ShouldBe(2);
     }
 

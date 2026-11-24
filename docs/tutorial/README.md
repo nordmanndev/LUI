@@ -36,7 +36,7 @@ Until then, reference the projects of the repository directly.
 |---|---|---|
 | [1 — Your first index](./01-first-index.md) | the catalog, the first index, the first entries, the first query | 15 minutes |
 | [2 — Your own data](./02-your-own-data.md) | an index over your own table, the reconciliation, the triggers | 20 minutes |
-| [3 — The payload](./03-the-payload.md) | the serialiser of the catalog, `GetPayload<T>()` | 15 minutes |
+| [3 — The payload](./03-the-payload.md) | the registry of the catalog, `hit.Payload` | 15 minutes |
 | [4 — Many entries](./04-many-entries.md) | `Sync`, the limits, what it costs — with the measured numbers | 20 minutes |
 | [5 — In the application](./05-in-the-application.md) | `AddLui` in ASP.NET Core, the catalog from the container, only reading | 15 minutes |
 
@@ -72,13 +72,12 @@ opinions.
    lifetime; an index is asked for, never registered.
 2. **`Create` writes, `Index` does not.** `Create` belongs in the migration of
    your application — it creates the tables of the index and compares the
-   stored definition with the one you describe. `Index` (and `LinkedIndex`)
-   belongs in the runtime path: it reads the definition out of the file and
-   writes nothing at all.
-3. **The index knows no types.** A key is a number or a text, a payload is
-   bytes, and the type stands where you use it — `hit.GetPayload<TagChip>()`.
-   The file does not name a type, so it does not have to be migrated when
-   yours changes.
+   stored definition with the one you describe. `Index(definition)`
+   belongs in the runtime path: it compares the definition with the one in the
+   file and writes nothing at all.
+3. **The types are declared once.** The key type and the payload type are the
+   type arguments of the definition — `hit.Key`, `hit.Payload`. The file stores
+   text and bytes, and the name of the payload type.
 
 > **Why so?**
 > The catalog is the entry point because an index is a table in *your* file:

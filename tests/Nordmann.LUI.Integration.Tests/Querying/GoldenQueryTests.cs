@@ -13,7 +13,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var rezepte = catalog.Create("rezepte", index => index.SingleWord());
+        var rezepte = catalog.Create(new LuiIndexDefinition<long>("rezepte", index => index.SingleWord()));
         rezepte.Upsert(1, "Apfelkuchen", 900);
         rezepte.Upsert(2, "Gedeckter Apfelkuchen", 800);
         rezepte.Upsert(3, "Apfelkuchen mit Sahne", 400);
@@ -33,7 +33,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var rezepte = catalog.Create("rezepte", index => index.SingleWord());
+        var rezepte = catalog.Create(new LuiIndexDefinition<long>("rezepte", index => index.SingleWord()));
         rezepte.Upsert(1, "Apfelkuchen", 900);
         rezepte.Upsert(2, "Gedeckter Apfelkuchen", 800);
         rezepte.Upsert(3, "Bratapfelkuchen", 9_000);
@@ -54,7 +54,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var rezepte = catalog.Create("rezepte", index => index.SingleWord());
+        var rezepte = catalog.Create(new LuiIndexDefinition<long>("rezepte", index => index.SingleWord()));
         rezepte.Upsert(1, "Gedeckter Apfelkuchen mit Äpfeln", 10);
         rezepte.Upsert(2, "Gedeckter Apfelkuchen", 20);
 
@@ -68,7 +68,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var orte = catalog.Create("orte", index => index.SingleWord());
+        var orte = catalog.Create(new LuiIndexDefinition<long>("orte", index => index.SingleWord()));
         orte.Upsert(1, "Hauptstraße", 10);
         orte.Upsert(2, "Hauptstrasse", 5);
 
@@ -80,7 +80,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var rezepte = catalog.Create("rezepte", index => index.SingleWord());
+        var rezepte = catalog.Create(new LuiIndexDefinition<long>("rezepte", index => index.SingleWord()));
         rezepte.Upsert(1, "Apfelkuchen", 300);
         rezepte.Upsert(2, "Ananas-Torte", 700);
         rezepte.Upsert(3, "Aprikosenkuchen", 500);
@@ -95,7 +95,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         LoadTagCorpus(database, tags);
 
         foreach (var input in new[] { "gan", "veg", "vega", "vegan" })
@@ -121,7 +121,7 @@ public sealed class GoldenQueryTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         tags.Upsert(1, "vegan", 0, priority: LuiPriority.System);
         tags.Upsert(2, "Vegan", 800_000);
         tags.Upsert(3, "vegane torte", 700_000);
@@ -137,7 +137,7 @@ public sealed class GoldenQueryTests
         tags.Query("veg").Execute().Hits.Select(h => h.Key).ShouldBe([1, 3]);
     }
 
-    private static void LoadTagCorpus(TestDatabase database, ILuiEmbeddedIndex index)
+    private static void LoadTagCorpus(TestDatabase database, LuiEmbeddedIndex<long> index)
     {
         // 35,000 tags that hold "gan", 1,100 that begin with "veg", and the system tag
         var random = new Random(20261102);

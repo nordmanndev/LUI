@@ -10,7 +10,7 @@ namespace Nordmann.LUI.Indexes;
 /// itself — definition, triggers, FTS5's integrity check against the content table —, and the rebuild of everything
 /// below the content table.
 /// </summary>
-internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Func<LuiKey, string> textOfKey, Func<object?, byte[]?> payloadBytes, IConnectionGuard? guard = null)
+internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Func<object?, byte[]?> payloadBytes, IConnectionGuard? guard = null)
 {
     private const string Repair = "Rebuild() builds the search index anew from the content table.";
 
@@ -21,7 +21,7 @@ internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Fu
     /// read once and not held: what each key found is noted in a table of the connection's temporary database, the last
     /// entry of a key replacing the one before — it is the one a sync would leave.
     /// </summary>
-    internal LuiIntegrityReport Against(IEnumerable<LuiEntry> entries, CancellationToken cancellationToken)
+    internal LuiIntegrityReport Against(IEnumerable<RawEntry> entries, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(entries);
 
@@ -72,7 +72,7 @@ internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Fu
         SqliteConnection connection,
         SqliteTransaction transaction,
         string found,
-        IEnumerable<LuiEntry> entries,
+        IEnumerable<RawEntry> entries,
         CancellationToken cancellationToken)
     {
         using var compare = Command(connection, transaction, source.CompareSql);
@@ -89,7 +89,7 @@ internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Fu
         {
             cancellationToken.ThrowIfCancellationRequested();
             ArgumentNullException.ThrowIfNull(entry, nameof(entries));
-            var keyText = textOfKey(entry.Key);
+            var keyText = entry.Key;
             key.Value = keyText;
             text.Value = entry.Text;
             weight.Value = entry.Weight;
@@ -134,41 +134,25 @@ internal sealed class EmbeddedCheck(Database database, EmbeddedSource source, Fu
     }
 
     /// <summary>
-    /// Reads every stored payload and lists the entries whose payload cannot be read (ADR-0074) — a full read of the index, for
-    /// maintenance. It is one read: one read connection and one snapshot, the guard of the handle checks inside it as a query does,
-    /// and the payloads are read through the same source as the hits of a query, so an entry is unreadable here exactly when a
-    /// query that met it would fail.
+    /// Hands every stored key and its payload bytes to <paramref name="visit"/>, in one snapshot (ADR-0074): the handle that knows the type of the
+    /// payload reads each in it. The layer knows no type and no serializer — it hands over what the file holds.
     /// </summary>
-    /// <typeparam name="TPayload">The payload type of the handle.</typeparam>
-    /// <param name="payloads">Where the payloads of the index come from: the serialisation of the handle.</param>
-    /// <param name="keyType">The key type of the index.</param>
+    /// <param name="visit">What the handle does with a key (as stored) and the stored payload (<see langword="null"/> when there is none).</param>
     /// <param name="cancellationToken">Checked between the entries.</param>
-    /// <returns>The key of each unreadable entry and why.</returns>
-    internal List<(LuiKey Key, string Message)> UnreadablePayloads<TPayload>(PayloadSource payloads, LuiKeyType keyType, CancellationToken cancellationToken)
+    internal void ReadPayloads(Action<string, byte[]?> visit, CancellationToken cancellationToken)
     {
         using var scope = database.Begin();
         using var connection = database.OpenReadConnection();
         using var snapshot = connection.BeginTransaction(deferred: true);
         guard?.Check(connection, snapshot);
 
-        var unreadable = new List<(LuiKey Key, string Message)>();
         using var command = Command(connection, snapshot, source.PayloadsSql);
         using var reader = command.ExecuteReader();
         while (reader.Read())
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var key = KeyCodec.FromText(reader.GetString(0), keyType, source.IndexName);
-            try
-            {
-                _ = payloads.Require<TPayload>(reader.IsDBNull(1) ? null : reader.GetFieldValue<byte[]>(1), key);
-            }
-            catch (LuiPayloadException exception)
-            {
-                unreadable.Add((key, exception.Message));
-            }
+            visit(reader.GetString(0), reader.IsDBNull(1) ? null : reader.GetFieldValue<byte[]>(1));
         }
-
-        return unreadable;
     }
 
     /// <summary>

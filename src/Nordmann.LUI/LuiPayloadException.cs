@@ -10,11 +10,11 @@ public sealed class LuiPayloadException : LuiException
 {
     /// <summary>Creates the exception.</summary>
     /// <param name="indexName">The index of the hit.</param>
-    /// <param name="key">The key of the hit.</param>
+    /// <param name="key">The key of the hit, as the file stores it: the invariant text of a number, the text of a string, a GUID in the form <c>D</c>.</param>
     /// <param name="requestedType">The type that was asked for.</param>
     /// <param name="reason">Why it cannot be read.</param>
     /// <param name="innerException">What the serialiser threw, if anything.</param>
-    public LuiPayloadException(string indexName, LuiKey key, Type requestedType, string reason, Exception? innerException = null)
+    public LuiPayloadException(string indexName, string key, Type requestedType, string reason, Exception? innerException = null)
         : base(
             $"The payload of the key '{key}' in the index '{indexName}' cannot be read as '{requestedType?.FullName}': {reason}",
             innerException!)
@@ -28,8 +28,8 @@ public sealed class LuiPayloadException : LuiException
     /// <summary>The index of the hit.</summary>
     public string IndexName { get; }
 
-    /// <summary>The key of the hit.</summary>
-    public LuiKey Key { get; }
+    /// <summary>The key of the hit, as the file stores it: the invariant text of a number, the text of a string, a GUID in the form <c>D</c> (ADR-0073: the exception is not generic).</summary>
+    public string Key { get; }
 
     /// <summary>The type that was asked for.</summary>
     public Type RequestedType { get; }

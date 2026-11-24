@@ -18,7 +18,7 @@ namespace Nordmann.LUI.Indexes;
 /// </para>
 /// </summary>
 #pragma warning disable CA1001 // see TypoDictionary: the lock of the dictionary needs no disposal, and an index lives as long as its catalog
-internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
+internal sealed class EmbeddedIndex : IMaintainedIndex
 #pragma warning restore CA1001
 {
     private static readonly LuiQueryOptions DefaultOptions = new();
@@ -31,13 +31,12 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     private const int SqliteCheckConstraintFailed = 275;
 
     private readonly EmbeddedSource _source;
-    private readonly LuiKeyType _keyType;
     private readonly TypoDictionary _typos;
     private readonly EmbeddedSync _sync;
     private readonly EmbeddedCheck _check;
 
     // asks, on the connection of every operation, whether the definition of the index is still the one in the file
-    // (ADR-0075); null for an index of the old path, which holds no definition
+    // (ADR-0075); null for an index that is built without a definition (the maintenance by name)
     private readonly IndexGuard? _guard;
 
     // The statements of the application's own connections, one set per connection.
@@ -59,30 +58,26 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         _source = source;
         Name = source.IndexName;
         Kind = source.Rules.Kind;
-        _keyType = KeyCodec.TypeOf(source.Definition.KeyType);
-        KeyKind = KeyCodec.KindOf(_keyType);
         _typos = typoDictionaries.For(Name, source.Normalization, () => TypoSource.Read(database, source.TextsSql), typoDistance, source.Definition.ToJson());
         _runner = new QueryRunner(
             database, source, hitPayload ?? new SerializedPayload(Name, payload), similarity, _typos, typoDistance, guard);
-        _sync = new EmbeddedSync(database, source, KeyText, PayloadBytes, _typos, guard);
-        _check = new EmbeddedCheck(database, source, KeyText, PayloadBytes, guard);
+        _sync = new EmbeddedSync(database, source, PayloadBytes, _typos, guard);
+        _check = new EmbeddedCheck(database, source, PayloadBytes, guard);
     }
 
     public string Name { get; }
 
     public LuiIndexKind Kind { get; }
 
-    public LuiKeyKind KeyKind { get; }
-
     public LuiTypoDistance TypoDistance => _runner.TypoDistance;
 
     public LuiTypoDictionaryState TypoDictionaryState => _typos.State;
 
-    public void Upsert(LuiEntry entry, SqliteTransaction? transaction = null)
+    public void Upsert(RawEntry entry, SqliteTransaction? transaction = null)
     {
         ArgumentNullException.ThrowIfNull(entry);
         _database.RefuseTheTransactionOfTheApplication("writing an entry", Name, transaction);
-        var keyText = KeyText(entry.Key);
+        var keyText = entry.Key;
         var bytes = PayloadBytes(entry.Payload);
 
         using var scope = _database.Begin();
@@ -114,16 +109,8 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         _typos.Add(entry.Text, entry.Weight);
     }
 
-    public void Upsert(
-        LuiKey key,
-        string text,
-        int weight = 0,
-        LuiPriority priority = LuiPriority.Normal,
-        SqliteTransaction? transaction = null) =>
-        Upsert(new LuiEntry(key, text) { Weight = weight, Priority = priority }, transaction);
-
     public int UpsertMany(
-        IEnumerable<LuiEntry> entries,
+        IEnumerable<RawEntry> entries,
         SqliteTransaction? transaction = null,
         CancellationToken cancellationToken = default)
     {
@@ -165,7 +152,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
     /// anyway, ADR-0015, ADR-0046).
     /// </summary>
     private void WriteOwnBatch(
-        IEnumerable<LuiEntry> entries,
+        IEnumerable<RawEntry> entries,
         List<(string Text, int Weight)> written,
         CancellationToken cancellationToken)
     {
@@ -181,7 +168,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
 
     private void WriteBatch(
         WriteStatements statements,
-        IEnumerable<LuiEntry> entries,
+        IEnumerable<RawEntry> entries,
         SqliteTransaction transaction,
         List<(string Text, int Weight)> written,
         CancellationToken cancellationToken)
@@ -191,14 +178,11 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
             cancellationToken.ThrowIfCancellationRequested();
             ArgumentNullException.ThrowIfNull(entry, nameof(entries));
 
-            var keyText = KeyText(entry.Key);
+            var keyText = entry.Key;
             statements.Upsert(keyText, entry.Text, entry.Weight, (int)entry.Priority, PayloadBytes(entry.Payload), transaction);
             written.Add((entry.Text, entry.Weight));
         }
     }
-
-    /// <summary>The stored text of a key; a key of the other kind, or one the key type does not allow, is refused (ADR-0035, ADR-0073).</summary>
-    private string KeyText(LuiKey key) => KeyCodec.ToText(key, _keyType, Name);
 
     /// <summary>
     /// The stored form of a payload (ADR-0035): <see langword="null"/> is "no payload" and is stored as NULL; any other
@@ -211,7 +195,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
             return null;
         }
 
-        // the payload is written by the serialisation of the index: the serializer of its declared payload type, or — on the old calls —
+        // the payload is written by the serialisation of the index: the serializer of its declared payload type —
         // the one of the catalog, with the type the payload has (ADR-0035, ADR-0072)
         return _payload.Serialize(payload, Name);
     }
@@ -228,7 +212,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         && exception.Message.Contains("doc_id", StringComparison.Ordinal);
 
     public LuiSyncReport Sync(
-        IEnumerable<LuiEntry> entries,
+        IEnumerable<RawEntry> entries,
         LuiSyncOptions? options = null,
         CancellationToken cancellationToken = default)
     {
@@ -247,18 +231,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         }
     }
 
-    public LuiSyncReport Sync(
-        IAsyncEnumerable<LuiEntry> entries,
-        LuiSyncOptions? options = null,
-        CancellationToken cancellationToken = default)
-    {
-        ArgumentNullException.ThrowIfNull(entries);
-
-        // the source may be asynchronous, the writes to SQLite are not (ADR-0016): the entries are awaited one by one
-        return Sync(entries.ToBlockingEnumerable(cancellationToken), options, cancellationToken);
-    }
-
-    public LuiIntegrityReport Check(IEnumerable<LuiEntry> entries, CancellationToken cancellationToken = default)
+    public LuiIntegrityReport Check(IEnumerable<RawEntry> entries, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -282,12 +255,14 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         }
     }
 
-    /// <summary>The entries whose payload cannot be read as <typeparamref name="TPayload"/>, by key (ADR-0074).</summary>
-    /// <typeparam name="TPayload">The payload type of the handle.</typeparam>
+    /// <summary>What reads the stored payloads of this index: the serializer of its payload type (ADR-0074).</summary>
+    internal PayloadSource Payloads => PayloadSource.Serialized(Name, _payload);
+
+    /// <summary>Hands every stored key and payload to <paramref name="visit"/> — the handle reads them in its types (ADR-0074).</summary>
+    /// <param name="visit">What the handle does with a key and a stored payload.</param>
     /// <param name="cancellationToken">Checked between the entries.</param>
-    /// <returns>The key of each unreadable entry and why.</returns>
-    internal List<(LuiKey Key, string Message)> UnreadablePayloads<TPayload>(CancellationToken cancellationToken) =>
-        _check.UnreadablePayloads<TPayload>(PayloadSource.Serialized(Name, _payload), _keyType, cancellationToken);
+    internal void ReadPayloads(Action<string, byte[]?> visit, CancellationToken cancellationToken) =>
+        _check.ReadPayloads(visit, cancellationToken);
 
     public void Rebuild()
     {
@@ -313,10 +288,10 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         }
     }
 
-    public bool UpdateWeight(LuiKey key, int weight, SqliteTransaction? transaction = null)
+    public bool UpdateWeight(string key, int weight, SqliteTransaction? transaction = null)
     {
         _database.RefuseTheTransactionOfTheApplication("changing the weight of an entry", Name, transaction);
-        var keyText = KeyText(key);
+        var keyText = key;
         RowId.ValidateWeight(weight);
 
         using var scope = _database.Begin();
@@ -340,10 +315,10 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         }
     }
 
-    public bool UpdatePriority(LuiKey key, LuiPriority priority, SqliteTransaction? transaction = null)
+    public bool UpdatePriority(string key, LuiPriority priority, SqliteTransaction? transaction = null)
     {
         _database.RefuseTheTransactionOfTheApplication("changing the priority of an entry", Name, transaction);
-        var keyText = KeyText(key);
+        var keyText = key;
         RowId.ValidatePriority(priority);
 
         using var scope = _database.Begin();
@@ -367,10 +342,10 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         }
     }
 
-    public bool Remove(LuiKey key, SqliteTransaction? transaction = null)
+    public bool Remove(string key, SqliteTransaction? transaction = null)
     {
         _database.RefuseTheTransactionOfTheApplication("removing an entry", Name, transaction);
-        var keyText = KeyText(key);
+        var keyText = key;
 
         using var scope = _database.Begin();
         try
@@ -419,9 +394,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
         return (long)command.ExecuteScalar()!;
     }
 
-    public LuiQuery Query(string text) => new(this, text);
-
-    public LuiResult Search(
+    public RawResult Search(
         string text,
         LuiQueryOptions? options = null,
         CancellationToken cancellationToken = default) =>
@@ -441,8 +414,7 @@ internal sealed class EmbeddedIndex : ILuiEmbeddedIndex, IMaintainedIndex
 
     /// <summary>
     /// A write of LUI's own, in one transaction that holds the write lock from the check to the commit (ADR-0075): nobody can drop the
-    /// index, or create it again, between the schema counter and the statement. An index of the old path has no guard to ask and
-    /// writes as a single statement, as it did.
+    /// index, or create it again, between the schema counter and the statement. An index that is built without a definition (the maintenance by name) has no guard to ask.
     /// </summary>
     private OwnWrite BeginOwnWrite()
     {

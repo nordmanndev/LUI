@@ -13,7 +13,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         tags.Upsert(7, "apfelkuchen", 10);
         tags.Upsert(7, "birnenkuchen", 20);
@@ -31,7 +31,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         tags.Upsert(1, "#Äpfel", 1);
 
@@ -45,7 +45,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         tags.Upsert(1, "kuchen a", 10);
         tags.Upsert(2, "kuchen b", 20);
         tags.Query("kuchen").Rank(LuiRankingOrder.WeightOnly).Execute().Hits[0].Key.ShouldBe(2);
@@ -61,7 +61,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         tags.Upsert(1, "kuchen a", 10);
         tags.Upsert(2, "kuchen b", 20);
 
@@ -77,7 +77,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         tags.UpdateWeight(99, 1).ShouldBeFalse();
         tags.UpdatePriority(99, LuiPriority.High).ShouldBeFalse();
@@ -89,7 +89,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         tags.Upsert(1, "apfelkuchen", 10);
 
         tags.Remove(1).ShouldBeTrue();
@@ -104,7 +104,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         for (var i = 1; i <= 50; i++)
         {
@@ -136,7 +136,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         Should.Throw<ArgumentOutOfRangeException>(() => tags.Upsert(1, "a", -1));
         Should.Throw<ArgumentOutOfRangeException>(() => tags.Upsert(1, "a", 536_870_912));
@@ -151,7 +151,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         tags.Upsert(1, "vegan", 536_870_911);
 
@@ -163,7 +163,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         Should.Throw<ArgumentException>(() => tags.Upsert(1, string.Empty, 1));
         Should.Throw<ArgumentNullException>(() => tags.Upsert(1, null!, 1));
@@ -174,7 +174,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().WithKey(LuiKeyKind.Text));
+        var tags = catalog.Create(new LuiIndexDefinition<string>("tags", index => index.SingleWord()));
 
         tags.Upsert("rezept-42", "apfelkuchen", 10);
         tags.UpdateWeight("rezept-42", 11).ShouldBeTrue();
@@ -188,7 +188,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         tags.Upsert(1, "apfelkuchen", 10);
 
         using (var connection = database.Connect())
@@ -220,12 +220,15 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
-        tags.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("vegan") });
+        var tags = catalog.Create(new LuiIndexDefinition<long, Chip>("tags", index => index.SingleWord()));
+        tags.Upsert(new LuiEntry<long, Chip>(1, "vegan", new Chip("vegan")) { Weight = 5 });
 
-        tags.Upsert(1, "vegan", 5);
+        // a handle with a payload has no write without one (ADR-0073): the short form takes the payload, and replaces the old one
+        tags.Upsert(1, "vegan", new Chip("other"), 5);
 
-        tags.Query("vegan").Execute().Hits.ShouldHaveSingleItem().HasPayload.ShouldBeFalse();
+        var hit = tags.Query("vegan").Execute().Hits.ShouldHaveSingleItem();
+        hit.Payload.ShouldBe(new Chip("other"));
+        hit.Weight.ShouldBe(5);
     }
 
     // review of pull request 6, B8: a transaction of another database
@@ -235,7 +238,7 @@ public sealed class EmbeddedWriteTests
         using var database = new TestDatabase();
         using var other = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
 
         using var connection = other.Connect();
         using var transaction = connection.BeginTransaction();
@@ -251,7 +254,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         using (var connection = database.Connect())
         {
             using var command = connection.CreateCommand();
@@ -270,14 +273,14 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
-        tags.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("v") });
-        tags.Upsert(new(2, "vegane torte") { Weight = 4, Payload = new Chip("t") });
+        var tags = catalog.Create(new LuiIndexDefinition<long, Chip>("tags", index => index.SingleWord()));
+        tags.Upsert(new LuiEntry<long, Chip>(1, "vegan", new Chip("v")) { Weight = 5 });
+        tags.Upsert(new LuiEntry<long, Chip>(2, "vegane torte", new Chip("t")) { Weight = 4 });
         var before = SearchIndexFingerprint(database);
 
         for (var i = 0; i < 50; i++)
         {
-            tags.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("v") });
+            tags.Upsert(new LuiEntry<long, Chip>(1, "vegan", new Chip("v")) { Weight = 5 });
         }
 
         SearchIndexFingerprint(database).ShouldBe(before);
@@ -289,16 +292,16 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
-        tags.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("v") });
+        var tags = catalog.Create(new LuiIndexDefinition<long, Chip>("tags", index => index.SingleWord()));
+        tags.Upsert(new LuiEntry<long, Chip>(1, "vegan", new Chip("v")) { Weight = 5 });
         var before = SearchIndexFingerprint(database);
 
-        tags.Upsert(new(1, "vegan") { Weight = 5, Payload = new Chip("changed") });
+        tags.Upsert(new LuiEntry<long, Chip>(1, "vegan", new Chip("changed")) { Weight = 5 });
         tags.UpdateWeight(1, 5);
         tags.UpdatePriority(1, LuiPriority.Normal);
 
         SearchIndexFingerprint(database).ShouldBe(before);
-        tags.Query("vegan").Execute().Hits.ShouldHaveSingleItem().GetPayload<Chip>().ShouldBe(new Chip("changed"));
+        tags.Query("vegan").Execute().Hits.ShouldHaveSingleItem().Payload.ShouldBe(new Chip("changed"));
     }
 
     // review of pull request 6, P1: a write that changes nothing leaves the search index alone
@@ -307,7 +310,7 @@ public sealed class EmbeddedWriteTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord()));
         tags.Upsert(1, "vegan", 5);
         var before = SearchIndexFingerprint(database);
 
@@ -330,22 +333,22 @@ public sealed class EmbeddedWriteTests
     [Fact]
     public void An_entry_checks_its_values_where_they_are_set()
     {
-        Should.Throw<ArgumentException>(() => new LuiEntry(1, string.Empty))
+        Should.Throw<ArgumentException>(() => new LuiEntry<long>(1, string.Empty))
             .Message.ShouldContain("Text");
-        Should.Throw<ArgumentNullException>(() => new LuiEntry(1, null!));
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry(1, "a") { Weight = -1 });
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry(1, "a") { Weight = 536_870_912 });
-        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry(1, "a") { Priority = (LuiPriority)7 });
+        Should.Throw<ArgumentNullException>(() => new LuiEntry<long>(1, null!));
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry<long>(1, "a") { Weight = -1 });
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry<long>(1, "a") { Weight = 536_870_912 });
+        Should.Throw<ArgumentOutOfRangeException>(() => new LuiEntry<long>(1, "a") { Priority = (LuiPriority)7 });
 
-        var entry = new LuiEntry(1, "a");
-        Should.Throw<ArgumentException>(() => entry with { Text = string.Empty });
+        // the text is set once, in the constructor (the property is get-only): there is no later place where it could be emptied
+        typeof(LuiEntry<long>).GetProperty(nameof(LuiEntry<long>.Text))!.SetMethod.ShouldBeNull();
     }
 
     // the shape of the API before 0.1.0 (ADR-0013), the entry
     [Fact]
     public void An_entry_is_normal_and_weightless_unless_it_says_otherwise()
     {
-        var entry = new LuiEntry(1, "vegan");
+        var entry = new LuiEntry<long>(1, "vegan");
 
         entry.Weight.ShouldBe(0);
         entry.Priority.ShouldBe(LuiPriority.Normal);
@@ -353,17 +356,17 @@ public sealed class EmbeddedWriteTests
 
     // the shape of the API before 0.1.0 (ADR-0013), the entry
     [Fact]
-    public void The_short_form_of_the_upsert_replaces_the_whole_entry_and_clears_the_payload()
+    public void The_short_form_of_the_upsert_replaces_the_whole_entry_and_resets_what_it_does_not_name()
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord());
+        var tags = catalog.Create(new LuiIndexDefinition<long, Chip>("tags", index => index.SingleWord()));
 
-        tags.Upsert(new LuiEntry(1, "vegan") { Weight = 5, Payload = new Chip("v"), Priority = LuiPriority.System });
-        tags.Upsert(1, "vegan", 7);
+        tags.Upsert(new LuiEntry<long, Chip>(1, "vegan", new Chip("v")) { Weight = 5, Priority = LuiPriority.System });
+        tags.Upsert(1, "vegan", new Chip("w"), 7);
 
         var hit = tags.Search("vegan").Hits.ShouldHaveSingleItem();
-        hit.HasPayload.ShouldBeFalse();
+        hit.Payload.ShouldBe(new Chip("w"));
         hit.Weight.ShouldBe(7);
         hit.Priority.ShouldBe(LuiPriority.Normal);
     }

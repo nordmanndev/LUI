@@ -71,9 +71,8 @@ using var catalog = LuiCatalog.OpenOrCreate("app.db");
 
 // A linked index: the text is the column "title", the key is the column "id",
 // the popularity is the column "views".
-var articles = catalog.CreateLinked(
-    "articles",
-    index => index.MultiWord().LinkTo(table: "article", key: "id", text: "title", weight: "views"));
+var articles = catalog.Create(new LuiLinkedIndexDefinition<long>("articles",
+    index => index.MultiWord().LinkTo(table: "article", key: "id", text: "title", weight: "views")));
 
 // The index starts empty — the sync fills it.
 var report = articles.Sync();
@@ -117,9 +116,8 @@ using Microsoft.Data.Sqlite;
 using Nordmann.LUI;
 
 using var catalog = LuiCatalog.OpenOrCreate("app.db");
-var articles = catalog.CreateLinked(
-    "articles",
-    index => index.MultiWord().LinkTo(table: "article", key: "id", text: "title", weight: "views"));
+var articles = catalog.Create(new LuiLinkedIndexDefinition<long>("articles",
+    index => index.MultiWord().LinkTo(table: "article", key: "id", text: "title", weight: "views")));
 
 using (var connection = new SqliteConnection("Data Source=app.db"))
 {
@@ -156,9 +154,8 @@ using Microsoft.Data.Sqlite;
 using Nordmann.LUI;
 
 using var catalog = LuiCatalog.OpenOrCreate("app.db");
-var articles = catalog.CreateLinked(
-    "articles",
-    index => index.MultiWord().LinkTo(table: "article", key: "id", text: "title", weight: "views"));
+var articles = catalog.Create(new LuiLinkedIndexDefinition<long>("articles",
+    index => index.MultiWord().LinkTo(table: "article", key: "id", text: "title", weight: "views")));
 
 // The script for the application's own migration.
 Console.WriteLine(articles.TriggerScript());

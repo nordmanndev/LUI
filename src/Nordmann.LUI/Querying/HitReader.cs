@@ -11,12 +11,11 @@ namespace Nordmann.LUI.Querying;
 /// </summary>
 internal sealed class HitReader(ContentSource source, PayloadReader payload)
 {
-    private readonly LuiKeyType _keyType = KeyCodec.TypeOf(source.Definition.KeyType);
     private readonly NormalizationOptions _normalization = source.Normalization;
     private readonly string?[] _hitsSql = new string?[LuiQueryOptions.MaxResultsLimit + 1];
     private readonly string?[] _hitsWithTextSql = new string?[LuiQueryOptions.MaxResultsLimit + 1];
 
-    internal List<LuiHit> Read(
+    internal List<RawHit> Read(
         SqliteConnection connection,
         SqliteTransaction snapshot,
         Scored[] ranked,
@@ -27,7 +26,7 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
         bool wordStartFromHits,
         string compactQuery)
     {
-        var hits = new List<LuiHit>(ranked.Length);
+        var hits = new List<RawHit>(ranked.Length);
         if (ranked.Length == 0)
         {
             return hits;
@@ -100,10 +99,10 @@ internal sealed class HitReader(ContentSource source, PayloadReader payload)
             : entry.Similarity;
     }
 
-    private LuiHit Hit(in Scored entry, string key, object? stored, double similarity) =>
+    private RawHit Hit(in Scored entry, string key, object? stored, double similarity) =>
         new()
         {
-            Key = KeyCodec.FromText(key, _keyType, source.IndexName),
+            Key = key,
             Text = entry.Text,
             StoredPayload = stored,
             PayloadSource = payload.Source,

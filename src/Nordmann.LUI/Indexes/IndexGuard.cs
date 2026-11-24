@@ -83,12 +83,14 @@ internal sealed class IndexGuard : IConnectionGuard
     /// <summary>
     /// The same check for an operation that opens no connection of its own at its start — the typo dictionary: it takes a read
     /// connection for the one statement. The operations that write or check inside transactions of their own check inside them.
+    /// The caller holds the scope of its operation: the check begins none of its own.
     /// </summary>
     internal void Check()
     {
         ThrowIfFailed();
 
-        using var scope = _stored.Database.Begin();
+        // no operation of its own: the callers hold the scope of the operation they check for — a dispose that waits for it must
+        // not make the check at the end of the work fail with ObjectDisposedException
         using var connection = _stored.Database.OpenReadConnection();
 
         // the counter and the row in one snapshot: the counter that is published is the one of the row that was judged

@@ -26,7 +26,7 @@ public sealed class AllocationPoolTests
     {
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var tags = catalog.Create("tags", index => index.SingleWord().TypoTolerance());
+        var tags = catalog.Create(new LuiIndexDefinition<long>("tags", index => index.SingleWord().TypoTolerance()));
 
         // a small corpus is enough: the buffers are lent by the budget, not by the number of the
         // candidates that are read
@@ -74,11 +74,11 @@ public sealed class AllocationPoolTests
     }
 
     /// <summary>A query with a typo: the union of the corrections is the biggest buffer of a query.</summary>
-    private static void Search(ILuiIndex index, int budget) =>
+    private static void Search(LuiIndex<long> index, int budget) =>
         index.Search("apfael", new LuiQueryOptions { Candidates = budget, MaxResults = 20, TypoTolerance = true });
 
     /// <summary>The allocation of one query, after a warm-up query with the same options.</summary>
-    private static long Measure(ILuiIndex index, int budget)
+    private static long Measure(LuiIndex<long> index, int budget)
     {
         Search(index, budget);
 

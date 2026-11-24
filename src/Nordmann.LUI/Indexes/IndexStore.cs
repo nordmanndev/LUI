@@ -387,9 +387,9 @@ internal static class IndexStore
             ? left is null && right is null
             : left.SequenceEqual(right, StringComparer.Ordinal);
 
-    private static void Add<T>(List<string> fields, string name, T stored, T declared)
+    private static void Add(List<string> fields, string name, object? stored, object? declared)
     {
-        if (!EqualityComparer<T>.Default.Equals(stored, declared))
+        if (!Equals(stored, declared))
         {
             fields.Add(name);
         }

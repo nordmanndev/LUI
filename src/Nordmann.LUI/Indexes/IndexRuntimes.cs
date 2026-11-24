@@ -62,7 +62,7 @@ internal sealed class IndexRuntimes(Database database, TypoDictionaries typos, P
                     guard,
 
                     // a handle without a payload type has no payload (ADR-0074): the statement of its hits has no payload column,
-                    // and the bytes that the old calls may have stored are never copied
+                    // and the bytes that another program may have stored are never copied
                     hitPayload: codec is null ? new NoPayload(name) : null),
                 guard);
         }

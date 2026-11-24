@@ -145,7 +145,7 @@ public sealed class HitPayloadTests
         var exception = Should.Throw<LuiPayloadException>(() => chips.Search("vegan"));
 
         exception.IndexName.ShouldBe("chips");
-        exception.Key.ShouldBe((LuiKey)2L);
+        exception.Key.ShouldBe("2");
         exception.RequestedType.ShouldBe(typeof(Chip));
         exception.InnerException.ShouldNotBeNull();
         exception.Message.ShouldContain("'chips'", Case.Sensitive);
@@ -169,7 +169,7 @@ public sealed class HitPayloadTests
         var exception = Should.Throw<LuiPayloadException>(() => chips.Search("vegan"));
 
         exception.IndexName.ShouldBe("named_chips");
-        exception.Key.ShouldBe((LuiKey)"alpha");
+        exception.Key.ShouldBe("alpha");
         exception.Message.ShouldContain("'alpha'", Case.Sensitive);
     }
 
@@ -185,7 +185,7 @@ public sealed class HitPayloadTests
         var exception = Should.Throw<LuiPayloadException>(() => chips.Search("vegan"));
 
         exception.IndexName.ShouldBe("chips");
-        exception.Key.ShouldBe((LuiKey)1L);
+        exception.Key.ShouldBe("1");
         exception.RequestedType.ShouldBe(typeof(Chip));
     }
 
@@ -204,7 +204,7 @@ public sealed class HitPayloadTests
         var exception = Should.Throw<LuiPayloadException>(() => chips.Search("vegan"));
 
         exception.IndexName.ShouldBe("chips");
-        exception.Key.ShouldBe((LuiKey)2L);
+        exception.Key.ShouldBe("2");
         exception.RequestedType.ShouldBe(typeof(Chip));
         exception.InnerException.ShouldBeOfType<FormatException>();
         exception.Message.ShouldContain("'chips'", Case.Sensitive);
@@ -226,7 +226,7 @@ public sealed class HitPayloadTests
         var exception = Should.Throw<LuiPayloadException>(() => chips.Search("vegan"));
 
         exception.IndexName.ShouldBe("chips");
-        exception.Key.ShouldBe((LuiKey)2L);
+        exception.Key.ShouldBe("2");
         exception.RequestedType.ShouldBe(typeof(Chip));
         exception.Message.ShouldContain("null", Case.Insensitive);
     }
@@ -296,18 +296,20 @@ public sealed class HitPayloadTests
     [Fact]
     public void A_query_without_payload_allocates_nothing_for_payloads()
     {
-        // the old calls could store a payload in an index that has no declared payload type; a typed handle without a payload type
-        // does not read it — the statement of its hits has no payload column, so the bytes are never copied (ADR-0074)
+        // an index that has no declared payload type may still hold bytes in its payload column (written by another program, or left by
+        // an older version); a typed handle without a payload type does not read them — the statement of its hits has no payload column,
+        // so the bytes are never copied (ADR-0074)
         using var database = new TestDatabase();
         using var catalog = database.Open();
-        var plain = catalog.Create("plain", index => index.SingleWord());
-        var bare = catalog.Create("bare", index => index.SingleWord());
-        var big = new Chip(new string('x', 4_000));
+        var plain = catalog.Create(new LuiIndexDefinition<long>("plain", index => index.SingleWord()));
+        var bare = catalog.Create(new LuiIndexDefinition<long>("bare", index => index.SingleWord()));
         for (var key = 1; key <= 60; key++)
         {
-            plain.Upsert(new LuiEntry(key, $"apfel{key}") { Weight = key, Payload = big });
-            bare.Upsert(new LuiEntry(key, $"apfel{key}") { Weight = key });
+            plain.Upsert(new LuiEntry<long>(key, $"apfel{key}") { Weight = key });
+            bare.Upsert(new LuiEntry<long>(key, $"apfel{key}") { Weight = key });
         }
+
+        Execute(database, "UPDATE lui_plain SET payload = zeroblob(4000);");
 
         var withStoredPayloads = catalog.Index(Plain);
         var withoutPayloads = catalog.Index(Bare);

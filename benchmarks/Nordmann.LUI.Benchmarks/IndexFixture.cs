@@ -63,22 +63,22 @@ internal sealed class IndexFixture : IDisposable
     /// none, there is no dictionary and a query with the correction on skips the correction (issue #179): the benchmark
     /// of the correction would measure the path without it.
     /// </summary>
-    private ILuiIndex CreateEmbedded(Corpus corpus)
+    private LuiIndex<long> CreateEmbedded(Corpus corpus)
     {
         var index = corpus.Kind == CorpusKind.MultiWord
-            ? _catalog.Create("bench", builder => builder.MultiWord().TypoTolerance())
-            : _catalog.Create("bench", builder => builder.SingleWord().TypoTolerance());
+            ? _catalog.Create(new LuiIndexDefinition<long>("bench", builder => builder.MultiWord().TypoTolerance()))
+            : _catalog.Create(new LuiIndexDefinition<long>("bench", builder => builder.SingleWord().TypoTolerance()));
         index.Sync(corpus.Entries(), new LuiSyncOptions { BatchSize = 100_000 });
         return index;
     }
 
     /// <summary>A linked index: the content lives in a table of the application, and the index follows it.</summary>
-    private ILuiIndex CreateLinked(Corpus corpus)
+    private LuiIndex<long> CreateLinked(Corpus corpus)
     {
         CreateTable(corpus);
         var index = corpus.Kind == CorpusKind.MultiWord
-            ? _catalog.CreateLinked("bench", builder => builder.MultiWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count"))
-            : _catalog.CreateLinked("bench", builder => builder.SingleWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count"));
+            ? _catalog.Create(new LuiLinkedIndexDefinition<long>("bench", builder => builder.MultiWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count")))
+            : _catalog.Create(new LuiLinkedIndexDefinition<long>("bench", builder => builder.SingleWord().TypoTolerance().LinkTo("tag", "id", "name", weight: "usage_count")));
         index.Sync();
         return index;
     }
@@ -121,17 +121,17 @@ internal sealed class IndexFixture : IDisposable
     internal Corpus Corpus { get; }
 
     /// <summary>The index itself.</summary>
-    internal ILuiIndex Index { get; }
+    internal LuiIndex<long> Index { get; }
 
     /// <summary>The embedded index itself: the write benchmarks write into it.</summary>
-    internal ILuiEmbeddedIndex Embedded => Index as ILuiEmbeddedIndex
+    internal LuiEmbeddedIndex<long> Embedded => Index as LuiEmbeddedIndex<long>
         ?? throw new InvalidOperationException("The index is not an embedded one — a linked index is written by the application.");
 
     /// <summary>The journal mode of the database the index lives in — a report without it is a number without a place.</summary>
     internal string JournalMode => _database.Scalar<string>("PRAGMA journal_mode;");
 
     /// <summary>The entries of the corpus, for the write benchmarks.</summary>
-    internal IEnumerable<LuiEntry> Entries => Corpus.Entries();
+    internal IEnumerable<LuiEntry<long>> Entries => Corpus.Entries();
 
     /// <summary>
     /// Builds the typo dictionary before the measurement begins, if the case corrects: the build of the dictionary is
@@ -147,10 +147,10 @@ internal sealed class IndexFixture : IDisposable
 
         switch (Index)
         {
-            case ILuiEmbeddedIndex embedded:
+            case LuiEmbeddedIndex<long> embedded:
                 embedded.WarmUpTypoDictionary();
                 break;
-            case ILuiLinkedIndex linked:
+            case LuiLinkedIndex<long> linked:
                 linked.WarmUpTypoDictionary();
                 break;
             default:

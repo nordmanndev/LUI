@@ -68,8 +68,11 @@ public sealed class LinkedIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.Throw<ArgumentException>(() => catalog.CreateLinked("tags", index => index.SingleWord().LinkTo(name, "id", "name")));
-        Should.Throw<ArgumentException>(() => catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", name)));
+        // a definition that is not valid is a configuration error (ADR-0073) whose cause is the argument that was refused
+        Should.Throw<LuiConfigurationException>(() => catalog.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo(name, "id", "name"))))
+            .InnerException.ShouldBeOfType<ArgumentException>();
+        Should.Throw<LuiConfigurationException>(() => catalog.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", name))))
+            .InnerException.ShouldBeOfType<ArgumentException>();
     }
 
     // ---- the lifetime of the index -----------------------------------------------------------------------------------
@@ -99,7 +102,7 @@ public sealed class LinkedIndexTests
         using var catalog = database.Open();
         Tags(catalog);
 
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "slug")));
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", "slug"))));
         Should.NotThrow(() => Tags(catalog));
     }
 
@@ -124,7 +127,7 @@ public sealed class LinkedIndexTests
         Run(database, "CREATE TABLE \"Tags\" (\"Id\" INTEGER PRIMARY KEY, \"Name\" TEXT NOT NULL, \"UsageCount\" INTEGER NOT NULL);");
         Run(database, "INSERT INTO \"Tags\" VALUES (1, 'vegan', 5);");
         using var catalog = database.Open();
-        var tags = catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("Tags", "Id", "Name", weight: "UsageCount"));
+        var tags = catalog.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("Tags", "Id", "Name", weight: "UsageCount")));
 
         tags.Sync().Indexed.ShouldBe(1);
         tags.Search("veg").Hits.ShouldHaveSingleItem().Weight.ShouldBe(5);
@@ -160,8 +163,9 @@ public sealed class LinkedIndexTests
         using var database = new TestDatabase();
         using var catalog = database.Open();
 
-        Should.Throw<ArgumentException>(() => catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "name")
-            .WithPayload(["slug", "Slug"], row => row.GetString("slug"))));
+        Should.Throw<LuiConfigurationException>(() => catalog.Create(new LuiLinkedIndexDefinition<long, string>("tags", index => index.SingleWord().LinkTo("tag", "id", "name")
+            .WithPayload(["slug", "Slug"], row => row.GetString("slug")))))
+            .InnerException.ShouldBeOfType<ArgumentException>();
     }
 
     // ---- the re-review of pull request 16 ------------------------------------------------------------------------------
@@ -175,9 +179,9 @@ public sealed class LinkedIndexTests
         using var catalog = database.Open();
         Tags(catalog);
 
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.CreateLinked("tags", index => index.SingleWord().LinkTo("tag", "id", "slug")))
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(new LuiLinkedIndexDefinition<long>("tags", index => index.SingleWord().LinkTo("tag", "id", "slug"))))
             .Message.ShouldContain("dropTriggers: true");
-        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create("embedded", index => index.SingleWord()).Count() + catalog.Create("embedded", index => index.MultiWord()).Count())
+        Should.Throw<LuiDefinitionMismatchException>(() => catalog.Create(new LuiIndexDefinition<long>("embedded", index => index.SingleWord())).Count() + catalog.Create(new LuiIndexDefinition<long>("embedded", index => index.MultiWord())).Count())
             .Message.ShouldNotContain("dropTriggers");
     }
 
@@ -189,11 +193,12 @@ public sealed class LinkedIndexTests
         using var catalog = database.Open();
 
         Should.Throw<InvalidOperationException>(
-            () => catalog.CreateLinked("tags", index => index.SingleWord().WithKey(LuiKeyKind.Text).LinkTo("tag", "id", "name")))
+            () => catalog.Create(new LuiLinkedIndexDefinition<string>("tags", index => index.SingleWord().LinkTo("tag", "id", "name"))))
             .Message.ShouldContain("INTEGER PRIMARY KEY");
 
-        // issue #105: KeyKind of a linked index was read in no test
+        // issue #105: the key type of a linked index was read in no test
         Run(database, Table);
-        Tags(catalog).KeyKind.ShouldBe(LuiKeyKind.Number);
+        Tags(catalog);
+        catalog.Indexes().ShouldHaveSingleItem().KeyType.ShouldBe(LuiKeyType.Long);
     }
 }

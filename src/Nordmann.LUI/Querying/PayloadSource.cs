@@ -2,8 +2,8 @@ namespace Nordmann.LUI.Querying;
 
 /// <summary>
 /// Where the payload of a hit comes from (ADR-0035): one per index, shared by all its hits. An embedded index hands out
-/// the stored bytes and reads them with the serialisation of the index — the serializer of its payload type, the registry of the
-/// catalog, or the serialiser of the old calls (ADR-0072); a linked index hands out what its map built.
+/// the stored bytes and reads them with the serialisation of the index — the
+/// codec of its type (ADR-0072); a linked index hands out what its map built.
 /// </summary>
 /// <param name="indexName">The index, for the message of an error.</param>
 /// <param name="serialization">How the stored bytes are read; <see langword="null"/> when the payload is already built.</param>
@@ -20,7 +20,7 @@ internal sealed class PayloadSource(string indexName, PayloadSerialization? seri
     /// The payload of a hit of an index with a payload type (ADR-0074): it has to be there, and it has to be readable. An entry whose
     /// payload is not stored, and a map that returned <see langword="null"/>, are as much a failure as bytes that cannot be read.
     /// </summary>
-    internal T Require<T>(object? stored, LuiKey key) =>
+    internal T Require<T>(object? stored, string key) =>
         stored is null
             ? throw new LuiPayloadException(
                 indexName,
@@ -30,7 +30,7 @@ internal sealed class PayloadSource(string indexName, PayloadSerialization? seri
             : Read<T>(stored, key);
 
     /// <summary>Reads a stored payload as <typeparamref name="T"/>.</summary>
-    internal T Read<T>(object stored, LuiKey key)
+    internal T Read<T>(object stored, string key)
     {
         if (!serialized)
         {
@@ -43,7 +43,7 @@ internal sealed class PayloadSource(string indexName, PayloadSerialization? seri
         if (serialization is not { CanRead: true })
         {
             throw new LuiPayloadException(
-                indexName, key, typeof(T), "the catalog has no serialiser — set LuiCatalogOptions.Payloads (or, for the old calls, PayloadSerializer).");
+                indexName, key, typeof(T), "the catalog has no serialiser — set LuiCatalogOptions.Payloads.");
         }
 
         try
